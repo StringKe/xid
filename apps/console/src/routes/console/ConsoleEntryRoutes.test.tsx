@@ -22,7 +22,14 @@ const authState = vi.hoisted(
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
-  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
+  useLingui: () => ({
+    t: (strings: TemplateStringsArray) => strings[0],
+    i18n: { _: (descriptor: { message?: string }) => descriptor.message ?? '' },
+  }),
+}))
+
+vi.mock('@lingui/core/macro', () => ({
+  msg: (strings: TemplateStringsArray) => ({ id: strings.join(''), message: strings.join('') }),
 }))
 
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
@@ -154,6 +161,17 @@ describe('Console entry routes', () => {
     authState.organizations = [org]
 
     expect(renderToStaticMarkup(<ConsoleUsersEntry />)).toContain(
+      'data-navigate-to="/console/org/users"',
+    )
+  })
+
+  it('sends admins of a child organization to members because the user directory is tenant-wide', () => {
+    const child: AuthOrg = { ...org, id: 'org_child', parentOrgId: 'org_1' }
+    authState.user = user
+    authState.activeOrg = child
+    authState.organizations = [child]
+
+    expect(renderToStaticMarkup(<ConsoleUsersEntry />)).toContain(
       'data-navigate-to="/console/org/members"',
     )
   })
@@ -229,13 +247,13 @@ describe('Console entry routes', () => {
     expect(renderToStaticMarkup(<ConsoleHomeEntry />)).toContain('data-navigate-to="/console/org"')
   })
 
-  it('sends active organization users to org routes', () => {
+  it('sends active top-level organization admins to the user directory', () => {
     authState.user = user
     authState.activeOrg = org
     authState.organizations = [org]
 
     expect(renderToStaticMarkup(<ConsoleUsersEntry />)).toContain(
-      'data-navigate-to="/console/org/members"',
+      'data-navigate-to="/console/org/users"',
     )
   })
 
@@ -247,22 +265,22 @@ describe('Console entry routes', () => {
     const html = renderToStaticMarkup(<ConsoleSettingsEntry />)
 
     expect(html).toContain('Settings')
-    expect(html).toContain('Auth policy')
-    expect(html).toContain('Delivery channels')
-    expect(html).toContain('Social providers')
+    expect(html).toContain('Sign-in &amp; MFA')
+    expect(html).toContain('Messaging')
+    expect(html).toContain('Social login')
     expect(html).toContain('data-link-to="/console/org/auth-policy"')
     expect(html).toContain('data-link-to="/console/org/delivery-channels"')
     expect(html).toContain('data-link-to="/console/org/social-providers"')
-    expect(html).toContain('SCIM targets')
+    expect(html).toContain('Provisioning')
     expect(html).toContain('data-link-to="/console/org/scim-targets"')
-    expect(html).toContain('Inbound SSO')
+    expect(html).toContain('Enterprise SSO')
     expect(html).toContain('data-link-to="/console/org/sso"')
-    expect(html).toContain('Outbound SSO')
+    expect(html).toContain('SAML apps')
     expect(html).toContain('data-link-to="/console/org/outbound-sso"')
     expect(html).toContain('Projects')
     expect(html).toContain('data-link-to="/console/org/projects"')
-    expect(html).toContain('Roles and permissions')
-    expect(html).toContain('data-link-to="/console/org/roles"')
+    expect(html).toContain('Users')
+    expect(html).toContain('data-link-to="/console/org/users"')
     expect(html).toContain('Members')
     expect(html).toContain('data-link-to="/console/org/members"')
     expect(html).toContain('Compliance')
@@ -278,8 +296,8 @@ describe('Console entry routes', () => {
     const html = renderToStaticMarkup(<ConsoleSettingsEntry />)
 
     expect(html).toContain('Settings')
-    expect(html).toContain('Delivery channels')
-    expect(html).toContain('Social providers')
+    expect(html).toContain('Messaging')
+    expect(html).toContain('Social login')
     expect(html).toContain('data-link-to="/console/org/delivery-channels"')
     expect(html).toContain('data-link-to="/console/org/social-providers"')
     expect(html).not.toContain('data-navigate-to="/console/platform/settings"')

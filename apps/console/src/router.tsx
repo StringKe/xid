@@ -14,6 +14,8 @@ import { ConsoleWebMcpTools } from './components/ConsoleWebMcpTools'
 import { ConsoleLayout } from './components/layout/ConsoleLayout'
 import { CONSOLE_NAV, ORG_NAV, PLATFORM_NAV } from './nav'
 import { RequireAuth } from '@xid-kit/web-ui/RequireAuth'
+import { useAuth } from '@xid-kit/web-ui/session'
+import { Navigate, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
 import { RouteMetadata } from './components/RouteMetadata'
 import {
   ConsoleOrganizationsEntry,
@@ -90,6 +92,111 @@ function orgRoute(id: string, path: string, load: PageLoader) {
   )
 }
 
+// Project 详情另允许被委派的 Project Manager 进入(他们不是组织管理员)。
+function RequireProjectAccess({
+  projectId,
+  children,
+}: {
+  projectId: string
+  children: ReactNode
+}): ReactNode {
+  const { managerAssignments } = useAuth()
+  const delegated = managerAssignments.some(
+    (assignment) =>
+      assignment.managerRole === 'project_manager' && assignment.scopeId === projectId,
+  )
+  if (delegated) return children
+  return <RequireActiveOrganization>{children}</RequireActiveOrganization>
+}
+
+const userDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/console/org/users/$userId',
+}).lazy(() =>
+  import('./routes/users/UserDetail').then(({ default: Page }) =>
+    createLazyRoute('/console/org/users/$userId')({
+      component: function UserDetailRoute() {
+        const { userId } = userDetailRoute.useParams()
+        return (
+          <RequireAuth>
+            <RequireActiveOrganization>
+              <ConsoleLayout navItems={ORG_NAV}>
+                <Page userId={userId} />
+              </ConsoleLayout>
+            </RequireActiveOrganization>
+          </RequireAuth>
+        )
+      },
+    }),
+  ),
+)
+
+const projectDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/console/org/projects/$projectId',
+}).lazy(() =>
+  import('./routes/projects/ProjectDetail').then(({ default: Page }) =>
+    createLazyRoute('/console/org/projects/$projectId')({
+      component: function ProjectDetailRoute() {
+        const { projectId } = projectDetailRoute.useParams()
+        return (
+          <RequireAuth>
+            <RequireProjectAccess projectId={projectId}>
+              <ConsoleLayout navItems={ORG_NAV}>
+                <Page projectId={projectId} />
+              </ConsoleLayout>
+            </RequireProjectAccess>
+          </RequireAuth>
+        )
+      },
+    }),
+  ),
+)
+
+const applicationDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/console/org/applications/$applicationId',
+}).lazy(() =>
+  import('./routes/applications/ApplicationDetail').then(({ default: Page }) =>
+    createLazyRoute('/console/org/applications/$applicationId')({
+      component: function ApplicationDetailRoute() {
+        const { applicationId } = applicationDetailRoute.useParams()
+        return (
+          <RequireAuth>
+            <ConsoleLayout navItems={ORG_NAV}>
+              <Page applicationId={applicationId} />
+            </ConsoleLayout>
+          </RequireAuth>
+        )
+      },
+    }),
+  ),
+)
+
+// 角色与权限归属到项目内(roles 在 project 内唯一),旧入口落到项目列表。
+function RolesRedirect(): ReactNode {
+  const [params] = useSearchParams()
+  const orgId = params.get('orgId')
+  return (
+    <Navigate
+      to={
+        orgId ? `/console/org/projects?orgId=${encodeURIComponent(orgId)}` : '/console/org/projects'
+      }
+      replace
+    />
+  )
+}
+
+const rolesRedirectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/console/org/roles',
+  component: () => (
+    <RequireAuth>
+      <RolesRedirect />
+    </RequireAuth>
+  ),
+})
+
 function platformRoute(id: string, path: string, load: PageLoader) {
   return createRoute({ getParentRoute: () => rootRoute, path }).lazy(() =>
     load().then((module) => {
@@ -155,13 +262,17 @@ const consoleSettingsRoute = createRoute({
 
 const orgRoutes = [
   orgRoute('/console/org', '/console/org', () => import('./routes/org/OrgOverview')),
-  orgRoute('/console/org/members', '/console/org/members', () => import('./routes/org/OrgMembers')),
+  orgRoute('/console/org/users', '/console/org/users', () => import('./routes/users/UsersList')),
+  orgRoute(
+    '/console/org/members',
+    '/console/org/members',
+    () => import('./routes/members/MembersPage'),
+  ),
   orgRoute(
     '/console/org/projects',
     '/console/org/projects',
-    () => import('./routes/org/OrgProjects'),
+    () => import('./routes/projects/ProjectsList'),
   ),
-  orgRoute('/console/org/roles', '/console/org/roles', () => import('./routes/org/OrgRoles')),
   orgRoute(
     '/console/org/auth-policy',
     '/console/org/auth-policy',
@@ -198,7 +309,7 @@ const orgRoutes = [
   orgRoute(
     '/console/org/applications',
     '/console/org/applications',
-    () => import('./routes/org/OrgApplications'),
+    () => import('./routes/applications/ApplicationsList'),
   ),
   orgRoute(
     '/console/org/webhooks',
@@ -292,6 +403,7 @@ export const CONSOLE_SPA_ROUTE_PATHS = [
   '/console/organizations',
   '/console/settings',
   '/console/org',
+  '/console/org/users',
   '/console/org/members',
   '/console/org/projects',
   '/console/org/roles',
@@ -346,6 +458,10 @@ const routeTree = rootRoute.addChildren([
   consoleOrganizationsRoute,
   consoleSettingsRoute,
   ...orgRoutes,
+  rolesRedirectRoute,
+  userDetailRoute,
+  projectDetailRoute,
+  applicationDetailRoute,
   ...platformRoutes,
   notFoundRoute,
 ])

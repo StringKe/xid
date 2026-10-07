@@ -2358,10 +2358,10 @@ async function checkOrgConsoleRoutes(page) {
     text: a.textContent?.trim() ?? '',
   }))`)
   const hasDeliveryChannelsNav = links.some(
-    (link) => link.href === '/console/org/delivery-channels' && link.text === 'Delivery channels',
+    (link) => link.href === '/console/org/delivery-channels' && link.text === 'Messaging',
   )
   if (!hasDeliveryChannelsNav) {
-    throw new Error('org navigation missing Delivery channels')
+    throw new Error('org navigation missing Messaging')
   }
 
   printResult(
@@ -2387,8 +2387,8 @@ async function checkConsoleSettingsOverview(page) {
   await page.waitFor(
     () =>
       document.body.innerText.includes('Settings') &&
-      document.body.innerText.includes('Auth policy') &&
-      document.body.innerText.includes('Social providers'),
+      document.body.innerText.includes('Sign-in & MFA') &&
+      document.body.innerText.includes('Social login'),
     15_000,
     `${path} settings overview`,
   )
@@ -2396,22 +2396,22 @@ async function checkConsoleSettingsOverview(page) {
   if (snapshot.pathname !== path) throw new Error(`${path} pathname mismatch: ${snapshot.href}`)
   assertSignedInSnapshot(snapshot, path, smokeEmail)
   const requiredText = [
-    'Auth policy',
-    'Social providers',
-    'Inbound SSO',
-    'Outbound SSO',
+    'Sign-in & MFA',
+    'Social login',
+    'Enterprise SSO',
+    'SAML apps',
     'Directory sync',
-    'SCIM targets',
-    'Delivery channels',
+    'Provisioning',
+    'Messaging',
     'Applications',
     'Projects',
-    'Roles and permissions',
     'API keys',
     'Webhooks',
     'Domains',
     'Branding',
+    'Users',
     'Members',
-    'Audit events',
+    'Audit log',
     'Compliance',
   ]
   for (const text of requiredText) {

@@ -19,7 +19,14 @@ const authState = vi.hoisted(
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
-  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
+  useLingui: () => ({
+    t: (strings: TemplateStringsArray) => strings[0],
+    i18n: { _: (descriptor: { message?: string }) => descriptor.message ?? '' },
+  }),
+}))
+
+vi.mock('@lingui/core/macro', () => ({
+  msg: (strings: TemplateStringsArray) => ({ id: strings.join(''), message: strings.join('') }),
 }))
 
 vi.mock('@xid-kit/web-ui/session', () => ({

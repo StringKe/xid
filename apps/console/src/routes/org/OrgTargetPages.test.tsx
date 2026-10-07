@@ -205,12 +205,9 @@ vi.mock('./queries', () => ({
 }))
 
 import OrgApiKeys from './OrgApiKeys'
-import OrgApplications from './OrgApplications'
 import OrgBranding from './OrgBranding'
 import OrgDomains from './OrgDomains'
-import OrgMembers from './OrgMembers'
 import OrgOverview from './OrgOverview'
-import OrgProjects from './OrgProjects'
 import OrgRoles from './OrgRoles'
 import OrgScim from './OrgScim'
 import OrgOutboundSso, { parseCertificates } from './OrgOutboundSso'
@@ -221,8 +218,6 @@ import OrgWebhooks from './OrgWebhooks'
 describe('org target pages', () => {
   it.each([
     ['overview', <OrgOverview />],
-    ['members', <OrgMembers />],
-    ['projects', <OrgProjects />],
     ['roles', <OrgRoles />],
     ['domains', <OrgDomains />],
     ['branding', <OrgBranding />],
@@ -230,7 +225,6 @@ describe('org target pages', () => {
     ['scim-targets', <OrgScimTargets />],
     ['outbound-sso', <OrgOutboundSso />],
     ['sso', <OrgSso />],
-    ['applications', <OrgApplications />],
     ['api-keys', <OrgApiKeys />],
     ['webhooks', <OrgWebhooks />],
   ])('renders %s from activeOrg when query organization data differs', (_name, page) => {
@@ -262,15 +256,6 @@ describe('org target pages', () => {
     expect(apiKeys).toContain('Switch to the top-level')
   })
 
-  it('offers owner invitations only to callers who can manage owners', () => {
-    const html = renderToStaticMarkup(<OrgMembers />)
-
-    expect(html).toContain('<option value="member"')
-    expect(html).toContain('<option value="admin"')
-    expect(html).toContain('<option value="owner"')
-    expect(html).not.toContain('<option value="viewer"')
-  })
-
   it('shows webhook subscriptions from the emitted event catalog', () => {
     const html = renderToStaticMarkup(<OrgWebhooks />)
 
@@ -284,13 +269,6 @@ describe('org target pages', () => {
     expect(html).toContain('A custom hostname changes the WebAuthn RP ID')
     expect(html).toContain('Existing passkeys will not work on the new hostname')
     expect(html).toContain('users must register passkeys again')
-  })
-
-  it('offers secret rotation only for applications that actually use a shared secret', () => {
-    const html = renderToStaticMarkup(<OrgApplications />)
-
-    expect(html.match(/Rotate secret/g)).toHaveLength(1)
-    expect(html).toContain('client_public')
   })
 
   it('normalizes PEM and blank-line-delimited base64 SAML certificates', () => {

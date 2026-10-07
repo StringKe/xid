@@ -29,6 +29,20 @@ msgstr ".NET 8 服务端 SDK，提供 networkless JWT 验证、ASP.NET Core 请�
 msgid ".NET 8 target required."
 msgstr "需要 .NET 8 目标框架。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "(current)"
+msgstr "（当前）"
+
+#. placeholder {0}: data.backupCodesRemaining
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "{0, plural, one {# backup code left} other {# backup codes left}}"
+msgstr "{0, plural, other {剩余 # 个备用码}}"
+
+#. placeholder {0}: page.total
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "{0, plural, one {# user} other {# users}}"
+msgstr "{0, plural, other {# 位用户}}"
+
 #. placeholder {0}: selected.provider
 #. placeholder {1}: selected.spEntityId
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
@@ -73,6 +87,12 @@ msgstr "找到 {0} 个组织"
 msgid "{0} stops accepting SCIM requests immediately, including the previous token. Users it already provisioned keep their accounts."
 msgstr "{0} 会立即停止接受 SCIM 请求，包括之前的 token。它已经开通的用户会保留账号。"
 
+#. placeholder {0}: day(from)
+#. placeholder {1}: day(to)
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "{0} to {1}"
+msgstr "{0} 至 {1}"
+
 #. placeholder {0}: users.data.total
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "{0} users found"
@@ -88,25 +108,75 @@ msgstr "{0} 将被删除。用户将无法再通过此连接登录。"
 msgid "{0} will be reactivated and members regain access."
 msgstr "{0} 将被重新启用，成员将恢复访问权限。"
 
-#. placeholder {0}: pendingRemoveMember.email
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "{0} will be removed from this organization immediately."
-msgstr "{0} 将立即从此组织移除。"
-
 #. placeholder {0}: organizationDisplayName(pendingStatus.organization)
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "{0} will be suspended. Members lose access until it is reactivated."
 msgstr "{0} 将被暂停。成员将失去访问权限，直到其被重新启用。"
 
-#. placeholder {0}: pendingDelete.name
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "{0} will move to the recycle bin and stop authorizing access until restored."
-msgstr "{0} 将移至回收站并停止授权访问，直至恢复。"
-
 #. placeholder {0}: project.name
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "{0} will stop authorizing access. Your assignment remains discoverable so you can restore the project."
 msgstr "{0} 将停止授权访问。您的任务仍然可见，因此您可以恢复项目。"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "{activeCount, plural, one {# project} other {# projects}}"
+msgstr "{activeCount, plural, other {# 个项目}}"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} added {subject} to an organization."
+msgstr "{actor} 将 {subject} 加入了一个组织。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} changed the organization role of {subject}."
+msgstr "{actor} 更改了 {subject} 的组织角色。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} created {subject}."
+msgstr "{actor} 创建了 {subject}。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} deleted {subject}."
+msgstr "{actor} 删除了 {subject}。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} ended one session of {subject}."
+msgstr "{actor} 结束了 {subject} 的一个会话。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} recorded {eventType}."
+msgstr "{actor} 记录了 {eventType}。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} removed {subject} from an organization."
+msgstr "{actor} 将 {subject} 移出了一个组织。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} reset two-step verification for {subject}."
+msgstr "{actor} 重置了 {subject} 的两步验证。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} restored {subject}."
+msgstr "{actor} 恢复了 {subject}。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} resumed {subject}."
+msgstr "{actor} 恢复了 {subject} 的登录。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} sent {subject} a password reset link."
+msgstr "{actor} 向 {subject} 发送了密码重置链接。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} signed {subject} out everywhere."
+msgstr "{actor} 让 {subject} 在所有设备上登出。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} suspended {subject}."
+msgstr "{actor} 暂停了 {subject}。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} updated the profile of {subject}."
+msgstr "{actor} 更新了 {subject} 的资料。"
 
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "{app} did not receive any of your details."
@@ -148,6 +218,10 @@ msgstr "{app} 将可以"
 msgid "{app} will be told you said no. You can try again from {app} whenever you're ready."
 msgstr "{app} 会收到你拒绝的结果。准备好后可以随时从 {app} 重试。"
 
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "{appCount, plural, one {# application} other {# applications}} in {projectCount, plural, one {# project} other {# projects}}"
+msgstr "{projectCount, plural, other {# 个项目}}中的 {appCount, plural, other {# 个应用}}"
+
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 msgid "{appName} backup codes"
 msgstr "{appName} 备用码"
@@ -156,9 +230,17 @@ msgstr "{appName} 备用码"
 msgid "{appName} logo"
 msgstr "{appName} 徽标"
 
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "{appName} was deleted"
+msgstr "{appName} 已删除"
+
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "{backupCodeCount, plural, one {# code saved} other {# codes saved}}"
 msgstr "{backupCodeCount, plural, other {已保存 # 个}}"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "{browser} on {os}"
+msgstr "{os} 上的 {browser}"
 
 #: apps/server/src/components/hosted/passkey-name.ts
 #: apps/server/src/routes/account/DevicesPage.tsx
@@ -168,6 +250,18 @@ msgstr "{platform} 上的 {browser}"
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "{confirmedPrimary} is now your primary address."
 msgstr "{confirmedPrimary} 现在是你的主邮箱。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "{count, plural, one {# active session} other {# active sessions}}"
+msgstr "{count, plural, other {# 个活跃会话}}"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{count, plural, one {# will be invited} other {# will be invited}}"
+msgstr "{count, plural, other {将邀请 # 人}}"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{count, plural, one {Send # invitation} other {Send # invitations}}"
+msgstr "{count, plural, other {发送 # 份邀请}}"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -182,21 +276,122 @@ msgstr "{count} / {limit} 个通行密钥"
 msgid "{count} passkeys"
 msgstr "{count} 个通行密钥"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "{created} by {source}"
+msgstr "{created}，来源：{source}"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "{current} was deleted"
+msgstr "{current} 已删除"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "{deletedCount} deleted"
+msgstr "已删除 {deletedCount} 个"
+
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "{email} is verified"
 msgstr "{email} 已验证"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "{impersonator} is viewing as {name}. Read-only."
+msgstr "{impersonator} 正以 {name} 的身份查看。只读。"
 
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "{impersonator}, an administrator, is viewing your account as you. Read-only."
 msgstr "管理员 {impersonator} 正在以你的身份查看账户。仅可查看。"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "{inviter} on {date}"
+msgstr "{inviter} 于 {date} 邀请"
+
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "{location}. Started {signedIn}, ends by itself at {ends}."
 msgstr "{location}。开始于 {signedIn}，将在 {ends} 自动结束。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "{memberName} in {orgName}"
+msgstr "{orgName} 中的 {memberName}"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "{memberName} is now {newRole}"
+msgstr "{memberName} 现在是{newRole}"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "{memberName} is the only owner"
+msgstr "{memberName} 是唯一的所有者"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "{name} (you)"
+msgstr "{name}（你）"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "{name} already belongs to every organization you manage."
+msgstr "{name} 已属于你管理的所有组织。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "{name} authenticates without a shared secret."
+msgstr "{name} 不使用共享密钥进行认证。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "{name} belongs to {count, plural, one {# organization} other {# organizations}}."
+msgstr "{name} 属于 {count, plural, other {# 个组织}}。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "{name} belongs to no organization."
+msgstr "{name} 不属于任何组织。"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} can sign in again"
+msgstr "{name} 可以再次登录"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} can sign in again with the methods already set up."
+msgstr "{name} 可以用已设置的方式再次登录。"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} cannot sign in until you resume the account. Nothing is deleted. Existing sessions end the next time they refresh."
+msgstr "在你恢复该账户之前，{name} 无法登录。不会删除任何数据。现有会话会在下次刷新时结束。"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "{name} is managed by directory sync. Unassign the user in your identity provider first, or the next sync creates the account again."
+msgstr "{name} 由目录同步管理。请先在身份提供商中取消分配该用户，否则下次同步会重新创建账户。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "{name} is not signed in anywhere."
+msgstr "{name} 当前没有在任何地方登录。"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} is suspended"
+msgstr "{name} 已暂停"
+
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "{name} is the only way you sign in"
 msgstr "{name} 是你唯一的登录方式"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "{name} proves who it is with a client secret when it exchanges a code for tokens."
+msgstr "{name} 用授权码换取令牌时，用客户端密钥证明自己的身份。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "{name} runs where a secret cannot be kept, so every sign-in uses PKCE (S256)."
+msgstr "{name} 运行在无法保管密钥的环境中，因此每次登录都使用 PKCE（S256）。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "{name} was added"
+msgstr "已添加 {name}"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "{name} was deleted"
+msgstr "{name} 已删除"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} was signed out everywhere"
+msgstr "{name} 已在所有设备上登出"
+
+#: apps/console/src/routes/users/user-columns.tsx
+msgid "{names} and {more} more"
+msgstr "{names} 等，另有 {more} 个"
 
 #: apps/server/src/routes/mfa/index.tsx
 msgid "{org} asks for a second step every time you sign in."
@@ -215,6 +410,14 @@ msgstr "{org} 的 {0} 邮箱用户通过 {idp} 登录。"
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "{org} signs in people with {0} addresses through {idp}. After {idp}, you come straight back to {app}."
 msgstr "{org} 的 {0} 邮箱用户通过 {idp} 登录。完成 {idp} 验证后会直接回到 {app}。"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "{orgLabel} must always have an owner. Make another member an owner first."
+msgstr "{orgLabel} 必须始终有所有者。请先将另一位成员设为所有者。"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "{orgName} must always have an owner. Make another admin an owner first, then change this role."
+msgstr "{orgName} 必须始终有所有者。请先将另一位管理员设为所有者，再更改此角色。"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "{orgNames}. An admin would have to invite you again."
@@ -248,9 +451,49 @@ msgstr "{total} 个中还有 {remaining} 个未使用。用于无法使用手机
 msgid "{removedName} was removed. If your password manager still offers it, delete it there too."
 msgstr "{removedName} 已移除。如果你的密码管理器仍然提供它，也请在那里删除。"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "{removingName} loses access to {orgLabel} and its apps right away. The account itself stays and can be invited again."
+msgstr "{removingName} 会立即失去对 {orgLabel} 及其应用的访问。账户本身保留，之后可以再次邀请。"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "{removingName} was removed"
+msgstr "已移除 {removingName}"
+
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "{role}, sub-organization of {parentName}"
+msgstr "{role}，{parentName} 的子组织"
+
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "{role}. Joined {joined}."
 msgstr "{role}。加入于 {joined}。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{sent, plural, one {# invitation sent} other {# invitations sent}}"
+msgstr "{sent, plural, other {已发送 # 份邀请}}"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "{sessions, plural, one {End # active session right away} other {End # active sessions right away}}"
+msgstr "{sessions, plural, other {立即结束 # 个活跃会话}}"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "{shownCount} of {allCount} users"
+msgstr "{allCount} 位用户中的 {shownCount} 位"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{subject} signed in."
+msgstr "{subject} 登录了。"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "{summary} in the {projectName} project"
+msgstr "{projectName} 项目中的{summary}"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{value} is invited once"
+msgstr "{value} 只邀请一次"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{value} is skipped"
+msgstr "已跳过 {value}"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "#10b981"
@@ -497,6 +740,10 @@ msgstr "已配置客户端密钥。留空则保留现有值。"
 msgid "A custom hostname changes the WebAuthn RP ID. Existing passkeys will not work on the new hostname, so users must register passkeys again there before you rely on it for sign-in."
 msgstr "自定义主机名会更改 WebAuthn RP ID。现有通行密钥无法在新主机名上使用，因此在依赖该主机名登录前，用户必须重新注册通行密钥。"
 
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "A deleted user"
+msgstr "已删除的用户"
+
 #: apps/server/src/routes/activate/index.tsx
 msgid "A device"
 msgstr "一台设备"
@@ -509,6 +756,19 @@ msgstr "有设备正在请求以你的身份登录。只有你眼前的设备是
 msgid "A digital signature is required."
 msgstr "需要数字签名。"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "a guest session"
+msgstr "访客会话"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "a one-time code"
+msgstr "一次性验证码"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "a passkey"
+msgstr "通行密钥"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "A passkey only works on {host}, so a look-alike sign-in page can't use it."
 msgstr "通行密钥只能在 {host} 上使用，仿冒的登录页无法使用它。"
@@ -516,6 +776,10 @@ msgstr "通行密钥只能在 {host} 上使用，仿冒的登录页无法使用�
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "A passkey replaces your password and counts as two-step verification. It takes a few seconds on this device."
 msgstr "通行密钥可以代替密码，并且算作两步验证。在此设备上只需几秒钟。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "a password"
+msgstr "密码"
 
 #: apps/console/src/routes/org/SelfServiceLock.tsx
 msgid "A platform administrator manages this setting for your organization. You can review it, but changes are disabled."
@@ -525,13 +789,13 @@ msgstr "此设置由平台管理员为你的组织管理。你可以查看，但
 msgid "A possible authenticator clone was detected. Please contact support."
 msgstr "检测到认证器存在克隆风险。请联系支持。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "A project grant must target another organization."
-msgstr "项目授权必须指向另一个组织。"
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "A project holds applications that share one set of roles and permissions."
+msgstr "一个项目包含共用同一套角色与权限的应用。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "A project is the namespace for role keys, permission keys, and user grants."
-msgstr "项目是角色密钥、权限密钥和用户授权的命名空间。"
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "A public HTTPS image."
+msgstr "可公开访问的 HTTPS 图片。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "A real IdP round-trip on production infrastructure is still pending manual verification. This page documents implemented behavior; it is not a readiness claim."
@@ -552,6 +816,10 @@ msgstr "使用此标识符的资源已存在。"
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "A sequence number is missing from the chain."
 msgstr "链中缺少一个序号。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "A sign-in attempt for {subject} failed."
+msgstr "{subject} 的一次登录尝试失败。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "A stable role key groups permissions for token and API authorization."
@@ -605,14 +873,17 @@ msgstr "已于 {0} 接受。"
 msgid "Accepted public key forms: PublicJwk, Jwks, or {JWT_KEY_SHAPE}"
 msgstr "接受的公钥格式：PublicJwk、Jwks 或 {JWT_KEY_SHAPE}"
 
-#. placeholder {0}: pendingGrantRevoke.granted_to_org_id
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Access for organization {0} and user grants issued through this grant will be revoked."
-msgstr "组织 {0} 的访问权限以及通过此授权颁发的用户授权将被撤销。"
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Access"
+msgstr "访问"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Access request lifecycle"
 msgstr "访问请求生命周期"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Access token lifetime in minutes"
+msgstr "访问令牌有效期（分钟）"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Access token TTL (seconds)"
@@ -642,7 +913,6 @@ msgstr "封装 isLoaded / isSignedIn / user 判别联合的访问器"
 msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
 msgstr "AccessRequest 从<0>待处理</0>变为<1>已批准</1>、<2>已拒绝</2>、<3>已取消</3>或<4>已过期</4>。每个结果都是最终结果，待处理的请求会在 14 天后延迟过期。"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Account"
 msgstr "账户"
@@ -651,7 +921,7 @@ msgstr "账户"
 msgid "Account deletion"
 msgstr "账户删除"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Account menu"
 msgstr "账户菜单"
@@ -660,7 +930,7 @@ msgstr "账户菜单"
 msgid "Account security and profile management"
 msgstr "账户安全与资料管理"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
 msgid "Account settings"
 msgstr "账户设置"
 
@@ -685,11 +955,11 @@ msgstr "必须填写 ACS URL。"
 msgid "Action required"
 msgstr "需要采取行动"
 
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
 #: apps/console/src/routes/console/ManagedProjects.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
-#: apps/console/src/routes/org/OrgApplications.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
@@ -698,10 +968,23 @@ msgstr "需要采取行动"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Actions"
 msgstr "操作"
 
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Actions for {appName}"
+msgstr "{appName} 的操作"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Actions for {email}"
+msgstr "{email} 的操作"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Actions for {name}"
 msgstr "{name} 的操作"
@@ -713,6 +996,9 @@ msgstr "激活设备 | XID"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Active"
 msgstr "活跃"
@@ -733,7 +1019,6 @@ msgstr "当前实例管理员"
 msgid "Active keys"
 msgstr "活跃密钥"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 msgid "Active members"
 msgstr "活跃成员"
@@ -755,10 +1040,6 @@ msgstr "活跃组织、成员关系及 setActive 操作"
 msgid "Active organizations"
 msgstr "活跃组织"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Active projects"
-msgstr "活跃项目"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Active session and getToken action"
 msgstr "活跃会话及 getToken 操作"
@@ -768,9 +1049,14 @@ msgstr "活跃会话及 getToken 操作"
 msgid "Active user ratio"
 msgstr "活跃用户比例"
 
-#: apps/console/src/nav.tsx
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 msgid "Activity"
 msgstr "活动"
+
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "Activity could not be loaded"
+msgstr "无法加载活动记录"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
@@ -796,6 +1082,10 @@ msgstr "useXidRnContext 返回的适配器上下文结构"
 msgid "Add {0} template"
 msgstr "添加 {0} 模板"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Add {name} to an organization"
+msgstr "将 {name} 加入组织"
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Add {provider} template"
 msgstr "添加 {provider} 模板"
@@ -803,6 +1093,14 @@ msgstr "添加 {provider} 模板"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add <0>@xid-kit/nuxt</0> to the <1>modules</1> array. The module auto-imports all <2>@xid-kit/vue</2> composables and registers a client-only plugin that installs <3>XidPlugin</3>."
 msgstr "将 <0>@xid-kit/nuxt</0> 添加到 <1>modules</1> 数组。该模块自动导入所有 <2>@xid-kit/vue</2> composable，并注册安装 <3>XidPlugin</3> 的仅客户端插件。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Add a manager for {name}"
+msgstr "为 {name} 添加管理员"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Add a manager…"
+msgstr "添加管理员…"
 
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 msgid "Add a phone number"
@@ -850,6 +1148,10 @@ msgstr "添加端点"
 msgid "Add hostname"
 msgstr "添加主机名"
 
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Add manager"
+msgstr "添加管理员"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Add mapping"
 msgstr "添加映射"
@@ -862,6 +1164,10 @@ msgstr "添加手机号…"
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Add provider"
 msgstr "添加提供商"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Add redirect URI"
+msgstr "添加重定向 URI"
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Add SCIM target"
@@ -886,6 +1192,14 @@ msgstr "将类型引用添加到 <0>src/env.d.ts</0>，以获得 <1>Astro.locals
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add to <0>Cargo.toml</0>:"
 msgstr "添加到 <0>Cargo.toml</0>："
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Add to organization"
+msgstr "加入组织"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Add to organization…"
+msgstr "加入组织…"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add to pubspec.yaml and run flutter pub get:"
@@ -916,6 +1230,14 @@ msgstr "已添加"
 msgid "Added {0}. Codes change every 30 seconds."
 msgstr "添加于 {0}。验证码每 30 秒更换一次。"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Added {added}."
+msgstr "{added} 添加。"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Added directly"
+msgstr "直接添加"
+
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Adding a passkey changes how you sign in, so we need a fresh check before saving it."
 msgstr "添加通行密钥会改变你的登录方式，保存前需要重新验证身份。"
@@ -932,6 +1254,24 @@ msgstr "管理员"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "admin, owner"
 msgstr "admin, owner"
+
+#. placeholder {0}: project.name
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Admins of that organization can give {0} roles to their own members. They cannot change roles or apps."
+msgstr "该组织的管理员可以把 {0} 的角色授予自己的成员，但不能修改角色或应用。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Affected right away"
+msgstr "立即生效"
+
+#. placeholder {0}: day(from)
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "after {0}"
+msgstr "{0} 之后"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "After sign-out, return to"
+msgstr "登出后返回"
 
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "After signing in, open the original invitation link again to join with that account."
@@ -1067,10 +1407,6 @@ msgstr "允许的邮箱域名"
 msgid "Allowed roles (comma-separated)"
 msgstr "允许的角色（逗号分隔）"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Allowed scopes"
-msgstr "允许的作用域"
-
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Allowed user IDs (comma-separated)"
@@ -1079,6 +1415,10 @@ msgstr "允许的用户 ID（逗号分隔）"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Allowed without a UserGrant."
 msgstr "无需 UserGrant 即可允许。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Already a member"
+msgstr "已是成员"
 
 #: apps/server/src/routes/consent/ScopeList.tsx
 msgid "Already allowed"
@@ -1097,13 +1437,25 @@ msgstr "已有账户？<0>登录</0>"
 msgid "Already have an account? Sign in to accept"
 msgstr "已有账号？登录后接受"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Already invited"
+msgstr "已邀请"
+
 #: packages/i18n/src/messages.ts
 msgid "An account already uses this email address. Sign in to that account to accept the invitation."
 msgstr "此邮箱地址已被某个账号使用。请登录该账号以接受邀请。"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "an admin or the Management API"
+msgstr "管理员或 Management API"
+
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "An administrator is viewing your account as you. Read-only."
 msgstr "管理员正在以你的身份查看账户。仅可查看。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "An API key"
+msgstr "API 密钥"
 
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "An app"
@@ -1121,6 +1473,14 @@ msgstr "你所在组织的应用"
 msgid "An app is asking you to approve a sign-in it started. Nothing happens until you choose."
 msgstr "有应用请求你批准它发起的登录。在你做出选择之前不会发生任何事。"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "an email code"
+msgstr "邮箱验证码"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "An IANA name, for example Asia/Kolkata."
+msgstr "IANA 名称，例如 Asia/Kolkata。"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "An IANA time zone, for example Europe/Lisbon."
 msgstr "IANA 时区，例如 Europe/Lisbon。"
@@ -1128,6 +1488,10 @@ msgstr "IANA 时区，例如 Europe/Lisbon。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary."
 msgstr "实例包含顶级组织。一个组织可以包含一级子组织；每个组织都保留策略、成员资格、品牌、RBAC 和隔离边界。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "An instance manager"
+msgstr "实例管理员"
 
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
@@ -1140,10 +1504,6 @@ msgstr "组织拥有自己的成员、登录规则和应用。你将成为所有
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
 msgstr "组织用于注册 OAuth 应用、邀请成员、开启企业 SSO 或目录同步。创建一个组织即可获得你的第一个 issuer 和托管登录页面。"
-
-#: packages/i18n/src/messages.ts
-msgid "An organization needs at least one owner. Make another member an owner first."
-msgstr "组织至少需要一位所有者。请先将另一位成员设为所有者。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
@@ -1205,6 +1565,17 @@ msgstr "另一位管理员更新了此事件。列表已刷新，请检查后重
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Another replay of this message is still in progress. Check again later."
 msgstr "此消息的另一次重放仍在进行中。请稍后再查看。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Any"
+msgstr "任意"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Any member of the organization"
+msgstr "组织的任何成员"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Any Web Crypto compatible runtime (Bun, Deno)"
@@ -1271,22 +1642,48 @@ msgstr "外观"
 msgid "Apple"
 msgstr "Apple"
 
+#: apps/console/src/routes/applications/AppsTable.tsx
+msgid "Application"
+msgstr "应用"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Application could not be loaded"
+msgstr "无法加载应用"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Application must set <UseWinUI>true</UseWinUI> in the project file"
 msgstr "应用必须在项目文件中设置 <UseWinUI>true</UseWinUI>"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Application saved."
-msgstr "应用已保存。"
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Application not found"
+msgstr "未找到应用"
+
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Application type"
+msgstr "应用类型"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Application-owned JWT cookie name; disabled unless explicitly configured"
 msgstr "应用自有 JWT cookie 名；仅在显式配置后启用"
 
+#: apps/console/src/components/layout/ConsoleCommandMenu.tsx
+#: apps/console/src/components/layout/nav-data.ts
 #: apps/console/src/nav.tsx
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Applications"
 msgstr "应用"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Applications and roles in {current} stop authorizing access until you restore it."
+msgstr "在你恢复之前，{current} 中的应用和角色不再授予访问权限。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Applications could not be loaded"
+msgstr "无法加载应用"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Approval creates a traceable UserGrant in the same transaction. The requester cannot approve their own request; resolution falls through from the OrgUnit manager to project and organization managers."
@@ -1369,10 +1766,6 @@ msgstr "会校验断言的签发方、受众、接收方、时间窗口、InResp
 msgid "Assign one active role to a user who is an active member of the grant target organization. Enter an exact user ID; the server verifies membership and the exact grant."
 msgstr "将一个活动角色分配给作为授权目标组织的活动成员的用户。输入准确的用户ID；服务器验证成员资格和确切的授权。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Assign one exact management role to the matching organization, project, or grant scope. A manager cannot delegate or revoke their own assignment."
-msgstr "将一个确切的管理角色分配给匹配的组织、项目或授权范围。经理不能委派或撤销自己的任务。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Assign, list, get, revoke, and delete scoped user grants."
 msgstr "分配、列出、获取、撤销和删除限定作用域的用户授权。"
@@ -1454,7 +1847,6 @@ msgstr "属性映射 JSON"
 msgid "Audience"
 msgstr "受众"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Audit events"
 msgstr "审计事件"
@@ -1467,13 +1859,13 @@ msgstr "审计事件 | 控制台 | XID"
 msgid "Audit events from every organization on this instance, with per-tenant hash-chain verification."
 msgstr "此实例上每个组织的审计事件，支持按租户验证哈希链。"
 
+#: apps/console/src/nav.tsx
+msgid "Audit log"
+msgstr "审计日志"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Audit records of what you did in {appName}. The organization must keep them unchanged."
 msgstr "你在 {appName} 中操作的审计记录。组织必须原样保留这些记录。"
-
-#: apps/console/src/nav.tsx
-msgid "Auth policy"
-msgstr "认证策略"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Auth policy | Console | XID"
@@ -1536,6 +1928,7 @@ msgstr "认证策略"
 msgid "Authentication policy saved."
 msgstr "认证策略已保存。"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
@@ -1550,6 +1943,10 @@ msgstr "认证器验证码"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization"
 msgstr "授权"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Authorization code with PKCE"
+msgstr "授权码 + PKCE"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization code with PKCE S256 and claimed redirects."
@@ -1624,7 +2021,7 @@ msgstr "返回首页"
 msgid "Back to {app}"
 msgstr "返回 {app}"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleNav.tsx
 msgid "Back to console"
 msgstr "返回控制台"
 
@@ -1638,6 +2035,10 @@ msgstr "返回控制台"
 #: apps/server/src/routes/magic-link/index.tsx
 msgid "Back to sign in"
 msgstr "返回登录"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Back-channel logout URL"
+msgstr "后端通道登出 URL"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Background"
@@ -1694,6 +2095,11 @@ msgstr "基础 URL"
 msgid "Bearer or DPoP access token user claims."
 msgstr "Bearer 或 DPoP 访问令牌中的用户声明。"
 
+#. placeholder {0}: day(to ?? '')
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "before {0}"
+msgstr "{0} 之前"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Before declaring production ready, reconcile all 24 Queues, apply D1 migrations, build all three Workers, and verify apex, www, wildcard DNS, health, discovery, JWKS, and Hosted Auth. Then record live evidence for Email, DLQ replay, privacy export and 30-day erasure, hourly and daily Cron, Analytics, Turnstile, and custom hostnames. Local L0-L3 evidence is not L4; every unrun live check is UNKNOWN. The full operator runbook is maintained at https://github.com/StringKe/xid/blob/main/docs/deployment.md."
 msgstr "在宣告 production ready 之前，请核对全部 24 个 Queues，应用 D1 migrations，构建全部 3 个 Workers，并验证 apex、www、wildcard DNS、health、discovery、JWKS 和 Hosted Auth。然后记录 Email、DLQ replay、privacy export 和 30-day erasure、每小时和每日 Cron、Analytics、Turnstile 及 custom hostnames 的在线证据。本地 L0-L3 证据不等于 L4；所有未执行的在线检查均为 UNKNOWN。完整的运维 runbook 位于 https://github.com/StringKe/xid/blob/main/docs/deployment.md。"
@@ -1706,6 +2112,10 @@ msgstr "继续之前"
 #: apps/server/src/routes/mfa-setup/index.tsx
 msgid "Before you continue to {app}"
 msgstr "继续前往 {app} 之前"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Between 1 and 1440 minutes."
+msgstr "1 到 1440 分钟。"
 
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -1879,6 +2289,10 @@ msgstr "在布局组件中调用 <0>useProtectedRoute</0>。它从 <3>useAuth</3
 msgid "Callbacks verify state, nonce, issuer, audience, and email policy before creating or linking users."
 msgstr "Callback 在创建或关联用户前会验证 state、nonce、issuer、audience 和邮箱策略。"
 
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Calls APIs as itself with client credentials. No user sign-in."
+msgstr "用客户端凭据以自身身份调用 API，没有用户登录。"
+
 #: apps/server/src/routes/account/privacy-shared.tsx
 msgid "Can confirm who you are"
 msgstr "可以确认你的身份"
@@ -1919,9 +2333,19 @@ msgstr "这些方式都用不了？"
 msgid "CanActivateFn factory"
 msgstr "CanActivateFn 工厂"
 
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+#: apps/console/src/routes/applications/SecretDialogs.tsx
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
@@ -1980,6 +2404,23 @@ msgstr "更改"
 msgid "Change {value}"
 msgstr "更改 {value}"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Change role of {memberName}"
+msgstr "更改 {memberName} 的角色"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Change role…"
+msgstr "更改角色…"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Change your role"
+msgstr "更改你的角色"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Changed {changed}"
+msgstr "{changed} 修改"
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Changing how you sign in needs a fresh check. Once you verify, you won't be asked again for 5 minutes."
 msgstr "更改登录方式需要重新验证身份。验证后 5 分钟内不会再次询问。"
@@ -2029,6 +2470,10 @@ msgstr "请查收邮件确认你的邮箱地址，然后登录。"
 msgid "Check your messages"
 msgstr "查看你的短信"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Checked at sign-in for every application in {name}."
+msgstr "登录 {name} 中的任何应用时检查。"
+
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Checkout Enterprise"
 msgstr "购买 Enterprise"
@@ -2041,17 +2486,9 @@ msgstr "购买 Pro"
 msgid "Checkout Starter"
 msgstr "购买 Starter"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Choose a current member or enter an exact active user ID. The server verifies the user and scope."
-msgstr "选择当前成员或输入确切的活动用户 ID。服务器验证用户和范围。"
-
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
 msgstr "请换一个密码。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Choose a known organization or enter an exact organization ID."
-msgstr "选择已知组织或输入确切的组织 ID。"
 
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a new password"
@@ -2081,6 +2518,11 @@ msgstr "基于 Chromium 的嵌入式授权窗口"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "class"
 msgstr "class"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Clear filters"
+msgstr "清除筛选"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Clear Keychain tokens and optionally call the end_session endpoint; no refresh-token revocation is performed."
@@ -2114,20 +2556,24 @@ msgstr "清除本地 token"
 msgid "Client"
 msgstr "客户端"
 
-#. placeholder {0}: pendingDelete.client_id
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Client {0} will be removed and can no longer obtain tokens."
-msgstr "客户端 {0} 将被移除，之后无法再获取 token。"
-
 #: packages/i18n/src/messages.ts
 msgid "Client authentication failed."
 msgstr "客户端认证失败。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Client credentials"
+msgstr "客户端凭据"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Client credentials with scoped access."
 msgstr "带作用域访问的客户端凭据。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "client ID"
+msgstr "客户端 ID"
+
+#: apps/console/src/routes/applications/app-sections.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Client ID"
 msgstr "客户端 ID"
@@ -2152,13 +2598,29 @@ msgstr "客户端 SDK：移动端"
 msgid "Client SDKs: web frameworks"
 msgstr "客户端 SDK：Web 框架"
 
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "client secret"
+msgstr "客户端密钥"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Client secret"
+msgstr "客户端密钥"
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Client secret binding"
 msgstr "客户端秘密绑定"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Client secret generated. Store it now; it will not be shown again."
-msgstr "客户端密钥已生成。请立即保存，之后不会再次显示。"
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Client secret in the Authorization header (client_secret_basic)"
+msgstr "在 Authorization 请求头中发送客户端密钥（client_secret_basic）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Client secret in the request body (client_secret_post)"
+msgstr "在请求体中发送客户端密钥（client_secret_post）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Client secret is set"
+msgstr "已设置客户端密钥"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "client setup"
@@ -2167,10 +2629,6 @@ msgstr "客户端配置"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Client setup"
 msgstr "客户端配置"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Client type"
-msgstr "客户端类型"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Client types"
@@ -2192,7 +2650,6 @@ msgstr "exp/nbf 的时钟偏差容忍度。"
 msgid "Clock skew tolerance in seconds"
 msgstr "时钟偏差容忍度（秒）"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
 #: packages/web-ui/src/components/ui/CommandMenu.tsx
 #: packages/web-ui/src/components/ui/Dialog.tsx
@@ -2203,6 +2660,10 @@ msgstr "关闭"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Close diagram"
 msgstr "关闭图表"
+
+#: apps/console/src/components/layout/ConsoleNavDrawer.tsx
+msgid "Close menu"
+msgstr "关闭菜单"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Close sidebar"
@@ -2229,6 +2690,10 @@ msgstr "验证码"
 msgid "Code {code} matched. Here's what this device will get."
 msgstr "代码 {code} 匹配。以下是此设备将获得的权限。"
 
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Code exchange fails"
+msgstr "授权码换取会失败"
+
 #: apps/server/src/routes/account/step-up.tsx
 msgid "Code from your authenticator app"
 msgstr "认证器应用中的验证码"
@@ -2240,10 +2705,6 @@ msgstr "代码 10 分钟后过期，且只能使用一次。请在设备上获�
 #: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "Codes work for {minutes} minutes. Send a new one and enter it here."
 msgstr "验证码 {minutes} 分钟内有效。请重新发送并在这里输入。"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "colleague@example.com"
-msgstr "colleague@example.com"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Colors"
@@ -2314,9 +2775,9 @@ msgstr "Composable（自动导入）"
 msgid "Compose the notice, choose its audience, and schedule the publication window."
 msgstr "撰写通知内容，选择目标受众，并安排发布时间窗口。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "confidential"
-msgstr "confidential"
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Confidential client, secret"
+msgstr "机密客户端，密钥"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Configuration contract"
@@ -2395,6 +2856,10 @@ msgstr "确认并加入"
 msgid "Confirm email address"
 msgstr "确认邮箱地址"
 
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Confirm it is you"
+msgstr "确认是你本人"
+
 #: apps/server/src/routes/account/step-up.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
@@ -2465,9 +2930,17 @@ msgstr "正在将 {app} 连接到你的账户"
 msgid "Connecting a device"
 msgstr "正在连接设备"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Connection {provider}. Linked to {account} on {linked}."
+msgstr "连接 {provider}。{linked} 关联到 {account}。"
+
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Connections"
 msgstr "连接"
+
+#: apps/console/src/routes/applications/AppsTable.tsx
+msgid "Consent screen"
+msgstr "授权同意页"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Console"
@@ -2659,6 +3132,14 @@ msgstr "复制密钥"
 msgid "Copy page"
 msgstr "复制页面"
 
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Copy the {appName} secret"
+msgstr "复制 {appName} 的密钥"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Copy the new {appName} secret"
+msgstr "复制 {appName} 的新密钥"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Copy to clipboard"
 msgstr "复制到剪贴板"
@@ -2730,10 +3211,6 @@ msgstr "无法开始设置"
 msgid "Create (with bulk limit), revoke, and list invitations."
 msgstr "创建（有批量上限）、吊销和列出邀请。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Create a confidential OAuth 2.0 client. Its secret is shown once; store it immediately."
-msgstr "创建机密 OAuth 2.0 客户端。它的秘密一旦显露出来；立即储存。"
-
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
@@ -2749,6 +3226,10 @@ msgstr "创建通行密钥 | XID"
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
 msgid "Create a password"
 msgstr "设置密码"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Create a project for each product, then add its applications, roles and permissions. Roles stay unique inside a project."
+msgstr "为每个产品创建一个项目，再添加它的应用、角色和权限。角色在项目内唯一。"
 
 #: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
@@ -2801,10 +3282,15 @@ msgstr "创建 API 密钥"
 msgid "Create app"
 msgstr "创建应用"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Create application"
 msgstr "创建应用"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Create application…"
+msgstr "创建应用…"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create client with a custom StorageAdapter (e.g. InMemoryStorage)."
@@ -2822,10 +3308,6 @@ msgstr "创建连接"
 msgid "Create directory"
 msgstr "创建目录"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Create grant"
-msgstr "创建授权"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Create key"
 msgstr "创建密钥"
@@ -2837,10 +3319,6 @@ msgstr "在应用启动时创建一个 <0>Client</0> 并在请求间复用。客
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Create one to continue, or ask an admin to invite you."
 msgstr "创建一个组织以继续，或请管理员邀请你。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Create or select an active project first."
-msgstr "首先创建或选择一个活动项目。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Create or select an active role first."
@@ -2861,6 +3339,7 @@ msgstr "创建组织"
 msgid "Create organization | XID"
 msgstr "创建组织 | XID"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Create organization…"
 msgstr "创建组织…"
@@ -2869,9 +3348,13 @@ msgstr "创建组织…"
 msgid "Create permission"
 msgstr "创建权限"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Create project"
 msgstr "创建项目"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Create project…"
+msgstr "创建项目…"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Create role"
@@ -2884,6 +3367,15 @@ msgstr "创建 SCIM 目录并轮换目录令牌。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create stores in the root layout using <0>createXidStores</0> and <1>setXidContext</1>. Stores use <2>XidClient.subscribe</2>, which satisfies the Svelte store subscriber contract."
 msgstr "在根布局中使用 <0>createXidStores</0> 和 <1>setXidContext</1> 创建 store。Store 使用 <2>XidClient.subscribe</2>，满足 Svelte store 订阅者契约。"
+
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "Create user"
+msgstr "创建用户"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Create user…"
+msgstr "创建用户…"
 
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Create webhook"
@@ -2938,18 +3430,23 @@ msgstr "创建、更新、移动、存档和管理单位成员。"
 msgid "Create, update, sync, and remove outbound SCIM targets."
 msgstr "创建、更新、同步和删除出站 SCIM 目标。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 msgid "Created"
 msgstr "已创建"
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Created {created}"
 msgstr "创建于 {created}"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Created by {source}"
+msgstr "来源：{source}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "created, accepted, revoked"
@@ -2983,6 +3480,11 @@ msgstr "createXidTauriClient 选项"
 msgid "Creating your backup codes"
 msgstr "正在创建备用码"
 
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Credentials"
+msgstr "凭据"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Critical"
@@ -2996,14 +3498,11 @@ msgstr "严重影响"
 msgid "Cross-organization access is not permitted."
 msgstr "不允许跨组织访问。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Cross-organization grants"
-msgstr "跨组织授权"
-
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "CSS length, e.g. 8px or 0.5rem"
 msgstr "CSS 长度，例如 8px 或 0.5rem"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Current"
 msgstr "当前"
@@ -3033,10 +3532,8 @@ msgstr "当前未过期的 access token 字符串或 null；不会执行 refresh
 msgid "Current user"
 msgstr "当前用户"
 
-#. placeholder {0}: editingProject.name
 #. placeholder {0}: editingRole?.display_name ?? editingPermission?.key ?? ''
-#. placeholder {0}: selectedProject.name
-#: apps/console/src/routes/org/OrgProjects.tsx
+#. placeholder {0}: selectedRole.display_name
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Current: {0}"
 msgstr "当前：{0}"
@@ -3073,12 +3570,20 @@ msgstr "自定义 URI scheme callback"
 msgid "Custom URI scheme callback (optional)"
 msgstr "自定义 URI scheme callback（可选）"
 
+#: apps/console/src/nav.tsx
+msgid "Customization"
+msgstr "定制"
+
 #: apps/console/src/routes/org/OrgOverview.tsx
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
 msgid "Daily active users"
 msgstr "日活跃用户"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Danger zone"
+msgstr "危险操作"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Dart / Flutter SDK for iOS, Android, and desktop using flutter_web_auth_2, PKCE S256 authorization code flow, and flutter_secure_storage token persistence."
@@ -3159,13 +3664,7 @@ msgstr "定义项目本地角色和权限密钥，然后将它们与可选的 AB
 msgid "Degraded"
 msgstr "服务降级"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Delegated managers"
-msgstr "委派经理"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
@@ -3175,6 +3674,26 @@ msgstr "委派经理"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Delete"
 msgstr "删除"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Delete {appName}?"
+msgstr "删除 {appName}？"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Delete {current}"
+msgstr "删除 {current}"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Delete {current}?"
+msgstr "删除 {current}？"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Delete {name}"
+msgstr "删除 {name}"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Delete {name}?"
+msgstr "删除 {name}？"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Delete account"
@@ -3205,14 +3724,13 @@ msgstr "删除应用"
 msgid "Delete app?"
 msgstr "删除应用？"
 
-#. placeholder {0}: row.original.client_id
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Delete application {0}"
-msgstr "删除应用 {0}"
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Delete application"
+msgstr "删除应用"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Delete application?"
-msgstr "删除应用？"
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Delete application…"
+msgstr "删除应用…"
 
 #. placeholder {0}: document.title
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
@@ -3262,13 +3780,13 @@ msgid "Delete permission?"
 msgstr "删除权限？"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
 msgid "Delete project"
 msgstr "删除项目"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Delete project?"
-msgstr "删除项目？"
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Delete project…"
+msgstr "删除项目…"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Delete role?"
@@ -3281,6 +3799,14 @@ msgstr "删除 SCIM 目录？"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Delete SCIM target?"
 msgstr "删除 SCIM 目标？"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Delete user"
+msgstr "删除用户"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Delete user…"
+msgstr "删除用户…"
 
 #. placeholder {0}: row.original.url
 #: apps/console/src/routes/org/OrgWebhooks.tsx
@@ -3297,8 +3823,11 @@ msgid "Delete your account"
 msgstr "删除你的账户"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Deleted"
 msgstr "已删除"
@@ -3307,13 +3836,21 @@ msgstr "已删除"
 msgid "Deleted permissions"
 msgstr "已删除的权限"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Deleted projects remain recoverable. Their roles, permissions, and grants are unavailable until the project is restored."
-msgstr "已删除的项目仍然可以恢复。在项目恢复之前，他们的角色、权限和授权不可用。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Deleted roles"
 msgstr "已删除的角色"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Deleting {name} will"
+msgstr "删除 {name} 会"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Deleting a user needs a fresh check that it is you. It stays valid for 5 minutes."
+msgstr "删除用户前需要重新确认是你本人，确认后 5 分钟内有效。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Deleting moves the project to the deleted list. You can restore {current} from Projects with Show deleted turned on."
+msgstr "删除会把项目移到已删除列表。在「项目」中打开「显示已删除」即可恢复 {current}。"
 
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Deletion scheduled for {deletionDate}"
@@ -3340,7 +3877,6 @@ msgstr "交付通道已配置：{0}。"
 msgid "Delivery channel is not configured. Hosted UI and direct API calls stay disabled even when this method is enabled."
 msgstr "交付通道未配置。即使启用此方法，Hosted UI 和直接 API 调用也会保持禁用。"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Delivery channels"
 msgstr "交付通道"
@@ -3415,8 +3951,9 @@ msgid "Deprovisioning behavior"
 msgstr "取消预配行为"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Description"
 msgstr "描述"
@@ -3433,9 +3970,26 @@ msgstr "桌面 Linux 使用 xdg-open（xdg-utils）启动系统浏览器，并�
 msgid "Desktop SDKs"
 msgstr "桌面端 SDK"
 
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Details"
+msgstr "详情"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Details saved"
+msgstr "详情已保存"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Dev/test without Tauri runtime"
 msgstr "不依赖 Tauri 运行时的开发/测试"
+
+#: apps/console/src/nav.tsx
+msgid "Developers"
+msgstr "开发者"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Device"
+msgstr "设备"
 
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "Device code"
@@ -3470,6 +4024,14 @@ msgstr "没有收到？{countdown} 后可以重新发送验证码。每小时最
 msgid "Direct"
 msgstr "直接"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Direct grant"
+msgstr "直接授权"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Direct grants can be removed here. A role that comes through a project grant changes only when that project grant changes."
+msgstr "直接授权可以在这里移除。通过项目授权获得的角色，只有在该项目授权变更时才会改变。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Direction"
 msgstr "方向"
@@ -3482,7 +4044,12 @@ msgstr "目录"
 msgid "Directory"
 msgstr "目录"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "directory sync"
+msgstr "目录同步"
+
 #: apps/console/src/nav.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
 msgid "Directory sync"
 msgstr "目录同步"
 
@@ -3565,11 +4132,14 @@ msgstr "DNS TXT 记录"
 msgid "Do you want to sign out of this account?"
 msgstr "要登出此账号吗？"
 
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+msgid "Docs"
+msgstr "文档"
+
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Document type"
 msgstr "文件类型"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Documentation"
 msgstr "文档"
@@ -3613,6 +4183,7 @@ msgstr "不允许"
 msgid "sdk.dontHaveAccountSignUp"
 msgstr "还没有账户？<0>创建账户</0>"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 #: packages/web-ui/src/components/ui/OneTimeSecret.tsx
 msgid "Done"
@@ -3670,6 +4241,10 @@ msgstr "除 GitHub 外，每个已启用的提供商都需要同时配置 issuer
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "每个成员可以有一个主要组织单元和其他展示位置。"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Each person gets an email link that works for 7 days."
+msgstr "每人都会收到一封邮件，其中的链接 7 天内有效。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each primitive returns reactive <0>Accessor<T></0> (getter functions). Call them in JSX or <1>createEffect</1> to track changes."
 msgstr "每个原语返回响应式 <0>Accessor<T></0>（getter 函数）。在 JSX 或 <1>createEffect</1> 中调用以追踪变更。"
@@ -3690,8 +4265,6 @@ msgstr "每个 source Queue 都需要自己的 dead-letter Queue 和 persistence
 msgid "Edge Runtime middleware: verifies JWT, injects auth headers"
 msgstr "Edge Runtime middleware：验证 JWT 并注入认证请求头"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Edit"
 msgstr "编辑"
@@ -3704,13 +4277,6 @@ msgstr "编辑 ABAC 条件"
 msgid "Edit app"
 msgstr "编辑应用"
 
-#. placeholder {0}: application.client_id
-#. placeholder {0}: row.original.client_id
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Edit application {0}"
-msgstr "编辑应用 {0}"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Edit condition"
 msgstr "编辑条件"
@@ -3719,16 +4285,17 @@ msgstr "编辑条件"
 msgid "Edit connection"
 msgstr "编辑连接"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Edit profile"
 msgstr "编辑资料"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Edit profile…"
 msgstr "编辑资料…"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Edit project"
 msgstr "编辑项目"
 
@@ -3761,8 +4328,8 @@ msgid "Eleven SQLite-backed Durable Objects serialize sessions, challenges, OAut
 msgstr "11 个基于 SQLite 的 Durable Objects 对 sessions、challenges、OAuth、PAR、device 和 CIBA state、rate limits、audit order、metering、guests 及 impersonation grants 进行串行化。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/create-organization/index.tsx
@@ -3773,20 +4340,29 @@ msgstr "邮箱"
 msgid "Email a code"
 msgstr "通过邮件发送验证码"
 
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "Email a link to set a password"
+msgstr "发送设置密码的邮件链接"
+
 #: apps/server/src/routes/sign-in/method-copy.tsx
 msgid "Email a sign-in link"
 msgstr "通过邮件发送登录链接"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Email address"
 msgstr "邮箱地址"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "Email addresses"
 msgstr "邮箱地址"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Email codes and magic links follow the sign-in policy of each organization and are not listed here."
+msgstr "邮箱验证码和魔法链接遵循各组织的登录策略，不在此列出。"
 
 #: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 msgid "Email me a link"
@@ -3852,7 +4428,12 @@ msgstr "EncryptedAssertion 使用已配置的 SP 解密密钥，随后仍要求�
 msgid "EncryptedSharedPreferences backed by Android Keystore (AES-256-GCM) protects the token store at rest."
 msgstr "由 Android Keystore（AES-256-GCM）支持的 EncryptedSharedPreferences 保护静态 token 存储。"
 
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "End every active session right away"
+msgstr "立即结束所有活跃会话"
+
 #: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
 msgid "End impersonation"
 msgstr "结束身份模拟"
 
@@ -3921,10 +4502,6 @@ msgstr "输入有效邮箱地址"
 msgid "Enter a valid email address."
 msgstr "请输入有效的邮箱地址。"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Enter absolute HTTPS URLs without a fragment, one per line."
-msgstr "输入不带片段的绝对 HTTPS URL，每行一个。"
-
 #: apps/server/src/components/hosted/CodeField.tsx
 msgid "Enter all {length} characters. {count, plural, one {This has # character.} other {This has # characters.}}"
 msgstr "请输入全部 {length} 个字符。{count, plural, other {当前为 # 个字符。}}"
@@ -3936,10 +4513,6 @@ msgstr "请输入全部 {length} 位数字。{count, plural, other {当前为 # 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Enter an organization name and a URL slug made of lowercase letters, numbers, and hyphens."
 msgstr "输入组织名称和 URL 标识。URL 标识只能包含小写字母、数字和连字符。"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Enter at least one absolute HTTPS URL without a fragment, one per line."
-msgstr "至少输入一个不带片段的绝对 HTTPS URL，每行一个。"
 
 #: apps/server/src/routes/account/SecurityPage.tsx
 msgid "Enter code…"
@@ -4046,9 +4619,17 @@ msgstr "Enterprise"
 msgid "Enterprise attestation policy for passkey registration. Direct mode requires hardware attestation chains verified against configured trusted roots."
 msgstr "通行密钥注册的企业证明策略。直接模式要求根据已配置受信任根验证硬件证明链。"
 
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Enterprise SSO"
 msgstr "企业 SSO"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "enterprise SSO sign-in"
+msgstr "企业 SSO 登录"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Entry"
@@ -4122,6 +4703,14 @@ msgstr "事件类型"
 msgid "Events"
 msgstr "事件"
 
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "Events where {name} acted or was changed, newest first."
+msgstr "{name} 执行或被修改的事件，最新的在前。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Every app that signs users in to {orgName} or calls its APIs through XID, across all projects."
+msgstr "所有项目中，通过 XID 让用户登录 {orgName} 或调用其 API 的应用。"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Every app you sign in to with this account, including {appNames}."
 msgstr "你用此账户登录的所有应用，包括 {appNames}。"
@@ -4142,6 +4731,14 @@ msgstr "每个 OrgUnit 和 AccessRequest 查询的范围均由 <0>tenant_id</0> 
 msgid "Every SDK below carries one of two status labels, aligned with the XID platform support matrix. Neither label is a production-readiness claim."
 msgstr "以下每个 SDK 均带有两种状态标签之一，与 XID 平台支持矩阵对齐。两种标签都不代表生产就绪声明。"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Every session ends right away and refresh tokens stop working. Access tokens already issued stay valid until they expire."
+msgstr "所有会话立即结束，刷新令牌失效。已签发的访问令牌在过期前仍然有效。"
+
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Every setting for {title} in one list"
+msgstr "{title} 的全部设置"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Every way you sign in stops working."
 msgstr "你的所有登录方式都会失效。"
@@ -4150,6 +4747,18 @@ msgstr "你的所有登录方式都会失效。"
 msgid "Every webhook delivery is an HTTP POST with <0>Content-Type: application/json</0>. The body contains the exact event <1>type</1> and its <2>data</2>; svix metadata is carried in request headers."
 msgstr "每次 Webhook 投递都是带有 <0>Content-Type: application/json</0> 的 HTTP POST。正文包含准确的事件 <1>type</1> 及其 <2>data</2>；svix 元数据通过请求 header 传递。"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Everyone else is turned away with access denied."
+msgstr "其他人会被拒绝访问。"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Everyone who can sign in to {orgName}, including guests and people who belong to no organization yet."
+msgstr "所有可以登录 {orgName} 的人，包括访客和尚未加入任何组织的人。"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Everything an admin can do, plus giving and removing the owner role."
+msgstr "拥有管理员的全部权限，并可授予和移除所有者角色。"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Evidence and support"
 msgstr "证据与支持"
@@ -4157,10 +4766,6 @@ msgstr "证据与支持"
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
 msgstr "证据记录"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Exact match, no wildcards. One HTTPS URI per line."
-msgstr "精确匹配，不支持通配符。每行一个 HTTPS URI。"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "example.com"
@@ -4230,13 +4835,18 @@ msgstr "预期失败返回 Result 类型；意外错误抛出 AppError。"
 msgid "Expected JWT aud claim"
 msgstr "期望的 JWT aud claim"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Expired"
 msgstr "已过期"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Expired {date}"
+msgstr "已于 {date} 过期"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Expires"
 msgstr "过期时间"
 
@@ -4268,10 +4878,15 @@ msgstr "适用于 @xid-kit/react-native 的 Expo SecureStore 和 WebBrowser 适�
 msgid "Export"
 msgstr "导出"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Export CSV"
+msgstr "导出 CSV"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Exported API"
 msgstr "导出的 API"
 
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "External ID"
 msgstr "外部 ID"
@@ -4369,10 +4984,6 @@ msgstr "加载死信失败。"
 msgid "Failed to load deleted permissions."
 msgstr "无法加载已删除的权限。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Failed to load deleted projects."
-msgstr "无法加载已删除的项目。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load deleted roles."
 msgstr "无法加载已删除的角色。"
@@ -4388,18 +4999,6 @@ msgstr "无法加载入站 SSO 连接。请重试。"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to load instance managers."
 msgstr "无法加载实例管理员。"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Failed to load invitations."
-msgstr "加载邀请失败。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Failed to load manager assignments."
-msgstr "无法加载管理员指派。"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Failed to load members."
-msgstr "加载成员失败。"
 
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Failed to load organization stats. Please try again."
@@ -4429,11 +5028,6 @@ msgstr "加载平台设置失败。"
 msgid "Failed to load platform stats. Please try again."
 msgstr "加载平台统计失败。请重试。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Failed to load project grants."
-msgstr "无法加载项目授权。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "无法加载项目。"
@@ -4542,10 +5136,23 @@ msgstr "筛选导航"
 msgid "Filter organizations by name or slug"
 msgstr "按名称或 slug 筛选组织"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Filter users"
+msgstr "筛选用户"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Filtering, sorting, and pagination"
 msgstr "过滤、排序和分页"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Filters"
+msgstr "筛选"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Filters ({active})"
+msgstr "筛选（{active}）"
+
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Find an organization"
 msgstr "查找组织"
@@ -4562,7 +5169,13 @@ msgstr "按 userName 查找一个用户。"
 msgid "Find the enterprise connection for a verified email domain."
 msgstr "查找已验证邮箱域名对应的企业连接。"
 
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Find the ID on the user's page under Users."
+msgstr "在「用户」中的用户页面上可以找到 ID。"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "First name"
@@ -4572,6 +5185,10 @@ msgstr "名"
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "First-party"
 msgstr "内部应用"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "First-party app: skip the consent screen"
+msgstr "第一方应用：跳过授权同意页"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
@@ -4646,12 +5263,17 @@ msgid "Free"
 msgstr "免费"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 msgid "From"
 msgstr "起始"
 
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "From seq"
 msgstr "起始序号"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Front-channel logout URL"
+msgstr "前端通道登出 URL"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Full access"
@@ -4747,6 +5369,19 @@ msgstr "GitHub Enterprise Cloud"
 msgid "GitHub social login is separate from GitHub Enterprise Cloud SAML or SCIM."
 msgstr "GitHub 社交登录与 GitHub Enterprise Cloud SAML 或 SCIM 是独立的。"
 
+#. placeholder {0}: project.name
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Give a {0} role"
+msgstr "授予 {0} 角色"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Give a role…"
+msgstr "授予角色…"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Give role"
+msgstr "授予角色"
+
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "Global event stream"
 msgstr "全局事件流"
@@ -4822,10 +5457,6 @@ msgstr "GOOGLE_CLIENT_SECRET"
 msgid "Grant {0} targets organization {1}"
 msgstr "授权 {0} 的目标组织为 {1}"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Grant ID"
-msgstr "授权 ID"
-
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Grant instance access"
 msgstr "授予实例访问权限"
@@ -4834,23 +5465,23 @@ msgstr "授予实例访问权限"
 msgid "Grant instance manager"
 msgstr "添加实例管理员"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Grant manager role"
-msgstr "授予经理角色"
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Grant role to user"
 msgstr "向用户授予角色"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Grant the selected project to another organization in this tenant. Revoking a project grant also revokes user grants issued through it."
-msgstr "将选定的项目授予此租户中的另一个组织。撤销项目授权也会撤销通过该项目授予的用户授权。"
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Granted"
 msgstr "授予日期"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Grants and tokens"
+msgstr "授权类型与令牌"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Grants and tokens saved"
+msgstr "授权类型与令牌已保存"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Group"
@@ -4880,14 +5511,24 @@ msgstr "组"
 msgid "Guarded or minimal OAuth and OIDC extensions"
 msgstr "受控或最小化的 OAuth 与 OIDC 扩展"
 
+#: apps/console/src/routes/users/user-format.ts
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Guest"
 msgstr "访客"
+
+#: apps/console/src/routes/users/user-format.ts
+msgid "Guest {tag}"
+msgstr "访客 {tag}"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 msgid "Guest account"
 msgstr "访客账号"
+
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Guest session"
+msgstr "访客会话"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "H3 event handler factory: verifies JWT, writes event.context.xidAuth, protects routes"
@@ -4933,6 +5574,10 @@ msgstr "点击时重定向到登录 URL 的无样式按钮"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Headless components"
 msgstr "无样式组件"
+
+#: apps/console/src/components/layout/ConsoleNavDrawer.tsx
+msgid "Help and docs"
+msgstr "帮助与文档"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Hex color, e.g. #6366f1"
@@ -5018,6 +5663,10 @@ msgstr "主机名已保留。请添加下方列出的所有 DNS 记录。若未�
 msgid "Hostname status:"
 msgstr "主机名状态："
 
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "How the app authenticates"
+msgstr "应用的认证方式"
+
 #: apps/server/src/routes/account/SecurityPage.tsx
 msgid "How you sign in to {appName}, and what keeps someone else from doing it."
 msgstr "你如何登录 {appName}，以及防止他人冒用的设置。"
@@ -5062,10 +5711,6 @@ msgstr "https://accounts.google.com"
 msgid "https://accounts.google.com/o/oauth2/v2/auth"
 msgstr "https://accounts.google.com/o/oauth2/v2/auth"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "https://app.example.com/callback"
-msgstr "https://app.example.com/callback"
-
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "https://example.com/scim/v2"
 msgstr "https://example.com/scim/v2"
@@ -5109,6 +5754,10 @@ msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 #: apps/site/src/lib/home-surface.ts
 msgid "https://xid.dev/sign-in"
 msgstr "https://xid.dev/sign-in"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "I saved the secret somewhere safe"
+msgstr "我已把密钥保存在安全的地方"
 
 #: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
@@ -5231,6 +5880,7 @@ msgstr "影响"
 msgid "Impersonate"
 msgstr "模拟身份"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Impersonation"
 msgstr "身份模拟"
@@ -5308,10 +5958,6 @@ msgstr "入站企业 SSO | 控制台 | XID"
 msgid "Inbound enterprise SSO means XID acts as the SAML service provider or OIDC relying party for a company IdP. Downstream SaaS SSO means XID acts as the SAML or OIDC identity provider for apps such as Slack, GitHub Enterprise Cloud, Microsoft custom apps, Atlassian, Salesforce, and Zoom."
 msgstr "入站企业 SSO 指 XID 作为公司 IdP 的 SAML 服务提供商或 OIDC 依赖方。下游 SaaS SSO 指 XID 作为 Slack、GitHub Enterprise Cloud、Microsoft 自定义应用、Atlassian、Salesforce 和 Zoom 等应用的 SAML 或 OIDC 身份提供商。"
 
-#: apps/console/src/nav.tsx
-msgid "Inbound SSO"
-msgstr "入站 SSO"
-
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Inbound SSO connections"
 msgstr "入站 SSO 连接"
@@ -5331,6 +5977,14 @@ msgstr "事件已开启。"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Incident title"
 msgstr "事件标题"
+
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "Include the country code, for example +1 415 555 0100."
+msgstr "包含国家代码，例如 +1 415 555 0100。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Include the session ID (sid) in the logout token"
+msgstr "在登出令牌中包含会话 ID（sid）"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Indirect"
@@ -5416,6 +6070,10 @@ msgstr "实例"
 msgid "Instance defaults"
 msgstr "实例默认值"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Instance manager"
+msgstr "实例管理员"
+
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Instance managers"
@@ -5450,18 +6108,50 @@ msgstr "Inter, system-ui, sans-serif"
 msgid "Investigating"
 msgstr "调查中"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Invitation sent successfully."
-msgstr "邀请已发送。"
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Invitation"
+msgstr "邀请"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "Invitations"
+msgstr "邀请"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Invitations could not be loaded"
+msgstr "无法加载邀请"
+
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Invite member"
 msgstr "邀请成员"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Invite members to {orgName}"
+msgstr "邀请成员加入 {orgName}"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Invite members, manage roles, and review membership status."
 msgstr "邀请成员、管理角色并查看成员状态。"
+
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "Invite members…"
+msgstr "邀请成员…"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Invited"
+msgstr "已邀请"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Invited by"
+msgstr "邀请人"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Invited by {inviter}"
+msgstr "邀请人：{inviter}"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Invited email"
+msgstr "受邀邮箱"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "invoice:read"
@@ -5510,6 +6200,10 @@ msgstr "isLoaded、sessions、用于多会话切换器的 setActive"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "isLoaded, userMemberships for organization switcher UI"
 msgstr "isLoaded、用于组织切换器 UI 的 userMemberships"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Issued when the app asks for offline_access. Each use rotates the token."
+msgstr "应用请求 offline_access 时签发。每次使用都会轮换令牌。"
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Issuer"
@@ -5567,6 +6261,18 @@ msgstr "加入 {org}"
 msgid "Join organization"
 msgstr "加入组织"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Joined"
+msgstr "加入时间"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Joined {joined}."
+msgstr "{joined} 加入。"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Joined through"
+msgstr "加入方式"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JS and TS native SDKs (React Native, Expo) use a React provider plus hooks model: XidProvider, useSignIn, and useSignOut."
 msgstr "JS 和 TS 原生 SDK（React Native、Expo）使用 React provider 加 hook 模型：XidProvider、useSignIn 和 useSignOut。"
@@ -5586,6 +6292,10 @@ msgstr "跳转到章节"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JumpCloud"
 msgstr "JumpCloud"
+
+#: apps/console/src/routes/users/user-format.ts
+msgid "Just now"
+msgstr "刚刚"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JWKS cache TTL in seconds"
@@ -5663,6 +6373,10 @@ msgstr "decodeTokenClaims 返回的 JWT payload claims"
 msgid "Keep access when you're not using it"
 msgstr "在你不使用时保持访问"
 
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Keep audit log entries, which are never deleted"
+msgstr "保留审计日志条目，它们永远不会被删除"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Keep my account"
 msgstr "保留我的账户"
@@ -5675,6 +6389,10 @@ msgstr "使公共状态页面保持最新的事件影响、状态和带时间戳
 msgid "Key"
 msgstr "密钥"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Key attributes"
+msgstr "关键属性"
+
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Key metrics"
 msgstr "关键指标"
@@ -5682,6 +6400,10 @@ msgstr "关键指标"
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Key name"
 msgstr "密钥名称"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Key-value data about {name}, set and read through the Management API."
+msgstr "关于 {name} 的键值数据，通过 Management API 设置和读取。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Keychain behavior must be verified in an Xcode device or simulator test run."
@@ -5715,12 +6437,18 @@ msgstr "适用于 Android 的 Kotlin SDK，使用 Chrome Custom Tabs、PKCE S256
 msgid "Label"
 msgstr "标签"
 
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/components/hosted/LanguageMenu.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/LanguageSwitcher.tsx
 msgid "Language"
 msgstr "语言"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Last active"
+msgstr "最后活跃"
 
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Last active {lastActive}."
@@ -5735,6 +6463,8 @@ msgid "Last changed {changed}. This password has appeared in a known data breach
 msgstr "上次修改于 {changed}。此密码出现在已知的数据泄露中，请修改。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Last name"
@@ -5748,6 +6478,12 @@ msgstr "上次重放：{0}"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Last run"
 msgstr "上次运行"
+
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Last sign-in"
+msgstr "最后登录"
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Last successful sync"
@@ -5770,6 +6506,10 @@ msgstr "上次使用"
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Last used {lastUsed}"
 msgstr "上次使用 {lastUsed}"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Last used {used}."
+msgstr "最后使用于 {used}。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Launch ASWebAuthenticationSession, complete PKCE S256 authorization code flow, persist tokens to Keychain, and return a session."
@@ -5809,6 +6549,10 @@ msgstr "留空可使此映射无条件。"
 msgid "Leave organization"
 msgstr "离开组织"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Leave the lifetime empty to use the organization token policy."
+msgstr "有效期留空则使用组织的令牌策略。"
+
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Leave…"
 msgstr "离开…"
@@ -5820,6 +6564,10 @@ msgstr "旧版协议边界"
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "Let {app} sign in as you?"
 msgstr "允许 {app} 以你的身份登录？"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Lets {name} call APIs as itself, with no user present."
+msgstr "让 {name} 在没有用户参与时以自身身份调用 API。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Level"
@@ -5842,9 +6590,17 @@ msgstr "上限"
 msgid "Link expired"
 msgstr "链接已过期"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Linked"
+msgstr "已关联"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Linked sign-on, native IWA, and Kerberos termination are not supported."
 msgstr "不支持关联登录、原生 IWA 和 Kerberos 终结。"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Linked to {account} on {linked}."
+msgstr "{linked} 关联到 {account}。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Linux"
@@ -5878,6 +6634,10 @@ msgstr "列出、创建、更新角色和移除成员。"
 msgid "List, get, and revoke user sessions."
 msgstr "列出、获取和吊销用户会话。"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Listed twice"
+msgstr "重复填写"
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "live"
 msgstr "live"
@@ -5898,10 +6658,6 @@ msgstr "实时状态暂时不可用。"
 msgid "Load more"
 msgstr "加载更多"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Load more applications"
-msgstr "加载更多应用"
-
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Load more dead letters"
 msgstr "加载更多死信"
@@ -5909,10 +6665,6 @@ msgstr "加载更多死信"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Load more deleted permissions"
 msgstr "加载更多已删除的权限"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Load more deleted projects"
-msgstr "加载更多已删除的项目"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Load more deleted roles"
@@ -5931,21 +6683,9 @@ msgstr "加载更多事件"
 msgid "Load more instance managers"
 msgstr "加载更多实例管理员"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Load more invitations"
-msgstr "加载更多邀请"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Load more keys"
 msgstr "加载更多密钥"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Load more manager assignments"
-msgstr "加载更多经理分配"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Load more members"
-msgstr "加载更多成员"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Load more organizations"
@@ -5955,11 +6695,6 @@ msgstr "加载更多组织"
 msgid "Load more permissions"
 msgstr "加载更多权限"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Load more project grants"
-msgstr "加载更多项目授权"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Load more projects"
 msgstr "加载更多项目"
@@ -5983,6 +6718,10 @@ msgstr "加载更多用户"
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Load more webhooks"
 msgstr "加载更多 webhook"
+
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "Load older events"
+msgstr "加载更早的事件"
 
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/Spinner.tsx
@@ -6058,6 +6797,10 @@ msgstr "本地实施和一致性检查不是生产认证。下游 SaaS OIDC 使�
 msgid "Locations are estimated from IP addresses and can be off by a city or more. Last active includes background activity, such as an app refreshing in the background."
 msgstr "位置根据 IP 地址估算，可能偏差一个城市或更多。最近活跃包含后台活动，例如应用在后台刷新。"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "Locations are estimated from the IP address. Last active includes background token refreshes, so a session can look active while the app is closed."
+msgstr "位置根据 IP 地址估算。最后活跃时间包含后台令牌刷新，因此应用关闭时会话也可能显示为活跃。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Logging via SLF4J facade; bring your own implementation (Logback, Log4j2)."
 msgstr "通过 SLF4J facade 记录日志；请自行引入实现（Logback、Log4j2）。"
@@ -6084,6 +6827,10 @@ msgstr "徽标（深色）"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Logo (light)"
 msgstr "徽标（浅色）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Logo URL"
+msgstr "Logo 图片 URL"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Logo URL (dark)"
@@ -6120,6 +6867,10 @@ msgstr "机器到机器"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Machine-readable status"
 msgstr "机器可读状态"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Machine-to-machine"
+msgstr "机器对机器"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "macOS"
@@ -6184,6 +6935,10 @@ msgstr "管理出站投递的事件订阅、端点 URL 和签名密钥。"
 msgid "Manage hosted sign-in methods, identifiers, profile fields, and email domain rules."
 msgstr "管理托管登录方式、标识符、资料字段和邮箱域名规则。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Manage members, sign-in methods, SSO, applications and branding."
+msgstr "管理成员、登录方式、SSO、应用和品牌。"
+
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Manage methods any time in your account under Security."
 msgstr "你可以随时在账户的“安全”中管理验证方式。"
@@ -6200,10 +6955,6 @@ msgstr "管理组织"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Manage organization display name, logo URLs, colors, and typography."
 msgstr "管理组织显示名称、徽标网址、颜色和排版。"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Manage organization members and pending invitations."
-msgstr "管理组织成员和待处理的邀请。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Manage organization resources from your backend."
@@ -6295,13 +7046,13 @@ msgstr "Management API helpers <0>仅限 server-side 或精确的 same-origin</0
 msgid "Management API key list and actions for console embeds"
 msgstr "用于控制台嵌入的 Management API 密钥列表和操作"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Manager role"
-msgstr "经理角色"
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Managers"
+msgstr "管理员"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Manager user ID"
-msgstr "管理员用户 ID"
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Manages all of {name} since {since}"
+msgstr "自 {since} 起管理整个 {name}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Manifest setup"
@@ -6327,18 +7078,28 @@ msgstr "MAU"
 msgid "Meaning"
 msgstr "含义"
 
+#: apps/console/src/routes/members/MembersTab.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Member"
 msgstr "成员"
 
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "Member sections"
+msgstr "成员分区"
+
 #: apps/console/src/nav.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/MembersPage.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
 msgid "Members"
 msgstr "成员"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Members | Console | XID"
 msgstr "成员 | 控制台 | XID"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Members could not be loaded"
+msgstr "无法加载成员"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Members, roles, SSO admin embed"
@@ -6348,6 +7109,10 @@ msgstr "成员、角色和 SSO 管理嵌入组件"
 msgid "Membership and project access are separate: invitations join an Organization, while AccessRequest grants an existing active member access to one Project."
 msgstr "成员身份和项目访问权限是分开的：邀请加入组织，而 AccessRequest 授予现有活跃成员对一个项目的访问权限。"
 
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+msgid "Menu"
+msgstr "菜单"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Message"
 msgstr "消息"
@@ -6355,6 +7120,10 @@ msgstr "消息"
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Message ID"
 msgstr "消息 ID"
+
+#: apps/console/src/nav.tsx
+msgid "Messaging"
+msgstr "消息通道"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Metadata URL"
@@ -6435,6 +7204,10 @@ msgstr "未配置"
 msgid "Mobile number"
 msgstr "手机号"
 
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Mobile or desktop app. Uses PKCE and may use custom-scheme redirects."
+msgstr "移动或桌面应用。使用 PKCE，可以使用自定义 scheme 的重定向。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Mobile SDKs"
 msgstr "移动端 SDK"
@@ -6455,6 +7228,7 @@ msgstr "模块"
 msgid "Module setup"
 msgstr "模块配置"
 
+#: apps/console/src/nav.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Monitoring"
@@ -6466,6 +7240,10 @@ msgstr "监控"
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
 msgid "Monthly active users"
 msgstr "月活跃用户"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "More filters"
+msgstr "更多筛选"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Mounts and immediately redirects to the create organization page"
@@ -6503,19 +7281,51 @@ msgstr "多 Worker 部署不在进程间共享 JWKS 缓存。共享缓存（Redi
 msgid "Must be a public HTTPS URL."
 msgstr "必须是公网 HTTPS URL。"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Must be a public HTTPS URL. XID posts a signed logout token to it."
+msgstr "必须是公网 HTTPS URL。XID 会向它发送签名的登出令牌。"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Mutual TLS"
+msgstr "双向 TLS"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Mutual TLS with a CA-issued certificate (tls_client_auth)"
+msgstr "使用 CA 签发证书的双向 TLS（tls_client_auth）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Mutual TLS with a pinned certificate (self_signed_tls_client_auth)"
+msgstr "使用固定证书的双向 TLS（self_signed_tls_client_auth）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Name"
 msgstr "名称"
 
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Name or client ID"
+msgstr "名称或客户端 ID"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Name or email"
+msgstr "姓名或邮箱"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Name, email, phone or user ID"
+msgstr "姓名、邮箱、手机号或用户 ID"
+
+#: apps/console/src/routes/applications/app-format.ts
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Native app"
 msgstr "原生应用"
@@ -6550,8 +7360,14 @@ msgstr "无网络 JWT 验证、请求认证和 webhook 验证。"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 msgid "Never"
 msgstr "从未"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Never signed in"
+msgstr "从未登录"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "New announcement"
@@ -6568,6 +7384,10 @@ msgstr "已于 {sentTime} 发送新验证码"
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "New here?"
 msgstr "第一次来？"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "New invitation sent to {email}"
+msgstr "已向 {email} 发送新邀请"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "New organization"
@@ -6598,6 +7418,8 @@ msgstr "第一次使用 {org}？"
 msgid "New to XID? Create an account"
 msgstr "第一次使用 XID？创建账户"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/UsersList.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Next"
@@ -6639,10 +7461,6 @@ msgstr "不需要访问请求。"
 msgid "No active API keys."
 msgstr "没有活跃的 API 密钥。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "No active grants for this project."
-msgstr "该项目没有有效的授权。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No active permissions."
 msgstr "没有活动权限。"
@@ -6650,10 +7468,6 @@ msgstr "没有活动权限。"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No active projects"
 msgstr "没有活跃的项目"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "No active projects."
-msgstr "没有活跃的项目。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No active roles"
@@ -6667,13 +7481,29 @@ msgstr "没有活跃角色。"
 msgid "No active user grants."
 msgstr "没有活跃用户授权。"
 
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "No activity recorded for {name} yet."
+msgstr "还没有 {name} 的活动记录。"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "No announcements found."
 msgstr "没有找到公告。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "No applications registered."
-msgstr "尚未注册应用。"
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "No applications"
+msgstr "没有应用"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "No applications in this project yet."
+msgstr "该项目还没有应用。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "No applications match these filters."
+msgstr "没有符合筛选条件的应用。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "No applications yet"
+msgstr "还没有应用"
 
 #: packages/i18n/src/messages.ts
 msgid "No approver is available for this access request."
@@ -6690,6 +7520,10 @@ msgstr "没有审计事件符合当前筛选条件。"
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 msgid "No billing data available."
 msgstr "没有可用计费数据。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "No client authentication; PKCE protects the code exchange"
+msgstr "不进行客户端认证；由 PKCE 保护授权码换取"
 
 #: apps/console/src/routes/org/OrgCompliance.tsx
 msgid "No compliance evidence published"
@@ -6718,15 +7552,10 @@ msgstr "没有发现死信。"
 msgid "No deleted permissions."
 msgstr "没有删除权限。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "No deleted projects."
-msgstr "没有删除的项目。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No deleted roles."
 msgstr "没有删除的角色。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No description"
 msgstr "无描述"
@@ -6784,17 +7613,13 @@ msgstr "尚未报告任何事件。"
 msgid "No instance managers found."
 msgstr "未找到实例管理员。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "No managers assigned to this scope."
-msgstr "没有分配给此范围的经理。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No mechanism to detect when the user closes Custom Tabs without completing authorization."
 msgstr "没有机制检测用户在未完成授权时关闭 Custom Tabs。"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "No members found."
-msgstr "没有成员。"
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "No members match."
+msgstr "没有匹配的成员。"
 
 #: packages/i18n/src/messages.ts
 msgid "No membership record was found."
@@ -6804,6 +7629,10 @@ msgstr "没有找到成员关系记录。"
 msgid "No message yet?"
 msgstr "还没收到消息？"
 
+#: apps/console/src/routes/users/user-columns.tsx
+msgid "No organization"
+msgstr "无组织"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "No organization access"
 msgstr "无组织访问权限"
@@ -6812,17 +7641,16 @@ msgstr "无组织访问权限"
 msgid "No organization matches \"{query}\"."
 msgstr "没有与“{query}”匹配的组织。"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
-msgid "No organization selected"
-msgstr "未选择组织"
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "No organization matches {query}."
+msgstr "没有组织匹配 {query}。"
 
+#: apps/console/src/routes/members/MembersPage.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgBranding.tsx
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -6851,7 +7679,11 @@ msgstr "尚无组织。"
 msgid "No outbound SAML apps configured."
 msgstr "未配置出站 SAML 应用。"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "No password set."
+msgstr "未设置密码。"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
 msgid "No pending invitations."
 msgstr "没有待处理邀请。"
 
@@ -6863,9 +7695,35 @@ msgstr "没有权限映射到该角色。"
 msgid "No platform stats available."
 msgstr "暂无平台统计数据。"
 
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "No project"
+msgstr "无项目"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "No project management scopes are assigned to your user."
 msgstr "没有为您的用户分配项目管理范围。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "No project managers yet."
+msgstr "还没有项目管理员。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "No project roles."
+msgstr "没有项目角色。"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "No projects match."
+msgstr "没有匹配的项目。"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "No projects yet"
+msgstr "还没有项目"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "No public metadata."
+msgstr "没有公开元数据。"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "No results found"
@@ -6899,6 +7757,10 @@ msgstr "无第三方依赖——使用 Apple 系统框架（AuthenticationServic
 msgid "No third-party dependencies — uses Apple system frameworks only"
 msgstr "无第三方依赖——仅使用 Apple 系统框架"
 
+#: apps/console/src/routes/applications/app-format.ts
+msgid "No user sign-in"
+msgstr "无用户登录"
+
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "No users found matching your query."
 msgstr "没有找到匹配的用户。"
@@ -6906,6 +7768,14 @@ msgstr "没有找到匹配的用户。"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "No users found."
 msgstr "没有找到用户。"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "No users match these filters."
+msgstr "没有符合筛选条件的用户。"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "No users yet"
+msgstr "还没有用户"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No valid token present; reason field indicates cause"
@@ -6923,12 +7793,18 @@ msgstr "尚未配置 webhook 端点。"
 msgid "No, it's different"
 msgstr "不，不一样"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Nobody has a direct {name} role yet."
+msgstr "还没有人被直接授予 {name} 的角色。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Node.js"
 msgstr "Node.js"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "None"
 msgstr "无"
@@ -6941,9 +7817,17 @@ msgstr "尚未添加。添加后，应用可以通过短信向你发送账户通
 msgid "None added. This organization doesn't send text messages yet."
 msgstr "尚未添加。此组织暂不发送短信。"
 
+#: apps/console/src/routes/users/user-columns.tsx
+msgid "None set"
+msgstr "未设置"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "None yet"
 msgstr "暂无"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "None yet. {name} can create one from the Security page of their account."
+msgstr "还没有。{name} 可以在账户的安全页面创建。"
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "None yet. For when you can't reach your phone or passkeys."
@@ -6952,6 +7836,10 @@ msgstr "暂无。用于无法使用手机或通行密钥时。"
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "None yet. We'd send a 6-digit code to confirm it."
 msgstr "暂无。我们会发送 6 位验证码进行确认。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Not an email"
+msgstr "不是邮箱地址"
 
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "Not connected"
@@ -6974,9 +7862,23 @@ msgstr "未就绪"
 msgid "Not run yet"
 msgstr "尚未运行"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Not saved. Fix the highlighted URLs first."
+msgstr "未保存。请先修正标出的 URL。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Not sent"
+msgstr "未发送"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Not set"
 msgstr "未设置"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Not set up."
+msgstr "未设置。"
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Not set up. Add it as a fallback after you set up the authenticator app."
@@ -6998,6 +7900,10 @@ msgstr "未设置。使用资料中已验证的号码，作为认证器应用之
 msgid "Not set. Add one so you can still sign in if your other methods aren't available."
 msgstr "未设置。添加一个，以便其他方式不可用时仍能登录。"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Not shared with any organization."
+msgstr "未共享给任何组织。"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Not synced"
 msgstr "未同步"
@@ -7005,6 +7911,10 @@ msgstr "未同步"
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Not used yet"
 msgstr "尚未使用"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Not verified"
+msgstr "未验证"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Not yet implemented"
@@ -7021,6 +7931,12 @@ msgstr "备注"
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "Nothing changed on your account. Connect a different {provider} account, or disconnect this one from the other account first."
 msgstr "你的账户没有任何变化。请连接另一个 {provider} 账户，或先从另一个账户断开此账户。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Nothing changed. Check your connection and try again."
+msgstr "没有任何更改。请检查网络后重试。"
 
 #: apps/server/src/routes/consent/index.tsx
 msgid "Nothing from your account was shared. {app} will show its own message about what to do next."
@@ -7057,10 +7973,6 @@ msgstr "OAuth 2.0 client_id"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OAuth and OIDC features"
 msgstr "OAuth 和 OIDC 功能"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "OAuth applications"
-msgstr "OAuth 应用"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "OAuth applications | Console | XID"
@@ -7118,6 +8030,7 @@ msgstr "对象"
 msgid "Observe only"
 msgstr "仅观察"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Off"
 msgstr "关闭"
@@ -7195,6 +8108,10 @@ msgstr "已启用"
 msgid "On a different computer, your browser can show a QR code to scan with your phone."
 msgstr "在其他电脑上，浏览器可以显示二维码，用手机扫描即可。"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "On one device or security key"
+msgstr "绑定在单个设备或安全密钥上"
+
 #. placeholder {0}: dates.date(sms.createdAt)
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "On since {0}. A fallback, never used on its own."
@@ -7224,17 +8141,25 @@ msgstr "{appName} 打开前的一个可选步骤。"
 msgid "One optional step before you continue."
 msgstr "继续之前的一个可选步骤。"
 
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "One per line. Each must match exactly; wildcards are not allowed."
+msgstr "每行一个。每个都必须精确匹配，不允许通配符。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One platform for identity"
 msgstr "统一身份平台"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "One secret is active at a time. XID keeps only a hash, so the secret cannot be shown again; rotating creates a new one and shows it once."
+msgstr "同一时间只有一个有效密钥。XID 只保存哈希，因此无法再次显示密钥；轮换会生成新密钥并只显示一次。"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "One tenant"
 msgstr "一个租户"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "One URI per line."
-msgstr "每行一个 URI。"
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "One URL per line."
+msgstr "每行一个 URL。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One-tap sign-in embed"
@@ -7248,6 +8173,14 @@ msgstr "OneLogin"
 msgid "Only allow it if you're holding that device right now."
 msgstr "只有你此刻正拿着那台设备时才允许。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Only an owner can change the role of another owner."
+msgstr "只有所有者可以更改另一位所有者的角色。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Only for apps you own. Third-party apps always ask users to approve access."
+msgstr "仅用于你自己的应用。第三方应用总是会请用户同意授权。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed."
 msgstr "仅暴露负路由和元数据存根。不支持的操作返回明确的<0>501 unsupported_feature</0>；没有声称支持功能协议。"
@@ -7256,6 +8189,10 @@ msgstr "仅暴露负路由和元数据存根。不支持的操作返回明确的
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "Only part of the chain was verified in this request. The latest seq is {0}."
 msgstr "本次请求只验证了链的一部分。最新序号为 {0}。"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Only people with a {name} role"
+msgstr "仅限拥有 {name} 角色的人"
 
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 msgid "Only the first matches are listed. Refine the search to narrow them."
@@ -7291,6 +8228,10 @@ msgstr "打开控制台"
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Open Customer Portal"
 msgstr "打开客户门户"
+
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "Open in Audit log"
+msgstr "在审计日志中打开"
 
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 msgid "Open in authenticator app"
@@ -7420,10 +8361,6 @@ msgstr "可选"
 msgid "Optional network-fetching JWKS cache with configurable TTL (default 3600 s); use only when jwtKey is not pre-loaded"
 msgstr "可选的网络 JWKS 缓存，TTL 可配置（默认 3600 秒）；仅在 jwtKey 未预加载时使用"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Optional. One URI per line."
-msgstr "可选。每行一个 URI。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Options for authenticateRequest: jwtKey, issuer, audience, authorizedParties, clockToleranceSec, now, jwtCookieName, sessionTokenExchange"
 msgstr "authenticateRequest 的选项：jwtKey、issuer、audience、authorizedParties、clockToleranceSec、now、jwtCookieName、sessionTokenExchange"
@@ -7453,19 +8390,20 @@ msgstr "xidMiddleware 的选项：jwtKey、issuer、jwtCookieName、sessionToken
 msgid "or"
 msgstr "或"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Or enter an organization ID"
+msgstr "或输入组织 ID"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Org creation flow"
 msgstr "组织创建流程"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "org_..."
-msgstr "org_..."
-
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Organization"
 msgstr "组织"
@@ -7500,10 +8438,6 @@ msgstr "组织 ID"
 msgid "sdk.organizationList"
 msgstr "组织列表"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Organization manager"
-msgstr "组织经理"
-
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Organization name"
 msgstr "组织名称"
@@ -7521,10 +8455,16 @@ msgstr "组织策略 <0>attestationMode</0> 在通行密钥注册时选择无、
 msgid "sdk.organizationProfile"
 msgstr "组织资料"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Organization settings"
+msgstr "组织设置"
+
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
@@ -7546,9 +8486,21 @@ msgstr "组织 | 控制台 | XID"
 msgid "Organizations and access"
 msgstr "组织和访问"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Organizations and roles"
+msgstr "组织与角色"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations can require email identifiers, username identifiers, or both."
 msgstr "组织可以要求邮箱标识、用户名标识或两者都要求。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Organizations could not be loaded"
+msgstr "无法加载组织"
+
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Organizations you manage"
+msgstr "你管理的组织"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OrgUnit trees support a maximum depth of eight."
@@ -7581,10 +8533,6 @@ msgstr "出站 SAML 应用已删除。"
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Outbound SAML app saved."
 msgstr "出站 SAML 应用已保存。"
-
-#: apps/console/src/nav.tsx
-msgid "Outbound SSO"
-msgstr "出站 SSO"
 
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Overdue"
@@ -7715,6 +8663,10 @@ msgstr "页面未找到"
 msgid "Page not found | XID"
 msgstr "页面未找到 | XID"
 
+#: apps/console/src/components/layout/ConsoleCommandMenu.tsx
+msgid "Pages"
+msgstr "页面"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Pages Router"
 msgstr "Pages Router"
@@ -7753,6 +8705,9 @@ msgid "Pass <0>appearance</0> to prebuilt UI components such as <1>SignIn</1>, <
 msgstr "请将 <0>appearance</0> 传给 <1>SignIn</1>、<2>UserProfile</2> 或 <3>OrganizationSwitcher</3> 等预构建 UI components，而不是 <4>XidProvider</4>。导出的 Appearance types 提供带类型的 CSS-variable 和 element-class overrides；所有可见文案都使用 Lingui runtime descriptors。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
@@ -7781,6 +8736,7 @@ msgstr "通行密钥登录是主要 AAL2 认证。密码或 OTP 会话可通过 
 msgid "Passkey verification failed. Try another method or try again."
 msgstr "通行密钥验证失败。请换用其他方式或重试。"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Passkeys"
 msgstr "通行密钥"
@@ -7798,6 +8754,9 @@ msgid "Passkeys on your devices"
 msgstr "你设备上的通行密钥"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/server/src/routes/account/PasswordSection.tsx
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -7848,6 +8807,7 @@ msgstr "payload 结构"
 msgid "Payment completed. The plan updates after Stripe confirms the subscription, which can take a minute. Reload this page if it does not change."
 msgstr "支付已完成。Stripe 确认订阅后方案才会更新，可能需要一分钟。如果没有变化，请刷新此页面。"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Pending"
@@ -7857,7 +8817,6 @@ msgstr "待处理"
 msgid "Pending DNS"
 msgstr "DNS 待验证"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 msgid "Pending invitations"
 msgstr "待处理邀请"
@@ -7866,14 +8825,30 @@ msgstr "待处理邀请"
 msgid "Pending verification"
 msgstr "待验证"
 
-#: apps/console/src/nav.tsx
-msgid "People"
-msgstr "人员"
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "People appear here after they sign up, accept an invitation, arrive through directory sync, or you create them."
+msgstr "用户注册、接受邀请、通过目录同步加入或由你创建后，会出现在这里。"
+
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "People who belong to {orgName} and what they can manage here."
+msgstr "属于 {orgName} 的人，以及他们在这里可以管理的内容。"
+
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "People who belong to {orgName} and what they can manage here. People who only use your apps are listed under Users."
+msgstr "属于 {orgName} 的人，以及他们在这里可以管理的内容。只使用你的应用的人列在「用户」中。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "People who manage {name}"
+msgstr "管理 {name} 的人"
 
 #. placeholder {0}: target.domain
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "People with {0} addresses sign in through {idp}."
 msgstr "{0} 邮箱用户通过 {idp} 登录。"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "People without a {name} role can still sign in. Their token has an empty roles claim."
+msgstr "没有 {name} 角色的人仍可登录，他们令牌中的 roles 声明为空。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Per-call overrides for signIn: redirectUri, scopes"
@@ -7924,7 +8899,12 @@ msgstr "个人账户"
 msgid "Personal info"
 msgstr "个人信息"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Phone"
+msgstr "手机号"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
 #: apps/server/src/routes/account/PhoneSection.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Phone number"
@@ -8035,7 +9015,7 @@ msgstr "方案和配额 | Console | XID"
 msgid "Plans are accounting and support labels. They never disable authentication, token issuance, or configured protocols in a self-hosted deployment."
 msgstr "方案仅用于计费和支持标签。在自托管部署中，方案绝不会禁用身份验证、令牌签发或已配置的协议。"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Platform"
@@ -8048,10 +9028,6 @@ msgstr "平台（实例级事件）"
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Platform compliance | Console | XID"
 msgstr "平台合规 | Console | XID"
-
-#: apps/console/src/components/layout/ConsoleLayout.tsx
-msgid "Platform management"
-msgstr "平台管理"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Platform MFA policy"
@@ -8109,10 +9085,6 @@ msgstr "插件配置"
 msgid "POST /token"
 msgstr "POST /token"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Post-logout redirect URIs"
-msgstr "登出后重定向 URI"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Prefix"
 msgstr "前缀"
@@ -8149,6 +9121,8 @@ msgstr "预设"
 msgid "Preview"
 msgstr "预览"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/UsersList.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Previous"
@@ -8168,11 +9142,16 @@ msgstr "主品牌色"
 msgid "Primary color"
 msgstr "主色"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Primary email"
+msgstr "主邮箱"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Primary email is used for matching and account linking."
 msgstr "主邮箱用于匹配和账户链接。"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleNav.tsx
+#: apps/console/src/components/layout/ConsoleNavDrawer.tsx
 msgid "Primary navigation"
 msgstr "主导航"
 
@@ -8184,6 +9163,10 @@ msgstr "原语"
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 msgid "Print"
 msgstr "打印"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Private key JWT"
+msgstr "私钥 JWT"
 
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Private windows in some browsers can't save passkeys. Use a regular window."
@@ -8238,6 +9221,8 @@ msgstr "生产证据"
 msgid "Production where proven, local where not"
 msgstr "已验证处为 production，其余为本地"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Profile"
@@ -8251,15 +9236,39 @@ msgstr "个人资料 | 账户 | XID"
 msgid "Profile fields"
 msgstr "资料字段"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Profile saved"
+msgstr "资料已保存"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Project"
 msgstr "项目"
 
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Project details"
+msgstr "项目详情"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Project details saved"
+msgstr "项目详情已保存"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project grant manager"
 msgstr "项目授权经理"
+
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "project ID"
+msgstr "项目 ID"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Project ID"
+msgstr "项目 ID"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project identity remains stable while its name and description change."
@@ -8269,8 +9278,8 @@ msgstr "项目名称保持稳定，但名称和描述发生变化。"
 msgid "Project links"
 msgstr "项目链接"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project manager"
 msgstr "专案经理"
 
@@ -8279,29 +9288,42 @@ msgid "Project managers can change definitions. Project grant managers can read 
 msgstr "项目经理可以更改定义。项目授权经理可以读取定义，并管理某一项目授权下的用户授权。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project name"
 msgstr "项目名称"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Project name or ID"
+msgstr "项目名称或 ID"
+
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Project not found"
+msgstr "未找到项目"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Project policy"
 msgstr "项目政策"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Project recycle bin"
-msgstr "项目回收站"
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Project restored"
+msgstr "项目已恢复"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Project role grants"
+msgstr "项目角色授权"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Project roles and permissions"
 msgstr "项目角色和权限"
 
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Project sections"
+msgstr "项目分区"
+
 #: apps/console/src/nav.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Projects"
 msgstr "项目"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Projects and access"
-msgstr "项目和访问"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Projects and access | Console | XID"
@@ -8311,13 +9333,17 @@ msgstr "项目和访问 | Console | XID"
 msgid "Projects and access policy"
 msgstr "项目和准入政策"
 
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Projects could not be loaded"
+msgstr "无法加载项目"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Projects group applications and authorization roles. The per-project <0>access_policy</0> controls only same-organization users without an effective UserGrant; cross-organization ProjectGrant authorization is unaffected."
 msgstr "项目组应用程序和授权角色。每个项目的<0>access_policy</0>仅控制同一组织的用户，没有有效的UserGrant；跨组织的 ProjectGrant 授权不受影响。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Projects isolate business roles and permissions. Select one project to manage its cross-organization grants and delegated managers."
-msgstr "项目隔离业务角色和权限。选择一个项目来管理其跨组织授权和委派经理。"
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Projects you manage"
+msgstr "你管理的项目"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Property"
@@ -8462,21 +9488,25 @@ msgstr "为身份提供商集成预配新的 SCIM 2.0 目录。Bearer token 仅�
 msgid "Provision SCIM 2.0 directories to sync organization users and groups from an identity provider."
 msgstr "预配 SCIM 2.0 目录，从身份提供商同步组织用户和组。"
 
+#: apps/console/src/nav.tsx
+msgid "Provisioning"
+msgstr "用户预配"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "PSR-16 CacheInterface for JWKS caching"
 msgstr "用于 JWKS 缓存的 PSR-16 CacheInterface"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "public"
-msgstr "public"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Public client — no client secret stored or transmitted."
 msgstr "公共客户端——不存储或传输客户端密钥。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Public client {createdPublicClientId} created with PKCE. No client secret was generated."
-msgstr "使用 PKCE 创建公共客户端 {createdPublicClientId}。未生成客户端密钥。"
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Public client, device code"
+msgstr "公共客户端，设备码"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Public client, PKCE"
+msgstr "公共客户端，PKCE"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Public clients never store client secrets."
@@ -8486,10 +9516,6 @@ msgstr "公开客户端从不存储客户端密钥。"
 msgid "Public clients use Authorization Code with PKCE S256. No client secret is stored."
 msgstr "公共客户端使用带 PKCE S256 的授权码。不存储客户端密钥。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Public clients use PKCE and do not receive a client secret."
-msgstr "公共客户端使用 PKCE 并且不接收客户端密钥。"
-
 #: apps/site/src/lib/home-surface.ts
 msgid "Public content and management stay binding-free. Identity state, protocols, and policy remain in Core."
 msgstr "公开内容和管理界面保持 binding-free。身份状态、协议和策略保留在 Core 中。"
@@ -8497,6 +9523,14 @@ msgstr "公开内容和管理界面保持 binding-free。身份状态、协议�
 #: apps/site/src/lib/home-surface.ts
 msgid "Public locales"
 msgstr "公开语言"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "public metadata"
+msgstr "公开元数据"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Public metadata"
+msgstr "公开元数据"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Public organization view"
@@ -8614,6 +9648,10 @@ msgstr "/v1/me 原始响应结构"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Raw adapter context (advanced use and testing)"
 msgstr "原始适配器上下文（高级用法和测试）"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Raw JSON"
+msgstr "原始 JSON"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Raw token endpoint response shape"
@@ -8782,18 +9820,24 @@ msgstr "部署时作为元数据记录。它不会迁移或限制数据的存储
 msgid "Redirect callbacks are claimed app links, universal links, custom schemes, or platform equivalent callback URLs."
 msgstr "重定向 callback 为声明式 app link、universal link、自定义 scheme 或平台等效 callback URL。"
 
+#. placeholder {0}: index + 1
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Redirect URI {0}"
+msgstr "重定向 URI {0}"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirect URI matching is exact. Wildcards are not accepted."
 msgstr "重定向 URI 必须精确匹配。不接受通配符。"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Redirect URIs"
 msgstr "重定向 URI"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Redirect URIs are matched exactly. At least one redirect URI is required for the authorization code flow."
-msgstr "重定向 URI 按精确匹配。授权码流程至少需要一个重定向 URI。"
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Redirect URIs saved"
+msgstr "重定向 URI 已保存"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirect users to the unified Hosted Auth flow."
@@ -8841,6 +9885,10 @@ msgstr "刷新 {0} 的状态"
 msgid "Refresh the page to try again."
 msgstr "刷新页面重试。"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Refresh token"
+msgstr "刷新令牌"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Refresh token absolute timeout (days)"
 msgstr "Refresh token 绝对超时（天）"
@@ -8877,10 +9925,6 @@ msgstr "注册一个下游 SCIM API，并选择要推送哪些成员。成员被
 msgid "Register a versioned compliance artifact and control which tenants can download it."
 msgstr "登记带版本的合规文件，并控制哪些租户可以下载。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Register application"
-msgstr "注册应用"
-
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Register document"
 msgstr "注册文档"
@@ -8892,10 +9936,6 @@ msgstr "在身份提供商应用中注册以下每个 URL。用户会回到他�
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Register evidence"
 msgstr "登记证据"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Register OAuth 2.0 clients and manage their credentials. Applications are shared by every organization in the tenant."
-msgstr "注册 OAuth 2.0 客户端并管理其凭据。应用由租户内的所有组织共享。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Register OAuth clients, redirect URIs, grants, token policy, and secrets."
@@ -8912,6 +9952,10 @@ msgstr "为此组织注册 SAML、OIDC 或传统企业协议连接。传统协�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Register the callback URI scheme on each platform."
 msgstr "在每个平台上注册 callback URI scheme。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Register the first app that signs users in through XID. Each app gets a client ID; web apps and machine-to-machine clients also get a secret."
+msgstr "注册第一个通过 XID 让用户登录的应用。每个应用都有客户端 ID；Web 应用和机器对机器客户端还会获得密钥。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Registers XID_CLIENT singleton and APP_INITIALIZER; accepts ProvideXidOptions"
@@ -8945,9 +9989,9 @@ msgstr "XID token 的 Remix cookie 会话存储"
 msgid "Remix loader and action server helpers, cookie session storage, and OAuth callback handler with React SDK re-exports."
 msgstr "带 React SDK 重导出的 Remix loader 和 action 服务端辅助工具、cookie 会话存储和 OAuth callback 处理器。"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
 msgid "Remove"
 msgstr "移除"
 
@@ -8957,11 +10001,6 @@ msgstr "移除"
 #: apps/server/src/routes/account/PhoneSection.tsx
 msgid "Remove {0}"
 msgstr "移除 {0}"
-
-#. placeholder {0}: row.original.email
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Remove {0} from organization"
-msgstr "从组织移除 {0}"
 
 #. placeholder {0}: removing.email
 #. placeholder {0}: removing.phone
@@ -8978,17 +10017,30 @@ msgstr "移除 {name}"
 msgid "Remove {name}?"
 msgstr "移除 {name}？"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Remove {removingName} from {orgLabel}?"
+msgstr "将 {removingName} 移出 {orgLabel}？"
+
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "Remove email"
 msgstr "移除邮箱"
+
+#. placeholder {0}: chip.label
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Remove filter {0}"
+msgstr "移除筛选 {0}"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Remove from organization…"
+msgstr "移出组织…"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Remove mapping"
 msgstr "删除映射"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Remove member?"
-msgstr "移除成员？"
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Remove member"
+msgstr "移除成员"
 
 #: apps/server/src/routes/account/PhoneSection.tsx
 msgid "Remove number"
@@ -9012,9 +10064,32 @@ msgstr "移除提供商"
 msgid "Remove provider?"
 msgstr "移除提供商？"
 
+#. placeholder {0}: index + 1
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Remove redirect URI {0}"
+msgstr "移除重定向 URI {0}"
+
+#. placeholder {0}: grant.role_name ?? grant.role_key ?? ''
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Remove role {0}"
+msgstr "移除角色 {0}"
+
+#. placeholder {0}: grant.user_id
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Remove role {role} from {0}"
+msgstr "移除 {0} 的角色 {role}"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Remove role permission mapping?"
 msgstr "删除角色权限映射？"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Remove some addresses; the limit is 50."
+msgstr "请删除部分地址，上限为 50 个。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Remove the fragment after #."
+msgstr "请删除 # 之后的片段。"
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Remove your only passkey?"
@@ -9200,6 +10275,10 @@ msgstr "<0>authenticateRequest</0> 和 <1>verifyWebhook</1> 需要 PSR-7 请求�
 msgid "Resend code"
 msgstr "重新发送验证码"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Resend invitation"
+msgstr "重新发送邀请"
+
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Resend invitation email"
 msgstr "重新发送邀请邮件"
@@ -9207,6 +10286,14 @@ msgstr "重新发送邀请邮件"
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "重新发送验证邮件"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Resending replaces the link, so the earlier email stops working. You can send up to 50 invitations an hour."
+msgstr "重新发送会替换链接，之前邮件中的链接将失效。每小时最多可发送 50 份邀请。"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset link sent to {email}"
+msgstr "重置链接已发送至 {email}"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Reset links are single-use and expire after 15 minutes so nobody else can use an old email."
@@ -9216,9 +10303,27 @@ msgstr "重置链接只能使用一次，15 分钟后过期，防止他人使用
 msgid "Reset links work once, for 15 minutes. Request a new one and open the newest email."
 msgstr "重置链接只能使用一次，15 分钟内有效。请重新申请并打开最新的邮件。"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset MFA"
+msgstr "重置 MFA"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset MFA…"
+msgstr "重置 MFA…"
+
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Reset password | XID"
 msgstr "重置密码 | XID"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset password…"
+msgstr "重置密码…"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset two-step verification for {name}?"
+msgstr "重置 {name} 的两步验证？"
 
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 msgid "Reset your password"
@@ -9245,7 +10350,6 @@ msgstr "资源的 GET 响应包含来自 <1>meta.version</1> 的 <0>ETag: W/\"<m
 msgid "Resource quotas"
 msgstr "资源配额"
 
-#: apps/console/src/nav.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resources"
 msgstr "资源"
@@ -9254,8 +10358,8 @@ msgstr "资源"
 msgid "Responsibility"
 msgstr "职责"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Restore"
 msgstr "恢复"
 
@@ -9283,6 +10387,14 @@ msgstr "受限角色"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Result from signInPassword: next step or redirect URL"
 msgstr "signInPassword 的返回结果：下一步或重定向 URL"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Resume {name}?"
+msgstr "恢复 {name}？"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Resume user"
+msgstr "恢复用户"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Retire"
@@ -9406,9 +10518,8 @@ msgstr "查看按类型和时间范围过滤的只读事件日志。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Revoke"
 msgstr "吊销"
 
@@ -9439,14 +10550,6 @@ msgstr "吊销 API 密钥 {0}"
 msgid "Revoke API key?"
 msgstr "吊销 API 密钥？"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke assignment"
-msgstr "撤销分配"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke grant"
-msgstr "撤销授权"
-
 #. placeholder {0}: managerLabel(row.original)
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Revoke instance manager {0}"
@@ -9456,31 +10559,21 @@ msgstr "撤销实例管理员 {0}"
 msgid "Revoke instance manager?"
 msgstr "撤销实例管理员？"
 
-#. placeholder {0}: row.original.email
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Revoke invitation for {0}"
-msgstr "吊销 {0} 的邀请"
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Revoke invitation"
+msgstr "撤销邀请"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Revoke invitation?"
-msgstr "吊销邀请？"
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Revoke invitation…"
+msgstr "撤销邀请…"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Revoke manager"
 msgstr "撤销经理"
 
-#. placeholder {0}: row.original.user_id
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke manager assignment for {0}"
-msgstr "撤销对 {0} 的经理分配"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke manager assignment?"
-msgstr "撤销经理任命？"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke project grant?"
-msgstr "撤销项目授权？"
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Revoke the invitation for {revokingEmail}?"
+msgstr "撤销发给 {revokingEmail} 的邀请？"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Revoke user grant"
@@ -9494,13 +10587,22 @@ msgstr "撤销用户授权？"
 msgid "Revoked"
 msgstr "已吊销"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Revoking a share removes every {name} role that came through it."
+msgstr "撤销共享会移除通过它获得的所有 {name} 角色。"
+
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Revoking stops new access right away. Anything an app already copied stays with that company; ask them to delete it."
 msgstr "撤销后会立即停止新的访问。应用已复制的数据仍由该公司保管，请联系对方删除。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Role"
 msgstr "角色"
@@ -9517,6 +10619,10 @@ msgstr "角色与权限守卫"
 msgid "Role boundaries"
 msgstr "角色边界"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Role grants could not be loaded"
+msgstr "无法加载角色授权"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Role key"
 msgstr "角色关键"
@@ -9529,14 +10635,13 @@ msgstr "角色映射 JSON"
 msgid "Role permission mappings"
 msgstr "角色权限映射"
 
-#. placeholder {0}: managerRoleLabel(scopeType)
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Role: {0}"
-msgstr "角色：{0}"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Roles"
 msgstr "角色"
+
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Roles & permissions"
+msgstr "角色与权限"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Roles | Console | XID"
@@ -9546,20 +10651,36 @@ msgstr "角色 | 控制台 | XID"
 msgid "Roles and permission keys never cross project boundaries."
 msgstr "角色和权限密钥永远不会跨越项目边界。"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Roles and permissions"
 msgstr "角色和权限"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Roles given directly"
+msgstr "直接授予的角色"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Roles given through a shared organization are a project grant and are listed on that organization."
+msgstr "通过共享组织授予的角色属于项目授权，列在该组织下。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Rotate secret"
 msgstr "轮换密钥"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Rotate secret…"
+msgstr "轮换密钥…"
 
 #. placeholder {0}: row.original.url
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Rotate signing secret for {0}"
 msgstr "为 {0} 轮换签名密钥"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Rotate the {name} secret?"
+msgstr "轮换 {name} 的密钥？"
 
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "Rotate token"
@@ -9584,6 +10705,14 @@ msgstr "Ruby 服务端 SDK，提供 networkless JWT 验证、Rack/Rails 请求�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
 msgstr "在自己的 Cloudflare 账户中，以单租户或多租户模式运行同一套 MIT 许可代码。自托管包含全部功能，不设许可证检查或独立版本。"
+
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Runs in the browser. Uses PKCE, no secret."
+msgstr "在浏览器中运行。使用 PKCE，没有密钥。"
+
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Runs on your servers and keeps a client secret."
+msgstr "在你的服务器上运行，并保管客户端密钥。"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Runtime"
@@ -9633,6 +10762,10 @@ msgstr "Salesforce"
 msgid "Same-organization behavior"
 msgstr "同一组织行为"
 
+#: apps/console/src/nav.tsx
+msgid "SAML apps"
+msgstr "SAML 应用"
+
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SAML clock tolerance in milliseconds"
 msgstr "SAML 时钟容差（以毫秒为单位）"
@@ -9674,12 +10807,10 @@ msgid "Save a copy first"
 msgstr "先保存一份副本"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/ApplicationEditor.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgBranding.tsx
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -9689,13 +10820,42 @@ msgstr "先保存一份副本"
 msgid "Save changes"
 msgstr "保存更改"
 
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Save details"
+msgstr "保存详情"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Save grants and tokens"
+msgstr "保存授权类型与令牌"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Save name"
 msgstr "保存名称"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Save profile"
 msgstr "保存资料"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Save project details"
+msgstr "保存项目详情"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Save redirect URIs"
+msgstr "保存重定向 URI"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Save role"
+msgstr "保存角色"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Save sign-in rule"
+msgstr "保存登录规则"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Save sign-out settings"
+msgstr "保存登出设置"
 
 #: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
 msgid "Save your backup codes"
@@ -9773,7 +10933,6 @@ msgstr "SCIM 目标已删除。"
 msgid "SCIM target saved."
 msgstr "SCIM 目标已保存。"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "SCIM targets"
 msgstr "SCIM 目标"
@@ -9785,14 +10944,6 @@ msgstr "SCIM 目标 | 控制台 | XID"
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "SCIM token generated. Store it now; it will not be shown again."
 msgstr "SCIM 令牌已生成。请立即保存，之后不会再次显示。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Scope ID"
-msgstr "范围 ID"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Scope type"
-msgstr "范围类型"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -9807,6 +10958,7 @@ msgstr "SDK 概览"
 msgid "SDKs"
 msgstr "开发套件"
 
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
@@ -9817,6 +10969,10 @@ msgstr "搜索"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Search active users first, then select a result. You can also enter an exact user ID when the user is not in the current result page."
 msgstr "首先搜索活跃用户，然后选择结果。当用户不在当前结果页面中时，您还可以输入准确的用户 ID。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Search applications"
+msgstr "搜索应用"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
@@ -9831,6 +10987,10 @@ msgstr "按名称或标识搜索"
 msgid "Search documentation"
 msgstr "搜索文档"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Search invitations"
+msgstr "搜索邀请"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Search is available after a production build"
 msgstr "生产构建后可使用搜索"
@@ -9839,11 +10999,20 @@ msgstr "生产构建后可使用搜索"
 msgid "Search is temporarily unavailable"
 msgstr "搜索暂时不可用"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Search members"
+msgstr "搜索成员"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Search organizations"
 msgstr "搜索组织"
 
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Search projects"
+msgstr "搜索项目"
+
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 msgid "Search users"
 msgstr "搜索用户"
 
@@ -9854,6 +11023,11 @@ msgstr "跨所有组织搜索用户"
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Search users across all organizations. Access is logged for GDPR compliance. Results are limited to authenticated platform admins."
 msgstr "跨所有组织搜索用户。访问会记录用于 GDPR 合规，结果仅限已认证的平台管理员查看。"
+
+#: apps/console/src/components/layout/ConsoleCommandMenu.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+msgid "Search users, apps, or jump to a page"
+msgstr "搜索用户、应用，或跳转到页面"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Searching"
@@ -9950,10 +11124,6 @@ msgstr "选择"
 msgid "Select a plan"
 msgstr "选择方案"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Select a project with an active grant first."
-msgstr "请先选择一个具有有效授权的项目。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select a role, attach a permission, and optionally require a JSON ABAC condition. The server validates supported operators and variable paths."
 msgstr "选择角色、附加权限，并可选择要求 JSON ABAC 条件。服务器验证支持的运算符和变量路径。"
@@ -9961,10 +11131,6 @@ msgstr "选择角色、附加权限，并可选择要求 JSON ABAC 条件。服�
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Select a search result or enter the exact ID of an active user."
 msgstr "选择搜索结果或输入活动用户的准确 ID。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Select an active project first."
-msgstr "首先选择一个活动项目。"
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
@@ -9978,10 +11144,6 @@ msgstr "请手动选中复制"
 msgid "Select at least one scope."
 msgstr "请至少选择一个作用域。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Select client type"
-msgstr "选择客户端类型"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Select key label"
 msgstr "选择密钥标签"
@@ -9991,7 +11153,7 @@ msgstr "选择密钥标签"
 msgid "sdk.selectOrganization"
 msgstr "选择组织"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
@@ -10010,10 +11172,6 @@ msgstr "选择权限"
 msgid "Select role"
 msgstr "选择角色"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Select role for new member"
-msgstr "选择新成员角色"
-
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Select the events to deliver. Leave all unchecked to receive every event."
 msgstr "选择要投递的事件。全部不勾选则接收所有事件。"
@@ -10022,14 +11180,6 @@ msgstr "选择要投递的事件。全部不勾选则接收所有事件。"
 msgid "Selected"
 msgstr "已选择"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Selected project"
-msgstr "选定项目"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Selected project grant"
-msgstr "选定的项目授权"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Selector xid-sign-in-button; inputs signInUrl, redirectUrl, ariaLabel"
 msgstr "Selector xid-sign-in-button；输入 signInUrl、redirectUrl、ariaLabel"
@@ -10037,6 +11187,10 @@ msgstr "Selector xid-sign-in-button；输入 signInUrl、redirectUrl、ariaLabel
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Selector xid-sign-out-button; inputs sessionId, redirectUrl, ariaLabel; shows aria-busy while signing out"
 msgstr "Selector xid-sign-out-button；输入 sessionId、redirectUrl、ariaLabel；登出时显示 aria-busy"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "self sign-up"
+msgstr "自助注册"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
@@ -10065,6 +11219,10 @@ msgstr "重新发送验证码"
 msgid "Send a new link"
 msgstr "发送新链接"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Send a password reset link to {name}?"
+msgstr "向 {name} 发送密码重置链接？"
+
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Send a verification link to {email}. The Console stays read-only until you use it."
 msgstr "向 {email} 发送验证链接。在你使用该链接前，Console 将保持只读。"
@@ -10086,13 +11244,14 @@ msgstr "发送验证码"
 msgid "Send code…"
 msgstr "发送验证码…"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Send invitation"
-msgstr "发送邀请"
-
+#: apps/console/src/routes/users/UserActions.tsx
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 msgid "Send reset link"
 msgstr "发送重置链接"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Send setup link…"
+msgstr "发送设置链接…"
 
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Send verification email"
@@ -10110,9 +11269,9 @@ msgstr "正在向 {target} 发送 6 位验证码。"
 msgid "Sent to"
 msgstr "发送至"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Separate scopes with spaces."
-msgstr "多个作用域用空格分隔。"
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Separate with commas or new lines, or paste a column from a spreadsheet. Up to 50 at a time."
+msgstr "用逗号或换行分隔，也可以从表格中粘贴一整列。每次最多 50 个。"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
@@ -10199,6 +11358,18 @@ msgstr "会话 token TTL（秒）"
 msgid "Session view including status, expiry, and active org"
 msgstr "包含状态、过期时间和当前组织的会话视图"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Sessions"
+msgstr "会话"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "Sessions could not be loaded"
+msgstr "无法加载会话"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Set"
+msgstr "已设置"
+
 #: apps/server/src/routes/account/PasswordSection.tsx
 msgid "Set a password"
 msgstr "设置密码"
@@ -10271,6 +11442,7 @@ msgstr "设置密码"
 
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
 msgid "Settings"
 msgstr "设置"
 
@@ -10302,6 +11474,23 @@ msgstr "SHA-256 校验和"
 msgid "SHA-256 for PKCE S256 challenge computation"
 msgstr "用于 PKCE S256 challenge 计算的 SHA-256"
 
+#. placeholder {0}: project.name
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Share {0} with an organization"
+msgstr "将 {0} 共享给组织"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Share project"
+msgstr "共享项目"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Share with an organization…"
+msgstr "共享给组织…"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Shared {shared}"
+msgstr "{shared} 共享"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shared native contract"
 msgstr "共享原生契约"
@@ -10313,6 +11502,10 @@ msgstr "共享信号、CAEP、RISC、GNAP、UMA、HEART、OpenID4VP 和 OpenID4V
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shared Swift core extraction with sdk/ios is planned but not yet done — each package carries its own copy of the implementation."
 msgstr "与 sdk/ios 共享 Swift 核心提取已在计划中，但尚未完成——每个包携带自己的实现副本。"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Shared with other organizations"
+msgstr "共享给其他组织"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shibboleth"
@@ -10338,13 +11531,46 @@ msgstr "再显示 {count} 个路径段"
 msgid "Show {subject}"
 msgstr "显示{subject}"
 
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Show deleted"
+msgstr "显示已删除"
+
 #: packages/web-ui/src/components/ui/PasswordField.tsx
 msgid "Show password"
 msgstr "显示密码"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Show users"
+msgstr "显示用户"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Showing {shown} of {total} members. Owners: {owners}. Admins: {admins}."
+msgstr "显示 {total} 位成员中的 {shown} 位。所有者：{owners}。管理员：{admins}。"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Showing 50 per page, newest first"
+msgstr "每页 50 条，最新的在前"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Shown instead of your full name when set."
 msgstr "设置后将代替你的全名显示。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Shown to admins of organizations you share {current} with."
+msgstr "向你共享 {current} 的组织的管理员显示。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Shown to users on the consent screen."
+msgstr "在授权同意页向用户显示。"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Shown, third party"
+msgstr "显示，第三方"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Sign {name} out everywhere?"
+msgstr "让 {name} 在所有设备上登出？"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -10394,6 +11620,10 @@ msgstr "改为登录"
 msgid "Sign in to {org}"
 msgstr "登录 {org}"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Sign in to {orgName} apps. No access to this console."
+msgstr "可登录 {orgName} 的应用，不能访问此控制台。"
+
 #: apps/server/src/routes/activate/index.tsx
 msgid "Sign in with another account"
 msgstr "使用其他账户登录"
@@ -10424,7 +11654,8 @@ msgstr "使用通行密钥登录"
 msgid "sdk.signOut"
 msgstr "登出"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 #: packages/i18n/src/messages.ts
@@ -10436,6 +11667,11 @@ msgstr "登出"
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Sign out and use a different account"
 msgstr "退出登录并使用其他账户"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Sign out everywhere"
+msgstr "在所有设备上登出"
 
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 msgid "Sign out now and this account is gone"
@@ -10480,6 +11716,10 @@ msgstr "注册 | XID"
 msgid "sdk.signUpForm"
 msgstr "创建账户表单"
 
+#: apps/console/src/nav.tsx
+msgid "Sign-in & MFA"
+msgstr "登录与 MFA"
+
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 msgid "Sign-in activity, organizations, and usage across this instance."
 msgstr "此实例的登录活动、组织和使用情况。"
@@ -10512,17 +11752,52 @@ msgstr "此组织的登录标识符、托管流程、登录方式以及会话/�
 msgid "Sign-in links work once, for 15 minutes. Go back to sign in and send a new one."
 msgstr "登录链接只能使用一次，15 分钟内有效。请返回登录页重新发送。"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Sign-in method"
+msgstr "登录方式"
+
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Sign-in methods"
 msgstr "登录方式"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Sign-in methods could not be loaded"
+msgstr "无法加载登录方式"
 
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Sign-in request from"
 msgstr "登录请求来自"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Sign-in rule"
+msgstr "登录规则"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Sign-in rule saved"
+msgstr "登录规则已保存"
+
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
 msgid "Sign-in was cancelled. Choose a way to sign in to try again."
 msgstr "登录已取消。选择一种登录方式重试。"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Sign-ins and token requests from {appName} stop right away."
+msgstr "{appName} 的登录和令牌请求会立即停止。"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Sign-ins and token requests from {name} stop. It can be restored later with the Management API."
+msgstr "{name} 的登录和令牌请求会停止。之后可以通过 Management API 恢复。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Sign-out"
+msgstr "登出"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Sign-out settings saved"
+msgstr "登出设置已保存"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Signature"
@@ -10566,6 +11841,18 @@ msgstr "{date} 使用邮箱验证码登录。"
 msgid "Signed in on {date}."
 msgstr "{date} 登录。"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "Signed in on {when}."
+msgstr "{when} 登录。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "Signed in with {method} on {when}."
+msgstr "{when} 使用{method}登录。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Signed JWT with a registered key (private_key_jwt)"
+msgstr "使用已注册密钥签名的 JWT（private_key_jwt）"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
 msgstr "signIn(options?) 运行完整重定向流程；handleRedirect(url) 处理 deep-link callback；signInState 报告 idle、pending、complete、cancelled 或 error 状态"
@@ -10598,6 +11885,10 @@ msgstr "signOut() 会清除本地会话和 legacy credentials；signOutState 报
 msgid "Single-account only — the storage layer uses fixed keys."
 msgstr "仅支持单账户——存储层使用固定密钥。"
 
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Single-page app"
+msgstr "单页应用"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Site"
 msgstr "Site 站点"
@@ -10609,6 +11900,10 @@ msgstr "站点导航"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Skip to content"
 msgstr "跳到正文"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Skipped, first party"
+msgstr "跳过，第一方"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Slack"
@@ -10642,6 +11937,10 @@ msgstr "短信验证码"
 msgid "SMS provider"
 msgstr "SMS 提供商"
 
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Social login"
 msgstr "社交登录"
@@ -10658,7 +11957,6 @@ msgstr "社交 OAuth"
 msgid "Social OAuth relying party"
 msgstr "社交 OAuth 依赖方"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Social providers"
 msgstr "社交登录提供商"
@@ -10705,6 +12003,10 @@ msgstr "出了点问题，请重试。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Sort Users or Groups list results."
 msgstr "对用户或组列表结果排序。"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Source"
+msgstr "来源"
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Source queue"
@@ -10804,7 +12106,7 @@ msgstr "开始于"
 msgid "State change listener callback type"
 msgstr "状态变更监听器 callback 类型"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/platform/PlatformBilling.tsx
@@ -10812,6 +12114,8 @@ msgstr "状态变更监听器 callback 类型"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Status"
@@ -10850,6 +12154,10 @@ msgstr "第 3 步，共 3 步"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Step-up authentication hook"
 msgstr "Step-up 认证 hook"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Stop sign-in with every method {name} has set up"
+msgstr "停止 {name} 已设置的所有登录方式"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Storage adapter"
@@ -10993,10 +12301,28 @@ msgstr "暂停"
 msgid "Suspend {0}"
 msgstr "暂停 {0}"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Suspend {name}?"
+msgstr "暂停 {name}？"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Suspend instead"
+msgstr "改为暂停"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Suspend organization?"
 msgstr "暂停组织？"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Suspend user"
+msgstr "暂停用户"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Suspend user…"
+msgstr "暂停用户…"
+
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Suspended"
 msgstr "已暂停"
@@ -11041,7 +12367,7 @@ msgstr "适用于 macOS 的 Swift SDK，使用 ASWebAuthenticationSession、PKCE
 msgid "Switch"
 msgstr "切换"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 msgid "Switch organization"
 msgstr "切换组织"
 
@@ -11066,6 +12392,10 @@ msgstr "用于 provide 和 inject XidClient 单例的 Symbol"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Sync {0}"
 msgstr "同步 {0}"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Synced across devices"
+msgstr "跨设备同步"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Synchronous. Validates svix HMAC-SHA256 + 5-minute replay window. Raises <0>WebhookVerificationError</0> on failure."
@@ -11101,10 +12431,6 @@ msgstr "正在返回登录页。"
 msgid "Target"
 msgstr "目标"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Target organization ID"
-msgstr "目标组织 ID"
-
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Targets"
 msgstr "目标"
@@ -11136,10 +12462,6 @@ msgstr "你在 {appName} 中所属的团队。切换后，你看到的应用和�
 msgid "Tenant"
 msgstr "租户"
 
-#: apps/console/src/nav.tsx
-msgid "Tenant settings"
-msgstr "租户设置"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "test"
 msgstr "test"
@@ -11156,6 +12478,7 @@ msgstr "通过短信发送验证码"
 msgid "Text me a code"
 msgstr "给我发短信验证码"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Text message"
@@ -11372,11 +12695,6 @@ msgstr "无法启动身份模拟会话。请重试。"
 msgid "The incident {0} and all of its updates will be permanently deleted."
 msgstr "事件 {0} 及其所有更新将被永久删除。"
 
-#. placeholder {0}: pendingRevokeInvitation.email
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "The invitation sent to {0} will be revoked and can no longer be accepted."
-msgstr "发送给 {0} 的邀请将被吊销，之后无法接受。"
-
 #. placeholder {0}: pendingRevoke.name
 #. placeholder {1}: pendingRevoke.key_prefix
 #: apps/console/src/routes/org/OrgApiKeys.tsx
@@ -11390,6 +12708,10 @@ msgstr "链接可能已失效或输入有误。如果是别人发给你的，请
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "The link points to an organization you cannot manage. Choose one of your organizations instead."
 msgstr "该链接指向你无法管理的组织。请改为选择你自己的组织。"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "The link stops working right away. You can invite {revokingEmail} again later."
+msgstr "链接会立即失效。之后可以再次邀请 {revokingEmail}。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The macOS SDK shares the same Swift implementation pattern as sdk/ios — ASWebAuthenticationSession for browser-based authorization, CryptoKit for PKCE S256, and Keychain for token storage. The two packages target different Apple platform minima and are maintained separately to allow platform-specific entitlement configuration."
@@ -11464,10 +12786,19 @@ msgstr "未能创建通行密钥，请重试。"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "密码未达到最低强度要求。"
 
+#. placeholder {0}: project.name
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "The person must be an active member of the organization that owns {0}."
+msgstr "此人必须是拥有 {0} 的组织的有效成员。"
+
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
 #: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "The previous code no longer works. Use the code in the newest message."
 msgstr "之前的验证码已失效。请使用最新消息中的验证码。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "The previous secret stopped working when you rotated."
+msgstr "轮换后，之前的密钥已失效。"
 
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "The previous token keeps working until {expiresAt}. Update your identity provider before then."
@@ -11481,6 +12812,10 @@ msgstr "产品能力"
 msgid "The project could not be found."
 msgstr "未找到该项目。"
 
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "The project does not exist, or you do not manage it."
+msgstr "项目不存在，或者你不管理它。"
+
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "The prompt closed before it finished, so nothing was saved on this device."
 msgstr "提示在完成前关闭了，此设备上没有保存任何内容。"
@@ -11492,10 +12827,6 @@ msgstr "提示在完成前关闭了，没有保存任何内容。请重试，或
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
 msgstr "XidClient 原始实例；大多数情况下建议使用 XidAuthService"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "The recipient will receive an email with a link to join this organization."
-msgstr "收件人将收到一封包含加入此组织链接的邮件。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The redirect port is fixed and must match the redirect_uri registered in the XID console. Dynamic port randomization (RFC 8252) requires dynamic client registration support."
@@ -11650,6 +12981,14 @@ msgstr "该目标的设置无效。"
 msgid "The two passwords don't match."
 msgstr "两次输入的密码不一致。"
 
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "The user can sign in with any method your sign-in policy allows. Add an email to send a password setup link."
+msgstr "该用户可以使用登录策略允许的任何方式登录。添加邮箱后可以发送设置密码的链接。"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "The user does not exist in this tenant, or it was removed."
+msgstr "该用户不在此租户中，或已被移除。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The user submits an access request."
 msgstr "用户提交访问请求。"
@@ -11673,6 +13012,10 @@ msgstr "除非组织自行覆盖，否则这些默认值应用于每个组织。
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "These stop working: {list}."
 msgstr "以下内容将失效：{list}。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "They see only {name} in the Console. Managing a project never makes someone an admin of the organization. Organization owners and admins already manage every project."
+msgstr "他们在控制台中只能看到 {name}。管理项目不会让人成为组织管理员。组织所有者和管理员本来就管理所有项目。"
 
 #: apps/server/src/components/hosted/RequestCard.tsx
 #: apps/server/src/routes/consent/ClientHeader.tsx
@@ -11722,6 +13065,10 @@ msgstr "此授权请求不存在或已过期。请从应用重新开始。"
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
 msgid "This browser can't use passkeys. Try another way to sign in."
 msgstr "此浏览器无法使用通行密钥。请尝试其他登录方式。"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "This cannot be undone from the Console. If {name} may come back, suspend the account instead; suspending keeps everything."
+msgstr "此操作无法在控制台中撤销。如果 {name} 可能回来，请改为暂停账户；暂停会保留所有数据。"
 
 #: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "This code has expired"
@@ -11804,6 +13151,10 @@ msgstr "此邀请发送给 {0}。只有该账户可以接受。"
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 msgid "This is the only time we show them. Each code works once."
 msgstr "备用码只显示这一次。每个备用码只能使用一次。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "This is the only time XID shows it. Store it in the server configuration of {appName}, not in browser code or a repository."
+msgstr "XID 只会显示这一次。请把它保存在 {appName} 的服务器配置中，不要放进浏览器代码或代码仓库。"
 
 #: apps/server/src/routes/magic-link/index.tsx
 msgid "This link can't sign in this account"
@@ -11906,6 +13257,10 @@ msgstr "此密码出现在已知的数据泄露中，请修改。"
 msgid "This password has been used recently. Please choose a different password."
 msgstr "最近已使用过此密码。请选择其他密码。"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "This removes the authenticator app, text message codes and backup codes. Passkeys stay. {name} is signed out everywhere and sets up two-step verification again at the next sign-in if the organization requires it."
+msgstr "这会移除身份验证器应用、短信验证码和备用码，通行密钥保留。{name} 会在所有设备上登出；如果组织要求，下次登录时需要重新设置两步验证。"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "This request can't be approved"
 msgstr "此请求无法批准"
@@ -11962,6 +13317,10 @@ msgstr "这不是你造成的。请稍后重试。"
 msgid "Three focused Workers. One identity platform."
 msgstr "三个职责清晰的 Workers，一个身份平台。"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Through the Management API on {date}"
+msgstr "{date} 通过 Management API 邀请"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Thrown for unrecoverable SDK errors: missing JWT key, JWKS fetch failure, invalid options, session-token exchange failure"
 msgstr "在不可恢复的 SDK 错误时抛出：缺少 JWT key、JWKS 获取失败、选项无效、session-token exchange 失败"
@@ -11975,6 +13334,7 @@ msgstr "传输失败时抛出：网络错误、非 JSON 响应、无结构体的
 msgid "Time"
 msgstr "时间"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Time zone"
 msgstr "时区"
@@ -11985,6 +13345,7 @@ msgid "Title"
 msgstr "标题"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 msgid "To"
 msgstr "截止"
 
@@ -12084,6 +13445,10 @@ msgstr "请求过多。请等待一分钟后重试。"
 msgid "Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers"
 msgstr "顶层浏览器客户端：load、signIn、getToken、setActiveOrganization、signOut 及 Management API 辅助工具"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Top-level organization. Joined {joined}."
+msgstr "顶级组织。{joined} 加入。"
+
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
 msgid "Total organizations"
 msgstr "组织总数"
@@ -12117,7 +13482,17 @@ msgstr "试用"
 msgid "Trigger"
 msgstr "触发"
 
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+#: apps/console/src/routes/applications/ApplicationsList.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UsersList.tsx
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 #: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
@@ -12174,6 +13549,8 @@ msgstr "两个方向"
 msgid "Two-factor authentication | XID"
 msgstr "双因素认证 | XID"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Two-step verification"
 msgstr "两步验证"
@@ -12181,6 +13558,10 @@ msgstr "两步验证"
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Two-step verification is on"
 msgstr "两步验证已开启"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Two-step verification reset for {name}"
+msgstr "已重置 {name} 的两步验证"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "TXT record name"
@@ -12194,11 +13575,16 @@ msgstr "TXT 记录值"
 msgid "type"
 msgstr "type"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Type"
 msgstr "类型"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Type {expected} to confirm"
+msgstr "输入 {expected} 以确认"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Type DELETE to confirm"
@@ -12272,13 +13658,15 @@ msgstr "唯一消息 ID。用于对重试投递去重。"
 msgid "Unix seconds when the message was sent."
 msgstr "消息发送时的 Unix 时间戳（秒）。"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Unknown device"
 msgstr "未知设备"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Unknown location"
-msgstr "位置未知"
+msgstr "未知位置"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Unlike <0>@xid-kit/react</0>, this package uses its own native token context. It exports <1>useAuth</1>, <2>useUser</2>, <3>useSession</3>, <4>useSignIn</4>, <5>useSignOut</5>, <6>useXidRnContext</6>, <7>SignedIn</7>, <8>SignedOut</8>, <9>XidLoaded</9>, <10>XidLoading</10>, <11>exchangeCodeForTokens</11>, <12>saveTokenSet</12>, <13>readTokenSet</13>, and <14>clearTokenSet</14>; it does not import or re-export the React web SDK."
@@ -12303,6 +13691,10 @@ msgstr "点击时跳转到注册 URL 的无样式按钮"
 #: apps/server/src/routes/account/SecurityPage.tsx
 msgid "Until it's verified, this address can't be used to sign in or get account notices."
 msgstr "验证之前，此地址不能用于登录或接收账户通知。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Until you deploy this one, token requests from {appName} fail with invalid_client."
+msgstr "在部署这个新密钥之前，{appName} 的令牌请求会以 invalid_client 失败。"
 
 #: apps/server/src/routes/account/EmailSection.tsx
 #: apps/server/src/routes/account/PhoneSection.tsx
@@ -12333,7 +13725,8 @@ msgstr "修改你的密码"
 msgid "updated"
 msgstr "已更新"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Updated"
 msgstr "已更新"
@@ -12410,6 +13803,10 @@ msgstr "使用安全密钥"
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "Use an account you already have to sign in to {appName}."
 msgstr "使用你已有的账户登录 {appName}。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Use an https:// URL."
+msgstr "请使用 https:// URL。"
 
 #: apps/server/src/routes/account/step-up.tsx
 msgid "Use another way"
@@ -12517,13 +13914,10 @@ msgid "sdk.user"
 msgstr "用户"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 msgid "User"
 msgstr "用户"
-
-#. placeholder {0}: pendingAssignmentRevoke.user_id
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "User {0} will lose management access to this exact scope."
-msgstr "用户 {0} 将失去对此范围的管理访问权限。"
 
 #. placeholder {0}: pendingUserGrantRevoke.user_id
 #: apps/console/src/routes/console/ManagedProjects.tsx
@@ -12551,19 +13945,37 @@ msgstr "用户在未完成时关闭了 Custom Tabs"
 msgid "User consent is required."
 msgstr "需要用户同意。"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "User could not be loaded"
+msgstr "无法加载用户"
+
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "User created"
+msgstr "用户已创建"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "User grants"
 msgstr "用户授权"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "user ID"
+msgstr "用户 ID"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 msgid "User ID"
 msgstr "用户 ID"
 
 #: packages/i18n/src/messages.ts
 msgid "User interaction is required."
 msgstr "需要用户交互。"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "user JSON"
+msgstr "用户 JSON"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "User membership in an org with role and permissions"
@@ -12573,6 +13985,10 @@ msgstr "用户在组织中的成员关系，包含角色和权限"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.userMenu"
 msgstr "用户菜单"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "User not found"
+msgstr "未找到用户"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -12587,12 +14003,15 @@ msgstr "用户资源"
 msgid "User resources use <0>userName</0> as the external identifier. Email values, profile name fields, active state, and enterprise extension fields are preserved in the SCIM raw profile."
 msgstr "用户资源使用 <0>userName</0> 作为外部标识符。邮箱值、资料姓名字段、活跃状态和企业扩展字段都会保留在 SCIM 原始资料中。"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "User sections"
+msgstr "用户分区"
+
 #: packages/i18n/src/messages.ts
 msgid "User verification is required for this authenticator."
 msgstr "此认证器需要用户验证。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "user_..."
 msgstr "user_..."
@@ -12615,21 +14034,37 @@ msgid "username"
 msgstr "用户名"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Username"
 msgstr "用户名"
 
+#: apps/console/src/components/layout/ConsoleCommandMenu.tsx
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UsersList.tsx
 msgid "Users"
 msgstr "用户"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Users | Console | XID"
 msgstr "用户 | 控制台 | XID"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Users could not be loaded"
+msgstr "无法加载用户"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Users sign in through Hosted Auth. PKCE uses S256 only."
+msgstr "用户通过 Hosted Auth 登录。PKCE 仅使用 S256。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Users who are already signed in stay signed in until their access token expires."
+msgstr "已登录的用户在访问令牌过期前保持登录。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Uses <0>firebase/php-jwt</0> for ES256/RS256 verification. HS256 and <1>none</1> alg are rejected."
@@ -12741,6 +14176,7 @@ msgid "Verification uses Web Crypto via @xid-kit/crypto."
 msgstr "验证通过 @xid-kit/crypto 使用 Web Crypto 完成。"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/PhoneSection.tsx
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Verified"
@@ -12906,6 +14342,10 @@ msgstr "版本"
 msgid "Very weak"
 msgstr "非常弱"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Via project grant"
+msgstr "通过项目授权"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "View as Markdown"
 msgstr "以 Markdown 格式查看"
@@ -12949,6 +14389,10 @@ msgstr "候补名单注册门控组件"
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Warning"
 msgstr "警告"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Ways {name} can sign in"
+msgstr "{name} 的登录方式"
 
 #: apps/server/src/routes/not-found/NotFoundPage.tsx
 msgid "We can't find that page"
@@ -13158,6 +14602,10 @@ msgstr "我们正在准备你的导出"
 msgid "Weak"
 msgstr "弱"
 
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Web app"
+msgstr "Web 应用"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Web application"
 msgstr "Web 应用"
@@ -13272,6 +14720,10 @@ msgstr "WHATSAPP_META_PHONE_NUMBER_ID, WHATSAPP_META_ACCESS_TOKEN"
 msgid "whatsapp:+15550000000"
 msgstr "whatsapp:+15550000000"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "When a user signs out of XID, XID tells {name} through the back-channel URL."
+msgstr "用户从 XID 登出时，XID 通过后端通道 URL 通知 {name}。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "When no D-Bus Secret Service daemon is available, pass InMemoryStorage to avoid a runtime error:"
 msgstr "当 D-Bus Secret Service 守护进程不可用时，传入 InMemoryStorage 以避免运行时错误："
@@ -13292,9 +14744,17 @@ msgstr "你登录 {appName} 的位置。如果有你不认识的，请将其登�
 msgid "Which apps can use your account, a copy of your data, and closing your account."
 msgstr "哪些应用可以使用你的账户、你的数据副本，以及注销账户。"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Who can sign in to {name} apps"
+msgstr "谁可以登录 {name} 的应用"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Why use them"
 msgstr "为什么使用"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Wildcards are not allowed. Add each subdomain as its own URL."
+msgstr "不允许通配符。请把每个子域名单独添加为一个 URL。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Windows"
@@ -13329,6 +14789,10 @@ msgstr "WS-Fed"
 msgid "WS-Federation"
 msgstr "WS-Federation"
 
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "XID"
+msgstr "XID"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID as SAML IdP"
 msgstr "XID 作为 SAML IdP"
@@ -13349,6 +14813,10 @@ msgstr "XID 将 Hosted Auth、OIDC、组织、企业联合、目录同步和 SDK
 msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
 msgstr "XID 将 Hosted Auth、通行密钥、OIDC 与 OAuth、组织、企业联合身份、SCIM 和 SDK 整合为一个面向 Cloudflare 构建的身份平台。"
 
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "XID creates a new secret and shows it once. The current secret stops working right away, so sign-ins to {name} fail until you deploy the new one."
+msgstr "XID 会生成新密钥并只显示一次。当前密钥立即失效，因此在部署新密钥之前，{name} 的登录会失败。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
 msgstr "XID 当前作为企业 IdP 的 SAML 服务提供商。面向下游 SaaS 应用的出站 SAML IdP 有本地 fake-SaaS 证据，但生产支持仍需要真实 SaaS 管理员 L4。"
@@ -13360,6 +14828,10 @@ msgstr "XID 不提供拉取式 Events API。使用 <0>GET /v1/webhooks</0> 管�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state. A guest or credential sign-up with intent=sign-up then creates a top-level Tenant with an Email, Organization name, and URL slug. A guest Email stays pending without reserving an account address; the new owner can read Console data, and verifies that Email before the first business change. The same Email in another Tenant remains a separate account."
 msgstr "XID 不提供相互独立的终端用户注册和登录产品。Hosted Auth 从相同的标识符步骤开始，并根据 Organization 策略和账号状态决定登录或创建用户。访客或使用凭据且 intent=sign-up 的注册随后会创建一个顶级 Tenant，并填写 Email、Organization name 和 URL slug。访客 Email 保持待验证状态，不会预占账号地址；新所有者可以读取 Console 数据，但必须在首次业务变更前验证该 Email。相同 Email 在另一个 Tenant 中仍属于独立账号。"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "XID emails a reset link to {email}. It works once and expires in 15 minutes. The current password keeps working until it is changed."
+msgstr "XID 会向 {email} 发送重置链接，链接只能使用一次，15 分钟后过期。在修改之前，当前密码仍然有效。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID exposes inbound SCIM Service Provider endpoints for external IdPs. Downstream SaaS SCIM push clients have local fake-SaaS evidence, but production support still requires real SaaS admin L4."
@@ -13396,6 +14868,10 @@ msgstr "XID 签发方 URL"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID role"
 msgstr "XID 角色"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "XID sends users back only to these exact URLs after sign-in. Each one must match character for character."
+msgstr "登录后 XID 只会把用户送回这些 URL，每个都必须逐字符完全匹配。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID signs every delivery with HMAC-SHA256. Verify the signature before processing the payload. Reject deliveries older than 5 minutes to prevent replay attacks."
@@ -13492,6 +14968,10 @@ msgstr "登录以继续前往"
 msgid "You are the only owner or administrator of an organization or of this instance. Transfer ownership or add another administrator before deleting your account."
 msgstr "你是某个组织或此实例唯一的所有者或管理员。删除账号前，请先转让所有权或添加另一位管理员。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "You are the only owner, so your role can't change yet"
+msgstr "你是唯一的所有者，暂时无法更改你的角色"
+
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "You are viewing this organization as another user. Management changes are disabled."
 msgstr "您正在以其他用户的身份查看该组织。管理变更被禁用。"
@@ -13543,10 +15023,6 @@ msgstr "你暂时无法删除账户。"
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "You can't sign in right now"
 msgstr "你目前无法登录"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "You cannot grant a manager assignment to yourself."
-msgstr "您不能将经理分配给自己。"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "You cannot grant instance access to yourself."
@@ -13600,6 +15076,10 @@ msgstr "你将失去对你用此账户使用的应用的访问权限。我们会
 #: packages/i18n/src/messages.ts
 msgid "You must set up multi-factor authentication before continuing."
 msgstr "继续前必须设置多因素认证。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "You reached the limit of 50 invitations an hour. Try again later."
+msgstr "已达到每小时 50 份邀请的上限，请稍后再试。"
 
 #: apps/server/src/routes/account/PendingDeletionBanner.tsx
 msgid "You scheduled this on {requestedDate}. Until then, everything keeps working and you can change your mind."

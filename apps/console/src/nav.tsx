@@ -1,235 +1,179 @@
-// 侧栏导航唯一事实源;Settings 等入口页也从这里派生,新增页只改此处。
+// 侧栏导航唯一事实源;Settings 入口页、移动菜单与命令菜单的页面跳转都从这里派生,新增页只改此处。
 
-import { Trans } from '@lingui/react/macro'
-import type { ReactNode } from 'react'
+import { msg } from '@lingui/core/macro'
+import type { MessageDescriptor } from '@lingui/core'
 import type { IconName } from '@xid-kit/web-ui/ui'
 
-// groupKey 用稳定 string 分组(ReactNode 不能 ===);无 key 则不分组。权限过滤在 route 层做。
-// icon 来自 web-ui 内联图标集,侧栏项按"图标+文字"渲染;入口页(如 Settings)复用同一图标。
+// 文案用惰性 descriptor:侧栏渲染和命令菜单的纯文本检索共用一份。测试可直接传字符串。
+export type NavLabel = MessageDescriptor | string
+
+// groupKey 用稳定 string 分组;无 key 的项各自独段。分组标签是 sentence case 的不可折叠标题。
+// 侧栏不画图标(反 AI 味清单 11);icon 只给 Settings 入口页使用。
 export type ConsoleNavItem = {
   to: string
-  label: ReactNode
+  label: NavLabel
   icon?: IconName
   end?: boolean
   groupKey?: string
-  groupLabel?: ReactNode
+  groupLabel?: NavLabel
   // 整个租户共享的资源,只在顶层组织下显示。
   tenantScope?: boolean
 }
 
-// 受托 Project 不属于任何 org 视角,ConsoleLayout 在有 manager assignment 时把它补进每个侧栏。
+// 受托 Project 不属于任何 org 视角,ConsoleLayout 在有 manager assignment 时把它补进侧栏。
 export const MANAGED_PROJECTS_NAV_ITEM: ConsoleNavItem = {
   to: '/console/managed-projects',
-  label: <Trans>Managed projects</Trans>,
+  label: msg`Managed projects`,
   icon: 'folder',
 }
 
 export const CONSOLE_NAV: readonly ConsoleNavItem[] = [
-  { to: '/console', label: <Trans>Overview</Trans>, icon: 'gauge', end: true },
+  { to: '/console', label: msg`Overview`, icon: 'gauge', end: true },
   MANAGED_PROJECTS_NAV_ITEM,
-  { to: '/console/users', label: <Trans>Users</Trans>, icon: 'users' },
-  { to: '/console/organizations', label: <Trans>Organizations</Trans>, icon: 'building' },
-  { to: '/console/settings', label: <Trans>Settings</Trans>, icon: 'gear' },
+  { to: '/console/users', label: msg`Users`, icon: 'users' },
+  { to: '/console/organizations', label: msg`Organizations`, icon: 'building' },
+  { to: '/console/settings', label: msg`Settings`, icon: 'gear' },
 ]
 
+export const ORG_OVERVIEW_PATH = '/console/org'
+export const ORG_USERS_PATH = '/console/org/users'
+export const ORG_MEMBERS_PATH = '/console/org/members'
+export const ORG_PROJECTS_PATH = '/console/org/projects'
+export const ORG_APPLICATIONS_PATH = '/console/org/applications'
+
+const users = { groupKey: 'users', groupLabel: msg`Users` }
+const applications = { groupKey: 'applications', groupLabel: msg`Applications` }
+const authentication = { groupKey: 'authentication', groupLabel: msg`Authentication` }
+const directory = { groupKey: 'directory', groupLabel: msg`Directory` }
+const customization = { groupKey: 'customization', groupLabel: msg`Customization` }
+const developers = { groupKey: 'developers', groupLabel: msg`Developers` }
+const monitoring = { groupKey: 'monitoring', groupLabel: msg`Monitoring` }
+
 export const ORG_NAV: readonly ConsoleNavItem[] = [
-  { to: '/console/org', label: <Trans>Overview</Trans>, icon: 'gauge', end: true },
+  { to: ORG_OVERVIEW_PATH, label: msg`Overview`, icon: 'gauge', end: true },
+  { to: ORG_USERS_PATH, label: msg`Users`, icon: 'users', tenantScope: true, ...users },
+  { to: ORG_MEMBERS_PATH, label: msg`Members`, icon: 'user-circle', ...users },
+  { to: ORG_PROJECTS_PATH, label: msg`Projects`, icon: 'folder', ...applications },
   {
-    to: '/console/org/auth-policy',
-    label: <Trans>Auth policy</Trans>,
-    icon: 'fingerprint',
-    groupKey: 'authentication',
-    groupLabel: <Trans>Authentication</Trans>,
-  },
-  {
-    to: '/console/org/social-providers',
-    label: <Trans>Social providers</Trans>,
-    icon: 'plug',
-    groupKey: 'authentication',
-    groupLabel: <Trans>Authentication</Trans>,
-  },
-  {
-    to: '/console/org/sso',
-    label: <Trans>Inbound SSO</Trans>,
-    icon: 'key',
-    groupKey: 'authentication',
-    groupLabel: <Trans>Authentication</Trans>,
+    to: ORG_APPLICATIONS_PATH,
+    label: msg`Applications`,
+    icon: 'squares-four',
+    tenantScope: true,
+    ...applications,
   },
   {
     to: '/console/org/outbound-sso',
-    label: <Trans>Outbound SSO</Trans>,
+    label: msg`SAML apps`,
     icon: 'arrow-up-right',
-    groupKey: 'authentication',
-    groupLabel: <Trans>Authentication</Trans>,
+    ...applications,
   },
   {
-    to: '/console/org/scim',
-    label: <Trans>Directory sync</Trans>,
-    icon: 'arrows-left-right',
-    groupKey: 'authentication',
-    groupLabel: <Trans>Authentication</Trans>,
+    to: '/console/org/auth-policy',
+    label: msg`Sign-in & MFA`,
+    icon: 'fingerprint',
+    ...authentication,
   },
   {
-    to: '/console/org/scim-targets',
-    label: <Trans>SCIM targets</Trans>,
-    icon: 'package',
-    groupKey: 'authentication',
-    groupLabel: <Trans>Authentication</Trans>,
+    to: '/console/org/social-providers',
+    label: msg`Social login`,
+    icon: 'plug',
+    ...authentication,
   },
+  { to: '/console/org/sso', label: msg`Enterprise SSO`, icon: 'key', ...authentication },
   {
     to: '/console/org/delivery-channels',
-    label: <Trans>Delivery channels</Trans>,
+    label: msg`Messaging`,
     icon: 'megaphone',
-    groupKey: 'authentication',
-    groupLabel: <Trans>Authentication</Trans>,
+    ...authentication,
   },
-  {
-    to: '/console/org/projects',
-    label: <Trans>Projects</Trans>,
-    icon: 'folder',
-    groupKey: 'resources',
-    groupLabel: <Trans>Resources</Trans>,
-  },
-  {
-    to: '/console/org/roles',
-    label: <Trans>Roles and permissions</Trans>,
-    icon: 'shield-check',
-    groupKey: 'resources',
-    groupLabel: <Trans>Resources</Trans>,
-  },
-  {
-    to: '/console/org/domains',
-    label: <Trans>Domains</Trans>,
-    icon: 'globe',
-    groupKey: 'resources',
-    groupLabel: <Trans>Resources</Trans>,
-  },
-  {
-    to: '/console/org/branding',
-    label: <Trans>Branding</Trans>,
-    icon: 'palette',
-    groupKey: 'resources',
-    groupLabel: <Trans>Resources</Trans>,
-  },
-  {
-    to: '/console/org/members',
-    label: <Trans>Members</Trans>,
-    icon: 'users',
-    groupKey: 'people',
-    groupLabel: <Trans>People</Trans>,
-  },
-  {
-    to: '/console/org/audit-events',
-    label: <Trans>Audit events</Trans>,
-    icon: 'scroll',
-    groupKey: 'activity',
-    groupLabel: <Trans>Activity</Trans>,
-  },
-  {
-    to: '/console/org/applications',
-    label: <Trans>Applications</Trans>,
-    icon: 'squares-four',
-    groupKey: 'tenant',
-    groupLabel: <Trans>Tenant settings</Trans>,
-    tenantScope: true,
-  },
+  { to: '/console/org/scim', label: msg`Directory sync`, icon: 'arrows-left-right', ...directory },
+  { to: '/console/org/scim-targets', label: msg`Provisioning`, icon: 'package', ...directory },
+  { to: '/console/org/branding', label: msg`Branding`, icon: 'palette', ...customization },
+  { to: '/console/org/domains', label: msg`Domains`, icon: 'globe', ...customization },
   {
     to: '/console/org/api-keys',
-    label: <Trans>API keys</Trans>,
+    label: msg`API keys`,
     icon: 'key',
-    groupKey: 'tenant',
-    groupLabel: <Trans>Tenant settings</Trans>,
     tenantScope: true,
+    ...developers,
   },
   {
     to: '/console/org/webhooks',
-    label: <Trans>Webhooks</Trans>,
+    label: msg`Webhooks`,
     icon: 'webhook',
-    groupKey: 'tenant',
-    groupLabel: <Trans>Tenant settings</Trans>,
     tenantScope: true,
+    ...developers,
   },
+  { to: '/console/org/audit-events', label: msg`Audit log`, icon: 'scroll', ...monitoring },
   {
     to: '/console/org/compliance',
-    label: <Trans>Compliance</Trans>,
+    label: msg`Compliance`,
     icon: 'seal-check',
-    groupKey: 'tenant',
-    groupLabel: <Trans>Tenant settings</Trans>,
     tenantScope: true,
+    ...monitoring,
   },
 ]
 
+const platformDirectory = { groupKey: 'directory', groupLabel: msg`Directory` }
+const platformOperations = { groupKey: 'operations', groupLabel: msg`Operations` }
+
 export const PLATFORM_NAV: readonly ConsoleNavItem[] = [
-  { to: '/console/platform', label: <Trans>Overview</Trans>, icon: 'gauge', end: true },
+  { to: '/console/platform', label: msg`Overview`, icon: 'gauge', end: true },
   {
     to: '/console/platform/organizations',
-    label: <Trans>Organizations</Trans>,
+    label: msg`Organizations`,
     icon: 'building',
-    groupKey: 'directory',
-    groupLabel: <Trans>Directory</Trans>,
+    ...platformDirectory,
   },
-  {
-    to: '/console/platform/users',
-    label: <Trans>Users</Trans>,
-    icon: 'users',
-    groupKey: 'directory',
-    groupLabel: <Trans>Directory</Trans>,
-  },
+  { to: '/console/platform/users', label: msg`Users`, icon: 'users', ...platformDirectory },
   {
     to: '/console/platform/managers',
-    label: <Trans>Instance managers</Trans>,
+    label: msg`Instance managers`,
     icon: 'user-circle',
-    groupKey: 'directory',
-    groupLabel: <Trans>Directory</Trans>,
+    ...platformDirectory,
   },
   {
     to: '/console/platform/events',
-    label: <Trans>Event stream</Trans>,
+    label: msg`Event stream`,
     icon: 'scroll',
-    groupKey: 'operations',
-    groupLabel: <Trans>Operations</Trans>,
+    ...platformOperations,
   },
   {
     to: '/console/platform/status',
-    label: <Trans>Status incidents</Trans>,
+    label: msg`Status incidents`,
     icon: 'list-status',
-    groupKey: 'operations',
-    groupLabel: <Trans>Operations</Trans>,
+    ...platformOperations,
   },
   {
     to: '/console/platform/dead-letters',
-    label: <Trans>Dead letters</Trans>,
+    label: msg`Dead letters`,
     icon: 'list-status',
-    groupKey: 'operations',
-    groupLabel: <Trans>Operations</Trans>,
+    ...platformOperations,
   },
   {
     to: '/console/platform/announcements',
-    label: <Trans>Announcements</Trans>,
+    label: msg`Announcements`,
     icon: 'megaphone',
-    groupKey: 'operations',
-    groupLabel: <Trans>Operations</Trans>,
+    ...platformOperations,
   },
   {
     to: '/console/platform/compliance',
-    label: <Trans>Compliance</Trans>,
+    label: msg`Compliance`,
     icon: 'seal-check',
-    groupKey: 'operations',
-    groupLabel: <Trans>Operations</Trans>,
+    ...platformOperations,
   },
   {
     to: '/console/platform/billing',
-    label: <Trans>Billing</Trans>,
+    label: msg`Billing`,
     icon: 'credit-card',
-    groupKey: 'operations',
-    groupLabel: <Trans>Operations</Trans>,
+    ...platformOperations,
   },
   {
     to: '/console/platform/plans',
-    label: <Trans>Plans and quotas</Trans>,
+    label: msg`Plans and quotas`,
     icon: 'package',
     groupKey: 'billing',
-    groupLabel: <Trans>Billing</Trans>,
+    groupLabel: msg`Billing`,
   },
-  { to: '/console/platform/settings', label: <Trans>Settings</Trans>, icon: 'gear' },
+  { to: '/console/platform/settings', label: msg`Settings`, icon: 'gear' },
 ]

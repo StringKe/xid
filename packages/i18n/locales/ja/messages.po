@@ -29,6 +29,20 @@ msgstr ".NET 8 サーバー SDK。ネットワークレス JWT 検証、ASP.NET 
 msgid ".NET 8 target required."
 msgstr ".NET 8 ターゲットが必要です。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "(current)"
+msgstr "（現在）"
+
+#. placeholder {0}: data.backupCodesRemaining
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "{0, plural, one {# backup code left} other {# backup codes left}}"
+msgstr "{0, plural, other {バックアップコード残り # 件}}"
+
+#. placeholder {0}: page.total
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "{0, plural, one {# user} other {# users}}"
+msgstr "{0, plural, other {# 人のユーザー}}"
+
 #. placeholder {0}: selected.provider
 #. placeholder {1}: selected.spEntityId
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
@@ -73,6 +87,12 @@ msgstr "{0} 件の組織が見つかりました"
 msgid "{0} stops accepting SCIM requests immediately, including the previous token. Users it already provisioned keep their accounts."
 msgstr "{0} は以前のトークンを含め、SCIM リクエストの受け付けを直ちに停止します。すでにプロビジョニングされたユーザーのアカウントは残ります。"
 
+#. placeholder {0}: day(from)
+#. placeholder {1}: day(to)
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "{0} to {1}"
+msgstr "{0} から {1}"
+
 #. placeholder {0}: users.data.total
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "{0} users found"
@@ -88,25 +108,75 @@ msgstr "{0} は削除されます。ユーザーはこの接続経由でサイ�
 msgid "{0} will be reactivated and members regain access."
 msgstr "{0} は再有効化され、メンバーはアクセスを回復します。"
 
-#. placeholder {0}: pendingRemoveMember.email
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "{0} will be removed from this organization immediately."
-msgstr "{0} はこの組織から直ちに削除されます。"
-
 #. placeholder {0}: organizationDisplayName(pendingStatus.organization)
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "{0} will be suspended. Members lose access until it is reactivated."
 msgstr "{0} は停止されます。再有効化されるまでメンバーはアクセスできなくなります。"
 
-#. placeholder {0}: pendingDelete.name
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "{0} will move to the recycle bin and stop authorizing access until restored."
-msgstr "{0} はごみ箱に移動され、復元されるまでアクセスの許可が停止されます。"
-
 #. placeholder {0}: project.name
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "{0} will stop authorizing access. Your assignment remains discoverable so you can restore the project."
 msgstr "{0} はアクセスの承認を停止します。割り当ては引き続き検出可能なので、プロジェクトを復元できます。"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "{activeCount, plural, one {# project} other {# projects}}"
+msgstr "{activeCount, plural, other {# 件のプロジェクト}}"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} added {subject} to an organization."
+msgstr "{actor} が {subject} を組織に追加しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} changed the organization role of {subject}."
+msgstr "{actor} が {subject} の組織ロールを変更しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} created {subject}."
+msgstr "{actor} が {subject} を作成しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} deleted {subject}."
+msgstr "{actor} が {subject} を削除しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} ended one session of {subject}."
+msgstr "{actor} が {subject} のセッションを 1 つ終了しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} recorded {eventType}."
+msgstr "{actor} が {eventType} を記録しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} removed {subject} from an organization."
+msgstr "{actor} が {subject} を組織から削除しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} reset two-step verification for {subject}."
+msgstr "{actor} が {subject} の 2 段階認証をリセットしました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} restored {subject}."
+msgstr "{actor} が {subject} を復元しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} resumed {subject}."
+msgstr "{actor} が {subject} の停止を解除しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} sent {subject} a password reset link."
+msgstr "{actor} が {subject} にパスワードリセットリンクを送信しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} signed {subject} out everywhere."
+msgstr "{actor} が {subject} をすべての場所からサインアウトさせました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} suspended {subject}."
+msgstr "{actor} が {subject} を停止しました。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} updated the profile of {subject}."
+msgstr "{actor} が {subject} のプロフィールを更新しました。"
 
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "{app} did not receive any of your details."
@@ -148,6 +218,10 @@ msgstr "{app} に許可される操作"
 msgid "{app} will be told you said no. You can try again from {app} whenever you're ready."
 msgstr "{app} には拒否したことが伝えられます。準備ができたら {app} からいつでもやり直せます。"
 
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "{appCount, plural, one {# application} other {# applications}} in {projectCount, plural, one {# project} other {# projects}}"
+msgstr "{projectCount, plural, other {# 件のプロジェクト}}に {appCount, plural, other {# 件のアプリケーション}}"
+
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 msgid "{appName} backup codes"
 msgstr "{appName} のバックアップコード"
@@ -156,9 +230,17 @@ msgstr "{appName} のバックアップコード"
 msgid "{appName} logo"
 msgstr "{appName} のロゴ"
 
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "{appName} was deleted"
+msgstr "{appName} を削除しました"
+
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "{backupCodeCount, plural, one {# code saved} other {# codes saved}}"
 msgstr "{backupCodeCount, plural, other {# 個保存済み}}"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "{browser} on {os}"
+msgstr "{os} の {browser}"
 
 #: apps/server/src/components/hosted/passkey-name.ts
 #: apps/server/src/routes/account/DevicesPage.tsx
@@ -168,6 +250,18 @@ msgstr "{platform} 上の {browser}"
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "{confirmedPrimary} is now your primary address."
 msgstr "{confirmedPrimary} がメインのアドレスになりました。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "{count, plural, one {# active session} other {# active sessions}}"
+msgstr "{count, plural, other {アクティブなセッション # 件}}"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{count, plural, one {# will be invited} other {# will be invited}}"
+msgstr "{count, plural, other {# 人を招待します}}"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{count, plural, one {Send # invitation} other {Send # invitations}}"
+msgstr "{count, plural, other {# 件の招待を送信}}"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -182,21 +276,122 @@ msgstr "パスキー {count} / {limit} 個"
 msgid "{count} passkeys"
 msgstr "パスキー {count} 個"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "{created} by {source}"
+msgstr "{created}、作成元: {source}"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "{current} was deleted"
+msgstr "{current} を削除しました"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "{deletedCount} deleted"
+msgstr "削除済み {deletedCount} 件"
+
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "{email} is verified"
 msgstr "{email} は確認済みです"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "{impersonator} is viewing as {name}. Read-only."
+msgstr "{impersonator} が {name} として表示しています。読み取り専用です。"
 
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "{impersonator}, an administrator, is viewing your account as you. Read-only."
 msgstr "管理者の {impersonator} があなたとしてアカウントを表示しています。閲覧のみです。"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "{inviter} on {date}"
+msgstr "{date} に {inviter} が招待"
+
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "{location}. Started {signedIn}, ends by itself at {ends}."
 msgstr "{location}。{signedIn} に開始、{ends} に自動で終了します。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "{memberName} in {orgName}"
+msgstr "{orgName} の {memberName}"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "{memberName} is now {newRole}"
+msgstr "{memberName} は {newRole} になりました"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "{memberName} is the only owner"
+msgstr "{memberName} は唯一の組織所有者です"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "{name} (you)"
+msgstr "{name}（あなた）"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "{name} already belongs to every organization you manage."
+msgstr "{name} は、あなたが管理するすべての組織にすでに所属しています。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "{name} authenticates without a shared secret."
+msgstr "{name} は共有シークレットを使わずに認証します。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "{name} belongs to {count, plural, one {# organization} other {# organizations}}."
+msgstr "{name} は {count, plural, other {# 件の組織}}に所属しています。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "{name} belongs to no organization."
+msgstr "{name} はどの組織にも所属していません。"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} can sign in again"
+msgstr "{name} は再びサインインできます"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} can sign in again with the methods already set up."
+msgstr "{name} は設定済みの方法で再びサインインできます。"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} cannot sign in until you resume the account. Nothing is deleted. Existing sessions end the next time they refresh."
+msgstr "アカウントの停止を解除するまで、{name} はサインインできません。データは削除されません。既存のセッションは次回の更新時に終了します。"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "{name} is managed by directory sync. Unassign the user in your identity provider first, or the next sync creates the account again."
+msgstr "{name} はディレクトリ同期で管理されています。先に ID プロバイダーで割り当てを解除してください。そうしないと次回の同期でアカウントが再作成されます。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "{name} is not signed in anywhere."
+msgstr "{name} はどこにもサインインしていません。"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} is suspended"
+msgstr "{name} を停止しました"
+
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "{name} is the only way you sign in"
 msgstr "{name} が唯一のサインイン方法です"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "{name} proves who it is with a client secret when it exchanges a code for tokens."
+msgstr "{name} はコードをトークンに交換するとき、クライアントシークレットで自身を証明します。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "{name} runs where a secret cannot be kept, so every sign-in uses PKCE (S256)."
+msgstr "{name} はシークレットを安全に保管できない環境で動作するため、すべてのサインインで PKCE（S256）を使います。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "{name} was added"
+msgstr "{name} を追加しました"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "{name} was deleted"
+msgstr "{name} を削除しました"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "{name} was signed out everywhere"
+msgstr "{name} をすべての場所からサインアウトさせました"
+
+#: apps/console/src/routes/users/user-columns.tsx
+msgid "{names} and {more} more"
+msgstr "{names} ほか {more} 件"
 
 #: apps/server/src/routes/mfa/index.tsx
 msgid "{org} asks for a second step every time you sign in."
@@ -215,6 +410,14 @@ msgstr "{org} では {0} のアドレスのユーザーは {idp} でサインイ
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "{org} signs in people with {0} addresses through {idp}. After {idp}, you come straight back to {app}."
 msgstr "{org} では {0} のアドレスのユーザーは {idp} でサインインします。{idp} のあと、そのまま {app} に戻ります。"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "{orgLabel} must always have an owner. Make another member an owner first."
+msgstr "{orgLabel} には常に組織所有者が必要です。先に別のメンバーを組織所有者にしてください。"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "{orgName} must always have an owner. Make another admin an owner first, then change this role."
+msgstr "{orgName} には常に組織所有者が必要です。先に別の管理者を組織所有者にしてから、このロールを変更してください。"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "{orgNames}. An admin would have to invite you again."
@@ -248,9 +451,49 @@ msgstr "{total} 個中 {remaining} 個が未使用です。電話やパスキー
 msgid "{removedName} was removed. If your password manager still offers it, delete it there too."
 msgstr "{removedName} を削除しました。パスワードマネージャーにまだ表示される場合は、そちらでも削除してください。"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "{removingName} loses access to {orgLabel} and its apps right away. The account itself stays and can be invited again."
+msgstr "{removingName} は {orgLabel} とそのアプリケーションへのアクセスをすぐに失います。アカウント自体は残り、再度招待できます。"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "{removingName} was removed"
+msgstr "{removingName} を削除しました"
+
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "{role}, sub-organization of {parentName}"
+msgstr "{role}、{parentName} のサブ組織"
+
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "{role}. Joined {joined}."
 msgstr "{role}。{joined} に参加。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{sent, plural, one {# invitation sent} other {# invitations sent}}"
+msgstr "{sent, plural, other {# 件の招待を送信しました}}"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "{sessions, plural, one {End # active session right away} other {End # active sessions right away}}"
+msgstr "{sessions, plural, other {アクティブなセッション # 件をすぐに終了}}"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "{shownCount} of {allCount} users"
+msgstr "{allCount} 人中 {shownCount} 人のユーザー"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{subject} signed in."
+msgstr "{subject} がサインインしました。"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "{summary} in the {projectName} project"
+msgstr "{projectName} プロジェクトの{summary}"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{value} is invited once"
+msgstr "{value} は 1 回だけ招待されます"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "{value} is skipped"
+msgstr "{value} はスキップされます"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "#10b981"
@@ -497,6 +740,10 @@ msgstr "クライアントシークレットは設定済みです。変更しな
 msgid "A custom hostname changes the WebAuthn RP ID. Existing passkeys will not work on the new hostname, so users must register passkeys again there before you rely on it for sign-in."
 msgstr "カスタム ホスト名は WebAuthn RP ID を変更します。既存のパスキーは新しいホスト名では機能しないため、サインインにパスキーを使用する前に、ユーザーはそこでパスキーを再度登録する必要があります。"
 
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "A deleted user"
+msgstr "削除されたユーザー"
+
 #: apps/server/src/routes/activate/index.tsx
 msgid "A device"
 msgstr "デバイス"
@@ -509,6 +756,19 @@ msgstr "あるデバイスがあなたとしてサインインしようとして
 msgid "A digital signature is required."
 msgstr "デジタル署名が必要です。"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "a guest session"
+msgstr "ゲストセッション"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "a one-time code"
+msgstr "ワンタイムコード"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "a passkey"
+msgstr "パスキー"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "A passkey only works on {host}, so a look-alike sign-in page can't use it."
 msgstr "パスキーは {host} でしか使えないため、偽のサインインページでは使えません。"
@@ -516,6 +776,10 @@ msgstr "パスキーは {host} でしか使えないため、偽のサインイ�
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "A passkey replaces your password and counts as two-step verification. It takes a few seconds on this device."
 msgstr "パスキーはパスワードの代わりになり、2 段階認証としても扱われます。このデバイスなら数秒で完了します。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "a password"
+msgstr "パスワード"
 
 #: apps/console/src/routes/org/SelfServiceLock.tsx
 msgid "A platform administrator manages this setting for your organization. You can review it, but changes are disabled."
@@ -525,13 +789,13 @@ msgstr "この設定は組織に代わってプラットフォーム管理者が
 msgid "A possible authenticator clone was detected. Please contact support."
 msgstr "認証器のクローンの疑いを検出しました。サポートに連絡してください。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "A project grant must target another organization."
-msgstr "プロジェクトグラントは別の組織を対象にする必要があります。"
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "A project holds applications that share one set of roles and permissions."
+msgstr "プロジェクトには、1 組のロールと権限を共有するアプリケーションが含まれます。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "A project is the namespace for role keys, permission keys, and user grants."
-msgstr "プロジェクトは、ロール キー、権限キー、およびユーザーグラントの名前空間です。"
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "A public HTTPS image."
+msgstr "公開されている HTTPS の画像。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "A real IdP round-trip on production infrastructure is still pending manual verification. This page documents implemented behavior; it is not a readiness claim."
@@ -552,6 +816,10 @@ msgstr "この識別子を持つリソースはすでに存在します。"
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "A sequence number is missing from the chain."
 msgstr "チェーンにシーケンス番号の欠落があります。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "A sign-in attempt for {subject} failed."
+msgstr "{subject} のサインインに失敗しました。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "A stable role key groups permissions for token and API authorization."
@@ -605,14 +873,17 @@ msgstr "{0} に同意しました。"
 msgid "Accepted public key forms: PublicJwk, Jwks, or {JWT_KEY_SHAPE}"
 msgstr "受け付ける公開鍵形式：PublicJwk、Jwks、または {JWT_KEY_SHAPE}"
 
-#. placeholder {0}: pendingGrantRevoke.granted_to_org_id
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Access for organization {0} and user grants issued through this grant will be revoked."
-msgstr "組織 {0} へのアクセスと、このグラントを通じて発行されたユーザーグラントが取り消されます。"
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Access"
+msgstr "アクセス"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Access request lifecycle"
 msgstr "アクセスリクエストのライフサイクル"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Access token lifetime in minutes"
+msgstr "アクセストークンの有効期間（分）"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Access token TTL (seconds)"
@@ -642,7 +913,6 @@ msgstr "isLoaded / isSignedIn / user の判別ユニオンをラップするア�
 msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
 msgstr "AccessRequest は、<0>保留中</0>から<1>承認</1>、<2>拒否</2>、<3>キャンセル</3>、または<4>期限切れ</4>に移行します。すべての結果は最終的なものであり、保留中のリクエストは 14 日後に期限切れになります。"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Account"
 msgstr "アカウント"
@@ -651,7 +921,7 @@ msgstr "アカウント"
 msgid "Account deletion"
 msgstr "アカウントの削除"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Account menu"
 msgstr "アカウントメニュー"
@@ -660,7 +930,7 @@ msgstr "アカウントメニュー"
 msgid "Account security and profile management"
 msgstr "アカウントセキュリティとプロフィール管理"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
 msgid "Account settings"
 msgstr "アカウント設定"
 
@@ -685,11 +955,11 @@ msgstr "ACS URL は必須です。"
 msgid "Action required"
 msgstr "アクションが必要です"
 
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
 #: apps/console/src/routes/console/ManagedProjects.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
-#: apps/console/src/routes/org/OrgApplications.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
@@ -698,10 +968,23 @@ msgstr "アクションが必要です"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Actions"
 msgstr "操作"
 
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Actions for {appName}"
+msgstr "{appName} の操作"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Actions for {email}"
+msgstr "{email} の操作"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Actions for {name}"
 msgstr "{name} の操作"
@@ -713,6 +996,9 @@ msgstr "デバイスを有効化 | XID"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Active"
 msgstr "アクティブ"
@@ -733,7 +1019,6 @@ msgstr "アクティブなインスタンス マネージャー"
 msgid "Active keys"
 msgstr "アクティブなキー"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 msgid "Active members"
 msgstr "アクティブなメンバー"
@@ -755,10 +1040,6 @@ msgstr "アクティブ組織、メンバーシップ、setActive アクショ�
 msgid "Active organizations"
 msgstr "アクティブな組織"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Active projects"
-msgstr "アクティブなプロジェクト"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Active session and getToken action"
 msgstr "アクティブセッションと getToken アクション"
@@ -768,9 +1049,14 @@ msgstr "アクティブセッションと getToken アクション"
 msgid "Active user ratio"
 msgstr "アクティブユーザー比率"
 
-#: apps/console/src/nav.tsx
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 msgid "Activity"
 msgstr "アクティビティ"
+
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "Activity could not be loaded"
+msgstr "アクティビティを読み込めませんでした"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
@@ -796,6 +1082,10 @@ msgstr "useXidRnContext が返すアダプターコンテキストの形状"
 msgid "Add {0} template"
 msgstr "{0} テンプレートを追加"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Add {name} to an organization"
+msgstr "{name} を組織に追加"
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Add {provider} template"
 msgstr "{provider} テンプレートを追加"
@@ -803,6 +1093,14 @@ msgstr "{provider} テンプレートを追加"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add <0>@xid-kit/nuxt</0> to the <1>modules</1> array. The module auto-imports all <2>@xid-kit/vue</2> composables and registers a client-only plugin that installs <3>XidPlugin</3>."
 msgstr "<1>modules</1> 配列に <0>@xid-kit/nuxt</0> を追加します。モジュールはすべての <2>@xid-kit/vue</2> コンポーザブルを自動インポートし、<3>XidPlugin</3> をインストールするクライアント専用プラグインを登録します。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Add a manager for {name}"
+msgstr "{name} のマネージャーを追加"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Add a manager…"
+msgstr "マネージャーを追加…"
 
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 msgid "Add a phone number"
@@ -850,6 +1148,10 @@ msgstr "エンドポイントを追加"
 msgid "Add hostname"
 msgstr "ホスト名の追加"
 
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Add manager"
+msgstr "マネージャーを追加"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Add mapping"
 msgstr "マッピングの追加"
@@ -862,6 +1164,10 @@ msgstr "電話番号を追加…"
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Add provider"
 msgstr "プロバイダーを追加"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Add redirect URI"
+msgstr "リダイレクト URI を追加"
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Add SCIM target"
@@ -886,6 +1192,14 @@ msgstr "<1>Astro.locals.xidAuth</1> の完全な型カバレッジを得るに�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add to <0>Cargo.toml</0>:"
 msgstr "<0>Cargo.toml</0> に追加します："
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Add to organization"
+msgstr "組織に追加"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Add to organization…"
+msgstr "組織に追加…"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add to pubspec.yaml and run flutter pub get:"
@@ -916,6 +1230,14 @@ msgstr "追加済み"
 msgid "Added {0}. Codes change every 30 seconds."
 msgstr "{0} に追加。コードは 30 秒ごとに変わります。"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Added {added}."
+msgstr "{added} に追加。"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Added directly"
+msgstr "直接追加"
+
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Adding a passkey changes how you sign in, so we need a fresh check before saving it."
 msgstr "パスキーを追加するとサインイン方法が変わるため、保存する前にもう一度本人確認が必要です。"
@@ -932,6 +1254,24 @@ msgstr "管理者"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "admin, owner"
 msgstr "admin, owner"
+
+#. placeholder {0}: project.name
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Admins of that organization can give {0} roles to their own members. They cannot change roles or apps."
+msgstr "その組織の管理者は、自組織のメンバーに {0} のロールを付与できます。ロールやアプリケーションは変更できません。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Affected right away"
+msgstr "すぐに影響"
+
+#. placeholder {0}: day(from)
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "after {0}"
+msgstr "{0} 以降"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "After sign-out, return to"
+msgstr "サインアウト後の戻り先"
 
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "After signing in, open the original invitation link again to join with that account."
@@ -1067,10 +1407,6 @@ msgstr "許可メールドメイン"
 msgid "Allowed roles (comma-separated)"
 msgstr "許可するロール（カンマ区切り）"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Allowed scopes"
-msgstr "許可するスコープ"
-
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Allowed user IDs (comma-separated)"
@@ -1079,6 +1415,10 @@ msgstr "許可するユーザー ID（カンマ区切り）"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Allowed without a UserGrant."
 msgstr "UserGrant なしで許可されます。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Already a member"
+msgstr "すでにメンバー"
 
 #: apps/server/src/routes/consent/ScopeList.tsx
 msgid "Already allowed"
@@ -1097,13 +1437,25 @@ msgstr "すでにアカウントをお持ちですか？<0>サインイン</0>"
 msgid "Already have an account? Sign in to accept"
 msgstr "アカウントをお持ちですか？サインインして承諾"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Already invited"
+msgstr "招待済み"
+
 #: packages/i18n/src/messages.ts
 msgid "An account already uses this email address. Sign in to that account to accept the invitation."
 msgstr "このメールアドレスはすでに別のアカウントで使われています。そのアカウントにサインインして招待を承諾してください。"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "an admin or the Management API"
+msgstr "管理者または Management API"
+
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "An administrator is viewing your account as you. Read-only."
 msgstr "管理者があなたとしてアカウントを表示しています。閲覧のみです。"
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "An API key"
+msgstr "API キー"
 
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "An app"
@@ -1121,6 +1473,14 @@ msgstr "組織のアプリ"
 msgid "An app is asking you to approve a sign-in it started. Nothing happens until you choose."
 msgstr "アプリが開始したサインインの承認を求めています。選択するまで何も起こりません。"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "an email code"
+msgstr "メールのコード"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "An IANA name, for example Asia/Kolkata."
+msgstr "IANA 名。例: Asia/Tokyo。"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "An IANA time zone, for example Europe/Lisbon."
 msgstr "IANA タイムゾーン。例: Europe/Lisbon。"
@@ -1128,6 +1488,10 @@ msgstr "IANA タイムゾーン。例: Europe/Lisbon。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary."
 msgstr "インスタンスにはトップレベルの組織が含まれます。組織には 1 つのレベルの SubOrg を含めることができます。各組織には、ポリシー、メンバーシップ、ブランディング、RBAC、および分離境界が残ります。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "An instance manager"
+msgstr "インスタンスマネージャー"
 
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
@@ -1140,10 +1504,6 @@ msgstr "組織には独自のメンバー、サインインルール、アプリ
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
 msgstr "組織では、OAuth アプリケーションの登録、メンバーの招待、エンタープライズ SSO やディレクトリ同期の有効化を行います。組織を作成して、最初の issuer と管理されたサインインページを取得しましょう。"
-
-#: packages/i18n/src/messages.ts
-msgid "An organization needs at least one owner. Make another member an owner first."
-msgstr "組織には少なくとも 1 人の組織所有者が必要です。先に別のメンバーを組織所有者にしてください。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
@@ -1205,6 +1565,17 @@ msgstr "別の管理者がこのインシデントを更新しました。一覧
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Another replay of this message is still in progress. Check again later."
 msgstr "このメッセージの別のリプレイがまだ処理中です。しばらくしてから再度確認してください。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Any"
+msgstr "すべて"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Any member of the organization"
+msgstr "組織のすべてのメンバー"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Any Web Crypto compatible runtime (Bun, Deno)"
@@ -1271,22 +1642,48 @@ msgstr "外観"
 msgid "Apple"
 msgstr "Apple"
 
+#: apps/console/src/routes/applications/AppsTable.tsx
+msgid "Application"
+msgstr "アプリケーション"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Application could not be loaded"
+msgstr "アプリケーションを読み込めませんでした"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Application must set <UseWinUI>true</UseWinUI> in the project file"
 msgstr "アプリケーションはプロジェクトファイルで <UseWinUI>true</UseWinUI> を設定する必要があります"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Application saved."
-msgstr "アプリケーションを保存しました。"
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Application not found"
+msgstr "アプリケーションが見つかりません"
+
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Application type"
+msgstr "アプリケーションの種類"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Application-owned JWT cookie name; disabled unless explicitly configured"
 msgstr "アプリケーション所有の JWT cookie 名。明示的に設定した場合のみ有効"
 
+#: apps/console/src/components/layout/ConsoleCommandMenu.tsx
+#: apps/console/src/components/layout/nav-data.ts
 #: apps/console/src/nav.tsx
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Applications"
 msgstr "アプリケーション"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Applications and roles in {current} stop authorizing access until you restore it."
+msgstr "復元するまで、{current} のアプリケーションとロールはアクセスを許可しなくなります。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Applications could not be loaded"
+msgstr "アプリケーションを読み込めませんでした"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Approval creates a traceable UserGrant in the same transaction. The requester cannot approve their own request; resolution falls through from the OrgUnit manager to project and organization managers."
@@ -1369,10 +1766,6 @@ msgstr "アサーションでは発行者、対象、受信者、時間枠、InR
 msgid "Assign one active role to a user who is an active member of the grant target organization. Enter an exact user ID; the server verifies membership and the exact grant."
 msgstr "グラント対象組織のアクティブなメンバーであるユーザーに 1 つのアクティブな役割を割り当てます。正確なユーザー ID を入力してください。サーバーはメンバーシップと対象のグラントを検証します。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Assign one exact management role to the matching organization, project, or grant scope. A manager cannot delegate or revoke their own assignment."
-msgstr "一致する組織、プロジェクト、またはグラントのスコープに 1 つの正確な管理役割を割り当てます。マネージャーは自分の割り当てを委任したり、取り消したりすることはできません。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Assign, list, get, revoke, and delete scoped user grants."
 msgstr "スコープ指定されたユーザーグラントの割り当て、一覧表示、取得、取り消し、削除を行います。"
@@ -1454,7 +1847,6 @@ msgstr "属性マッピング JSON"
 msgid "Audience"
 msgstr "対象者"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Audit events"
 msgstr "監査イベント"
@@ -1467,13 +1859,13 @@ msgstr "監査イベント | コンソール | XID"
 msgid "Audit events from every organization on this instance, with per-tenant hash-chain verification."
 msgstr "テナントごとのハッシュチェーン検証付きで、このインスタンス上のすべての組織の監査イベントを確認します。"
 
+#: apps/console/src/nav.tsx
+msgid "Audit log"
+msgstr "監査ログ"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Audit records of what you did in {appName}. The organization must keep them unchanged."
 msgstr "{appName} でのあなたの操作の監査記録です。組織はこれを変更せずに保管する必要があります。"
-
-#: apps/console/src/nav.tsx
-msgid "Auth policy"
-msgstr "認証ポリシー"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Auth policy | Console | XID"
@@ -1536,6 +1928,7 @@ msgstr "認証ポリシー"
 msgid "Authentication policy saved."
 msgstr "認証ポリシーを保存しました。"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
@@ -1550,6 +1943,10 @@ msgstr "認証コード"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization"
 msgstr "認可"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Authorization code with PKCE"
+msgstr "PKCE 付き認可コード"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization code with PKCE S256 and claimed redirects."
@@ -1624,7 +2021,7 @@ msgstr "ホームに戻る"
 msgid "Back to {app}"
 msgstr "{app} に戻る"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleNav.tsx
 msgid "Back to console"
 msgstr "コンソールに戻る"
 
@@ -1638,6 +2035,10 @@ msgstr "コンソールに戻る"
 #: apps/server/src/routes/magic-link/index.tsx
 msgid "Back to sign in"
 msgstr "サインインに戻る"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Back-channel logout URL"
+msgstr "バックチャネルログアウト URL"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Background"
@@ -1694,6 +2095,11 @@ msgstr "ベース URL"
 msgid "Bearer or DPoP access token user claims."
 msgstr "Bearer または DPoP アクセストークン内のユーザークレーム。"
 
+#. placeholder {0}: day(to ?? '')
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "before {0}"
+msgstr "{0} 以前"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Before declaring production ready, reconcile all 24 Queues, apply D1 migrations, build all three Workers, and verify apex, www, wildcard DNS, health, discovery, JWKS, and Hosted Auth. Then record live evidence for Email, DLQ replay, privacy export and 30-day erasure, hourly and daily Cron, Analytics, Turnstile, and custom hostnames. Local L0-L3 evidence is not L4; every unrun live check is UNKNOWN. The full operator runbook is maintained at https://github.com/StringKe/xid/blob/main/docs/deployment.md."
 msgstr "production ready と宣言する前に、24 個すべての Queues を整合させ、D1 migrations を適用し、3 つの Workers をすべてビルドして、apex、www、wildcard DNS、health、discovery、JWKS、Hosted Auth を検証してください。続いて、Email、DLQ replay、privacy export と 30-day erasure、hourly と daily Cron、Analytics、Turnstile、custom hostnames の実環境証跡を記録してください。ローカルの L0-L3 証跡は L4 ではなく、未実行の実環境チェックはすべて UNKNOWN です。完全な運用 runbook は https://github.com/StringKe/xid/blob/main/docs/deployment.md で管理されています。"
@@ -1706,6 +2112,10 @@ msgstr "続行する前に"
 #: apps/server/src/routes/mfa-setup/index.tsx
 msgid "Before you continue to {app}"
 msgstr "{app} に進む前に"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Between 1 and 1440 minutes."
+msgstr "1〜1440 分。"
 
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -1879,6 +2289,10 @@ msgstr "レイアウトコンポーネントで <0>useProtectedRoute</0> を呼�
 msgid "Callbacks verify state, nonce, issuer, audience, and email policy before creating or linking users."
 msgstr "コールバックはユーザーを作成またはリンクする前に、state、nonce、issuer、audience、メールポリシーを検証します。"
 
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Calls APIs as itself with client credentials. No user sign-in."
+msgstr "クライアントクレデンシャルで自身として API を呼び出します。ユーザーのサインインはありません。"
+
 #: apps/server/src/routes/account/privacy-shared.tsx
 msgid "Can confirm who you are"
 msgstr "本人確認ができます"
@@ -1919,9 +2333,19 @@ msgstr "どれも使えない場合"
 msgid "CanActivateFn factory"
 msgstr "CanActivateFn ファクトリー"
 
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+#: apps/console/src/routes/applications/SecretDialogs.tsx
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
@@ -1980,6 +2404,23 @@ msgstr "変更"
 msgid "Change {value}"
 msgstr "{value} を変更"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Change role of {memberName}"
+msgstr "{memberName} のロールを変更"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Change role…"
+msgstr "ロールを変更…"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Change your role"
+msgstr "自分のロールを変更"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Changed {changed}"
+msgstr "{changed} に変更"
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Changing how you sign in needs a fresh check. Once you verify, you won't be asked again for 5 minutes."
 msgstr "サインイン方法を変更するには改めて本人確認が必要です。確認後 5 分間は再度求められません。"
@@ -2029,6 +2470,10 @@ msgstr "メールを確認してアドレスを認証してから、サインイ
 msgid "Check your messages"
 msgstr "メッセージを確認してください"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Checked at sign-in for every application in {name}."
+msgstr "{name} のすべてのアプリケーションへのサインイン時に確認されます。"
+
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Checkout Enterprise"
 msgstr "Enterprise を購入"
@@ -2041,17 +2486,9 @@ msgstr "Pro を購入"
 msgid "Checkout Starter"
 msgstr "Starter を購入"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Choose a current member or enter an exact active user ID. The server verifies the user and scope."
-msgstr "現在のメンバーを選択するか、正確なアクティブ ユーザー ID を入力します。サーバーはユーザーとスコープを検証します。"
-
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
 msgstr "別のパスワードを選んでください。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Choose a known organization or enter an exact organization ID."
-msgstr "既知の組織を選択するか、正確な組織 ID を入力します。"
 
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a new password"
@@ -2081,6 +2518,11 @@ msgstr "Chromium ベースの埋め込み認可ウィンドウ"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "class"
 msgstr "class"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Clear filters"
+msgstr "フィルターをクリア"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Clear Keychain tokens and optionally call the end_session endpoint; no refresh-token revocation is performed."
@@ -2114,20 +2556,24 @@ msgstr "ローカルトークンをクリアします"
 msgid "Client"
 msgstr "クライアント"
 
-#. placeholder {0}: pendingDelete.client_id
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Client {0} will be removed and can no longer obtain tokens."
-msgstr "クライアント {0} は削除され、トークンを取得できなくなります。"
-
 #: packages/i18n/src/messages.ts
 msgid "Client authentication failed."
 msgstr "クライアント認証に失敗しました。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Client credentials"
+msgstr "クライアントクレデンシャル"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Client credentials with scoped access."
 msgstr "スコープ付きアクセスのクライアントクレデンシャル。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "client ID"
+msgstr "クライアント ID"
+
+#: apps/console/src/routes/applications/app-sections.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Client ID"
 msgstr "クライアント ID"
@@ -2152,13 +2598,29 @@ msgstr "クライアント SDK:モバイル"
 msgid "Client SDKs: web frameworks"
 msgstr "クライアント SDK:Web フレームワーク"
 
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "client secret"
+msgstr "クライアントシークレット"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Client secret"
+msgstr "クライアントシークレット"
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Client secret binding"
 msgstr "クライアントシークレットバインディング"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Client secret generated. Store it now; it will not be shown again."
-msgstr "クライアントシークレットを生成しました。今すぐ保存してください。再表示されません。"
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Client secret in the Authorization header (client_secret_basic)"
+msgstr "Authorization ヘッダーでクライアントシークレットを送信（client_secret_basic）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Client secret in the request body (client_secret_post)"
+msgstr "リクエスト本文でクライアントシークレットを送信（client_secret_post）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Client secret is set"
+msgstr "クライアントシークレットは設定済みです"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "client setup"
@@ -2167,10 +2629,6 @@ msgstr "クライアントセットアップ"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Client setup"
 msgstr "クライアントセットアップ"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Client type"
-msgstr "クライアント種別"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Client types"
@@ -2192,7 +2650,6 @@ msgstr "exp/nbf のクロックスキュー許容値。"
 msgid "Clock skew tolerance in seconds"
 msgstr "クロックスキュー許容値（秒）"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
 #: packages/web-ui/src/components/ui/CommandMenu.tsx
 #: packages/web-ui/src/components/ui/Dialog.tsx
@@ -2203,6 +2660,10 @@ msgstr "閉じる"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Close diagram"
 msgstr "図を閉じる"
+
+#: apps/console/src/components/layout/ConsoleNavDrawer.tsx
+msgid "Close menu"
+msgstr "メニューを閉じる"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Close sidebar"
@@ -2229,6 +2690,10 @@ msgstr "コード"
 msgid "Code {code} matched. Here's what this device will get."
 msgstr "コード {code} が一致しました。このデバイスに許可される内容は次のとおりです。"
 
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Code exchange fails"
+msgstr "コード交換が失敗します"
+
 #: apps/server/src/routes/account/step-up.tsx
 msgid "Code from your authenticator app"
 msgstr "認証アプリのコード"
@@ -2240,10 +2705,6 @@ msgstr "コードは 10 分で期限切れになり、1 回しか使えません
 #: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "Codes work for {minutes} minutes. Send a new one and enter it here."
 msgstr "コードの有効期間は {minutes} 分です。新しいコードを送信してここに入力してください。"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "colleague@example.com"
-msgstr "colleague@example.com"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Colors"
@@ -2314,9 +2775,9 @@ msgstr "コンポーザブル（自動インポート）"
 msgid "Compose the notice, choose its audience, and schedule the publication window."
 msgstr "通知文を作成し、対象者を選択して、公開期間をスケジュールします。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "confidential"
-msgstr "confidential"
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Confidential client, secret"
+msgstr "コンフィデンシャルクライアント、シークレット"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Configuration contract"
@@ -2395,6 +2856,10 @@ msgstr "確認して参加"
 msgid "Confirm email address"
 msgstr "メールアドレスを確認"
 
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Confirm it is you"
+msgstr "本人であることを確認"
+
 #: apps/server/src/routes/account/step-up.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
@@ -2465,9 +2930,17 @@ msgstr "{app} をアカウントに接続しています"
 msgid "Connecting a device"
 msgstr "デバイスを接続しています"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Connection {provider}. Linked to {account} on {linked}."
+msgstr "接続 {provider}。{linked} に {account} とリンク。"
+
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Connections"
 msgstr "接続"
+
+#: apps/console/src/routes/applications/AppsTable.tsx
+msgid "Consent screen"
+msgstr "同意画面"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Console"
@@ -2659,6 +3132,14 @@ msgstr "キーをコピー"
 msgid "Copy page"
 msgstr "ページをコピー"
 
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Copy the {appName} secret"
+msgstr "{appName} のシークレットをコピー"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Copy the new {appName} secret"
+msgstr "{appName} の新しいシークレットをコピー"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Copy to clipboard"
 msgstr "クリップボードにコピー"
@@ -2730,10 +3211,6 @@ msgstr "設定を開始できませんでした"
 msgid "Create (with bulk limit), revoke, and list invitations."
 msgstr "招待の作成（一括上限あり）、取り消し、一覧表示を行います。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Create a confidential OAuth 2.0 client. Its secret is shown once; store it immediately."
-msgstr "機密の OAuth 2.0 クライアントを作成します。その秘密は一度明かされます。すぐに保管してください。"
-
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
@@ -2749,6 +3226,10 @@ msgstr "パスキーを作成 | XID"
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
 msgid "Create a password"
 msgstr "パスワードを作成"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Create a project for each product, then add its applications, roles and permissions. Roles stay unique inside a project."
+msgstr "製品ごとにプロジェクトを作成し、そのアプリケーション、ロール、権限を追加します。ロールはプロジェクト内で一意です。"
 
 #: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
@@ -2801,10 +3282,15 @@ msgstr "API キーを作成"
 msgid "Create app"
 msgstr "アプリを作成"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Create application"
 msgstr "アプリケーションを作成"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Create application…"
+msgstr "アプリケーションを作成…"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create client with a custom StorageAdapter (e.g. InMemoryStorage)."
@@ -2822,10 +3308,6 @@ msgstr "接続を作成"
 msgid "Create directory"
 msgstr "ディレクトリを作成"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Create grant"
-msgstr "グラントの作成"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Create key"
 msgstr "キーを作成"
@@ -2837,10 +3319,6 @@ msgstr "アプリケーション起動時に <0>Client</0> を 1 つ作成して
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Create one to continue, or ask an admin to invite you."
 msgstr "続行するには組織を作成するか、管理者に招待を依頼してください。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Create or select an active project first."
-msgstr "まずアクティブなプロジェクトを作成または選択します。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Create or select an active role first."
@@ -2861,6 +3339,7 @@ msgstr "組織を作成"
 msgid "Create organization | XID"
 msgstr "組織を作成 | XID"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Create organization…"
 msgstr "組織を作成…"
@@ -2869,9 +3348,13 @@ msgstr "組織を作成…"
 msgid "Create permission"
 msgstr "権限の作成"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Create project"
 msgstr "プロジェクトの作成"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Create project…"
+msgstr "プロジェクトを作成…"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Create role"
@@ -2884,6 +3367,15 @@ msgstr "SCIM ディレクトリを作成し、ディレクトリトークンを�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create stores in the root layout using <0>createXidStores</0> and <1>setXidContext</1>. Stores use <2>XidClient.subscribe</2>, which satisfies the Svelte store subscriber contract."
 msgstr "ルートレイアウトで <0>createXidStores</0> と <1>setXidContext</1> を使ってストアを作成します。ストアは Svelte ストアのサブスクライバーコントラクトを満たす <2>XidClient.subscribe</2> を使用します。"
+
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "Create user"
+msgstr "ユーザーを作成"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Create user…"
+msgstr "ユーザーを作成…"
 
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Create webhook"
@@ -2938,18 +3430,23 @@ msgstr "ユニットのメンバーを作成、更新、移動、アーカイブ
 msgid "Create, update, sync, and remove outbound SCIM targets."
 msgstr "アウトバウンド SCIM ターゲットを作成、更新、同期、および削除します。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 msgid "Created"
 msgstr "作成日時"
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Created {created}"
 msgstr "{created} に作成"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Created by {source}"
+msgstr "作成元: {source}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "created, accepted, revoked"
@@ -2983,6 +3480,11 @@ msgstr "createXidTauriClient オプション"
 msgid "Creating your backup codes"
 msgstr "バックアップコードを作成しています"
 
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Credentials"
+msgstr "認証情報"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Critical"
@@ -2996,14 +3498,11 @@ msgstr "重大な影響"
 msgid "Cross-organization access is not permitted."
 msgstr "組織をまたぐアクセスは許可されていません。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Cross-organization grants"
-msgstr "組織間グラント"
-
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "CSS length, e.g. 8px or 0.5rem"
 msgstr "CSS 長さ。例: 8px、0.5rem"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Current"
 msgstr "現在"
@@ -3033,10 +3532,8 @@ msgstr "現在の有効期限内の access token 文字列、または null。re
 msgid "Current user"
 msgstr "現在のユーザー"
 
-#. placeholder {0}: editingProject.name
 #. placeholder {0}: editingRole?.display_name ?? editingPermission?.key ?? ''
-#. placeholder {0}: selectedProject.name
-#: apps/console/src/routes/org/OrgProjects.tsx
+#. placeholder {0}: selectedRole.display_name
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Current: {0}"
 msgstr "現在: {0}"
@@ -3073,12 +3570,20 @@ msgstr "カスタム URI スキームコールバック"
 msgid "Custom URI scheme callback (optional)"
 msgstr "カスタム URI スキームコールバック（オプション）"
 
+#: apps/console/src/nav.tsx
+msgid "Customization"
+msgstr "カスタマイズ"
+
 #: apps/console/src/routes/org/OrgOverview.tsx
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
 msgid "Daily active users"
 msgstr "日次アクティブユーザー"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Danger zone"
+msgstr "危険な操作"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Dart / Flutter SDK for iOS, Android, and desktop using flutter_web_auth_2, PKCE S256 authorization code flow, and flutter_secure_storage token persistence."
@@ -3159,13 +3664,7 @@ msgstr "プロジェクトローカルのロールと権限キーを定義し、
 msgid "Degraded"
 msgstr "性能低下"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Delegated managers"
-msgstr "委任されたマネージャー"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
@@ -3175,6 +3674,26 @@ msgstr "委任されたマネージャー"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Delete"
 msgstr "削除"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Delete {appName}?"
+msgstr "{appName} を削除しますか？"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Delete {current}"
+msgstr "{current} を削除"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Delete {current}?"
+msgstr "{current} を削除しますか？"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Delete {name}"
+msgstr "{name} を削除"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Delete {name}?"
+msgstr "{name} を削除しますか？"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Delete account"
@@ -3205,14 +3724,13 @@ msgstr "アプリを削除"
 msgid "Delete app?"
 msgstr "アプリを削除しますか？"
 
-#. placeholder {0}: row.original.client_id
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Delete application {0}"
-msgstr "アプリケーション {0} を削除"
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Delete application"
+msgstr "アプリケーションを削除"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Delete application?"
-msgstr "アプリケーションを削除しますか？"
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Delete application…"
+msgstr "アプリケーションを削除…"
 
 #. placeholder {0}: document.title
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
@@ -3262,13 +3780,13 @@ msgid "Delete permission?"
 msgstr "削除許可?"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
 msgid "Delete project"
 msgstr "プロジェクトの削除"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Delete project?"
-msgstr "プロジェクトを削除しますか?"
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Delete project…"
+msgstr "プロジェクトを削除…"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Delete role?"
@@ -3281,6 +3799,14 @@ msgstr "SCIM ディレクトリを削除しますか？"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Delete SCIM target?"
 msgstr "SCIM ターゲットを削除しますか？"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Delete user"
+msgstr "ユーザーを削除"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Delete user…"
+msgstr "ユーザーを削除…"
 
 #. placeholder {0}: row.original.url
 #: apps/console/src/routes/org/OrgWebhooks.tsx
@@ -3297,8 +3823,11 @@ msgid "Delete your account"
 msgstr "アカウントを削除する"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Deleted"
 msgstr "削除されました"
@@ -3307,13 +3836,21 @@ msgstr "削除されました"
 msgid "Deleted permissions"
 msgstr "削除された権限"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Deleted projects remain recoverable. Their roles, permissions, and grants are unavailable until the project is restored."
-msgstr "削除されたプロジェクトは引き続き復元可能です。プロジェクトが復元されるまで、それらの役割、権限、グラントは使用できません。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Deleted roles"
 msgstr "削除された役割"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Deleting {name} will"
+msgstr "{name} を削除すると"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Deleting a user needs a fresh check that it is you. It stays valid for 5 minutes."
+msgstr "ユーザーを削除するには、本人確認をやり直す必要があります。確認は 5 分間有効です。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Deleting moves the project to the deleted list. You can restore {current} from Projects with Show deleted turned on."
+msgstr "削除するとプロジェクトは削除済みリストに移動します。プロジェクトで「削除済みを表示」をオンにすると {current} を復元できます。"
 
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Deletion scheduled for {deletionDate}"
@@ -3340,7 +3877,6 @@ msgstr "配信チャネルが設定されています：{0}。"
 msgid "Delivery channel is not configured. Hosted UI and direct API calls stay disabled even when this method is enabled."
 msgstr "配信チャネルが設定されていません。この方法を有効にしても、Hosted UI と直接 API 呼び出しは無効のままです。"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Delivery channels"
 msgstr "配信チャネル"
@@ -3415,8 +3951,9 @@ msgid "Deprovisioning behavior"
 msgstr "プロビジョニング解除の動作"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Description"
 msgstr "説明"
@@ -3433,9 +3970,26 @@ msgstr "デスクトップ Linux。システムブラウザ起動用に xdg-open
 msgid "Desktop SDKs"
 msgstr "デスクトップ SDK"
 
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Details"
+msgstr "詳細"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Details saved"
+msgstr "詳細を保存しました"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Dev/test without Tauri runtime"
 msgstr "Tauri ランタイムなしの開発/テスト"
+
+#: apps/console/src/nav.tsx
+msgid "Developers"
+msgstr "開発者"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Device"
+msgstr "デバイス"
 
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "Device code"
@@ -3470,6 +4024,14 @@ msgstr "届きませんか？{countdown} 後に新しいコードを送信でき
 msgid "Direct"
 msgstr "直接"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Direct grant"
+msgstr "直接付与"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Direct grants can be removed here. A role that comes through a project grant changes only when that project grant changes."
+msgstr "直接付与はここで削除できます。プロジェクトグラント経由のロールは、そのプロジェクトグラントが変わったときにのみ変わります。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Direction"
 msgstr "方向"
@@ -3482,7 +4044,12 @@ msgstr "ディレクトリ"
 msgid "Directory"
 msgstr "ディレクトリ"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "directory sync"
+msgstr "ディレクトリ同期"
+
 #: apps/console/src/nav.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
 msgid "Directory sync"
 msgstr "ディレクトリ同期"
 
@@ -3565,11 +4132,14 @@ msgstr "DNS TXT レコード"
 msgid "Do you want to sign out of this account?"
 msgstr "このアカウントからサインアウトしますか？"
 
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+msgid "Docs"
+msgstr "ドキュメント"
+
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Document type"
 msgstr "文書の種類"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Documentation"
 msgstr "ドキュメント"
@@ -3613,6 +4183,7 @@ msgstr "許可しない"
 msgid "sdk.dontHaveAccountSignUp"
 msgstr "アカウントをお持ちでないですか？<0>登録</0>"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 #: packages/web-ui/src/components/ui/OneTimeSecret.tsx
 msgid "Done"
@@ -3670,6 +4241,10 @@ msgstr "GitHub 以外の有効なプロバイダーには、issuer と JWKS URI 
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "各メンバーは 1 つのプライマリ OrgUnit と追加の配置を持つことができます。"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Each person gets an email link that works for 7 days."
+msgstr "各ユーザーに 7 日間有効なリンクがメールで届きます。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each primitive returns reactive <0>Accessor<T></0> (getter functions). Call them in JSX or <1>createEffect</1> to track changes."
 msgstr "各プリミティブはリアクティブな <0>Accessor<T></0>（ゲッター関数）を返します。変更を追跡するには JSX または <1>createEffect</1> で呼び出します。"
@@ -3690,8 +4265,6 @@ msgstr "各 source Queue には専用の dead-letter Queue と persistence-failu
 msgid "Edge Runtime middleware: verifies JWT, injects auth headers"
 msgstr "Edge Runtime middleware：JWT を検証し認証ヘッダーを注入します"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Edit"
 msgstr "編集"
@@ -3704,13 +4277,6 @@ msgstr "ABAC 条件を編集する"
 msgid "Edit app"
 msgstr "アプリを編集"
 
-#. placeholder {0}: application.client_id
-#. placeholder {0}: row.original.client_id
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Edit application {0}"
-msgstr "アプリケーション {0} を編集"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Edit condition"
 msgstr "編集条件"
@@ -3719,16 +4285,17 @@ msgstr "編集条件"
 msgid "Edit connection"
 msgstr "接続を編集"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Edit profile"
 msgstr "プロフィールを編集"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Edit profile…"
 msgstr "プロフィールを編集…"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Edit project"
 msgstr "プロジェクトの編集"
 
@@ -3761,8 +4328,8 @@ msgid "Eleven SQLite-backed Durable Objects serialize sessions, challenges, OAut
 msgstr "11 個の SQLite-backed Durable Objects が、sessions、challenges、OAuth、PAR、device と CIBA state、rate limits、audit order、metering、guests、impersonation grants を直列化します。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/create-organization/index.tsx
@@ -3773,20 +4340,29 @@ msgstr "メール"
 msgid "Email a code"
 msgstr "メールでコードを送信"
 
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "Email a link to set a password"
+msgstr "パスワード設定用のリンクをメールで送信"
+
 #: apps/server/src/routes/sign-in/method-copy.tsx
 msgid "Email a sign-in link"
 msgstr "メールでサインインリンクを送信"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Email address"
 msgstr "メールアドレス"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "Email addresses"
 msgstr "メールアドレス"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Email codes and magic links follow the sign-in policy of each organization and are not listed here."
+msgstr "メールのコードとマジックリンクは各組織のサインインポリシーに従うため、ここには表示されません。"
 
 #: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 msgid "Email me a link"
@@ -3852,7 +4428,12 @@ msgstr "EncryptedAssertion は設定済みの SP 復号キーを使用し、そ�
 msgid "EncryptedSharedPreferences backed by Android Keystore (AES-256-GCM) protects the token store at rest."
 msgstr "Android Keystore（AES-256-GCM）を使用した EncryptedSharedPreferences が保存時のトークンストアを保護します。"
 
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "End every active session right away"
+msgstr "すべてのアクティブなセッションをすぐに終了"
+
 #: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
 msgid "End impersonation"
 msgstr "代理操作を終了"
 
@@ -3921,10 +4502,6 @@ msgstr "有効なメールアドレスを入力してください"
 msgid "Enter a valid email address."
 msgstr "有効なメールアドレスを入力してください。"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Enter absolute HTTPS URLs without a fragment, one per line."
-msgstr "フラグメントを含まない絶対 HTTPS URL を 1 行に 1 つずつ入力してください。"
-
 #: apps/server/src/components/hosted/CodeField.tsx
 msgid "Enter all {length} characters. {count, plural, one {This has # character.} other {This has # characters.}}"
 msgstr "{length} 文字すべて入力してください。{count, plural, other {現在 # 文字です。}}"
@@ -3936,10 +4513,6 @@ msgstr "{length} 桁すべて入力してください。{count, plural, other {�
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Enter an organization name and a URL slug made of lowercase letters, numbers, and hyphens."
 msgstr "組織名と、英小文字・数字・ハイフンで構成される URL スラッグを入力してください。"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Enter at least one absolute HTTPS URL without a fragment, one per line."
-msgstr "フラグメントを含まない絶対 HTTPS URL を 1 行に 1 つずつ、1 つ以上入力してください。"
 
 #: apps/server/src/routes/account/SecurityPage.tsx
 msgid "Enter code…"
@@ -4046,9 +4619,17 @@ msgstr "Enterprise"
 msgid "Enterprise attestation policy for passkey registration. Direct mode requires hardware attestation chains verified against configured trusted roots."
 msgstr "パスキー登録のエンタープライズアテステーションポリシー。直接モードでは、設定済みの信頼ルートに対してハードウェアアテステーションチェーンを検証する必要があります。"
 
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Enterprise SSO"
 msgstr "エンタープライズ SSO"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "enterprise SSO sign-in"
+msgstr "エンタープライズ SSO サインイン"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Entry"
@@ -4122,6 +4703,14 @@ msgstr "イベント種別"
 msgid "Events"
 msgstr "イベント"
 
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "Events where {name} acted or was changed, newest first."
+msgstr "{name} が操作した、または変更されたイベント（新しい順）。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Every app that signs users in to {orgName} or calls its APIs through XID, across all projects."
+msgstr "すべてのプロジェクトで、XID を通じて {orgName} にユーザーをサインインさせる、またはその API を呼び出すアプリケーション。"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Every app you sign in to with this account, including {appNames}."
 msgstr "このアカウントでサインインするすべてのアプリ ({appNames} を含む)。"
@@ -4142,6 +4731,14 @@ msgstr "すべての OrgUnit クエリと AccessRequest クエリは、<0>tenant
 msgid "Every SDK below carries one of two status labels, aligned with the XID platform support matrix. Neither label is a production-readiness claim."
 msgstr "以下の各 SDK は XID プラットフォームサポートマトリクスに合わせた 2 つのステータスラベルのいずれかを持っています。どちらのラベルも本番対応の主張ではありません。"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Every session ends right away and refresh tokens stop working. Access tokens already issued stay valid until they expire."
+msgstr "すべてのセッションがすぐに終了し、リフレッシュトークンは使えなくなります。発行済みのアクセストークンは有効期限まで有効です。"
+
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Every setting for {title} in one list"
+msgstr "{title} のすべての設定"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Every way you sign in stops working."
 msgstr "すべてのサインイン方法が使えなくなります。"
@@ -4150,6 +4747,18 @@ msgstr "すべてのサインイン方法が使えなくなります。"
 msgid "Every webhook delivery is an HTTP POST with <0>Content-Type: application/json</0>. The body contains the exact event <1>type</1> and its <2>data</2>; svix metadata is carried in request headers."
 msgstr "すべての Webhook 配信は、<0>Content-Type: application/json</0> の HTTP POST です。本文には、正確なイベントの<1>タイプ</1>とその<2>データ</2>が含まれています。 svix メタデータはリクエスト ヘッダーに含まれます。"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Everyone else is turned away with access denied."
+msgstr "それ以外のユーザーはアクセス拒否になります。"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Everyone who can sign in to {orgName}, including guests and people who belong to no organization yet."
+msgstr "{orgName} にサインインできるすべての人。ゲストや、まだどの組織にも所属していない人も含みます。"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Everything an admin can do, plus giving and removing the owner role."
+msgstr "管理者ができるすべての操作に加えて、組織所有者ロールの付与と削除。"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Evidence and support"
 msgstr "証跡とサポート"
@@ -4157,10 +4766,6 @@ msgstr "証跡とサポート"
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
 msgstr "証拠台帳"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Exact match, no wildcards. One HTTPS URI per line."
-msgstr "完全一致で、ワイルドカードは使えません。HTTPS URI を 1 行に 1 つずつ入力します。"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "example.com"
@@ -4230,13 +4835,18 @@ msgstr "想定される失敗は Result 型を返します。予期しないエ�
 msgid "Expected JWT aud claim"
 msgstr "expected JWT aud クレーム"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Expired"
 msgstr "期限切れ"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Expired {date}"
+msgstr "{date} に期限切れ"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Expires"
 msgstr "有効期限"
 
@@ -4268,10 +4878,15 @@ msgstr "@xid-kit/react-native 用の Expo SecureStore と WebBrowser アダプ�
 msgid "Export"
 msgstr "エクスポート"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Export CSV"
+msgstr "CSV をエクスポート"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Exported API"
 msgstr "エクスポートされた API"
 
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "External ID"
 msgstr "外部 ID"
@@ -4369,10 +4984,6 @@ msgstr "デッドレターを読み込めませんでした。"
 msgid "Failed to load deleted permissions."
 msgstr "削除された権限をロードできませんでした。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Failed to load deleted projects."
-msgstr "削除されたプロジェクトのロードに失敗しました。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load deleted roles."
 msgstr "削除された役割をロードできませんでした。"
@@ -4388,18 +4999,6 @@ msgstr "入站 SSO 接続を読み込めませんでした。もう一度お試�
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to load instance managers."
 msgstr "インスタンスマネージャーのロードに失敗しました。"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Failed to load invitations."
-msgstr "招待を読み込めませんでした。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Failed to load manager assignments."
-msgstr "マネージャーの割り当てをロードできませんでした。"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Failed to load members."
-msgstr "メンバーを読み込めませんでした。"
 
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Failed to load organization stats. Please try again."
@@ -4429,11 +5028,6 @@ msgstr "プラットフォーム設定を読み込めませんでした。"
 msgid "Failed to load platform stats. Please try again."
 msgstr "プラットフォーム統計を読み込めませんでした。もう一度お試しください。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Failed to load project grants."
-msgstr "プロジェクトグラントの読み込みに失敗しました。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "プロジェクトのロードに失敗しました。"
@@ -4542,10 +5136,23 @@ msgstr "ナビゲーションを絞り込む"
 msgid "Filter organizations by name or slug"
 msgstr "名前またはスラッグで組織を絞り込む"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Filter users"
+msgstr "ユーザーを絞り込む"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Filtering, sorting, and pagination"
 msgstr "フィルタリング、ソート、ページネーション"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Filters"
+msgstr "フィルター"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Filters ({active})"
+msgstr "フィルター（{active}）"
+
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Find an organization"
 msgstr "組織を検索"
@@ -4562,7 +5169,13 @@ msgstr "userName でユーザーを 1 件検索します。"
 msgid "Find the enterprise connection for a verified email domain."
 msgstr "確認済みメールドメインに対応するエンタープライズ接続を検索します。"
 
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Find the ID on the user's page under Users."
+msgstr "ID は「ユーザー」のユーザーページで確認できます。"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "First name"
@@ -4572,6 +5185,10 @@ msgstr "名"
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "First-party"
 msgstr "自社アプリ"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "First-party app: skip the consent screen"
+msgstr "ファーストパーティアプリ: 同意画面を省略"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
@@ -4646,12 +5263,17 @@ msgid "Free"
 msgstr "無料"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 msgid "From"
 msgstr "開始日"
 
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "From seq"
 msgstr "開始シーケンス"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Front-channel logout URL"
+msgstr "フロントチャネルログアウト URL"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Full access"
@@ -4747,6 +5369,19 @@ msgstr "GitHub Enterprise Cloud"
 msgid "GitHub social login is separate from GitHub Enterprise Cloud SAML or SCIM."
 msgstr "GitHub ソーシャルログインは GitHub Enterprise Cloud の SAML または SCIM とは別物です。"
 
+#. placeholder {0}: project.name
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Give a {0} role"
+msgstr "{0} のロールを付与"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Give a role…"
+msgstr "ロールを付与…"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Give role"
+msgstr "ロールを付与"
+
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "Global event stream"
 msgstr "グローバルイベントストリーム"
@@ -4822,10 +5457,6 @@ msgstr "GOOGLE_CLIENT_SECRET"
 msgid "Grant {0} targets organization {1}"
 msgstr "グラント {0} は組織 {1} を対象としています"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Grant ID"
-msgstr "グラント ID"
-
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Grant instance access"
 msgstr "インスタンスへのアクセスを許可する"
@@ -4834,23 +5465,23 @@ msgstr "インスタンスへのアクセスを許可する"
 msgid "Grant instance manager"
 msgstr "インスタンスマネージャーを付与する"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Grant manager role"
-msgstr "マネージャーの役割を付与する"
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Grant role to user"
 msgstr "ユーザーに役割を付与する"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Grant the selected project to another organization in this tenant. Revoking a project grant also revokes user grants issued through it."
-msgstr "選択したプロジェクトをこのテナント内の別の組織に付与します。プロジェクトグラントを取り消すと、それを通じて発行されたユーザーグラントも取り消されます。"
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Granted"
 msgstr "付与日"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Grants and tokens"
+msgstr "グラントとトークン"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Grants and tokens saved"
+msgstr "グラントとトークンを保存しました"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Group"
@@ -4880,14 +5511,24 @@ msgstr "グループ"
 msgid "Guarded or minimal OAuth and OIDC extensions"
 msgstr "制限付きまたは最小限の OAuth / OIDC 拡張"
 
+#: apps/console/src/routes/users/user-format.ts
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Guest"
 msgstr "ゲスト"
+
+#: apps/console/src/routes/users/user-format.ts
+msgid "Guest {tag}"
+msgstr "ゲスト {tag}"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 msgid "Guest account"
 msgstr "ゲストアカウント"
+
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Guest session"
+msgstr "ゲストセッション"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "H3 event handler factory: verifies JWT, writes event.context.xidAuth, protects routes"
@@ -4933,6 +5574,10 @@ msgstr "クリック時にサインイン URL へリダイレクトするヘッ�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Headless components"
 msgstr "ヘッドレスコンポーネント"
+
+#: apps/console/src/components/layout/ConsoleNavDrawer.tsx
+msgid "Help and docs"
+msgstr "ヘルプとドキュメント"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Hex color, e.g. #6366f1"
@@ -5018,6 +5663,10 @@ msgstr "ホスト名は予約されています。以下に示すすべての DN
 msgid "Hostname status:"
 msgstr "ホスト名のステータス:"
 
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "How the app authenticates"
+msgstr "アプリケーションの認証方式"
+
 #: apps/server/src/routes/account/SecurityPage.tsx
 msgid "How you sign in to {appName}, and what keeps someone else from doing it."
 msgstr "{appName} へのサインイン方法と、他人によるサインインを防ぐ設定です。"
@@ -5062,10 +5711,6 @@ msgstr "https://accounts.google.com"
 msgid "https://accounts.google.com/o/oauth2/v2/auth"
 msgstr "https://accounts.google.com/o/oauth2/v2/auth"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "https://app.example.com/callback"
-msgstr "https://app.example.com/callback"
-
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "https://example.com/scim/v2"
 msgstr "https://example.com/scim/v2"
@@ -5109,6 +5754,10 @@ msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 #: apps/site/src/lib/home-surface.ts
 msgid "https://xid.dev/sign-in"
 msgstr "https://xid.dev/sign-in"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "I saved the secret somewhere safe"
+msgstr "シークレットを安全な場所に保存しました"
 
 #: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
@@ -5231,6 +5880,7 @@ msgstr "インパクト"
 msgid "Impersonate"
 msgstr "代理操作"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Impersonation"
 msgstr "代理操作"
@@ -5308,10 +5958,6 @@ msgstr "インバウンド企業 SSO | コンソール | XID"
 msgid "Inbound enterprise SSO means XID acts as the SAML service provider or OIDC relying party for a company IdP. Downstream SaaS SSO means XID acts as the SAML or OIDC identity provider for apps such as Slack, GitHub Enterprise Cloud, Microsoft custom apps, Atlassian, Salesforce, and Zoom."
 msgstr "入站エンタープライズ SSO とは、XID が企業 IdP の SAML サービスプロバイダーまたは OIDC リライングパーティとして機能することを意味します。下流 SaaS SSO とは、XID が Slack、GitHub Enterprise Cloud、Microsoft カスタムアプリ、Atlassian、Salesforce、Zoom などのアプリの SAML または OIDC アイデンティティプロバイダーとして機能することを意味します。"
 
-#: apps/console/src/nav.tsx
-msgid "Inbound SSO"
-msgstr "入站 SSO"
-
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Inbound SSO connections"
 msgstr "入站 SSO 接続"
@@ -5331,6 +5977,14 @@ msgstr "インシデントを開始しました。"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Incident title"
 msgstr "インシデントのタイトル"
+
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "Include the country code, for example +1 415 555 0100."
+msgstr "国番号を含めてください。例: +81 3 1234 5678。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Include the session ID (sid) in the logout token"
+msgstr "ログアウトトークンにセッション ID（sid）を含める"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Indirect"
@@ -5416,6 +6070,10 @@ msgstr "インスタンス"
 msgid "Instance defaults"
 msgstr "インスタンスのデフォルト"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Instance manager"
+msgstr "インスタンスマネージャー"
+
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Instance managers"
@@ -5450,18 +6108,50 @@ msgstr "Inter, system-ui, sans-serif"
 msgid "Investigating"
 msgstr "調査中"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Invitation sent successfully."
-msgstr "招待を送信しました。"
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Invitation"
+msgstr "招待"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "Invitations"
+msgstr "招待"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Invitations could not be loaded"
+msgstr "招待を読み込めませんでした"
+
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Invite member"
 msgstr "メンバーを招待"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Invite members to {orgName}"
+msgstr "{orgName} にメンバーを招待"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Invite members, manage roles, and review membership status."
 msgstr "メンバーを招待し、ロールを管理し、メンバーシップのステータスを確認します。"
+
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "Invite members…"
+msgstr "メンバーを招待…"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Invited"
+msgstr "招待済み"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Invited by"
+msgstr "招待者"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Invited by {inviter}"
+msgstr "招待者: {inviter}"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Invited email"
+msgstr "招待先メール"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "invoice:read"
@@ -5510,6 +6200,10 @@ msgstr "isLoaded, sessions, setActive（マルチセッション切り替え用�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "isLoaded, userMemberships for organization switcher UI"
 msgstr "isLoaded, userMemberships（組織切り替え UI 用）"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Issued when the app asks for offline_access. Each use rotates the token."
+msgstr "アプリケーションが offline_access を要求したときに発行されます。使用するたびにトークンがローテーションされます。"
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Issuer"
@@ -5567,6 +6261,18 @@ msgstr "{org} に参加"
 msgid "Join organization"
 msgstr "組織に参加"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Joined"
+msgstr "参加日"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Joined {joined}."
+msgstr "{joined} に参加。"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Joined through"
+msgstr "参加経路"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JS and TS native SDKs (React Native, Expo) use a React provider plus hooks model: XidProvider, useSignIn, and useSignOut."
 msgstr "JS および TS ネイティブ SDK（React Native、Expo）は React プロバイダーとフックモデルを使用します：XidProvider、useSignIn、useSignOut。"
@@ -5586,6 +6292,10 @@ msgstr "セクションへ移動"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JumpCloud"
 msgstr "JumpCloud"
+
+#: apps/console/src/routes/users/user-format.ts
+msgid "Just now"
+msgstr "たった今"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JWKS cache TTL in seconds"
@@ -5663,6 +6373,10 @@ msgstr "decodeTokenClaims が返す JWT ペイロードクレーム"
 msgid "Keep access when you're not using it"
 msgstr "使用していないときもアクセスを維持"
 
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Keep audit log entries, which are never deleted"
+msgstr "監査ログのエントリは削除されずに残ります"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Keep my account"
 msgstr "アカウントを残す"
@@ -5675,6 +6389,10 @@ msgstr "インシデントの影響、状態、タイムスタンプ付きの更
 msgid "Key"
 msgstr "キー"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Key attributes"
+msgstr "主な属性"
+
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Key metrics"
 msgstr "主要指標"
@@ -5682,6 +6400,10 @@ msgstr "主要指標"
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Key name"
 msgstr "キー名"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Key-value data about {name}, set and read through the Management API."
+msgstr "Management API で設定・取得する {name} のキーと値のデータ。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Keychain behavior must be verified in an Xcode device or simulator test run."
@@ -5715,12 +6437,18 @@ msgstr "Chrome Custom Tabs、PKCE S256 認可コードフロー、Keystore バ�
 msgid "Label"
 msgstr "ラベル"
 
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/components/hosted/LanguageMenu.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/LanguageSwitcher.tsx
 msgid "Language"
 msgstr "言語"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Last active"
+msgstr "最終アクティブ"
 
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Last active {lastActive}."
@@ -5735,6 +6463,8 @@ msgid "Last changed {changed}. This password has appeared in a known data breach
 msgstr "最終変更 {changed}。このパスワードは既知のデータ漏えいに含まれているため、変更してください。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Last name"
@@ -5748,6 +6478,12 @@ msgstr "前回のリプレイ: {0}"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Last run"
 msgstr "前回の実行"
+
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Last sign-in"
+msgstr "最終サインイン"
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Last successful sync"
@@ -5770,6 +6506,10 @@ msgstr "最終使用"
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Last used {lastUsed}"
 msgstr "最終使用 {lastUsed}"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Last used {used}."
+msgstr "最終使用 {used}。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Launch ASWebAuthenticationSession, complete PKCE S256 authorization code flow, persist tokens to Keychain, and return a session."
@@ -5809,6 +6549,10 @@ msgstr "このマッピングを無条件にするには、空白のままにし
 msgid "Leave organization"
 msgstr "組織から退出"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Leave the lifetime empty to use the organization token policy."
+msgstr "有効期間を空欄にすると、組織のトークンポリシーが使われます。"
+
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Leave…"
 msgstr "退出…"
@@ -5820,6 +6564,10 @@ msgstr "レガシープロトコルの境界"
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "Let {app} sign in as you?"
 msgstr "{app} があなたとしてサインインすることを許可しますか？"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Lets {name} call APIs as itself, with no user present."
+msgstr "ユーザーなしで {name} が自身として API を呼び出せるようにします。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Level"
@@ -5842,9 +6590,17 @@ msgstr "上限"
 msgid "Link expired"
 msgstr "リンクの有効期限切れ"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Linked"
+msgstr "リンク済み"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Linked sign-on, native IWA, and Kerberos termination are not supported."
 msgstr "リンクドサインオン、ネイティブ IWA、Kerberos 終端はサポートされていません。"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Linked to {account} on {linked}."
+msgstr "{linked} に {account} とリンク。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Linux"
@@ -5878,6 +6634,10 @@ msgstr "メンバーの一覧表示、作成、ロール更新、削除を行い
 msgid "List, get, and revoke user sessions."
 msgstr "ユーザーセッションの一覧表示、取得、取り消しを行います。"
 
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Listed twice"
+msgstr "重複しています"
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "live"
 msgstr "live"
@@ -5898,10 +6658,6 @@ msgstr "ライブステータスは一時的に利用できません。"
 msgid "Load more"
 msgstr "さらに読み込む"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Load more applications"
-msgstr "さらにアプリケーションを読み込む"
-
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Load more dead letters"
 msgstr "さらにデッドレターをロードする"
@@ -5909,10 +6665,6 @@ msgstr "さらにデッドレターをロードする"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Load more deleted permissions"
 msgstr "削除された権限をさらに読み込む"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Load more deleted projects"
-msgstr "削除されたプロジェクトをさらにロードする"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Load more deleted roles"
@@ -5931,21 +6683,9 @@ msgstr "さらにイベントを読み込む"
 msgid "Load more instance managers"
 msgstr "さらにインスタンスマネージャーをロードする"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Load more invitations"
-msgstr "さらに招待を読み込む"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Load more keys"
 msgstr "さらにキーを読み込む"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Load more manager assignments"
-msgstr "マネージャーの割り当てをさらにロードする"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Load more members"
-msgstr "さらにメンバーを読み込む"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Load more organizations"
@@ -5955,11 +6695,6 @@ msgstr "さらに組織を読み込む"
 msgid "Load more permissions"
 msgstr "さらに権限をロードする"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Load more project grants"
-msgstr "プロジェクトグラントをさらに読み込む"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Load more projects"
 msgstr "さらにプロジェクトをロードする"
@@ -5983,6 +6718,10 @@ msgstr "さらにユーザーを読み込む"
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Load more webhooks"
 msgstr "さらに webhook を読み込む"
+
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "Load older events"
+msgstr "以前のイベントを読み込む"
 
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/Spinner.tsx
@@ -6058,6 +6797,10 @@ msgstr "ローカル実装および適合ゲートは製品認証ではありま
 msgid "Locations are estimated from IP addresses and can be off by a city or more. Last active includes background activity, such as an app refreshing in the background."
 msgstr "位置情報は IP アドレスから推定しており、市区町村単位以上ずれることがあります。最終アクティブにはアプリのバックグラウンド更新などの動作も含まれます。"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "Locations are estimated from the IP address. Last active includes background token refreshes, so a session can look active while the app is closed."
+msgstr "場所は IP アドレスから推定しています。最終アクティブにはバックグラウンドでのトークン更新も含まれるため、アプリを閉じていてもセッションがアクティブに見えることがあります。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Logging via SLF4J facade; bring your own implementation (Logback, Log4j2)."
 msgstr "SLF4J ファサード経由のログ記録。実装は自前で用意してください（Logback、Log4j2）。"
@@ -6084,6 +6827,10 @@ msgstr "ロゴ（ダーク）"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Logo (light)"
 msgstr "ロゴ（ライト）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Logo URL"
+msgstr "ロゴ URL"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Logo URL (dark)"
@@ -6120,6 +6867,10 @@ msgstr "マシン間通信"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Machine-readable status"
 msgstr "機械可読ステータス"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Machine-to-machine"
+msgstr "マシン間"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "macOS"
@@ -6184,6 +6935,10 @@ msgstr "アウトバウンド配信用のイベントサブスクリプション
 msgid "Manage hosted sign-in methods, identifiers, profile fields, and email domain rules."
 msgstr "Hosted Auth のサインイン方式、識別子、プロフィール項目、メールドメインルールを管理します。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Manage members, sign-in methods, SSO, applications and branding."
+msgstr "メンバー、サインイン方式、SSO、アプリケーション、ブランド設定を管理します。"
+
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Manage methods any time in your account under Security."
 msgstr "確認方法はアカウントの「セキュリティ」でいつでも管理できます。"
@@ -6200,10 +6955,6 @@ msgstr "組織を管理"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Manage organization display name, logo URLs, colors, and typography."
 msgstr "組織の表示名、ロゴ URL、色、タイポグラフィを管理します。"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Manage organization members and pending invitations."
-msgstr "組織のメンバーと保留中の招待を管理します。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Manage organization resources from your backend."
@@ -6295,13 +7046,13 @@ msgstr "Management API helpers は <0>server-side または完全一致する sa
 msgid "Management API key list and actions for console embeds"
 msgstr "コンソール埋め込み用の Management API キー一覧とアクション"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Manager role"
-msgstr "マネージャーの役​​割"
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Managers"
+msgstr "マネージャー"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Manager user ID"
-msgstr "管理者ユーザー ID"
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Manages all of {name} since {since}"
+msgstr "{since} から {name} 全体を管理"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Manifest setup"
@@ -6327,18 +7078,28 @@ msgstr "MAU"
 msgid "Meaning"
 msgstr "意味"
 
+#: apps/console/src/routes/members/MembersTab.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Member"
 msgstr "メンバー"
 
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "Member sections"
+msgstr "メンバーのセクション"
+
 #: apps/console/src/nav.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/MembersPage.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
 msgid "Members"
 msgstr "メンバー"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Members | Console | XID"
 msgstr "メンバー | コンソール | XID"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Members could not be loaded"
+msgstr "メンバーを読み込めませんでした"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Members, roles, SSO admin embed"
@@ -6348,6 +7109,10 @@ msgstr "メンバー、ロール、SSO 管理埋め込み"
 msgid "Membership and project access are separate: invitations join an Organization, while AccessRequest grants an existing active member access to one Project."
 msgstr "メンバーシップとプロジェクト アクセスは別個です。招待は組織に参加しますが、AccessRequest は既存のアクティブなメンバーに 1 つのプロジェクトへのアクセスを許可します。"
 
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+msgid "Menu"
+msgstr "メニュー"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Message"
 msgstr "メッセージ"
@@ -6355,6 +7120,10 @@ msgstr "メッセージ"
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Message ID"
 msgstr "メッセージID"
+
+#: apps/console/src/nav.tsx
+msgid "Messaging"
+msgstr "メッセージ配信"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Metadata URL"
@@ -6435,6 +7204,10 @@ msgstr "未設定"
 msgid "Mobile number"
 msgstr "携帯電話番号"
 
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Mobile or desktop app. Uses PKCE and may use custom-scheme redirects."
+msgstr "モバイルまたはデスクトップアプリ。PKCE を使い、カスタムスキームのリダイレクトも使えます。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Mobile SDKs"
 msgstr "モバイル SDK"
@@ -6455,6 +7228,7 @@ msgstr "モジュール"
 msgid "Module setup"
 msgstr "モジュールセットアップ"
 
+#: apps/console/src/nav.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Monitoring"
@@ -6466,6 +7240,10 @@ msgstr "監視"
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
 msgid "Monthly active users"
 msgstr "月次アクティブユーザー"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "More filters"
+msgstr "その他のフィルター"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Mounts and immediately redirects to the create organization page"
@@ -6503,19 +7281,51 @@ msgstr "マルチワーカーデプロイではプロセス間で JWKS キャッ
 msgid "Must be a public HTTPS URL."
 msgstr "公開されている HTTPS URL を指定してください。"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Must be a public HTTPS URL. XID posts a signed logout token to it."
+msgstr "公開 HTTPS URL である必要があります。XID は署名付きログアウトトークンを送信します。"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Mutual TLS"
+msgstr "相互 TLS"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Mutual TLS with a CA-issued certificate (tls_client_auth)"
+msgstr "CA 発行の証明書による相互 TLS（tls_client_auth）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Mutual TLS with a pinned certificate (self_signed_tls_client_auth)"
+msgstr "固定した証明書による相互 TLS（self_signed_tls_client_auth）"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Name"
 msgstr "名前"
 
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Name or client ID"
+msgstr "名前またはクライアント ID"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Name or email"
+msgstr "名前またはメール"
+
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Name, email, phone or user ID"
+msgstr "名前、メール、電話番号、ユーザー ID"
+
+#: apps/console/src/routes/applications/app-format.ts
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Native app"
 msgstr "ネイティブアプリ"
@@ -6550,8 +7360,14 @@ msgstr "ネットワーク不要の JWT 検証、リクエスト認証、webhook
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 msgid "Never"
 msgstr "なし"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Never signed in"
+msgstr "サインイン履歴なし"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "New announcement"
@@ -6568,6 +7384,10 @@ msgstr "{sentTime} に新しいコードを送信しました"
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "New here?"
 msgstr "初めてですか？"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "New invitation sent to {email}"
+msgstr "{email} に新しい招待を送信しました"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "New organization"
@@ -6598,6 +7418,8 @@ msgstr "{org} は初めてですか？"
 msgid "New to XID? Create an account"
 msgstr "XID は初めてですか？アカウントを作成"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/UsersList.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Next"
@@ -6639,10 +7461,6 @@ msgstr "アクセス要求は必要ありません。"
 msgid "No active API keys."
 msgstr "アクティブな API キーはありません。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "No active grants for this project."
-msgstr "このプロジェクトには有効なグラントはありません。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No active permissions."
 msgstr "アクティブな権限がありません。"
@@ -6650,10 +7468,6 @@ msgstr "アクティブな権限がありません。"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No active projects"
 msgstr "アクティブなプロジェクトはありません"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "No active projects."
-msgstr "アクティブなプロジェクトはありません。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No active roles"
@@ -6667,13 +7481,29 @@ msgstr "アクティブな役割はありません。"
 msgid "No active user grants."
 msgstr "有効なユーザーグラントはありません。"
 
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "No activity recorded for {name} yet."
+msgstr "{name} のアクティビティはまだ記録されていません。"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "No announcements found."
 msgstr "お知らせは見つかりませんでした。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "No applications registered."
-msgstr "登録済みのアプリケーションはありません。"
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "No applications"
+msgstr "アプリケーションなし"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "No applications in this project yet."
+msgstr "このプロジェクトにはまだアプリケーションがありません。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "No applications match these filters."
+msgstr "条件に一致するアプリケーションはありません。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "No applications yet"
+msgstr "アプリケーションはまだありません"
 
 #: packages/i18n/src/messages.ts
 msgid "No approver is available for this access request."
@@ -6690,6 +7520,10 @@ msgstr "現在のフィルターに一致する監査イベントはありませ
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 msgid "No billing data available."
 msgstr "利用できる請求データはありません。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "No client authentication; PKCE protects the code exchange"
+msgstr "クライアント認証なし。PKCE がコード交換を保護します"
 
 #: apps/console/src/routes/org/OrgCompliance.tsx
 msgid "No compliance evidence published"
@@ -6718,15 +7552,10 @@ msgstr "デッドレターはありません。"
 msgid "No deleted permissions."
 msgstr "削除された権限はありません。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "No deleted projects."
-msgstr "削除されたプロジェクトはありません。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No deleted roles."
 msgstr "削除されたロールはありません。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No description"
 msgstr "説明なし"
@@ -6784,17 +7613,13 @@ msgstr "報告されたインシデントはありません。"
 msgid "No instance managers found."
 msgstr "インスタンス マネージャーが見つかりません。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "No managers assigned to this scope."
-msgstr "このスコープにはマネージャーが割り当てられていません。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No mechanism to detect when the user closes Custom Tabs without completing authorization."
 msgstr "ユーザーが認可を完了せずに Custom Tabs を閉じたことを検出するメカニズムがありません。"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "No members found."
-msgstr "メンバーは見つかりませんでした。"
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "No members match."
+msgstr "一致するメンバーはいません。"
 
 #: packages/i18n/src/messages.ts
 msgid "No membership record was found."
@@ -6804,6 +7629,10 @@ msgstr "メンバーシップレコードが見つかりませんでした。"
 msgid "No message yet?"
 msgstr "メッセージが届きませんか？"
 
+#: apps/console/src/routes/users/user-columns.tsx
+msgid "No organization"
+msgstr "組織なし"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "No organization access"
 msgstr "組織へのアクセス権がありません"
@@ -6812,17 +7641,16 @@ msgstr "組織へのアクセス権がありません"
 msgid "No organization matches \"{query}\"."
 msgstr "「{query}」に一致する組織はありません。"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
-msgid "No organization selected"
-msgstr "組織が選択されていません"
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "No organization matches {query}."
+msgstr "{query} に一致する組織はありません。"
 
+#: apps/console/src/routes/members/MembersPage.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgBranding.tsx
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -6851,7 +7679,11 @@ msgstr "組織はまだありません。"
 msgid "No outbound SAML apps configured."
 msgstr "アウトバウンド SAML アプリが設定されていません。"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "No password set."
+msgstr "パスワードは設定されていません。"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
 msgid "No pending invitations."
 msgstr "保留中の招待はありません。"
 
@@ -6863,9 +7695,35 @@ msgstr "このロールにマップされた権限はありません。"
 msgid "No platform stats available."
 msgstr "プラットフォーム統計はありません。"
 
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "No project"
+msgstr "プロジェクトなし"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "No project management scopes are assigned to your user."
 msgstr "ユーザーにはプロジェクト管理スコープが割り当てられていません。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "No project managers yet."
+msgstr "プロジェクトマネージャーはまだいません。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "No project roles."
+msgstr "プロジェクトロールはありません。"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "No projects match."
+msgstr "一致するプロジェクトはありません。"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "No projects yet"
+msgstr "プロジェクトはまだありません"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "No public metadata."
+msgstr "公開メタデータはありません。"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "No results found"
@@ -6899,6 +7757,10 @@ msgstr "サードパーティ依存関係なし — Apple システムフレー�
 msgid "No third-party dependencies — uses Apple system frameworks only"
 msgstr "サードパーティ依存関係なし — Apple システムフレームワークのみ使用"
 
+#: apps/console/src/routes/applications/app-format.ts
+msgid "No user sign-in"
+msgstr "ユーザーのサインインなし"
+
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "No users found matching your query."
 msgstr "検索条件に一致するユーザーは見つかりませんでした。"
@@ -6906,6 +7768,14 @@ msgstr "検索条件に一致するユーザーは見つかりませんでした
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "No users found."
 msgstr "ユーザーが見つかりませんでした。"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "No users match these filters."
+msgstr "条件に一致するユーザーはいません。"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "No users yet"
+msgstr "ユーザーはまだいません"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No valid token present; reason field indicates cause"
@@ -6923,12 +7793,18 @@ msgstr "設定済みの webhook エンドポイントはありません。"
 msgid "No, it's different"
 msgstr "いいえ、違います"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Nobody has a direct {name} role yet."
+msgstr "{name} のロールを直接付与された人はまだいません。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Node.js"
 msgstr "Node.js"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "None"
 msgstr "なし"
@@ -6941,9 +7817,17 @@ msgstr "未登録です。追加すると、アプリから SMS でアカウン�
 msgid "None added. This organization doesn't send text messages yet."
 msgstr "未登録です。この組織はまだ SMS を送信していません。"
 
+#: apps/console/src/routes/users/user-columns.tsx
+msgid "None set"
+msgstr "未設定"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "None yet"
 msgstr "まだありません"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "None yet. {name} can create one from the Security page of their account."
+msgstr "まだありません。{name} はアカウントのセキュリティページから作成できます。"
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "None yet. For when you can't reach your phone or passkeys."
@@ -6952,6 +7836,10 @@ msgstr "まだありません。電話やパスキーを使えないときのた
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "None yet. We'd send a 6-digit code to confirm it."
 msgstr "まだありません。確認のため 6 桁のコードを送信します。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Not an email"
+msgstr "メールアドレスではありません"
 
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "Not connected"
@@ -6974,9 +7862,23 @@ msgstr "未準備"
 msgid "Not run yet"
 msgstr "未実行"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Not saved. Fix the highlighted URLs first."
+msgstr "保存されていません。先に強調表示された URL を修正してください。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Not sent"
+msgstr "未送信"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Not set"
 msgstr "未設定"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Not set up."
+msgstr "未設定。"
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Not set up. Add it as a fallback after you set up the authenticator app."
@@ -6998,6 +7900,10 @@ msgstr "未設定です。プロフィールの確認済み番号を、認証ア
 msgid "Not set. Add one so you can still sign in if your other methods aren't available."
 msgstr "未設定です。ほかの方法が使えないときもサインインできるよう追加してください。"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Not shared with any organization."
+msgstr "どの組織とも共有されていません。"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Not synced"
 msgstr "同期なし"
@@ -7005,6 +7911,10 @@ msgstr "同期なし"
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Not used yet"
 msgstr "未使用"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Not verified"
+msgstr "未確認"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Not yet implemented"
@@ -7021,6 +7931,12 @@ msgstr "メモ"
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "Nothing changed on your account. Connect a different {provider} account, or disconnect this one from the other account first."
 msgstr "アカウントは変更されていません。別の {provider} アカウントを接続するか、先にもう一方のアカウントからこのアカウントの接続を解除してください。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Nothing changed. Check your connection and try again."
+msgstr "変更されていません。接続を確認して、もう一度お試しください。"
 
 #: apps/server/src/routes/consent/index.tsx
 msgid "Nothing from your account was shared. {app} will show its own message about what to do next."
@@ -7057,10 +7973,6 @@ msgstr "OAuth 2.0 client_id"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OAuth and OIDC features"
 msgstr "OAuth と OIDC の機能"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "OAuth applications"
-msgstr "OAuth アプリケーション"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "OAuth applications | Console | XID"
@@ -7118,6 +8030,7 @@ msgstr "オブジェクト"
 msgid "Observe only"
 msgstr "閲覧のみ"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Off"
 msgstr "オフ"
@@ -7195,6 +8108,10 @@ msgstr "有効"
 msgid "On a different computer, your browser can show a QR code to scan with your phone."
 msgstr "別のコンピューターでは、ブラウザに QR コードが表示され、スマートフォンでスキャンできます。"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "On one device or security key"
+msgstr "1 台のデバイスまたはセキュリティキー"
+
 #. placeholder {0}: dates.date(sms.createdAt)
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "On since {0}. A fallback, never used on its own."
@@ -7224,17 +8141,25 @@ msgstr "{appName} を開く前の任意のステップです。"
 msgid "One optional step before you continue."
 msgstr "続行する前の任意のステップです。"
 
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "One per line. Each must match exactly; wildcards are not allowed."
+msgstr "1 行に 1 つ。完全一致が必要で、ワイルドカードは使えません。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One platform for identity"
 msgstr "アイデンティティのための統合プラットフォーム"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "One secret is active at a time. XID keeps only a hash, so the secret cannot be shown again; rotating creates a new one and shows it once."
+msgstr "有効なシークレットは常に 1 つです。XID はハッシュのみを保存するため、シークレットを再表示することはできません。ローテーションすると新しいシークレットが作成され、1 回だけ表示されます。"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "One tenant"
 msgstr "1テナント"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "One URI per line."
-msgstr "1 行に 1 つの URI を入力します。"
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "One URL per line."
+msgstr "1 行に 1 つの URL。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One-tap sign-in embed"
@@ -7248,6 +8173,14 @@ msgstr "OneLogin"
 msgid "Only allow it if you're holding that device right now."
 msgstr "そのデバイスを今手元に持っている場合のみ許可してください。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Only an owner can change the role of another owner."
+msgstr "別の組織所有者のロールを変更できるのは組織所有者だけです。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Only for apps you own. Third-party apps always ask users to approve access."
+msgstr "自社のアプリケーション専用です。サードパーティアプリは常にユーザーに同意を求めます。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed."
 msgstr "ネガティブルートとメタデータスタブのみが公開されます。サポートされていない操作は明示的な <0>501 unsupported_feature</0> を返します。機能的なプロトコルのサポートは主張されていません。"
@@ -7256,6 +8189,10 @@ msgstr "ネガティブルートとメタデータスタブのみが公開され
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "Only part of the chain was verified in this request. The latest seq is {0}."
 msgstr "このリクエストで検証したのはチェーンの一部だけです。最新のシーケンスは {0} です。"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Only people with a {name} role"
+msgstr "{name} のロールを持つ人のみ"
 
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 msgid "Only the first matches are listed. Refine the search to narrow them."
@@ -7291,6 +8228,10 @@ msgstr "コンソールを開く"
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Open Customer Portal"
 msgstr "カスタマーポータルを開く"
+
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+msgid "Open in Audit log"
+msgstr "監査ログで開く"
 
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 msgid "Open in authenticator app"
@@ -7420,10 +8361,6 @@ msgstr "任意"
 msgid "Optional network-fetching JWKS cache with configurable TTL (default 3600 s); use only when jwtKey is not pre-loaded"
 msgstr "設定可能な TTL（デフォルト 3600 秒）付きのオプションネットワーク取得 JWKS キャッシュ。jwtKey が事前ロードされていない場合にのみ使用してください"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Optional. One URI per line."
-msgstr "任意。1 行に 1 つの URI を入力します。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Options for authenticateRequest: jwtKey, issuer, audience, authorizedParties, clockToleranceSec, now, jwtCookieName, sessionTokenExchange"
 msgstr "authenticateRequest のオプション: jwtKey、issuer、audience、authorizedParties、clockToleranceSec、now、jwtCookieName、sessionTokenExchange"
@@ -7453,19 +8390,20 @@ msgstr "xidMiddleware のオプション：jwtKey、issuer、jwtCookieName、ses
 msgid "or"
 msgstr "または"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Or enter an organization ID"
+msgstr "または組織 ID を入力"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Org creation flow"
 msgstr "組織作成フロー"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "org_..."
-msgstr "org_..."
-
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Organization"
 msgstr "組織"
@@ -7500,10 +8438,6 @@ msgstr "組織 ID"
 msgid "sdk.organizationList"
 msgstr "組織リスト"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Organization manager"
-msgstr "組織マネージャー"
-
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Organization name"
 msgstr "組織名"
@@ -7521,10 +8455,16 @@ msgstr "組織ポリシー <0>attestationMode</0> は、パスキー登録時に
 msgid "sdk.organizationProfile"
 msgstr "組織プロフィール"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Organization settings"
+msgstr "組織の設定"
+
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
@@ -7546,9 +8486,21 @@ msgstr "組織 | コンソール | XID"
 msgid "Organizations and access"
 msgstr "組織とアクセス"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Organizations and roles"
+msgstr "組織とロール"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations can require email identifiers, username identifiers, or both."
 msgstr "組織はメール識別子、ユーザー名識別子、またはその両方を要求できます。"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Organizations could not be loaded"
+msgstr "組織を読み込めませんでした"
+
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Organizations you manage"
+msgstr "管理している組織"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OrgUnit trees support a maximum depth of eight."
@@ -7581,10 +8533,6 @@ msgstr "アウトバウンド SAML アプリを削除しました。"
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Outbound SAML app saved."
 msgstr "アウトバウンド SAML アプリを保存しました。"
-
-#: apps/console/src/nav.tsx
-msgid "Outbound SSO"
-msgstr "アウトバウンド SSO"
 
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Overdue"
@@ -7715,6 +8663,10 @@ msgstr "ページが見つかりません"
 msgid "Page not found | XID"
 msgstr "ページが見つかりません | XID"
 
+#: apps/console/src/components/layout/ConsoleCommandMenu.tsx
+msgid "Pages"
+msgstr "ページ"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Pages Router"
 msgstr "Pages Router"
@@ -7753,6 +8705,9 @@ msgid "Pass <0>appearance</0> to prebuilt UI components such as <1>SignIn</1>, <
 msgstr "<0>appearance</0> は <4>XidProvider</4> ではなく、<1>SignIn</1>、<2>UserProfile</2>、<3>OrganizationSwitcher</3> などの構築済み UI コンポーネントに渡してください。エクスポートされた Appearance types により、型付きの CSS-variable と element-class overrides を利用できます。表示されるすべての文言には Lingui runtime descriptors が使用されます。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
@@ -7781,6 +8736,7 @@ msgstr "パスキーサインインは主要な AAL2 認証です。パスワー
 msgid "Passkey verification failed. Try another method or try again."
 msgstr "パスキー検証に失敗しました。別の方法を試すか、もう一度お試しください。"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Passkeys"
 msgstr "パスキー"
@@ -7798,6 +8754,9 @@ msgid "Passkeys on your devices"
 msgstr "デバイスのパスキー"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/server/src/routes/account/PasswordSection.tsx
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -7848,6 +8807,7 @@ msgstr "ペイロード構造"
 msgid "Payment completed. The plan updates after Stripe confirms the subscription, which can take a minute. Reload this page if it does not change."
 msgstr "支払いが完了しました。Stripe がサブスクリプションを確認した後にプランが更新されます。1 分ほどかかる場合があります。変わらない場合はこのページを再読み込みしてください。"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Pending"
@@ -7857,7 +8817,6 @@ msgstr "保留中"
 msgid "Pending DNS"
 msgstr "保留中のDNS"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 msgid "Pending invitations"
 msgstr "保留中の招待"
@@ -7866,14 +8825,30 @@ msgstr "保留中の招待"
 msgid "Pending verification"
 msgstr "確認待ち"
 
-#: apps/console/src/nav.tsx
-msgid "People"
-msgstr "メンバー"
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "People appear here after they sign up, accept an invitation, arrive through directory sync, or you create them."
+msgstr "サインアップ、招待の承諾、ディレクトリ同期、またはあなたによる作成のあとに、ここに表示されます。"
+
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "People who belong to {orgName} and what they can manage here."
+msgstr "{orgName} に所属する人と、ここで管理できる内容。"
+
+#: apps/console/src/routes/members/MembersPage.tsx
+msgid "People who belong to {orgName} and what they can manage here. People who only use your apps are listed under Users."
+msgstr "{orgName} に所属する人と、ここで管理できる内容。アプリケーションを使うだけの人は「ユーザー」に表示されます。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "People who manage {name}"
+msgstr "{name} を管理する人"
 
 #. placeholder {0}: target.domain
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "People with {0} addresses sign in through {idp}."
 msgstr "{0} のアドレスのユーザーは {idp} でサインインします。"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "People without a {name} role can still sign in. Their token has an empty roles claim."
+msgstr "{name} のロールがない人もサインインできます。トークンの roles クレームは空になります。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Per-call overrides for signIn: redirectUri, scopes"
@@ -7924,7 +8899,12 @@ msgstr "個人アカウント"
 msgid "Personal info"
 msgstr "個人情報"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Phone"
+msgstr "電話番号"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/CreateUserDialog.tsx
 #: apps/server/src/routes/account/PhoneSection.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Phone number"
@@ -8035,7 +9015,7 @@ msgstr "プランとクォータ | Console | XID"
 msgid "Plans are accounting and support labels. They never disable authentication, token issuance, or configured protocols in a self-hosted deployment."
 msgstr "プランは課金およびサポート用のラベルです。セルフホスト環境で認証、トークン発行、設定済みプロトコルを無効にすることはありません。"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Platform"
@@ -8048,10 +9028,6 @@ msgstr "プラットフォーム（インスタンスレベルのイベント）
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Platform compliance | Console | XID"
 msgstr "プラットフォームコンプライアンス | Console | XID"
-
-#: apps/console/src/components/layout/ConsoleLayout.tsx
-msgid "Platform management"
-msgstr "プラットフォーム管理"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Platform MFA policy"
@@ -8109,10 +9085,6 @@ msgstr "プラグインセットアップ"
 msgid "POST /token"
 msgstr "POST /token"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Post-logout redirect URIs"
-msgstr "ログアウト後のリダイレクト URI"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Prefix"
 msgstr "プレフィックス"
@@ -8149,6 +9121,8 @@ msgstr "プリセット"
 msgid "Preview"
 msgstr "プレビュー"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/users/UsersList.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Previous"
@@ -8168,11 +9142,16 @@ msgstr "プライマリブランドカラー"
 msgid "Primary color"
 msgstr "プライマリカラー"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Primary email"
+msgstr "メインのメール"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Primary email is used for matching and account linking."
 msgstr "プライマリメールは照合とアカウントリンクに使用されます。"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleNav.tsx
+#: apps/console/src/components/layout/ConsoleNavDrawer.tsx
 msgid "Primary navigation"
 msgstr "プライマリナビゲーション"
 
@@ -8184,6 +9163,10 @@ msgstr "プリミティブ"
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 msgid "Print"
 msgstr "印刷"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Private key JWT"
+msgstr "秘密鍵 JWT"
 
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Private windows in some browsers can't save passkeys. Use a regular window."
@@ -8238,6 +9221,8 @@ msgstr "生産証拠"
 msgid "Production where proven, local where not"
 msgstr "検証済みは production、未検証はローカル"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Profile"
@@ -8251,15 +9236,39 @@ msgstr "プロフィール | アカウント | XID"
 msgid "Profile fields"
 msgstr "プロフィールフィールド"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Profile saved"
+msgstr "プロフィールを保存しました"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Project"
 msgstr "プロジェクト"
 
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Project details"
+msgstr "プロジェクトの詳細"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Project details saved"
+msgstr "プロジェクトの詳細を保存しました"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project grant manager"
 msgstr "プロジェクトグラントマネージャー"
+
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "project ID"
+msgstr "プロジェクト ID"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Project ID"
+msgstr "プロジェクト ID"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project identity remains stable while its name and description change."
@@ -8269,8 +9278,8 @@ msgstr "プロジェクトのアイデンティティは、名前と説明が変
 msgid "Project links"
 msgstr "プロジェクトリンク"
 
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project manager"
 msgstr "プロジェクトマネージャー"
 
@@ -8279,29 +9288,42 @@ msgid "Project managers can change definitions. Project grant managers can read 
 msgstr "プロジェクト マネージャーは定義を変更できます。プロジェクトグラントマネージャーは、定義を読み取り、特定の 1 つのグラントに対するユーザーグラントを管理できます。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project name"
 msgstr "プロジェクト名"
+
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Project name or ID"
+msgstr "プロジェクト名または ID"
+
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Project not found"
+msgstr "プロジェクトが見つかりません"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Project policy"
 msgstr "プロジェクト方針"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Project recycle bin"
-msgstr "プロジェクトのごみ箱"
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Project restored"
+msgstr "プロジェクトを復元しました"
+
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Project role grants"
+msgstr "プロジェクトロールの付与"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Project roles and permissions"
 msgstr "プロジェクトの役割と権限"
 
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Project sections"
+msgstr "プロジェクトのセクション"
+
 #: apps/console/src/nav.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Projects"
 msgstr "プロジェクト"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Projects and access"
-msgstr "プロジェクトとアクセス"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Projects and access | Console | XID"
@@ -8311,13 +9333,17 @@ msgstr "プロジェクトとアクセス | Console | XID"
 msgid "Projects and access policy"
 msgstr "プロジェクトとアクセスポリシー"
 
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Projects could not be loaded"
+msgstr "プロジェクトを読み込めませんでした"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Projects group applications and authorization roles. The per-project <0>access_policy</0> controls only same-organization users without an effective UserGrant; cross-organization ProjectGrant authorization is unaffected."
 msgstr "プロジェクトは、アプリケーションと承認ロールをグループ化します。プロジェクトごとの <0>access_policy</0> は、有効な UserGrant を持たない同じ組織のユーザーのみを制御します。組織間の ProjectGrant 承認は影響を受けません。"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Projects isolate business roles and permissions. Select one project to manage its cross-organization grants and delegated managers."
-msgstr "プロジェクトはビジネスの役割と権限を分離します。組織間グラントと委任されたマネージャーを管理するプロジェクトを 1 つ選択します。"
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
+msgid "Projects you manage"
+msgstr "管理しているプロジェクト"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Property"
@@ -8462,21 +9488,25 @@ msgstr "ID プロバイダー統合用に新しい SCIM 2.0 ディレクトリ�
 msgid "Provision SCIM 2.0 directories to sync organization users and groups from an identity provider."
 msgstr "SCIM 2.0 ディレクトリをプロビジョニングして、ID プロバイダーから組織のユーザーとグループを同期します。"
 
+#: apps/console/src/nav.tsx
+msgid "Provisioning"
+msgstr "プロビジョニング"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "PSR-16 CacheInterface for JWKS caching"
 msgstr "JWKS キャッシュ用の PSR-16 CacheInterface"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "public"
-msgstr "public"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Public client — no client secret stored or transmitted."
 msgstr "パブリッククライアント — クライアントシークレットは保存・送信されません。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Public client {createdPublicClientId} created with PKCE. No client secret was generated."
-msgstr "パブリック クライアント {createdPublicClientId} は PKCE で作成されました。クライアント シークレットは生成されませんでした。"
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Public client, device code"
+msgstr "パブリッククライアント、デバイスコード"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Public client, PKCE"
+msgstr "パブリッククライアント、PKCE"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Public clients never store client secrets."
@@ -8486,10 +9516,6 @@ msgstr "パブリッククライアントはクライアントシークレット
 msgid "Public clients use Authorization Code with PKCE S256. No client secret is stored."
 msgstr "パブリッククライアントは PKCE S256 付き認可コードを使用します。クライアントシークレットは保存されません。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Public clients use PKCE and do not receive a client secret."
-msgstr "パブリック クライアントは PKCE を使用し、クライアント シークレットを受け取りません。"
-
 #: apps/site/src/lib/home-surface.ts
 msgid "Public content and management stay binding-free. Identity state, protocols, and policy remain in Core."
 msgstr "公開コンテンツと管理 UI は binding-free のままです。アイデンティティ状態、プロトコル、ポリシーは Core に残ります。"
@@ -8497,6 +9523,14 @@ msgstr "公開コンテンツと管理 UI は binding-free のままです。ア
 #: apps/site/src/lib/home-surface.ts
 msgid "Public locales"
 msgstr "公開言語"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "public metadata"
+msgstr "公開メタデータ"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Public metadata"
+msgstr "公開メタデータ"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Public organization view"
@@ -8614,6 +9648,10 @@ msgstr "/v1/me レスポンスの生の形状"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Raw adapter context (advanced use and testing)"
 msgstr "生のアダプターコンテキスト（高度な使用およびテスト向け）"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Raw JSON"
+msgstr "生の JSON"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Raw token endpoint response shape"
@@ -8782,18 +9820,24 @@ msgstr "デプロイ時にメタデータとして記録された値です。デ
 msgid "Redirect callbacks are claimed app links, universal links, custom schemes, or platform equivalent callback URLs."
 msgstr "リダイレクトコールバックは宣言済みアプリリンク、Universal Links、カスタムスキーム、またはプラットフォーム相当のコールバック URL です。"
 
+#. placeholder {0}: index + 1
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Redirect URI {0}"
+msgstr "リダイレクト URI {0}"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirect URI matching is exact. Wildcards are not accepted."
 msgstr "リダイレクト URI は完全一致です。ワイルドカードは受け付けません。"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Redirect URIs"
 msgstr "リダイレクト URI"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Redirect URIs are matched exactly. At least one redirect URI is required for the authorization code flow."
-msgstr "リダイレクト URI は完全一致で照合されます。認可コードフローには少なくとも 1 つのリダイレクト URI が必要です。"
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Redirect URIs saved"
+msgstr "リダイレクト URI を保存しました"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirect users to the unified Hosted Auth flow."
@@ -8841,6 +9885,10 @@ msgstr "{0} の状態を更新"
 msgid "Refresh the page to try again."
 msgstr "ページを再読み込みしてもう一度お試しください。"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Refresh token"
+msgstr "リフレッシュトークン"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Refresh token absolute timeout (days)"
 msgstr "リフレッシュトークンの絶対タイムアウト（日）"
@@ -8877,10 +9925,6 @@ msgstr "下流の SCIM API を登録し、プッシュするメンバーを選�
 msgid "Register a versioned compliance artifact and control which tenants can download it."
 msgstr "バージョン管理されたコンプライアンス成果物を登録し、ダウンロードできるテナントを制御します。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Register application"
-msgstr "アプリケーションを登録"
-
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Register document"
 msgstr "文書を登録"
@@ -8892,10 +9936,6 @@ msgstr "ID プロバイダーのアプリにすべての URL を登録してく�
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Register evidence"
 msgstr "証拠を登録する"
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Register OAuth 2.0 clients and manage their credentials. Applications are shared by every organization in the tenant."
-msgstr "OAuth 2.0 クライアントを登録し、その認証情報を管理します。アプリケーションはテナント内のすべての組織で共有されます。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Register OAuth clients, redirect URIs, grants, token policy, and secrets."
@@ -8912,6 +9952,10 @@ msgstr "この組織の SAML、OIDC、またはレガシー企業プロトコル
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Register the callback URI scheme on each platform."
 msgstr "各プラットフォームでコールバック URI スキームを登録します。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Register the first app that signs users in through XID. Each app gets a client ID; web apps and machine-to-machine clients also get a secret."
+msgstr "XID でユーザーをサインインさせる最初のアプリケーションを登録します。各アプリケーションにはクライアント ID が発行され、Web アプリとマシン間クライアントにはシークレットも発行されます。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Registers XID_CLIENT singleton and APP_INITIALIZER; accepts ProvideXidOptions"
@@ -8945,9 +9989,9 @@ msgstr "XID トークン用の Remix Cookie セッションストレージ"
 msgid "Remix loader and action server helpers, cookie session storage, and OAuth callback handler with React SDK re-exports."
 msgstr "Remix ローダーとアクションサーバーヘルパー、Cookie セッションストレージ、React SDK の再エクスポートを含む OAuth コールバックハンドラー。"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
 msgid "Remove"
 msgstr "削除"
 
@@ -8957,11 +10001,6 @@ msgstr "削除"
 #: apps/server/src/routes/account/PhoneSection.tsx
 msgid "Remove {0}"
 msgstr "{0} を削除"
-
-#. placeholder {0}: row.original.email
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Remove {0} from organization"
-msgstr "{0} を組織から削除"
 
 #. placeholder {0}: removing.email
 #. placeholder {0}: removing.phone
@@ -8978,17 +10017,30 @@ msgstr "{name} を削除"
 msgid "Remove {name}?"
 msgstr "{name} を削除しますか？"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Remove {removingName} from {orgLabel}?"
+msgstr "{removingName} を {orgLabel} から削除しますか？"
+
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "Remove email"
 msgstr "メールアドレスを削除"
+
+#. placeholder {0}: chip.label
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Remove filter {0}"
+msgstr "フィルター {0} を削除"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Remove from organization…"
+msgstr "組織から削除…"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Remove mapping"
 msgstr "マッピングを削除する"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Remove member?"
-msgstr "メンバーを削除しますか？"
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Remove member"
+msgstr "メンバーを削除"
 
 #: apps/server/src/routes/account/PhoneSection.tsx
 msgid "Remove number"
@@ -9012,9 +10064,32 @@ msgstr "プロバイダーを削除"
 msgid "Remove provider?"
 msgstr "プロバイダーを削除しますか？"
 
+#. placeholder {0}: index + 1
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Remove redirect URI {0}"
+msgstr "リダイレクト URI {0} を削除"
+
+#. placeholder {0}: grant.role_name ?? grant.role_key ?? ''
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Remove role {0}"
+msgstr "ロール {0} を削除"
+
+#. placeholder {0}: grant.user_id
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Remove role {role} from {0}"
+msgstr "{0} からロール {role} を削除"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Remove role permission mapping?"
 msgstr "ロール権限マッピングを削除しますか?"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Remove some addresses; the limit is 50."
+msgstr "アドレスを減らしてください。上限は 50 件です。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Remove the fragment after #."
+msgstr "# 以降のフラグメントを削除してください。"
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Remove your only passkey?"
@@ -9200,6 +10275,10 @@ msgstr "<0>authenticateRequest</0> と <1>verifyWebhook</1> には PSR-7 リク�
 msgid "Resend code"
 msgstr "コードを再送"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Resend invitation"
+msgstr "招待を再送信"
+
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Resend invitation email"
 msgstr "招待メールを再送信"
@@ -9207,6 +10286,14 @@ msgstr "招待メールを再送信"
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "確認メールを再送"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Resending replaces the link, so the earlier email stops working. You can send up to 50 invitations an hour."
+msgstr "再送信するとリンクが置き換わり、以前のメールは使えなくなります。招待は 1 時間に最大 50 件まで送信できます。"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset link sent to {email}"
+msgstr "{email} にリセットリンクを送信しました"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Reset links are single-use and expire after 15 minutes so nobody else can use an old email."
@@ -9216,9 +10303,27 @@ msgstr "リセット用のリンクは 1 回限りで、15 分で期限切れに
 msgid "Reset links work once, for 15 minutes. Request a new one and open the newest email."
 msgstr "リセット用のリンクは 1 回だけ、15 分間有効です。新しいリンクを要求し、最新のメールを開いてください。"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset MFA"
+msgstr "MFA をリセット"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset MFA…"
+msgstr "MFA をリセット…"
+
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Reset password | XID"
 msgstr "パスワード再設定 | XID"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset password…"
+msgstr "パスワードをリセット…"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Reset two-step verification for {name}?"
+msgstr "{name} の 2 段階認証をリセットしますか？"
 
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 msgid "Reset your password"
@@ -9245,7 +10350,6 @@ msgstr "リソースの GET レスポンスには、<1>meta.version</1> に基�
 msgid "Resource quotas"
 msgstr "リソース割り当て"
 
-#: apps/console/src/nav.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resources"
 msgstr "リソース"
@@ -9254,8 +10358,8 @@ msgstr "リソース"
 msgid "Responsibility"
 msgstr "責任範囲"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Restore"
 msgstr "復元する"
 
@@ -9283,6 +10387,14 @@ msgstr "制限付きロール"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Result from signInPassword: next step or redirect URL"
 msgstr "signInPassword の結果：次のステップまたはリダイレクト URL"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Resume {name}?"
+msgstr "{name} の停止を解除しますか？"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Resume user"
+msgstr "ユーザーの停止を解除"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Retire"
@@ -9406,9 +10518,8 @@ msgstr "種別と時間範囲でフィルターした読み取り専用イベン
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Revoke"
 msgstr "取り消し"
 
@@ -9439,14 +10550,6 @@ msgstr "API キー {0} を取り消す"
 msgid "Revoke API key?"
 msgstr "API キーを取り消しますか？"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke assignment"
-msgstr "割り当てを取り消す"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke grant"
-msgstr "グラントの取り消し"
-
 #. placeholder {0}: managerLabel(row.original)
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Revoke instance manager {0}"
@@ -9456,31 +10559,21 @@ msgstr "インスタンス マネージャー {0} を取り消します"
 msgid "Revoke instance manager?"
 msgstr "インスタンスマネージャーを取り消しますか?"
 
-#. placeholder {0}: row.original.email
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Revoke invitation for {0}"
-msgstr "{0} の招待を取り消す"
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Revoke invitation"
+msgstr "招待を取り消す"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Revoke invitation?"
-msgstr "招待を取り消しますか？"
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Revoke invitation…"
+msgstr "招待を取り消す…"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Revoke manager"
 msgstr "マネージャーを取り消す"
 
-#. placeholder {0}: row.original.user_id
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke manager assignment for {0}"
-msgstr "{0} に対するマネージャーの割り当てを取り消します"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke manager assignment?"
-msgstr "マネージャーの割り当てを取り消しますか?"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Revoke project grant?"
-msgstr "プロジェクトグラントを取り消しますか?"
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Revoke the invitation for {revokingEmail}?"
+msgstr "{revokingEmail} への招待を取り消しますか？"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Revoke user grant"
@@ -9494,13 +10587,22 @@ msgstr "ユーザーグラントを取り消しますか?"
 msgid "Revoked"
 msgstr "取り消し済み"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Revoking a share removes every {name} role that came through it."
+msgstr "共有を取り消すと、その共有経由の {name} のロールはすべて削除されます。"
+
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Revoking stops new access right away. Anything an app already copied stays with that company; ask them to delete it."
 msgstr "取り消すと新しいアクセスはすぐに止まります。アプリがすでにコピーしたデータはその会社に残るため、削除を依頼してください。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Role"
 msgstr "ロール"
@@ -9517,6 +10619,10 @@ msgstr "ロールと権限ガード"
 msgid "Role boundaries"
 msgstr "ロール境界"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Role grants could not be loaded"
+msgstr "ロールの付与を読み込めませんでした"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Role key"
 msgstr "ロールキー"
@@ -9529,14 +10635,13 @@ msgstr "ロールマッピング JSON"
 msgid "Role permission mappings"
 msgstr "役割権限のマッピング"
 
-#. placeholder {0}: managerRoleLabel(scopeType)
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Role: {0}"
-msgstr "役割: {0}"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Roles"
 msgstr "ロール"
+
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "Roles & permissions"
+msgstr "ロールと権限"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Roles | Console | XID"
@@ -9546,20 +10651,36 @@ msgstr "ロール | コンソール | XID"
 msgid "Roles and permission keys never cross project boundaries."
 msgstr "ロールと権限キーがプロジェクトの境界を越えることはありません。"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Roles and permissions"
 msgstr "ロールと権限"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Roles given directly"
+msgstr "直接付与されたロール"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Roles given through a shared organization are a project grant and are listed on that organization."
+msgstr "共有先の組織を通じて付与されたロールはプロジェクトグラントであり、その組織に表示されます。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Rotate secret"
 msgstr "シークレットをローテーション"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Rotate secret…"
+msgstr "シークレットをローテーション…"
 
 #. placeholder {0}: row.original.url
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Rotate signing secret for {0}"
 msgstr "{0} の署名シークレットをローテーション"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Rotate the {name} secret?"
+msgstr "{name} のシークレットをローテーションしますか？"
 
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "Rotate token"
@@ -9584,6 +10705,14 @@ msgstr "ネットワークレス JWT 検証、Rack/Rails リクエスト認証�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
 msgstr "同じ MIT ライセンスのコードベースを、自分の Cloudflare アカウントでシングルテナントまたはマルチテナントとして実行できます。セルフホスティングにはすべての機能が含まれ、ライセンスチェックや別エディションはありません。"
+
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Runs in the browser. Uses PKCE, no secret."
+msgstr "ブラウザで動作します。PKCE を使い、シークレットはありません。"
+
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Runs on your servers and keeps a client secret."
+msgstr "自社のサーバーで動作し、クライアントシークレットを保管します。"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Runtime"
@@ -9633,6 +10762,10 @@ msgstr "Salesforce"
 msgid "Same-organization behavior"
 msgstr "同一組織の行動"
 
+#: apps/console/src/nav.tsx
+msgid "SAML apps"
+msgstr "SAML アプリ"
+
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SAML clock tolerance in milliseconds"
 msgstr "SAML クロック許容値 (ミリ秒)"
@@ -9674,12 +10807,10 @@ msgid "Save a copy first"
 msgstr "先にコピーを保存"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/ApplicationEditor.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgBranding.tsx
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -9689,13 +10820,42 @@ msgstr "先にコピーを保存"
 msgid "Save changes"
 msgstr "変更を保存"
 
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Save details"
+msgstr "詳細を保存"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Save grants and tokens"
+msgstr "グラントとトークンを保存"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Save name"
 msgstr "名前を保存"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Save profile"
 msgstr "プロフィールを保存"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Save project details"
+msgstr "プロジェクトの詳細を保存"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Save redirect URIs"
+msgstr "リダイレクト URI を保存"
+
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Save role"
+msgstr "ロールを保存"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Save sign-in rule"
+msgstr "サインインルールを保存"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Save sign-out settings"
+msgstr "サインアウト設定を保存"
 
 #: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
 msgid "Save your backup codes"
@@ -9773,7 +10933,6 @@ msgstr "SCIMターゲットを削除しました。"
 msgid "SCIM target saved."
 msgstr "SCIMターゲットを保存しました。"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "SCIM targets"
 msgstr "SCIM ターゲット"
@@ -9785,14 +10944,6 @@ msgstr "SCIM ターゲット | コンソール | XID"
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "SCIM token generated. Store it now; it will not be shown again."
 msgstr "SCIM トークンを生成しました。今すぐ保存してください。再表示されません。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Scope ID"
-msgstr "スコープ ID"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Scope type"
-msgstr "スコープの種類"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -9807,6 +10958,7 @@ msgstr "SDK 概要"
 msgid "SDKs"
 msgstr "SDK"
 
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
@@ -9817,6 +10969,10 @@ msgstr "検索"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Search active users first, then select a result. You can also enter an exact user ID when the user is not in the current result page."
 msgstr "まずアクティブなユーザーを検索してから、結果を選択します。ユーザーが現在の結果ページにいない場合は、正確なユーザー ID を入力することもできます。"
+
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+msgid "Search applications"
+msgstr "アプリケーションを検索"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
@@ -9831,6 +10987,10 @@ msgstr "名前またはスラッグで検索"
 msgid "Search documentation"
 msgstr "ドキュメントを検索"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Search invitations"
+msgstr "招待を検索"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Search is available after a production build"
 msgstr "検索はプロダクションビルド後に利用できます"
@@ -9839,11 +10999,20 @@ msgstr "検索はプロダクションビルド後に利用できます"
 msgid "Search is temporarily unavailable"
 msgstr "検索は一時的に利用できません"
 
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Search members"
+msgstr "メンバーを検索"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Search organizations"
 msgstr "組織を検索"
 
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Search projects"
+msgstr "プロジェクトを検索"
+
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 msgid "Search users"
 msgstr "ユーザーを検索する"
 
@@ -9854,6 +11023,11 @@ msgstr "すべての組織からユーザーを検索"
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Search users across all organizations. Access is logged for GDPR compliance. Results are limited to authenticated platform admins."
 msgstr "すべての組織からユーザーを検索します。GDPR コンプライアンスのためアクセスは記録されます。結果は認証済みのプラットフォーム管理者に限定されます。"
+
+#: apps/console/src/components/layout/ConsoleCommandMenu.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+msgid "Search users, apps, or jump to a page"
+msgstr "ユーザーやアプリを検索、またはページに移動"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Searching"
@@ -9950,10 +11124,6 @@ msgstr "選択"
 msgid "Select a plan"
 msgstr "プランを選択してください"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Select a project with an active grant first."
-msgstr "まず、有効なグラントのあるプロジェクトを選択してください。"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select a role, attach a permission, and optionally require a JSON ABAC condition. The server validates supported operators and variable paths."
 msgstr "ロールを選択し、権限をアタッチし、オプションで JSON ABAC 条件を要求します。サーバーは、サポートされている演算子と変数パスを検証します。"
@@ -9961,10 +11131,6 @@ msgstr "ロールを選択し、権限をアタッチし、オプションで JS
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Select a search result or enter the exact ID of an active user."
 msgstr "検索結果を選択するか、アクティブ ユーザーの正確な ID を入力します。"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Select an active project first."
-msgstr "まずアクティブなプロジェクトを選択します。"
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
@@ -9978,10 +11144,6 @@ msgstr "選択してコピーしてください"
 msgid "Select at least one scope."
 msgstr "スコープを 1 つ以上選択してください。"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Select client type"
-msgstr "クライアント種別を選択"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Select key label"
 msgstr "キーのラベルを選択"
@@ -9991,7 +11153,7 @@ msgstr "キーのラベルを選択"
 msgid "sdk.selectOrganization"
 msgstr "組織を選択"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
@@ -10010,10 +11172,6 @@ msgstr "権限の選択"
 msgid "Select role"
 msgstr "役割の選択"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Select role for new member"
-msgstr "新しいメンバーのロールを選択"
-
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Select the events to deliver. Leave all unchecked to receive every event."
 msgstr "配信するイベントを選択します。すべてのチェックを外すと、すべてのイベントを受信します。"
@@ -10022,14 +11180,6 @@ msgstr "配信するイベントを選択します。すべてのチェックを
 msgid "Selected"
 msgstr "選択済み"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Selected project"
-msgstr "選択したプロジェクト"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Selected project grant"
-msgstr "選択したプロジェクトグラント"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Selector xid-sign-in-button; inputs signInUrl, redirectUrl, ariaLabel"
 msgstr "セレクター xid-sign-in-button。入力：signInUrl、redirectUrl、ariaLabel"
@@ -10037,6 +11187,10 @@ msgstr "セレクター xid-sign-in-button。入力：signInUrl、redirectUrl、
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Selector xid-sign-out-button; inputs sessionId, redirectUrl, ariaLabel; shows aria-busy while signing out"
 msgstr "セレクター xid-sign-out-button。入力：sessionId、redirectUrl、ariaLabel。サインアウト中は aria-busy を表示します"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "self sign-up"
+msgstr "セルフサインアップ"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
@@ -10065,6 +11219,10 @@ msgstr "新しいコードを送信"
 msgid "Send a new link"
 msgstr "新しいリンクを送信"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Send a password reset link to {name}?"
+msgstr "{name} にパスワードリセットリンクを送信しますか？"
+
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Send a verification link to {email}. The Console stays read-only until you use it."
 msgstr "{email} に確認リンクを送信します。リンクを使用するまで、コンソールは読み取り専用のままです。"
@@ -10086,13 +11244,14 @@ msgstr "コードを送信"
 msgid "Send code…"
 msgstr "コードを送信…"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Send invitation"
-msgstr "招待を送信"
-
+#: apps/console/src/routes/users/UserActions.tsx
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 msgid "Send reset link"
 msgstr "リセットリンクを送信"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Send setup link…"
+msgstr "設定リンクを送信…"
 
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Send verification email"
@@ -10110,9 +11269,9 @@ msgstr "{target} に 6 桁のコードを送信しています。"
 msgid "Sent to"
 msgstr "送信先"
 
-#: apps/console/src/routes/org/ApplicationEditor.tsx
-msgid "Separate scopes with spaces."
-msgstr "スコープはスペースで区切ります。"
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "Separate with commas or new lines, or paste a column from a spreadsheet. Up to 50 at a time."
+msgstr "カンマまたは改行で区切るか、スプレッドシートの列を貼り付けてください。一度に最大 50 件です。"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
@@ -10199,6 +11358,18 @@ msgstr "セッショントークン TTL（秒）"
 msgid "Session view including status, expiry, and active org"
 msgstr "状態、有効期限、アクティブな組織を含むセッションビュー"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "Sessions"
+msgstr "セッション"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "Sessions could not be loaded"
+msgstr "セッションを読み込めませんでした"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Set"
+msgstr "設定済み"
+
 #: apps/server/src/routes/account/PasswordSection.tsx
 msgid "Set a password"
 msgstr "パスワードを設定"
@@ -10271,6 +11442,7 @@ msgstr "パスワードを設定"
 
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
 msgid "Settings"
 msgstr "設定"
 
@@ -10302,6 +11474,23 @@ msgstr "SHA-256チェックサム"
 msgid "SHA-256 for PKCE S256 challenge computation"
 msgstr "PKCE S256 チャレンジ計算用 SHA-256"
 
+#. placeholder {0}: project.name
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Share {0} with an organization"
+msgstr "{0} を組織と共有"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Share project"
+msgstr "プロジェクトを共有"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Share with an organization…"
+msgstr "組織と共有…"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Shared {shared}"
+msgstr "{shared} に共有"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shared native contract"
 msgstr "共有ネイティブコントラクト"
@@ -10313,6 +11502,10 @@ msgstr "共有シグナル、CAEP、RISC、GNAP、UMA、HEART、OpenID4VP、お�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shared Swift core extraction with sdk/ios is planned but not yet done — each package carries its own copy of the implementation."
 msgstr "sdk/ios との共有 Swift コア抽出は計画中ですが未実装です。現在は各パッケージが独自の実装コピーを持っています。"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Shared with other organizations"
+msgstr "他の組織との共有"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shibboleth"
@@ -10338,13 +11531,46 @@ msgstr "さらに {count} 個のパスセグメントを表示"
 msgid "Show {subject}"
 msgstr "{subject}を表示"
 
+#: apps/console/src/routes/projects/ProjectsList.tsx
+msgid "Show deleted"
+msgstr "削除済みを表示"
+
 #: packages/web-ui/src/components/ui/PasswordField.tsx
 msgid "Show password"
 msgstr "パスワードを表示"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Show users"
+msgstr "ユーザーを表示"
+
+#: apps/console/src/routes/members/MembersTab.tsx
+msgid "Showing {shown} of {total} members. Owners: {owners}. Admins: {admins}."
+msgstr "{total} 人中 {shown} 人のメンバーを表示。組織所有者: {owners}。管理者: {admins}。"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Showing 50 per page, newest first"
+msgstr "1 ページ 50 件、新しい順"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Shown instead of your full name when set."
 msgstr "設定すると、フルネームの代わりに表示されます。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "Shown to admins of organizations you share {current} with."
+msgstr "{current} の共有先組織の管理者に表示されます。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+#: apps/console/src/routes/applications/CreateApplicationDialog.tsx
+msgid "Shown to users on the consent screen."
+msgstr "同意画面でユーザーに表示されます。"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Shown, third party"
+msgstr "表示、サードパーティ"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Sign {name} out everywhere?"
+msgstr "{name} をすべての場所からサインアウトさせますか？"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -10394,6 +11620,10 @@ msgstr "サインインする"
 msgid "Sign in to {org}"
 msgstr "{org} にサインイン"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "Sign in to {orgName} apps. No access to this console."
+msgstr "{orgName} のアプリにサインインできます。このコンソールにはアクセスできません。"
+
 #: apps/server/src/routes/activate/index.tsx
 msgid "Sign in with another account"
 msgstr "別のアカウントでサインイン"
@@ -10424,7 +11654,8 @@ msgstr "パスキーでサインイン"
 msgid "sdk.signOut"
 msgstr "サインアウト"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ConsoleTopBar.tsx
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 #: packages/i18n/src/messages.ts
@@ -10436,6 +11667,11 @@ msgstr "サインアウト"
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Sign out and use a different account"
 msgstr "サインアウトして別のアカウントを使用"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Sign out everywhere"
+msgstr "すべての場所からサインアウト"
 
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 msgid "Sign out now and this account is gone"
@@ -10480,6 +11716,10 @@ msgstr "サインアップ | XID"
 msgid "sdk.signUpForm"
 msgstr "登録フォーム"
 
+#: apps/console/src/nav.tsx
+msgid "Sign-in & MFA"
+msgstr "サインインと MFA"
+
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 msgid "Sign-in activity, organizations, and usage across this instance."
 msgstr "このインスタンス全体のサインインアクティビティ、組織、使用状況。"
@@ -10512,17 +11752,52 @@ msgstr "この組織のサインイン識別子、ホスト型フロー、認証
 msgid "Sign-in links work once, for 15 minutes. Go back to sign in and send a new one."
 msgstr "サインインリンクは 1 回だけ、15 分間有効です。サインインに戻って新しいリンクを送信してください。"
 
+#: apps/console/src/routes/users/UserFilterBar.tsx
+msgid "Sign-in method"
+msgstr "サインイン方式"
+
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Sign-in methods"
-msgstr "サインイン方法"
+msgstr "サインイン方式"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Sign-in methods could not be loaded"
+msgstr "サインイン方式を読み込めませんでした"
 
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Sign-in request from"
 msgstr "サインインを要求しているアプリ"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Sign-in rule"
+msgstr "サインインルール"
+
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Sign-in rule saved"
+msgstr "サインインルールを保存しました"
+
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
 msgid "Sign-in was cancelled. Choose a way to sign in to try again."
 msgstr "サインインはキャンセルされました。もう一度試すにはサインイン方法を選んでください。"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Sign-ins and token requests from {appName} stop right away."
+msgstr "{appName} からのサインインとトークン要求はすぐに停止します。"
+
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Sign-ins and token requests from {name} stop. It can be restored later with the Management API."
+msgstr "{name} からのサインインとトークン要求は停止します。あとで Management API で復元できます。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+msgid "Sign-out"
+msgstr "サインアウト"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Sign-out settings saved"
+msgstr "サインアウト設定を保存しました"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Signature"
@@ -10566,6 +11841,18 @@ msgstr "{date} にメールのコードでサインイン。"
 msgid "Signed in on {date}."
 msgstr "{date} にサインイン。"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "Signed in on {when}."
+msgstr "{when} にサインイン。"
+
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
+msgid "Signed in with {method} on {when}."
+msgstr "{when} に{method}でサインイン。"
+
+#: apps/console/src/routes/applications/app-sections.tsx
+msgid "Signed JWT with a registered key (private_key_jwt)"
+msgstr "登録済みの鍵で署名した JWT（private_key_jwt）"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
 msgstr "signIn(options?) はリダイレクトフロー全体を実行します。handleRedirect(url) はディープリンクコールバックを処理し、signInState は idle、pending、complete、cancelled、error を返します"
@@ -10598,6 +11885,10 @@ msgstr "signOut() はローカルセッションとレガシー credentials を�
 msgid "Single-account only — the storage layer uses fixed keys."
 msgstr "シングルアカウント専用 — ストレージレイヤーは固定キーを使用します。"
 
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Single-page app"
+msgstr "シングルページアプリ"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Site"
 msgstr "Site サイト"
@@ -10609,6 +11900,10 @@ msgstr "サイトナビゲーション"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Skip to content"
 msgstr "コンテンツへ移動"
+
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Skipped, first party"
+msgstr "省略、ファーストパーティ"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Slack"
@@ -10642,6 +11937,10 @@ msgstr "SMS OTP"
 msgid "SMS provider"
 msgstr "SMS プロバイダー"
 
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Social login"
 msgstr "ソーシャルログイン"
@@ -10658,7 +11957,6 @@ msgstr "ソーシャル OAuth"
 msgid "Social OAuth relying party"
 msgstr "ソーシャル OAuth リライングパーティ"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Social providers"
 msgstr "ソーシャルログインプロバイダー"
@@ -10705,6 +12003,10 @@ msgstr "問題が発生しました。もう一度お試しください。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Sort Users or Groups list results."
 msgstr "ユーザーまたはグループ一覧の結果を並べ替えます。"
+
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
+msgid "Source"
+msgstr "作成元"
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Source queue"
@@ -10804,7 +12106,7 @@ msgstr "開始時刻"
 msgid "State change listener callback type"
 msgstr "状態変化リスナーコールバック型"
 
-#: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/platform/PlatformBilling.tsx
@@ -10812,6 +12114,8 @@ msgstr "状態変化リスナーコールバック型"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Status"
@@ -10850,6 +12154,10 @@ msgstr "ステップ 3/3"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Step-up authentication hook"
 msgstr "ステップアップ認証フック"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Stop sign-in with every method {name} has set up"
+msgstr "{name} が設定したすべての方法でのサインインを停止"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Storage adapter"
@@ -10993,10 +12301,28 @@ msgstr "停止"
 msgid "Suspend {0}"
 msgstr "{0} を停止"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Suspend {name}?"
+msgstr "{name} を停止しますか？"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Suspend instead"
+msgstr "代わりに停止"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Suspend organization?"
 msgstr "組織を停止しますか？"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Suspend user"
+msgstr "ユーザーを停止"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Suspend user…"
+msgstr "ユーザーを停止…"
+
+#: apps/console/src/routes/users/user-format.ts
+#: apps/console/src/routes/users/UserFilterBar.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Suspended"
 msgstr "停止中"
@@ -11041,7 +12367,7 @@ msgstr "ASWebAuthenticationSession、PKCE S256 認可コードフロー、Keycha
 msgid "Switch"
 msgstr "切り替え"
 
-#: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/layout/ScopeSwitcher.tsx
 msgid "Switch organization"
 msgstr "組織を切り替える"
 
@@ -11066,6 +12392,10 @@ msgstr "XidClient シングルトンを提供・注入するためのシンボ�
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Sync {0}"
 msgstr "{0} を同期"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Synced across devices"
+msgstr "デバイス間で同期"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Synchronous. Validates svix HMAC-SHA256 + 5-minute replay window. Raises <0>WebhookVerificationError</0> on failure."
@@ -11101,10 +12431,6 @@ msgstr "サインインに戻ります。"
 msgid "Target"
 msgstr "対象"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "Target organization ID"
-msgstr "対象組織 ID"
-
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Targets"
 msgstr "ターゲット"
@@ -11136,10 +12462,6 @@ msgstr "{appName} 内で所属しているチームです。切り替えると�
 msgid "Tenant"
 msgstr "テナント"
 
-#: apps/console/src/nav.tsx
-msgid "Tenant settings"
-msgstr "テナント設定"
-
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "test"
 msgstr "test"
@@ -11156,6 +12478,7 @@ msgstr "SMS でコードを送信"
 msgid "Text me a code"
 msgstr "SMS でコードを送信"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Text message"
@@ -11372,11 +12695,6 @@ msgstr "代理操作セッションを開始できませんでした。もう一
 msgid "The incident {0} and all of its updates will be permanently deleted."
 msgstr "インシデント {0} とそのすべての更新は完全に削除されます。"
 
-#. placeholder {0}: pendingRevokeInvitation.email
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "The invitation sent to {0} will be revoked and can no longer be accepted."
-msgstr "{0} に送信された招待は取り消され、以後承諾できなくなります。"
-
 #. placeholder {0}: pendingRevoke.name
 #. placeholder {1}: pendingRevoke.key_prefix
 #: apps/console/src/routes/org/OrgApiKeys.tsx
@@ -11390,6 +12708,10 @@ msgstr "リンクが古いか、入力に誤りがある可能性があります
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "The link points to an organization you cannot manage. Choose one of your organizations instead."
 msgstr "このリンクは管理権限のない組織を指しています。自分の組織から選択してください。"
+
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "The link stops working right away. You can invite {revokingEmail} again later."
+msgstr "リンクはすぐに使えなくなります。あとで {revokingEmail} を再度招待できます。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The macOS SDK shares the same Swift implementation pattern as sdk/ios — ASWebAuthenticationSession for browser-based authorization, CryptoKit for PKCE S256, and Keychain for token storage. The two packages target different Apple platform minima and are maintained separately to allow platform-specific entitlement configuration."
@@ -11464,10 +12786,19 @@ msgstr "パスキーを作成できませんでした。もう一度お試しく
 msgid "The password does not meet the minimum strength requirements."
 msgstr "パスワードが最低強度要件を満たしていません。"
 
+#. placeholder {0}: project.name
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "The person must be an active member of the organization that owns {0}."
+msgstr "{0} を所有する組織の有効なメンバーである必要があります。"
+
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
 #: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "The previous code no longer works. Use the code in the newest message."
 msgstr "以前のコードは使えなくなりました。最新のメッセージにあるコードを使ってください。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "The previous secret stopped working when you rotated."
+msgstr "ローテーションにより、以前のシークレットは使えなくなりました。"
 
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "The previous token keeps working until {expiresAt}. Update your identity provider before then."
@@ -11481,6 +12812,10 @@ msgstr "製品表面"
 msgid "The project could not be found."
 msgstr "プロジェクトが見つかりませんでした。"
 
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+msgid "The project does not exist, or you do not manage it."
+msgstr "プロジェクトが存在しないか、あなたが管理していません。"
+
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "The prompt closed before it finished, so nothing was saved on this device."
 msgstr "完了前に確認画面が閉じたため、このデバイスには何も保存されていません。"
@@ -11492,10 +12827,6 @@ msgstr "完了前に確認画面が閉じたため、何も保存されていま
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
 msgstr "生の XidClient インスタンス。ほとんどのユースケースでは XidAuthService を優先してください"
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "The recipient will receive an email with a link to join this organization."
-msgstr "受信者には、この組織に参加するためのリンクを含むメールが届きます。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The redirect port is fixed and must match the redirect_uri registered in the XID console. Dynamic port randomization (RFC 8252) requires dynamic client registration support."
@@ -11650,6 +12981,14 @@ msgstr "ターゲットの設定が無効です。"
 msgid "The two passwords don't match."
 msgstr "2 つのパスワードが一致しません。"
 
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "The user can sign in with any method your sign-in policy allows. Add an email to send a password setup link."
+msgstr "ユーザーはサインインポリシーで許可された任意の方法でサインインできます。メールを追加すると、パスワード設定用のリンクを送信できます。"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "The user does not exist in this tenant, or it was removed."
+msgstr "このテナントにユーザーが存在しないか、削除されています。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The user submits an access request."
 msgstr "ユーザーがアクセス要求を送信します。"
@@ -11673,6 +13012,10 @@ msgstr "これらのデフォルトは、組織が上書きしない限りすべ
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "These stop working: {list}."
 msgstr "次のものが使えなくなります: {list}。"
+
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+msgid "They see only {name} in the Console. Managing a project never makes someone an admin of the organization. Organization owners and admins already manage every project."
+msgstr "コンソールでは {name} のみが表示されます。プロジェクトを管理しても組織の管理者にはなりません。組織所有者と管理者はすでにすべてのプロジェクトを管理しています。"
 
 #: apps/server/src/components/hosted/RequestCard.tsx
 #: apps/server/src/routes/consent/ClientHeader.tsx
@@ -11722,6 +13065,10 @@ msgstr "この認可リクエストは存在しないか期限切れです。ア
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
 msgid "This browser can't use passkeys. Try another way to sign in."
 msgstr "このブラウザではパスキーを使えません。別の方法でサインインしてください。"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "This cannot be undone from the Console. If {name} may come back, suspend the account instead; suspending keeps everything."
+msgstr "この操作はコンソールから元に戻せません。{name} が戻る可能性がある場合は、代わりにアカウントを停止してください。停止ではすべてが保持されます。"
 
 #: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "This code has expired"
@@ -11804,6 +13151,10 @@ msgstr "この招待は {0} に送信されました。そのアカウントだ�
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 msgid "This is the only time we show them. Each code works once."
 msgstr "コードが表示されるのは今回だけです。各コードは 1 回だけ使えます。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "This is the only time XID shows it. Store it in the server configuration of {appName}, not in browser code or a repository."
+msgstr "XID がこれを表示するのは今回だけです。ブラウザのコードやリポジトリではなく、{appName} のサーバー設定に保存してください。"
 
 #: apps/server/src/routes/magic-link/index.tsx
 msgid "This link can't sign in this account"
@@ -11906,6 +13257,10 @@ msgstr "このパスワードは既知のデータ漏えいに含まれている
 msgid "This password has been used recently. Please choose a different password."
 msgstr "このパスワードは最近使用されています。別のパスワードを選択してください。"
 
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "This removes the authenticator app, text message codes and backup codes. Passkeys stay. {name} is signed out everywhere and sets up two-step verification again at the next sign-in if the organization requires it."
+msgstr "認証アプリ、SMS コード、バックアップコードが削除されます。パスキーは残ります。{name} はすべての場所からサインアウトされ、組織が必要とする場合は次回サインイン時に 2 段階認証を再設定します。"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "This request can't be approved"
 msgstr "このリクエストは承認できません"
@@ -11962,6 +13317,10 @@ msgstr "あなたの操作が原因ではありません。少し待ってから
 msgid "Three focused Workers. One identity platform."
 msgstr "3つの専用 Workers。1つのアイデンティティプラットフォーム。"
 
+#: apps/console/src/routes/members/InvitationsTab.tsx
+msgid "Through the Management API on {date}"
+msgstr "{date} に Management API から招待"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Thrown for unrecoverable SDK errors: missing JWT key, JWKS fetch failure, invalid options, session-token exchange failure"
 msgstr "回復不能な SDK エラー（JWT キーの欠落、JWKS 取得失敗、無効なオプション、session-token exchange の失敗）でスローされます"
@@ -11975,6 +13334,7 @@ msgstr "トランスポート失敗（ネットワークエラー、非 JSON レ
 msgid "Time"
 msgstr "時刻"
 
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Time zone"
 msgstr "タイムゾーン"
@@ -11985,6 +13345,7 @@ msgid "Title"
 msgstr "タイトル"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
+#: apps/console/src/routes/users/UserFilterBar.tsx
 msgid "To"
 msgstr "終了日"
 
@@ -12084,6 +13445,10 @@ msgstr "リクエストが多すぎます。1 分待ってからもう一度お�
 msgid "Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers"
 msgstr "トップレベルブラウザークライアント：load、signIn、getToken、setActiveOrganization、signOut、Management API ヘルパー"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Top-level organization. Joined {joined}."
+msgstr "最上位の組織。{joined} に参加。"
+
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
 msgid "Total organizations"
 msgstr "組織合計"
@@ -12117,7 +13482,17 @@ msgstr "トライアル中"
 msgid "Trigger"
 msgstr "トリガー"
 
+#: apps/console/src/routes/applications/ApplicationDetail.tsx
+#: apps/console/src/routes/applications/ApplicationsList.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/console/src/routes/members/InvitationsTab.tsx
+#: apps/console/src/routes/members/MembersTab.tsx
+#: apps/console/src/routes/projects/ProjectDetail.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
+#: apps/console/src/routes/users/tabs/ActivityTab.tsx
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UsersList.tsx
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 #: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
@@ -12174,6 +13549,8 @@ msgstr "2 つの方向"
 msgid "Two-factor authentication | XID"
 msgstr "二要素認証 | XID"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Two-step verification"
 msgstr "2 段階認証"
@@ -12181,6 +13558,10 @@ msgstr "2 段階認証"
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Two-step verification is on"
 msgstr "2 段階認証がオンになりました"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "Two-step verification reset for {name}"
+msgstr "{name} の 2 段階認証をリセットしました"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "TXT record name"
@@ -12194,11 +13575,16 @@ msgstr "TXT レコード値"
 msgid "type"
 msgstr "type"
 
-#: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/applications/ApplicationsList.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Type"
 msgstr "種別"
+
+#: apps/console/src/routes/users/DeleteUserDialog.tsx
+msgid "Type {expected} to confirm"
+msgstr "確認のため {expected} と入力してください"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Type DELETE to confirm"
@@ -12272,13 +13658,15 @@ msgstr "一意のメッセージ ID。再試行された配信の重複排除に
 msgid "Unix seconds when the message was sent."
 msgstr "メッセージが送信された時刻（Unix 秒）。"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Unknown device"
 msgstr "不明なデバイス"
 
+#: apps/console/src/routes/users/tabs/SessionsTab.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Unknown location"
-msgstr "場所不明"
+msgstr "不明な場所"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Unlike <0>@xid-kit/react</0>, this package uses its own native token context. It exports <1>useAuth</1>, <2>useUser</2>, <3>useSession</3>, <4>useSignIn</4>, <5>useSignOut</5>, <6>useXidRnContext</6>, <7>SignedIn</7>, <8>SignedOut</8>, <9>XidLoaded</9>, <10>XidLoading</10>, <11>exchangeCodeForTokens</11>, <12>saveTokenSet</12>, <13>readTokenSet</13>, and <14>clearTokenSet</14>; it does not import or re-export the React web SDK."
@@ -12303,6 +13691,10 @@ msgstr "クリック時に登録 URL へ移動するスタイルなしのボタ�
 #: apps/server/src/routes/account/SecurityPage.tsx
 msgid "Until it's verified, this address can't be used to sign in or get account notices."
 msgstr "確認が済むまで、このアドレスはサインインやアカウントのお知らせに使えません。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Until you deploy this one, token requests from {appName} fail with invalid_client."
+msgstr "これをデプロイするまで、{appName} からのトークン要求は invalid_client で失敗します。"
 
 #: apps/server/src/routes/account/EmailSection.tsx
 #: apps/server/src/routes/account/PhoneSection.tsx
@@ -12333,7 +13725,8 @@ msgstr "パスワードを変更"
 msgid "updated"
 msgstr "更新済み"
 
-#: apps/console/src/routes/org/OrgProjects.tsx
+#: apps/console/src/routes/applications/AppsTable.tsx
+#: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Updated"
 msgstr "更新"
@@ -12410,6 +13803,10 @@ msgstr "セキュリティキーを使う"
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "Use an account you already have to sign in to {appName}."
 msgstr "お持ちのアカウントで {appName} にサインインできます。"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Use an https:// URL."
+msgstr "https:// の URL を使ってください。"
 
 #: apps/server/src/routes/account/step-up.tsx
 msgid "Use another way"
@@ -12517,13 +13914,10 @@ msgid "sdk.user"
 msgstr "ユーザー"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/users/user-columns.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 msgid "User"
 msgstr "ユーザー"
-
-#. placeholder {0}: pendingAssignmentRevoke.user_id
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "User {0} will lose management access to this exact scope."
-msgstr "ユーザー {0} は、このスコープへの管理アクセスを失います。"
 
 #. placeholder {0}: pendingUserGrantRevoke.user_id
 #: apps/console/src/routes/console/ManagedProjects.tsx
@@ -12551,19 +13945,37 @@ msgstr "ユーザーが完了せずに Custom Tabs を閉じました"
 msgid "User consent is required."
 msgstr "ユーザーの同意が必要です。"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "User could not be loaded"
+msgstr "ユーザーを読み込めませんでした"
+
+#: apps/console/src/routes/users/CreateUserDialog.tsx
+msgid "User created"
+msgstr "ユーザーを作成しました"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "User grants"
 msgstr "ユーザーグラント"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "user ID"
+msgstr "ユーザー ID"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+#: apps/console/src/routes/projects/ProjectTabs.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 msgid "User ID"
 msgstr "ユーザー ID"
 
 #: packages/i18n/src/messages.ts
 msgid "User interaction is required."
 msgstr "ユーザー操作が必要です。"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "user JSON"
+msgstr "ユーザー JSON"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "User membership in an org with role and permissions"
@@ -12573,6 +13985,10 @@ msgstr "ロールと権限を持つ組織内のユーザーメンバーシップ
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.userMenu"
 msgstr "ユーザーメニュー"
+
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "User not found"
+msgstr "ユーザーが見つかりません"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -12587,12 +14003,15 @@ msgstr "ユーザーリソース"
 msgid "User resources use <0>userName</0> as the external identifier. Email values, profile name fields, active state, and enterprise extension fields are preserved in the SCIM raw profile."
 msgstr "ユーザーリソースは外部識別子として <0>userName</0> を使用します。メール値、プロフィール名フィールド、アクティブ状態、エンタープライズ拡張フィールドは SCIM 生プロファイルに保持されます。"
 
+#: apps/console/src/routes/users/UserDetail.tsx
+msgid "User sections"
+msgstr "ユーザーのセクション"
+
 #: packages/i18n/src/messages.ts
 msgid "User verification is required for this authenticator."
 msgstr "この認証器にはユーザー検証が必要です。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "user_..."
 msgstr "user_..."
@@ -12615,21 +14034,37 @@ msgid "username"
 msgstr "ユーザー名"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Username"
 msgstr "ユーザー名"
 
+#: apps/console/src/components/layout/ConsoleCommandMenu.tsx
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
+#: apps/console/src/routes/users/UsersList.tsx
 msgid "Users"
 msgstr "ユーザー"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Users | Console | XID"
 msgstr "ユーザー | コンソール | XID"
+
+#: apps/console/src/routes/users/UsersList.tsx
+msgid "Users could not be loaded"
+msgstr "ユーザーを読み込めませんでした"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Users sign in through Hosted Auth. PKCE uses S256 only."
+msgstr "ユーザーは Hosted Auth でサインインします。PKCE は S256 のみです。"
+
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "Users who are already signed in stay signed in until their access token expires."
+msgstr "サインイン済みのユーザーは、アクセストークンの有効期限までサインインしたままです。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Uses <0>firebase/php-jwt</0> for ES256/RS256 verification. HS256 and <1>none</1> alg are rejected."
@@ -12741,6 +14176,7 @@ msgid "Verification uses Web Crypto via @xid-kit/crypto."
 msgstr "検証は @xid-kit/crypto 経由で Web Crypto を使用します。"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
+#: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/PhoneSection.tsx
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Verified"
@@ -12906,6 +14342,10 @@ msgstr "バージョン"
 msgid "Very weak"
 msgstr "非常に弱い"
 
+#: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
+msgid "Via project grant"
+msgstr "プロジェクトグラント経由"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "View as Markdown"
 msgstr "Markdown で表示"
@@ -12949,6 +14389,10 @@ msgstr "ウェイトリスト登録ゲートコンポーネント"
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Warning"
 msgstr "警告"
+
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
+msgid "Ways {name} can sign in"
+msgstr "{name} のサインイン方法"
 
 #: apps/server/src/routes/not-found/NotFoundPage.tsx
 msgid "We can't find that page"
@@ -13158,6 +14602,10 @@ msgstr "エクスポートを準備しています"
 msgid "Weak"
 msgstr "弱い"
 
+#: apps/console/src/routes/applications/app-format.ts
+msgid "Web app"
+msgstr "Web アプリ"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Web application"
 msgstr "Web アプリケーション"
@@ -13272,6 +14720,10 @@ msgstr "WHATSAPP_META_PHONE_NUMBER_ID, WHATSAPP_META_ACCESS_TOKEN"
 msgid "whatsapp:+15550000000"
 msgstr "whatsapp:+15550000000"
 
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "When a user signs out of XID, XID tells {name} through the back-channel URL."
+msgstr "ユーザーが XID からサインアウトすると、XID はバックチャネル URL で {name} に通知します。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "When no D-Bus Secret Service daemon is available, pass InMemoryStorage to avoid a runtime error:"
 msgstr "D-Bus Secret Service デーモンが利用できない場合は、ランタイムエラーを回避するために InMemoryStorage を渡してください："
@@ -13292,9 +14744,17 @@ msgstr "{appName} にサインインしている場所です。心当たりの�
 msgid "Which apps can use your account, a copy of your data, and closing your account."
 msgstr "アカウントを使えるアプリ、データのコピー、アカウントの削除です。"
 
+#: apps/console/src/routes/projects/ProjectAccessTab.tsx
+msgid "Who can sign in to {name} apps"
+msgstr "{name} のアプリにサインインできる人"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Why use them"
 msgstr "使う理由"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "Wildcards are not allowed. Add each subdomain as its own URL."
+msgstr "ワイルドカードは使えません。サブドメインごとに URL を追加してください。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Windows"
@@ -13329,6 +14789,10 @@ msgstr "WS-Fed"
 msgid "WS-Federation"
 msgstr "WS-Federation"
 
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "XID"
+msgstr "XID"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID as SAML IdP"
 msgstr "SAML IdP としての XID"
@@ -13349,6 +14813,10 @@ msgstr "XID は Hosted Auth、OIDC、組織、エンタープライズフェデ�
 msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
 msgstr "XID は Hosted Auth、パスキー、OIDC と OAuth、組織、企業向けフェデレーション、SCIM、SDK を、Cloudflare 向けに構築された 1 つのアイデンティティプラットフォームに統合します。"
 
+#: apps/console/src/routes/applications/SecretDialogs.tsx
+msgid "XID creates a new secret and shows it once. The current secret stops working right away, so sign-ins to {name} fail until you deploy the new one."
+msgstr "XID は新しいシークレットを作成し、1 回だけ表示します。現在のシークレットはすぐに使えなくなるため、新しいシークレットをデプロイするまで {name} へのサインインは失敗します。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
 msgstr "XID は現在、エンタープライズ IdP 向けの SAML サービスプロバイダーとして機能します。下流 SaaS アプリ向けのアウトバウンド SAML IdP はローカルの fake-SaaS 証拠を持っていますが、本番サポートには引き続き実際の SaaS 管理者 L4 が必要です。"
@@ -13360,6 +14828,10 @@ msgstr "XID はプル型の Events API を公開しません。<0>GET /v1/webhoo
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state. A guest or credential sign-up with intent=sign-up then creates a top-level Tenant with an Email, Organization name, and URL slug. A guest Email stays pending without reserving an account address; the new owner can read Console data, and verifies that Email before the first business change. The same Email in another Tenant remains a separate account."
 msgstr "XID はエンドユーザー登録とログインを別々の製品として提供しません。Hosted Auth は同じ識別子ステップから開始し、Organization のポリシーとアカウントの状態に基づいてログインまたはユーザー作成を決定します。ゲストまたは資格情報による intent=sign-up のサインアップでは、Email、Organization name、URL slug を指定してトップレベルの Tenant を作成します。ゲストの Email はアカウントアドレスを予約せず保留状態となります。新しい所有者は Console のデータを読み取れますが、最初の業務変更を行う前にその Email を確認します。別の Tenant で同じ Email を使っても、別のアカウントとして扱われます。"
+
+#: apps/console/src/routes/users/UserActions.tsx
+msgid "XID emails a reset link to {email}. It works once and expires in 15 minutes. The current password keeps working until it is changed."
+msgstr "XID は {email} にリセットリンクを送信します。リンクは 1 回だけ使え、15 分で期限切れになります。現在のパスワードは変更されるまで使えます。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID exposes inbound SCIM Service Provider endpoints for external IdPs. Downstream SaaS SCIM push clients have local fake-SaaS evidence, but production support still requires real SaaS admin L4."
@@ -13396,6 +14868,10 @@ msgstr "XID 発行者 URL"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID role"
 msgstr "XID の役割"
+
+#: apps/console/src/routes/applications/app-protocol-sections.tsx
+msgid "XID sends users back only to these exact URLs after sign-in. Each one must match character for character."
+msgstr "XID はサインイン後、これらの URL にのみユーザーを戻します。1 文字単位で完全に一致する必要があります。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID signs every delivery with HMAC-SHA256. Verify the signature before processing the payload. Reject deliveries older than 5 minutes to prevent replay attacks."
@@ -13492,6 +14968,10 @@ msgstr "サインイン後の移動先"
 msgid "You are the only owner or administrator of an organization or of this instance. Transfer ownership or add another administrator before deleting your account."
 msgstr "あなたは組織またはこのインスタンスの唯一のオーナーまたは管理者です。アカウントを削除する前に、所有権を移譲するか別の管理者を追加してください。"
 
+#: apps/console/src/routes/members/ChangeRoleDialog.tsx
+msgid "You are the only owner, so your role can't change yet"
+msgstr "あなたは唯一の組織所有者のため、まだロールを変更できません"
+
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "You are viewing this organization as another user. Management changes are disabled."
 msgstr "この組織を別のユーザーとして表示しています。管理の変更は無効になっています。"
@@ -13543,10 +15023,6 @@ msgstr "まだアカウントを削除できません。"
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "You can't sign in right now"
 msgstr "現在サインインできません"
-
-#: apps/console/src/routes/org/OrgProjects.tsx
-msgid "You cannot grant a manager assignment to yourself."
-msgstr "自分自身にマネージャーの割り当てを付与することはできません。"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "You cannot grant instance access to yourself."
@@ -13600,6 +15076,10 @@ msgstr "このアカウントで使っているアプリへのアクセスを失
 #: packages/i18n/src/messages.ts
 msgid "You must set up multi-factor authentication before continuing."
 msgstr "続行する前に多要素認証を設定する必要があります。"
+
+#: apps/console/src/routes/members/InviteMembersDialog.tsx
+msgid "You reached the limit of 50 invitations an hour. Try again later."
+msgstr "1 時間あたり 50 件の招待の上限に達しました。しばらくしてからもう一度お試しください。"
 
 #: apps/server/src/routes/account/PendingDeletionBanner.tsx
 msgid "You scheduled this on {requestedDate}. Until then, everything keeps working and you can change your mind."

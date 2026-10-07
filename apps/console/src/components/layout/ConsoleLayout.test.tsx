@@ -56,7 +56,39 @@ const authState = vi.hoisted(
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
-  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
+  useLingui: () => ({
+    t: (strings: TemplateStringsArray) => strings[0],
+    i18n: { _: (descriptor: { message?: string }) => descriptor.message ?? '' },
+  }),
+}))
+
+vi.mock('@lingui/core/macro', () => ({
+  msg: (strings: TemplateStringsArray) => ({ id: strings.join(''), message: strings.join('') }),
+}))
+
+vi.mock('./nav-data', () => ({
+  useNavCounts: () => ({}),
+  useDelegatedProjectItems: () => [],
+}))
+
+vi.mock('./ConsoleCommandMenu', () => ({
+  ConsoleCommandMenu: () => null,
+}))
+
+vi.mock('../../routes/org/queries', () => ({
+  useManagedProjectQuery: () => ({ data: undefined }),
+}))
+
+vi.mock('@xid-kit/web-ui/enum-labels', () => ({
+  useRoleLabel: () => (role: string) => role,
+}))
+
+vi.mock('@xid-kit/web-ui/locale-context', () => ({
+  useLocale: () => ({ locale: 'en', setLocale: vi.fn() }),
+}))
+
+vi.mock('../../lib/google-analytics-funnel', () => ({
+  trackLocaleChange: vi.fn(),
 }))
 
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
@@ -182,6 +214,43 @@ vi.mock('@xid-kit/web-ui/motion', () => ({
   popoverMotion: { initial: {}, animate: {}, exit: {}, transition: {} },
 }))
 
+type TestNavItem = { to: string; label: string; end?: boolean }
+
+async function renderInteractive(navItems: TestNavItem[]): Promise<HTMLDivElement> {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  roots.set(container, root)
+  await act(async () => {
+    root.render(
+      <ConsoleLayout navItems={navItems}>
+        <span>Content</span>
+      </ConsoleLayout>,
+    )
+  })
+  return container
+}
+
+async function openScopeSwitcher(container: HTMLElement): Promise<HTMLButtonElement> {
+  const trigger = Array.from(container.querySelectorAll('button')).find(
+    (button) => button.getAttribute('aria-label') === 'Switch organization',
+  )
+  if (!trigger) throw new Error('Scope switcher was not rendered')
+  await act(async () => {
+    trigger.click()
+  })
+  return trigger
+}
+
+async function cleanupInteractive(container: HTMLDivElement): Promise<void> {
+  const root = roots.get(container)
+  if (root) await act(async () => root.unmount())
+  container.remove()
+}
+
+const roots = new Map<HTMLDivElement, ReturnType<typeof createRoot>>()
+
 describe('ConsoleLayout', () => {
   beforeEach(() => {
     authState.user = {
@@ -218,7 +287,7 @@ describe('ConsoleLayout', () => {
     expect(html).toContain('data-smoke-authenticated-console="true"')
     expect(html).toContain('data-active-announcements="true"')
     expect(html).toContain('href="https://xid.dev/docs"')
-    expect(html).toContain('Documentation')
+    expect(html).toContain('Docs')
     expect(html).not.toContain('isActive')
     expect(html).not.toContain('=&gt;')
     expect(html).not.toContain('e=&gt;')
@@ -243,16 +312,16 @@ describe('ConsoleLayout', () => {
     expect(html).not.toContain('orgName=')
   })
 
-  it('renders the organization switcher and hides the platform menu from organization users', () => {
-    const html = renderToStaticMarkup(
-      <ConsoleLayout navItems={[{ to: '/console/org', label: 'Overview', end: true }]}>
-        <span>Content</span>
-      </ConsoleLayout>,
-    )
+  it('renders the organization switcher and hides the platform entry from organization users', async () => {
+    const container = await renderInteractive([
+      { to: '/console/org', label: 'Overview', end: true },
+    ])
 
-    expect(html).toContain('aria-label="Switch organization"')
-    expect(html).toContain('Default organization')
-    expect(html).not.toContain('Platform management')
+    const switcher = await openScopeSwitcher(container)
+
+    expect(switcher.textContent).toContain('Default organization')
+    expect(document.body.querySelector('a[href="/console/platform"]')).toBeNull()
+    await cleanupInteractive(container)
   })
 
   it('keeps managed projects reachable from the organization navigation', () => {
@@ -282,20 +351,20 @@ describe('ConsoleLayout', () => {
     expect(html).not.toContain('href="/console/managed-projects"')
   })
 
-  it('renders the platform menu for instance managers', () => {
+  it('offers the platform entry in the scope switcher for instance managers', async () => {
     authState.user = { ...authState.user, instanceManager: true }
+    const container = await renderInteractive([
+      { to: '/console/org', label: 'Overview', end: true },
+    ])
 
-    const html = renderToStaticMarkup(
-      <ConsoleLayout navItems={[{ to: '/console/org', label: 'Overview', end: true }]}>
-        <span>Content</span>
-      </ConsoleLayout>,
-    )
+    await openScopeSwitcher(container)
 
-    expect(html).toContain('href="/console/platform"')
-    expect(html).toContain('Platform management')
+    const platformLink = document.body.querySelector('a[href="/console/platform"]')
+    expect(platformLink?.textContent).toContain('Platform')
+    await cleanupInteractive(container)
   })
 
-  it('shows a back link instead of the platform menu inside the platform area', () => {
+  it('shows a back link instead of the platform entry inside the platform area', () => {
     authState.user = { ...authState.user, instanceManager: true }
 
     const html = renderToStaticMarkup(

@@ -11,8 +11,8 @@ export const INSTANCE_CONSOLE_ROUTE_CHECKS = [
   },
   {
     path: '/console/users',
-    expectedPathPrefix: '/console/org/members',
-    expectedText: 'Members',
+    expectedPathPrefix: '/console/org/users',
+    expectedText: 'Users',
   },
   {
     path: '/console/organizations',
@@ -28,9 +28,14 @@ export const INSTANCE_CONSOLE_ROUTE_CHECKS = [
 
 export const ORGANIZATION_CONSOLE_ROUTE_CHECKS = [
   { path: '/console/org', expectedText: 'Key metrics' },
+  { path: '/console/org/users', expectedText: 'Users' },
   { path: '/console/org/members', expectedText: 'Members' },
-  { path: '/console/org/projects', expectedText: 'Projects and access' },
-  { path: '/console/org/roles', expectedText: 'Roles and permissions' },
+  { path: '/console/org/projects', expectedText: 'Projects' },
+  {
+    path: '/console/org/roles',
+    expectedPathPrefix: '/console/org/projects',
+    expectedText: 'Projects',
+  },
   { path: '/console/org/auth-policy', expectedText: 'Authentication policy' },
   { path: '/console/org/delivery-channels', expectedText: 'Delivery channels' },
   { path: '/console/org/social-providers', expectedText: 'Social providers' },
@@ -40,12 +45,12 @@ export const ORGANIZATION_CONSOLE_ROUTE_CHECKS = [
   { path: '/console/org/scim-targets', expectedText: 'SCIM targets' },
   { path: '/console/org/domains', expectedText: 'Domains' },
   { path: '/console/org/branding', expectedText: 'Brand customization' },
-  { path: '/console/org/applications', expectedText: 'OAuth applications' },
+  { path: '/console/org/applications', expectedText: 'Applications' },
   { path: '/console/org/webhooks', expectedText: 'Webhooks' },
   { path: '/console/org/api-keys', expectedText: 'API keys' },
   { path: '/console/org/audit-events', expectedText: 'Audit events' },
   { path: '/console/org/compliance', expectedText: 'Compliance center' },
-].map((route) => ({ ...route, expectedPathPrefix: route.path }))
+].map((route) => ({ expectedPathPrefix: route.path, ...route }))
 
 export const PLATFORM_CONSOLE_ROUTE_CHECKS = [
   { path: '/console/platform', expectedText: 'Platform overview' },

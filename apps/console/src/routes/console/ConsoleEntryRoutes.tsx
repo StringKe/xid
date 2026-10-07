@@ -18,8 +18,10 @@ import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { MANAGED_PROJECTS_NAV_ITEM, ORG_NAV } from '../../nav'
-import type { ConsoleNavItem } from '../../nav'
+import { msg } from '@lingui/core/macro'
+import { MANAGED_PROJECTS_NAV_ITEM, ORG_NAV, ORG_USERS_PATH } from '../../nav'
+import type { ConsoleNavItem, NavLabel } from '../../nav'
+import { navLabelText } from '../../components/layout/nav-model'
 
 const styles = stylex.create({
   primaryLink: {
@@ -195,8 +197,9 @@ const styles = stylex.create({
 
 type EntryTarget = 'home' | 'organizations' | 'users' | 'settings'
 
-function orgTargetPath(target: EntryTarget): string {
-  if (target === 'users') return '/console/org/members'
+// 租户用户目录只对顶层组织管理员开放,子组织管理员落到 Members。
+function orgTargetPath(target: EntryTarget, org: AuthOrg | null): string {
+  if (target === 'users') return org?.parentOrgId === null ? ORG_USERS_PATH : '/console/org/members'
   if (target === 'settings') return '/console/settings'
   return '/console/org'
 }
@@ -231,11 +234,11 @@ function OrganizationSelection({
 }: OrganizationSelectionProps): ReactNode {
   const { setActiveOrganization } = useAuth()
   const navigate = useNavigate()
-  const destination = orgTargetPath(target)
   const [openingOrgId, setOpeningOrgId] = useState<string | null>(null)
   const [failedOrgId, setFailedOrgId] = useState<string | null>(null)
 
   async function openOrganization(org: AuthOrg): Promise<void> {
+    const destination = orgTargetPath(target, org)
     if (org.id === activeOrgId) {
       navigate(orgSelectionTarget(destination, org), { replace: true })
       return
@@ -413,7 +416,7 @@ const SETTINGS_DESCRIPTIONS: Record<string, ReactNode> = {
 
 type SettingsGroup = {
   key: string
-  label: ReactNode
+  label: NavLabel
   items: ConsoleNavItem[]
 }
 
@@ -426,13 +429,14 @@ function settingsGroups(isTopLevelOrg: boolean): readonly SettingsGroup[] {
     if (existing) {
       existing.items.push(item)
     } else {
-      groups.push({ key, label: item.groupLabel ?? <Trans>General</Trans>, items: [item] })
+      groups.push({ key, label: item.groupLabel ?? msg`General`, items: [item] })
     }
   }
   return groups
 }
 
 function SettingsOverview(): ReactNode {
+  const { i18n } = useLingui()
   const { activeOrg } = useAuth()
   const isTopLevelOrg = activeOrg?.parentOrgId === null
   return (
@@ -446,7 +450,7 @@ function SettingsOverview(): ReactNode {
       }
     >
       {settingsGroups(isTopLevelOrg).map((group) => (
-        <ConsolePageSection key={group.key} title={group.label}>
+        <ConsolePageSection key={group.key} title={navLabelText(i18n, group.label)}>
           <ul {...stylex.props(styles.settingsList)}>
             {group.items.map((item) => (
               <li key={item.to} {...stylex.props(styles.settingsItem)}>
@@ -455,7 +459,7 @@ function SettingsOverview(): ReactNode {
                     <Icon name={item.icon ?? 'gear'} size={18} />
                   </span>
                   <div {...stylex.props(styles.settingsCopy)}>
-                    <h2 {...stylex.props(page.sectionTitle)}>{item.label}</h2>
+                    <h2 {...stylex.props(page.sectionTitle)}>{navLabelText(i18n, item.label)}</h2>
                     {SETTINGS_DESCRIPTIONS[item.to] ? (
                       <p {...stylex.props(styles.settingsCardDescription)}>
                         {SETTINGS_DESCRIPTIONS[item.to]}
@@ -516,7 +520,7 @@ function ConsoleEntry({ target }: { target: EntryTarget }): ReactNode {
   }
   if (managedActiveOrg) {
     if (target === 'settings') return <SettingsOverview />
-    return <Navigate to={orgTargetPath(target)} replace />
+    return <Navigate to={orgTargetPath(target, managedActiveOrg)} replace />
   }
   if (soleOrg && !notice) return <AutoSelectOrganization target={target} org={soleOrg} />
   if (manageableOrgs.length > 0) {
@@ -539,7 +543,7 @@ function AutoSelectOrganization({ target, org }: { target: EntryTarget; org: Aut
   const { setActiveOrganization } = useAuth()
   const navigate = useNavigate()
   const { t } = useLingui()
-  const destination = orgTargetPath(target)
+  const destination = orgTargetPath(target, org)
   const [attempt, setAttempt] = useState(0)
   const [failed, setFailed] = useState(false)
 

@@ -29,6 +29,8 @@ export type CommandMenuProps = {
   onOpenChange: (open: boolean) => void
   groups: readonly CommandGroup[]
   placeholder: string
+  // 输入变化时通知调用方,用于按查询词远程检索并把结果作为额外分组传回。
+  onQueryChange?: (query: string) => void
 }
 
 export function isCommandMenuShortcut(
@@ -58,6 +60,7 @@ export function CommandMenu({
   onOpenChange,
   groups,
   placeholder,
+  onQueryChange,
 }: CommandMenuProps): ReactNode {
   const { t } = useLingui()
   const popup = stylex.props(styles.popup)
@@ -83,6 +86,7 @@ export function CommandMenu({
               itemToStringValue={(item: CommandItem) => itemSearchText(item)}
               autoHighlight="always"
               keepHighlight
+              onValueChange={onQueryChange ? (value) => onQueryChange(value) : undefined}
             >
               <div {...stylex.props(styles.inputRow)}>
                 <span aria-hidden="true" {...stylex.props(styles.inputIcon)}>

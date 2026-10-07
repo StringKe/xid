@@ -126,9 +126,9 @@ describe('production web route owner contract', () => {
     const smokePaths = CONSOLE_SPA_ROUTE_CHECKS.map((route) => route.path)
 
     expect(INSTANCE_CONSOLE_ROUTE_CHECKS).toHaveLength(5)
-    expect(ORGANIZATION_CONSOLE_ROUTE_CHECKS).toHaveLength(18)
+    expect(ORGANIZATION_CONSOLE_ROUTE_CHECKS).toHaveLength(19)
     expect(PLATFORM_CONSOLE_ROUTE_CHECKS).toHaveLength(12)
-    expect(new Set(smokePaths).size).toBe(35)
+    expect(new Set(smokePaths).size).toBe(36)
     expect(smokePaths.toSorted()).toEqual(routerPaths.toSorted())
   })
 })
