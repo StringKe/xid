@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=9b8c1089c481b63ae850c6f12ac5a015711cf771 -->
+<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=working-tree source-blob=4463bae5ea38e0dbc8fa1e61bcd79cd3bccc8c70 -->
 
 > Translation of `docs/design/02-tenancy-rbac.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/02-tenancy-rbac.md`](../../design/02-tenancy-rbac.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -105,10 +105,11 @@ pending -> expired
   SHA-256 hash。locator 不是授权依据:preview 和 accept 必须通过选中 Tenant 的 scoped query
   layer 命中完整 hash;修改 locator 会使 token 失效。
 - 外部协作者(guest):邮箱域不属 org 已验证域,单独标记,可设上限(对标 WorkOS domain-managed vs domain-guest)
-- seat 管理:一个 seat 是完整 Tenant(包含 child Organization)内拥有任一 active membership 的
-  distinct user,同一用户的多个 membership 只占一个 seat。`organization_quotas(seats)` 是权威值,
-  root `organizations.seat_limit` 是兼容镜像,`seat_used` 仅为 legacy。用户最后一个 active
-  membership deprovision 后释放 seat,重新 provision 恢复历史角色
+- seat 计数:一个 seat 是完整 Tenant(包含 child Organization)内拥有任一 active membership 的
+  distinct user,同一用户的多个 membership 只占一个 seat。seat 只观测、从不拦截:
+  `organization_quotas(seats)` 与 root `organizations.seat_limit` 镜像只保存可选的观测阈值,
+  `seat_used` 仅为 legacy,任何 seat 值都不会阻断注册、JIT、SCIM 或接受邀请(见 07 章第 7 节)。
+  用户最后一个 active membership deprovision 后释放 seat,重新 provision 恢复历史角色
 - SCIM deprovision 软删除(inactive)不物理删除,保留审计
 
 ### 数据模型
@@ -219,7 +220,7 @@ org_policies 表统一管理所有 per-org 策略覆盖,逐字段回退:未设�
 
 ### Instance Manager(平台运营)
 
-跨所有 org 查看用户/审计/用量;暂停/恢复/删除 org;查看(不改)org 级配置;计费 seat 统计/quota;代客户创建 org。
+跨所有 org 查看用户/审计/用量;暂停/恢复/删除 org;查看(不改)org 级配置;用量统计/资源配额;代客户创建 org。
 
 ### Org Admin(租户管理)
 
@@ -412,7 +413,7 @@ v1 仅支持简单比较，不支持嵌套逻辑和资源属性。condition_expr
 
 | 操作符   | 语义                             | 示例                                                                                |
 | -------- | -------------------------------- | ----------------------------------------------------------------------------------- |
-| `eq`     | 严格等于（===）                  | `{ "op": "eq", "var": "user.public_metadata.plan", "value": "enterprise" }`         |
+| `eq`     | 严格等于（===）                  | `{ "op": "eq", "var": "user.public_metadata.department", "value": "finance" }`      |
 | `in`     | 值包含在数组中（Array.includes） | `{ "op": "in", "var": "user.public_metadata.tier", "value": ["gold", "platinum"] }` |
 | `not_eq` | 不等于                           | `{ "op": "not_eq", "var": "org.public_metadata.status", "value": "suspended" }`     |
 | `not_in` | 不在数组中                       | `{ "op": "not_in", "var": "user.public_metadata.region", "value": ["CN", "RU"] }`   |
@@ -423,14 +424,14 @@ v1 仅支持简单比较，不支持嵌套逻辑和资源属性。condition_expr
 // 单条件
 {
   "op": "eq",
-  "var": "user.public_metadata.plan",
-  "value": "enterprise"
+  "var": "user.public_metadata.department",
+  "value": "finance"
 }
 
 // 多条件 AND（所有子条件均为 true 才授予）
 {
   "and": [
-    { "op": "eq",  "var": "user.public_metadata.plan", "value": "enterprise" },
+    { "op": "eq",  "var": "user.public_metadata.department", "value": "finance" },
     { "op": "not_in", "var": "org.public_metadata.status", "value": ["suspended"] }
   ]
 }

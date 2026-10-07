@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=281a50e1d67a8b0606e6d410ea8c16e190c224ec -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=718f5bd2e82fa727c85c71614ff673306dd45b68 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -624,7 +624,7 @@ Firebase 式匿名登录:首次访问者在选择任何凭证之前就能获得�
 
 ### 计量、Management API 与审计
 
-- MeteringDO MAU 去重排除 guest,否则免费试用会打爆客户 MAU 账单。
+- MeteringDO MAU 去重排除 guest,否则匿名 guest 会话会虚增客户的 MAU。
 - Management API /v1/users 列表支持 ?provisioned_by=anonymous 过滤,不新增端点。
 - 新增审计事件名:guest.created、guest.converted、guest.gc_deleted(06 章 webhook/审计事件表同步)。
 

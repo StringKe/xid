@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=39be702f3ecee42bba747044a513b7fa8b8b8f3a -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=151daf64d674e694b02ab0877c66a2a14745daba -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -11,24 +11,21 @@
 
 - 租户全局列表:已实现按 name/slug 搜索的 cursor pagination 和单租户 status 变更。每行显示
   Organization ID;默认 Organization 不提供冻结操作,因为 Core 会拒绝。平台列表点「加载更多」
-  时把下一页追加到已加载的行之后,不替换已加载内容。plan/status/创建时间过滤与批量冻结/解冻/
+  时把下一页追加到已加载的行之后,不替换已加载内容。status/创建时间过滤与批量冻结/解冻/
   删除仍是设计目标
 - 通过任一 active Organization Membership impersonate active user(记平台审计)
 - 全局用户搜索(跨租户,GDPR 访问控制)
 - 全局事件流:已实现汇聚所有租户审计的 cursor pagination;tenant/event_type/user 过滤仍是
   设计目标
-- 系统公告 Banner:全局发布,或按显式 tenant、accounting plan label 定向。tenant 目标通过
+- 系统公告 Banner:全局发布,或定向到一个显式 tenant。tenant 目标通过
   Organization 选择器选择,开始时间默认取操作者本地时间
 - 全局 Feature Flags 未实现。Passkey autofill、magic link、社交登录、SCIM 和 Organization
   自助管理分别由 tenant policy、delivery channels、social provider 配置、directories 与
-  `organizations.allow_org_self_service` 控制,不存在并行的 KV flag 开关。plan label 绝不作为
-  认证 feature gate
-- 资源配额管理:查看/手动调整单租户 quota
+  `organizations.allow_org_self_service` 控制,不存在并行的 KV flag 开关
+- 资源配额管理:查看并逐项手动调整单租户 quota(见第 7 节)
 - 实例默认策略(`/v1/platform/settings`):sessionPolicy 全字段(idleTimeoutMin 默认 4320min,边界 5-43200;absoluteTimeoutDays 默认 30d,边界 1-365;rememberMeDefault)+ tokenPolicy 全字段(accessTokenTtlSec 默认 3600s,边界 60-86400;sessionTokenTtlSec 默认 60s,边界 30-300;refreshIdleTimeoutDays 默认 30d,边界 1-365;refreshAbsoluteTimeoutDays 默认 7d,边界 1-90),org 侧经 `/v1/organizations/:id/auth-policy` 逐字段覆盖(null=继承)
-- 计费总览:所有租户当月 DAU/MAU、欠费/超额、Stripe 直达
-- plan 计费管理:变更 billing label、试用期、默认 quota 与 support label,不生成 license,也不
-  解锁认证能力。只调整 quota 时保留 plan 的计费来源与生效时间,由 Stripe 管理的 plan 仍记为
-  Stripe 来源
+- 用量总览:每个顶层租户当月 MAU、DAU 与 active seat 数。按量计费开启时,同一视图再显示欠费
+  状态和 Customer Portal 入口
 - 全局告警规则是设计目标。当前没有 alert-rule API 或 PagerDuty/Slack delivery path;线上
   notification destination 属于部署状态,验证前保持 `UNKNOWN`
 - 状态页管理:发布/更新 incident
@@ -50,7 +47,7 @@ session-token exchange 和所有 mutation path 均拒绝它,登出也被拒绝,�
 
 ### 租户 Admin(单租户自管理)
 
-仪表盘(DAU/MAU 趋势/登录成功率/MFA 采用率/活跃 Org)、用户管理、应用管理(OAuth2 Client)、SSO 连接、组织管理、团队成员(角色 Owner/Admin/Member)、品牌定制、通知设置、审计日志、计费用量、合规工具。
+仪表盘(DAU/MAU 趋势/登录成功率/MFA 采用率/活跃 Org)、用户管理、应用管理(OAuth2 Client)、SSO 连接、组织管理、团队成员(角色 Owner/Admin/Member)、品牌定制、通知设置、审计日志、用量、合规工具。
 
 设计决策:租户 admin 页面与平台 admin 页面同属统一 React Console Worker。该 Worker 只
 服务静态 assets,在 apex 与 tenant hosts 上拥有 `/console` 和 `/console/*`。它没有 D1、
@@ -86,7 +83,7 @@ preview/publish 状态与 per-organization 邮件模板上传仍是设计目标�
 ## 3. 通知系统
 
 实现状态:Email Queue 当前只产生并渲染 5 类事务邮件:邮箱验证、magic link、OTP、密码重置
-和组织邀请。邮箱变更确认、新设备登录告警、账户锁定通知、管理员邀请和订阅/计费告警
+和组织邀请。邮箱变更确认、新设备登录告警、账户锁定通知、管理员邀请和按量计费告警
 仍是设计目标。SMS 支持 OTP 和 magic-link 短链。
 
 当前唯一已实现的邮件 provider 是 **Cloudflare Email Service**,通过 `send_email` binding
@@ -326,8 +323,8 @@ async function handleAuditBatch(batch: MessageBatch<AuditQueueMsg>, env: Env) {
 - 应用:app.created / app.updated / app.deleted / app.secret_rotated
 - SSO:sso.connection_created / sso.connection_updated / sso.connection_deleted / sso.login_success / sso.login_failure / sso.directory_sync_started / sso.directory_sync_completed
 - 安全:security.brute_force_blocked / security.impossible_travel / security.new_device / security.account_locked / security.account_unlocked
-- 平台管理:platform.tenant_suspended / platform.tenant_activated / platform.tenant_deleted / platform.impersonate_start / platform.impersonate_end / platform.plan_changed / platform.settings_changed
-- 计费:billing.subscription_created / billing.subscription_updated / billing.payment_failed / billing.quota_exceeded
+- 平台管理:platform.tenant_suspended / platform.tenant_activated / platform.tenant_deleted / platform.impersonate_start / platform.impersonate_end / platform.quota_changed / platform.settings_changed
+- 计费(仅在按量计费开启时):billing.subscription_created / billing.subscription_updated 记录运营方创建的 Stripe 按量订阅状态。Stripe `invoice.payment_failed` 事件会对账进该状态;独立的 billing.payment_failed 动作仍是设计目标
 
 已实现的登录结果事件:会话变为 `active` 时(签发时,或 pending MFA 会话完成 MFA 时)写一次
 `auth.login_succeeded`,模拟会话不计入。`/auth/*` 或 `/sso/*` 下的请求以 `invalid_credentials`、`account_locked`、
@@ -420,8 +417,9 @@ Console 要求显式确认,Core 排队写入
   invocation logs 与 automatic request traces,因为两者都会持久化 request URL,automatic
   Fetch span 还会包含 `url.full`。Core URL 可能携带 OAuth code、invitation token、
   verification token 和其他一次性 secret。
-- Cloudflare Workers Logs 在 Free plan 保留 3 天、Paid plan 保留 7 天,整体上限为 7 天。
-  当前只读证据显示托管账号为 Free,所以预期 retention 是 3 天;active account plan 与实际
+- Cloudflare Workers Logs 在 Cloudflare Workers Free 账号保留 3 天、Workers Paid 账号保留
+  7 天,整体上限为 7 天。当前只读证据显示托管的 Cloudflare 账号为 Workers Free,所以预期
+  retention 是 3 天;Cloudflare 账号类型与实际
   retention 在账号内完成 reconciliation 前仍标记为 `EXTERNAL`。XID 未配置 Logpush
   destination,因此不声称更长保留。Dashboard/query access 必须限制给部署方的
   incident-response role,并由 Cloudflare account 审计。官方来源:
@@ -436,49 +434,65 @@ token issuance/revocation volume 与 delivery success。Impossible travel、devi
 alert、GeoIP MMDB 与历史 Analytics Engine SQL aggregation 未实现。Brute-force 防护当前使用
 Turnstile + `RateLimitStore`;账号枚举工作量通过 constant-time comparison + jitter 归一化。
 
-## 7. 计费与配额
+## 7. 按量计费与配额
 
-计量维度:MAU(自然月有认证事件唯一用户)、DAU、Org 数、API 调用、邮件条数、SSO 连接数。
+业务规则(约束代码、设计、文档、Console 文案与 AI 规则):
+
+- XID 没有套餐、档位或计划。不存在 free、starter、pro、enterprise 版本,没有试用期,也没有
+  按付费程度派生的支持等级。
+- XID Cloud(`https://xid.dev`)当前完全免费。
+- XID Cloud 将来如果收费,只按用量收费:按 MAU 计量,单价由运营方公布。任何能力都不为付费
+  客户保留。
+- 自托管 XID 与 XID Cloud 功能完全相同。运营方可以整体关闭计费,其他一切不变。
+
+计量维度:MAU(自然月内有认证事件的唯一用户)和 DAU 精确计数,是唯一的计费信号。上报给支付
+服务商的只有 MAU。Org 数和 SSO 连接数从 D1 读取,只用于配额。API 调用数和邮件条数当前没有
+计量(`usage_daily` 中这两列恒为 0),所以既不是配额 key,也不是 Console 用量列。
 
 统计架构:
 
 - Login Worker 认证成功后向 Queues 写计量事件 `{tenant_id, user_id, ts}`
 - Metering Consumer 去重 + 按天写 D1 `usage_daily`
 - 每日 `0 2 * * *` Cron 把当月 MAU snapshot 写入 `usage_monthly`。UTC 每月第 1 天,同一
-  daily path 还会归档并清理上月 `MeteringDO` key。可选 Stripe metering phase 每日运行
+  daily path 还会归档并清理上月 `MeteringDO` key。Stripe MAU 上报 phase 只在按量计费开启时
+  每日运行
 
-托管服务 accounting label 示例:
+资源配额是运营方的安全上限,不是产品边界。配额没有默认值、没有预设,与计费无关;Instance
+Manager 通过 `/v1/platform/quotas/:tenantId` 为每个顶层 tenant 逐项显式设置,每次修改写一条
+`platform.quota_changed` 平台审计。
 
-| Label      | 月费   | 默认 seat quota | 默认 API quota | Support label |
-| ---------- | ------ | --------------- | -------------- | ------------- |
-| Free       | $0     | 10              | 100,000        | Community     |
-| Starter    | $25    | 50              | 1,000,000      | Standard      |
-| Pro        | $99    | 250             | 10,000,000     | Priority      |
-| Enterprise | 自定义 | 自定义          | 自定义         | Contracted    |
+| Quota key         | Enforcement                   | 能拒绝的操作                              |
+| ----------------- | ----------------------------- | ----------------------------------------- |
+| `seats`           | 只能 `observe`                | 无。seat 用量只展示,从不拦截              |
+| `organizations`   | `observe` 或 `block_creation` | 创建或恢复 child organization(管理写操作) |
+| `sso_connections` | `observe` 或 `block_creation` | 创建或恢复 SSO connection(管理写操作)     |
 
-plan label 只选择 accounting metadata、默认 quota 与 support label。它绝不控制 OIDC、OAuth、
-SAML、SSO、SCIM、WebAuthn、MFA 或任何其他认证能力。hard resource quota 可以拒绝新增一个
-消耗 quota 的管理写操作,例如继续增加 seat,但不得 suspend 现有用户、阻断 sign-in、停止
-token 签发或 refresh,也不得关闭已配置的协议集成。Usage-alert rule、threshold、delivery
-与 deduplication 仍是设计目标;当前仓库不会发送这些 alert。变更 accounting label 或显式
-quota 是管理计费操作,不是 feature unlock。
+新租户不写任何 quota row,也不写 `seat_limit`,所以运营方写入 row 之前没有任何上限。
+`block_creation` 配额只用 `resource_quota_exceeded` 拒绝对应的管理写操作。任何配额都不得
+suspend 现有用户,不得阻断注册、登录、SSO JIT provisioning、SCIM provisioning、接受邀请、
+邮箱验证或重置密码,不得停止 token 签发或 refresh,也不得关闭已配置的协议集成。Usage-alert
+rule、threshold、delivery 与 deduplication 仍是设计目标;当前仓库不会发送这些 alert。
 
 seat 的定义覆盖整个 tenant:对完整 tenant(包含所有 child organization)的 active membership
 执行 `COUNT(DISTINCT memberships.user_id)`。因此同一用户加入多个 organization 仍只占一个
-seat,billing overview 的 `seatUsed` 也使用完全相同的定义。Membership INSERT/UPDATE trigger
-在 active 用户将新增一个 seat 时原子执行 hard quota。UPDATE 先排除 OLD row 再检查目标
-tenant,因此 tenant 内移动 organization 不会重复占 seat,跨 tenant 移动也不能绕过目标 quota。
+seat,用量总览的 `seatUsed` 也使用完全相同的定义。`organization_quotas(tenant_id, 'seats')`
+与 root `organizations.seat_limit` 镜像只保存观测阈值:没有任何 membership trigger 读取它们,
+Management API 的 `seat_limit` 字段写入的是 `observe` row。child Organization 不拥有 seat
+limit,其 create/patch API 拒绝 `seat_limit`。
 
-`organization_quotas(tenant_id, 'seats')` 是权威 hard seat-creation quota;root organization
-的 `organizations.seat_limit` 只是兼容镜像。plan 或 seat-limit mutation 在同一个 D1 batch
-内更新两者,Console 只呈现一个 seat 控件。`seats`、`organizations`、`sso_connections` 可以
-使用 `block_creation`;`api_calls`、`emails`、`mau` 只能观测,Management API 拒绝为这些 key
-配置 hard enforcement。创建顶层 tenant 时,Free seat quota 与 root mirror 在同一个 batch
-初始化。child Organization 不拥有 seat limit,其 create/patch API 拒绝 `seat_limit`。
+按量计费只有一个开关,不新增变量,沿用 Turnstile 成组配置的先例:
 
-Stripe 是可选托管服务 adapter,用于 Checkout Session、Customer Portal、发票、付款与
-accounting-label 更新。`invoice.payment_failed` 只记录 billing state;operator alert
-delivery 仍是设计目标。它不会降级认证行为或锁定用户。
+- `STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`STRIPE_METER_EVENT_NAME` 三项都配置:计费开启。
+- 三项都不配置:计费关闭。这是自托管默认状态,也是 `https://xid.dev` 当前状态。所有功能照常
+  可用;Console 只显示用量总览,不出现计费字样。
+- 只配置了一部分:计费 fail-closed。用量总览、计费配置和 Portal 端点返回 `server_error`,日 cron
+  的 Stripe MAU phase 跳过并记日志,不影响其他 daily phase。
+
+计费开启时,Stripe 只是按量计费 adapter:每日 MAU meter 上报、发票、付款与 Customer Portal。
+XID 从不创建 Checkout Session,也从不售卖套餐。运营方在 Stripe 中为租户创建 customer 和按量
+subscription,并把 subscription metadata `xid_tenant_id` 设为顶层 tenant id;签名 webhook
+随后把该 customer 绑定到租户并记录 subscription 状态。`invoice.payment_failed` 使租户在用量
+总览中显示为欠费;operator alert delivery 仍是设计目标。计费状态从不降级认证行为或锁定用户。
 
 每次调用 provider 前,计量上报先持久化 `billing_meter_reports` cursor。pending identifier
 全局唯一,在 provider 已确认的 target 提交之前,每次重试都复用包含 customer、event name、
@@ -487,12 +501,12 @@ value 与 timestamp 的完整首次 payload。因此 Worker 或 D1 故障不能�
 `event_id` 再应用事件,使 event retry 保持幂等。
 
 XID 使用 MIT 许可。self-host 始终包含完整 feature set,没有 tiering、license key、license
-generation 或本地/联网校验。以上 label 与 Stripe adapter 仅供在 XID 上运营付费服务的
-部署方选择,内核不依赖它们,关闭 billing 不影响任何认证能力。
+generation 或本地/联网校验。以上按量计费 adapter 仅供在 XID 上提供收费服务的部署方选择,
+且只能按计量用量计费。内核不依赖它,关闭计费不影响任何能力。
 
 设计决策:MAU/DAU 用按 tenant 分片的 MeteringDO 精确计数。每个 membership 独立存 DO
 storage,每个日/月 bucket 存 count,不在 isolate 内保留用户全集;HyperLogLog 0.8% 误差
-不可接受计费。Stripe Metered Billing 上报 delta 非全量。未来 overage alert 每租户每类型
+不可接受计费。Stripe Metered Billing 上报 delta 非全量。未来用量 alert 每租户每类型
 每月最多 3 次的 deduplication 是设计目标,不是已发布路径。
 
 ### 7.1 精确 membership 计数实现规格

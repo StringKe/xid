@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=aadd458632b770d0d94a7d718fec8aaa65ea03d6 -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=5daba0aa6ea99356f607490675828f948c9f987a -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -54,19 +54,19 @@ User -> Session -> Token
 
 ### 租户与层级
 
-| 实体          | 职责                                  | 关键关系                           |
-| ------------- | ------------------------------------- | ---------------------------------- |
-| Instance      | 平台运营容器                          | 含多个 Organization                |
-| Organization  | 租户/客户,数据隔离单元,可覆盖平台策略 | 属于 Instance,可有一层子 Org       |
-| Project       | 角色命名空间,跨 App 共享角色          | 属于 Organization                  |
-| Application   | OIDC/SAML 客户端                      | 属于 Project                       |
-| ProjectGrant  | 跨组织授权                            | 连接 Project 与被授权 Org          |
-| OrgUnit       | org 内业务树节点(部门/团队,汇报线)    | 属于 Organization,自嵌套深度上限 8 |
-| OrgUnitMember | 用户在 unit 树中的放置(主岗/兼岗)     | 连接 User 与 OrgUnit               |
-| OrgPolicy     | per-org 策略覆盖(SSO/MFA/会话/密码)   | 属于 Organization                  |
-| OrgBranding   | per-org 品牌(logo/配色/CSS)           | 属于 Organization                  |
-| OrgMetadata   | public/private 元数据                 | 属于 Organization                  |
-| OrgQuota      | 配额(seat/API/...)                    | 属于 Organization                  |
+| 实体          | 职责                                         | 关键关系                           |
+| ------------- | -------------------------------------------- | ---------------------------------- |
+| Instance      | 平台运营容器                                 | 含多个 Organization                |
+| Organization  | 租户/客户,数据隔离单元,可覆盖平台策略        | 属于 Instance,可有一层子 Org       |
+| Project       | 角色命名空间,跨 App 共享角色                 | 属于 Organization                  |
+| Application   | OIDC/SAML 客户端                             | 属于 Project                       |
+| ProjectGrant  | 跨组织授权                                   | 连接 Project 与被授权 Org          |
+| OrgUnit       | org 内业务树节点(部门/团队,汇报线)           | 属于 Organization,自嵌套深度上限 8 |
+| OrgUnitMember | 用户在 unit 树中的放置(主岗/兼岗)            | 连接 User 与 OrgUnit               |
+| OrgPolicy     | per-org 策略覆盖(SSO/MFA/会话/密码)          | 属于 Organization                  |
+| OrgBranding   | per-org 品牌(logo/配色/CSS)                  | 属于 Organization                  |
+| OrgMetadata   | public/private 元数据                        | 属于 Organization                  |
+| OrgQuota      | 运营方资源配额(seat 只观测;子组织、SSO 连接) | 属于 Organization                  |
 
 ### 用户与身份
 
@@ -144,20 +144,19 @@ User -> Session -> Token
 
 ### 平台运营
 
-| 实体                      | 职责                                                   |
-| ------------------------- | ------------------------------------------------------ |
-| AuditLog                  | append-only 审计事件(链式 hash 防篡改)                 |
-| Usage(daily/monthly)      | DAU/MAU 及用量计量                                     |
-| Webhook / WebhookDelivery | 订阅与投递记录(重试/死信)                              |
-| ApiKey                    | API 密钥(scoped,哈希存储)                              |
-| PlatformAdmin             | 平台管理员(平台级)                                     |
-| OrganizationPlan / Quota  | 可选计费标签与资源创建配额                             |
-| StripeCheckoutReservation | 防止 hosted subscription Checkout 重复计费的持久 guard |
-| PlatformAnnouncement      | 定时、显式定向的运营公告                               |
-| StatusIncident / Update   | 公开服务状态事件及时间线                               |
-| PrivacyRequest            | 用户导出与延迟擦除工作流状态                           |
-| ComplianceDocument        | 版本化合规产物与接受元数据                             |
-| PlatformAuditOutbox       | 平台 mutation 的持久脱敏审计交接                       |
+| 实体                      | 职责                                   |
+| ------------------------- | -------------------------------------- |
+| AuditLog                  | append-only 审计事件(链式 hash 防篡改) |
+| Usage(daily/monthly)      | DAU/MAU 及用量计量                     |
+| Webhook / WebhookDelivery | 订阅与投递记录(重试/死信)              |
+| ApiKey                    | API 密钥(scoped,哈希存储)              |
+| PlatformAdmin             | 平台管理员(平台级)                     |
+| BillingAccount / Quota    | 可选的按量计费账户关联与运营方配额     |
+| PlatformAnnouncement      | 定时、显式定向的运营公告               |
+| StatusIncident / Update   | 公开服务状态事件及时间线               |
+| PrivacyRequest            | 用户导出与延迟擦除工作流状态           |
+| ComplianceDocument        | 版本化合规产物与接受元数据             |
+| PlatformAuditOutbox       | 平台 mutation 的持久脱敏审计交接       |
 
 ---
 
@@ -316,24 +315,24 @@ D1 默认外键约束**不强制启用**(SQLite `PRAGMA foreign_keys`);Drizzle m
 
 ### 10.2 organizations(租户,顶层 org 的 tenant_id = 自身 id)
 
-| 字段                    | 类型            | 约束                                             | 默认                | 说明                                                                             |
-| ----------------------- | --------------- | ------------------------------------------------ | ------------------- | -------------------------------------------------------------------------------- |
-| id                      | text            | PK                                               | `org_`+nanoid       |                                                                                  |
-| tenant_id               | text            | NOT NULL, FK -> organizations.id(self)           | --                  | 顶层 org 时 = id;子 org 时 = 顶层 org id(租户隔离根)                             |
-| instance_id             | text            | NOT NULL, FK -> instances.id ON DELETE no action | --                  | 所属平台实例                                                                     |
-| parent_org_id           | text            | FK -> organizations.id ON DELETE cascade, null   | null                | 一层子组织(见 02 章 1,不做深嵌套);顶层为 null                                    |
-| slug                    | text            | NOT NULL                                         | --                  | URL/子域用,同时按 `(tenant_id,slug)` 和 `(instance_id,slug)` 唯一,见 9.5         |
-| name                    | text            | NOT NULL                                         | --                  | 显示名                                                                           |
-| logo_url                | text            | null                                             | null                | R2 logo URL(品牌见 OrgBranding)                                                  |
-| public_metadata         | text json       | NOT NULL                                         | `{}`                | 前端可读(见 02 章 5)                                                             |
-| private_metadata        | text json       | NOT NULL                                         | `{}`                | 仅 server/admin                                                                  |
-| seat_limit              | integer number  | null                                             | null                | root tenant 的 `organization_quotas(seats)` limit 兼容镜像,null=无限             |
-| seat_used               | integer number  | NOT NULL                                         | `0`                 | legacy 兼容 counter;billing 从 memberships 计算 tenant-wide distinct active user |
-| enrollment_mode         | text            | NOT NULL                                         | `'invite_required'` | `automatic`/`invite_required`(域名自动归属,见 02 章 2)                           |
-| allow_org_self_service  | integer boolean | NOT NULL                                         | `1`                 | 关闭时 org admin 不能改 SSO/MFA/登录策略/SCIM(范围见 02 章 6)                    |
-| status                  | text            | NOT NULL                                         | `'active'`          | `active`/`suspended`/`deleted`                                                   |
-| deleted_at              | integer ts_ms   | null                                             | null                | 软删除标记(Instance Manager 删 org)                                              |
-| created_at / updated_at | integer ts_ms   | NOT NULL                                         | 见 9.3              |                                                                                  |
+| 字段                    | 类型            | 约束                                             | 默认                | 说明                                                                         |
+| ----------------------- | --------------- | ------------------------------------------------ | ------------------- | ---------------------------------------------------------------------------- |
+| id                      | text            | PK                                               | `org_`+nanoid       |                                                                              |
+| tenant_id               | text            | NOT NULL, FK -> organizations.id(self)           | --                  | 顶层 org 时 = id;子 org 时 = 顶层 org id(租户隔离根)                         |
+| instance_id             | text            | NOT NULL, FK -> instances.id ON DELETE no action | --                  | 所属平台实例                                                                 |
+| parent_org_id           | text            | FK -> organizations.id ON DELETE cascade, null   | null                | 一层子组织(见 02 章 1,不做深嵌套);顶层为 null                                |
+| slug                    | text            | NOT NULL                                         | --                  | URL/子域用,同时按 `(tenant_id,slug)` 和 `(instance_id,slug)` 唯一,见 9.5     |
+| name                    | text            | NOT NULL                                         | --                  | 显示名                                                                       |
+| logo_url                | text            | null                                             | null                | R2 logo URL(品牌见 OrgBranding)                                              |
+| public_metadata         | text json       | NOT NULL                                         | `{}`                | 前端可读(见 02 章 5)                                                         |
+| private_metadata        | text json       | NOT NULL                                         | `{}`                | 仅 server/admin                                                              |
+| seat_limit              | integer number  | null                                             | null                | root tenant 只观测的 `organization_quotas(seats)` 阈值镜像,从不拦截          |
+| seat_used               | integer number  | NOT NULL                                         | `0`                 | legacy 兼容 counter;用量从 memberships 计算 tenant-wide distinct active user |
+| enrollment_mode         | text            | NOT NULL                                         | `'invite_required'` | `automatic`/`invite_required`(域名自动归属,见 02 章 2)                       |
+| allow_org_self_service  | integer boolean | NOT NULL                                         | `1`                 | 关闭时 org admin 不能改 SSO/MFA/登录策略/SCIM(范围见 02 章 6)                |
+| status                  | text            | NOT NULL                                         | `'active'`          | `active`/`suspended`/`deleted`                                               |
+| deleted_at              | integer ts_ms   | null                                             | null                | 软删除标记(Instance Manager 删 org)                                          |
+| created_at / updated_at | integer ts_ms   | NOT NULL                                         | 见 9.3              |                                                                              |
 
 索引:`UNIQUE(tenant_id, slug)`、`UNIQUE(instance_id, slug)`、`INDEX(instance_id)`、`INDEX(parent_org_id)`、`INDEX(tenant_id, status)`。
 
@@ -557,7 +556,7 @@ User 是平台级实体,跨 org 通过 Membership 关联;`tenant_id` 仍标其�
 
 索引:`UNIQUE(tenant_id, username)`、`UNIQUE(tenant_id, external_id)`、`INDEX(tenant_id, status)`、`INDEX(tenant_id, created_at)`、`INDEX(primary_email_id)`、`INDEX(merged_into_user_id)`。primary_email_id/primary_phone_id 与 user_emails/user_phones 互为引用,建表后用 deferred FK 或应用层维护(SQLite 不支持 ALTER ADD FK,Drizzle 声明 FK 即可,运行时不强制)。
 
-guest 生命周期(见 01 章 8):GC cron 每日扫,软删 provisioned_by = 'anonymous' 且最后活跃满 30 天的 user(无 session 按 created_at,有 session 按该 user 最新 session 的 last_active_at),与其他软删用户进入同一套 30 天硬删 PII 管道(见 05 章 7),审计事件 guest.gc_deleted。guest 行不参与 MeteringDO MAU 去重(见 17.3),避免免费试用打爆 MAU 账单。
+guest 生命周期(见 01 章 8):GC cron 每日扫,软删 provisioned_by = 'anonymous' 且最后活跃满 30 天的 user(无 session 按 created_at,有 session 按该 user 最新 session 的 last_active_at),与其他软删用户进入同一套 30 天硬删 PII 管道(见 05 章 7),审计事件 guest.gc_deleted。guest 行不参与 MeteringDO MAU 去重(见 17.3),避免匿名 guest 会话虚增客户的 MAU。
 
 未使用的 anonymous provisional user 在没有 Membership,或只有安全空闲 onboarding 顶层 Tenant
 的 owner Membership 时进入同一 30 天生命周期。若 `pending_email` 始终未验证,清理会撤销
@@ -1532,7 +1531,7 @@ usage_monthly(Cron 月底从 MeteringDO 读 count 归档,见 07 章 7.1.2):
 
 主键:`PRIMARY KEY (tenant_id, year_month)`。
 
-MeteringDO MAU 去重排除 guest 用户(users.provisioned_by = 'anonymous',见 01 章 8):guest 是真 user 行,但计入 MAU 会让免费试用打爆客户 MAU 账单。
+MeteringDO MAU 去重排除 guest 用户(users.provisioned_by = 'anonymous',见 01 章 8):guest 是真 user 行,但计入 MAU 会让匿名 guest 会话虚增客户的 MAU。
 
 ### 17.3b metering_outbox(认证成功计量的持久恢复队列)
 
@@ -1552,52 +1551,52 @@ Queue 短暂不可用时持久化待重派的计量事件;同一租户用户同�
 
 索引:`UNIQUE(tenant_id, user_id, day)`、`INDEX(delivered_at, created_at)`(待恢复扫描)。
 
-### 17.3c organization_plans / organization_quotas(可选服务计费)
+### 17.3c 计费账户与 organization_quotas(可选按量计费、运营方配额)
 
-两表是运营方计费元数据,不是 license 系统。认证与已配置协议绝不把它们当 feature gate。缺少
-plan row 时只解析为 `free` label,不隐式写数据。应用 label 可采用对应的默认 seat/API quota,
-显式 quota 仍由运营方控制。
+两表是运营方元数据,不是 license 系统。XID 没有套餐或档位(见 07 章第 7 节)。认证与已配置
+协议绝不把它们当 feature gate,创建租户时两表都不写任何 row。
 
-organization_plans:
+organization_plans(SQL 表名保持不变,Drizzle 导出名为 `organizationBillingAccounts`)保存顶层
+租户与运营方按量计费 customer 之间的可选关联。只有 Stripe webhook 写入它,且只在按量计费开启时。
 
-| 字段                    | 类型          | 约束              | 默认     | 说明                                    |
-| ----------------------- | ------------- | ----------------- | -------- | --------------------------------------- |
-| tenant_id               | text          | PK                | --       | 顶层 organization id                    |
-| plan                    | text          | NOT NULL          | `free`   | free / starter / pro / enterprise       |
-| status                  | text          | NOT NULL          | `active` | active / trialing / past_due / canceled |
-| source                  | text          | NOT NULL          | `manual` | 计费 adapter 来源                       |
-| external_customer_id    | text          | 非 null 时 UNIQUE | null     | 可选的部署方 billing customer id        |
-| trial_ends_at           | integer ts_ms | null              | null     |                                         |
-| effective_at            | integer ts_ms | NOT NULL          | --       | accounting label 生效时间               |
-| updated_by              | text          | null              | null     | Instance Manager user id                |
-| created_at / updated_at | integer ts_ms | NOT NULL          | 见 9.3   |                                         |
+| 字段                    | 类型          | 约束              | 默认     | 说明                                                             |
+| ----------------------- | ------------- | ----------------- | -------- | ---------------------------------------------------------------- |
+| tenant_id               | text          | PK                | --       | 顶层 organization id                                             |
+| plan                    | text          | NOT NULL          | `free`   | 停用列:从不读写,插入时省略                                       |
+| status                  | text          | NOT NULL          | `active` | Stripe subscription 状态:active / trialing / past_due / canceled |
+| source                  | text          | NOT NULL          | `manual` | 计费 adapter 来源                                                |
+| external_customer_id    | text          | 非 null 时 UNIQUE | null     | webhook 绑定的按量计费 customer id                               |
+| trial_ends_at           | integer ts_ms | null              | null     | 停用列:从不读写                                                  |
+| effective_at            | integer ts_ms | NOT NULL          | --       | 当前计费状态生效时间                                             |
+| updated_by              | text          | null              | null     | Instance Manager user id                                         |
+| created_at / updated_at | integer ts_ms | NOT NULL          | 见 9.3   |                                                                  |
 
-索引:非 null 的 `external_customer_id` partial UNIQUE、`INDEX(plan, status, tenant_id)`。
+索引:非 null 的 `external_customer_id` partial UNIQUE、`INDEX(plan, status, tenant_id)`。日批
+MAU 上报只选择 `status` 为 `active` 或 `trialing` 且带 `external_customer_id` 的 row。Console
+把 `past_due` 显示为欠费,其他状态都显示为正常。
 
 organization_quotas:
 
-| 字段                    | 类型           | 约束     | 默认      | 说明                                                               |
-| ----------------------- | -------------- | -------- | --------- | ------------------------------------------------------------------ |
-| tenant_id               | text           | 复合 PK  | --        |                                                                    |
-| quota_key               | text           | 复合 PK  | --        | seats / organizations / sso_connections / api_calls / emails / mau |
-| limit                   | integer number | null     | null      | null=无限                                                          |
-| enforcement             | text           | NOT NULL | `observe` | observe / block_creation                                           |
-| updated_by              | text           | null     | null      | Instance Manager user id                                           |
-| created_at / updated_at | integer ts_ms  | NOT NULL | 见 9.3    |                                                                    |
+| 字段                    | 类型           | 约束     | 默认      | 说明                                    |
+| ----------------------- | -------------- | -------- | --------- | --------------------------------------- |
+| tenant_id               | text           | 复合 PK  | --        |                                         |
+| quota_key               | text           | 复合 PK  | --        | seats / organizations / sso_connections |
+| limit                   | integer number | null     | null      | null=无限                               |
+| enforcement             | text           | NOT NULL | `observe` | observe / block_creation                |
+| updated_by              | text           | null     | null      | Instance Manager user id                |
+| created_at / updated_at | integer ts_ms  | NOT NULL | 见 9.3    |                                         |
 
-主键:`PRIMARY KEY(tenant_id, quota_key)`。索引:`INDEX(quota_key, tenant_id)`。`seats` row 是
-权威 hard seat-creation quota;plan mutation 在同一个 batch 更新 root organization 的
-`organizations.seat_limit` 兼容镜像。seat 是完整 tenant(包含 child organization)内
-distinct active `memberships.user_id`。migration 自有 BEFORE trigger 原子约束新增 distinct
-active seat、子 organization 创建/恢复及 SSO connection 创建/恢复。membership UPDATE trigger
-排除 `OLD.id` 并检查目标 tenant,既允许移动又阻止跨 tenant 绕过。只有 `seats`、
-`organizations`、`sso_connections` 可以使用 `block_creation`;`api_calls`、`emails`、`mau`
-只能观测,因为它们不得中断认证、token 签发/refresh、认证事务邮件或已配置协议。
+主键:`PRIMARY KEY(tenant_id, quota_key)`。索引:`INDEX(quota_key, tenant_id)`。seat 是完整
+tenant(包含 child organization)内 distinct active `memberships.user_id`。`seats` row 只是
+观测阈值:enforcement 恒为 `observe`,不存在 membership trigger,root organization 的
+`organizations.seat_limit` 镜像在同一个 D1 batch 内写入。migration 自有 BEFORE trigger 只在
+对应 row 为 `block_creation` 时原子约束子 organization 创建/恢复及 SSO connection 创建/恢复。
+早期写入方留下的其他 key(`api_calls`、`emails`、`mau`)在读取时被忽略,因为这些维度没有计量。
 
-顶层 tenant 创建在同一个 D1 batch 插入 Free `seats` quota 与 root 兼容镜像。child
-organization 不拥有 seat quota;Management API create/patch 请求试图设置其 `seat_limit`
-时会被拒绝。Migration 0005 从每个既有 root mirror 回填一条 hard `seats` row,null 保持
-unlimited,不会静默施加新限制。
+创建 tenant 时不写任何 quota row,也不写 `seat_limit`,所以 Instance Manager 写入 row 之前
+没有任何上限。child organization 不拥有 seat quota;Management API create/patch 请求试图设置
+其 `seat_limit` 时会被拒绝。Migration 0021 删除 membership seat trigger,并把所有 `seats` row
+设为 `observe`,不改变其 `limit`。
 
 billing_meter_reports:
 
@@ -1627,28 +1626,9 @@ pending fields。provider 成功响应后先持久化 `provider_accepted_at`;带
 deduplication window 内重试;超过边界则设置 `reconciliation_required_at` 并 fail closed,
 避免重复计费。
 
-stripe_checkout_reservations:
-
-| 字段                     | 类型          | 约束             | 默认       | 说明                                                             |
-| ------------------------ | ------------- | ---------------- | ---------- | ---------------------------------------------------------------- |
-| tenant_id                | text          | PK               | --         | 每个顶层 organization 仅一条 active Checkout reservation         |
-| request_id               | text          | NOT NULL         | --         | 保留 caller attempt id 用于运营追踪                              |
-| plan                     | text          | NOT NULL         | --         | 冻结 starter / pro / enterprise 选择                             |
-| customer_id              | text          | null             | null       | 冻结已有 Stripe customer binding                                 |
-| provider_idempotency_key | text          | NOT NULL, UNIQUE | --         | provider 调用前持久化的 server-generated key                     |
-| session_id               | text          | null             | null       | Stripe Checkout Session id                                       |
-| session_url              | text          | null             | null       | 已校验的 Stripe-hosted redirect URL                              |
-| expires_at               | integer ts_ms | null             | null       | provider session expiry                                          |
-| status                   | text          | NOT NULL         | `reserved` | reserved / ready / completed / expired / reconciliation_required |
-| created_at / updated_at  | integer ts_ms | NOT NULL         | 见 9.3     |                                                                  |
-
-索引:`UNIQUE(provider_idempotency_key)`、
-`INDEX(status, expires_at, tenant_id)`。Core 在创建 Checkout Session 前持久化 server-generated
-provider key,因此并发 caller retry 复用同一 provider operation。未过期的 `ready` session
-直接复用。本地 expiry 到达后,Core 先读取 Stripe Session 权威状态:`complete` 时 fail
-closed,只有 provider 明确返回 `expired` 才允许创建 replacement reservation。未解析的
-`reserved` row 超过 Stripe idempotency retention 后进入 `reconciliation_required`;已有
-active customer subscription 时禁止新建 Checkout。
+`stripe_checkout_reservations` 连同已有 row 保留在 schema 中,但没有代码读写它:XID 不创建
+Checkout Session。运营方通过 Stripe subscription metadata `xid_tenant_id` 绑定 customer(见
+07 章第 7 节)。
 
 stripe_webhook_events:
 
@@ -1672,7 +1652,7 @@ stripe_webhook_events:
 | 字段                     | 类型          | 约束            | 默认          | 说明                                |
 | ------------------------ | ------------- | --------------- | ------------- | ----------------------------------- |
 | id                       | text          | PK              | `ann_` id     |                                     |
-| scope_type / scope_value | text / text   | NOT NULL / null | global / null | 显式 global、tenant 或 plan 定向    |
+| scope_type / scope_value | text / text   | NOT NULL / null | global / null | 显式 global 或 tenant 定向          |
 | title / body             | text / text   | NOT NULL        | --            | 运营方撰写的可本地化内容            |
 | severity                 | text          | NOT NULL        | `info`        | info / success / warning / critical |
 | status                   | text          | NOT NULL        | `draft`       | draft / published / archived        |
@@ -1935,7 +1915,7 @@ provider 的明确拒绝和调用结果不确定均单独持久化;Queue retry �
 索引:`UNIQUE(source_queue, message_id)`、`INDEX(status, failed_at, id)`、
 `INDEX(tenant_id, failed_at, id)`、`INDEX(source_queue, status)`。
 
-> 不存在 FeatureFlag 实体:能力开关由 tenant policy 与 Organization 列控制(见 07 章 1)。OrgBranding 并入 `organizations.private_metadata.branding`(见 07 章 2),上传的 logo 存 R2,浅色 logo URL 同步到 `organizations.logo_url`,不单独建表。OrgMetadata 同样已并入 organizations.public/private_metadata(11.x 不另起表)。OrganizationQuota 使用独立 `organization_quotas` 表保存运营方配置的资源限制;其中 `seats` row 是权威值,root `organizations.seat_limit` 只是兼容镜像,billing 从 tenant-wide distinct active membership user 计算 seat usage。
+> 不存在 FeatureFlag 实体:能力开关由 tenant policy 与 Organization 列控制(见 07 章 1)。OrgBranding 并入 `organizations.private_metadata.branding`(见 07 章 2),上传的 logo 存 R2,浅色 logo URL 同步到 `organizations.logo_url`,不单独建表。OrgMetadata 同样已并入 organizations.public/private_metadata(11.x 不另起表)。OrganizationQuota 使用独立 `organization_quotas` 表保存运营方配置的资源限制;其中 `seats` row 是只观测的阈值,镜像到 root `organizations.seat_limit`;用量总览从 tenant-wide distinct active membership user 计算 seat usage。
 
 ## 18. 字段决策汇总(影响安全/互操作的固化项)
 

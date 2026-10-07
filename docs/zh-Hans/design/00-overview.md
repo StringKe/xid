@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=d53e0933f9761a8cb35b767a76ca3235f3765063 -->
+<!-- xid-translation source=docs/design/00-overview.md source-commit=working-tree source-blob=1504f6b4c530388f86beafae24b191e2824ff8fc -->
 
 > Translation of `docs/design/00-overview.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/00-overview.md`](../../design/00-overview.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -54,6 +54,10 @@ MIT 授予的权利:
 - 单租户与多租户是同一份代码的两种运行模式,由配置驱动,见第 5 节
 
 功能上不存在"社区版 / 企业版"之分,自托管即完整能力。
+
+XID 在任何地方都没有套餐、档位或计划。XID Cloud(`https://xid.dev`)当前完全免费;将来如果收费,
+只按 MAU 计量收费。自托管运营方可以使用同一个可选的按量计费 adapter,也可以保持关闭(见 07 章
+第 7 节)。
 
 ## 3. 技术栈
 
@@ -271,7 +275,7 @@ Rate Limiting(网络)+ Turnstile(表单)+ Durable Object(业务)。账户枚举�
 
 版本化的边缘策略预期值位于 `docs/deployment/cloudflare-security-rules.v1.json`。托管
 `xid.dev` zone 使用 Cloudflare Free WAF plan,因此基线有意限制在最多 5 条 custom rules、
-1 条 rate-limiting rule,并且只使用 Free plan 可用的 field 与 action。只有只读 zone
+1 条 rate-limiting rule,并且只使用 Cloudflare 在该 Free zone 上提供的 field 与 action。只有只读 zone
 reconciliation 证明 live phase entry point 与 manifest 一致后,该 manifest 才能离开
 `EXTERNAL` 状态。边缘限流只是一层粗粒度屏障;身份流程与 per-tenant 业务限流仍以
 fail-closed、强一致的 `RateLimitStore` 为权威。
@@ -323,7 +327,7 @@ SOC 2 Type II(P0,B2B 入场券)-> GDPR DPA(P0)-> ISO 27001(P1)-> OpenID Certifie
 | 7   | passkey 隔离  | per-tenant RPID,子域天然隔离                                                   |
 | 8   | 签名密钥      | 默认 instance ES256 + 信封加密(KEK 存 Secrets)                                 |
 | 9   | 自研边界      | 密码学用平台,协议业务自研,SAML XML 用库                                        |
-| 10  | 用量计量      | DAU/MAU 精确去重,供自托管方接自有计费或配额                                    |
+| 10  | 用量计量      | DAU/MAU 精确去重;MAU 是可选按量计费的唯一信号                                  |
 | 11  | 层级模型      | Instance -> Org -> Project -> App,一层子 Org                                   |
 | 12  | 范围          | 目标能力全量覆盖,支持等级以协议矩阵和 L4 证据为准                              |
 | 13  | 前端架构      | Nimbus Site + 独立静态 Console Worker;Core 保留 React Hosted UI 与 account SPA |

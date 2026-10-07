@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=03d374513d2081cb1ec693c68feb1b6b7638e887 -->
+<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=working-tree source-blob=fe0d2e02702a34d962ad1428b7c792c15a489a24 -->
 
 > Translation of `docs/design/05-users-sessions.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/05-users-sessions.md`](../../design/05-users-sessions.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -15,8 +15,8 @@
 - 主标识选举:primary_email_id/primary_phone_id,变更需重新验证
 - external_id:对接外部系统外键,租户级唯一,可按此查询关联
 - 三层元数据(对标 Clerk):
-  - public_metadata:后端写、前端只读(订阅等级/角色标签)
-  - private_metadata:后端读写、前端不可见(Stripe customer ID)
+  - public_metadata:后端写、前端只读(部门/角色标签)
+  - private_metadata:后端读写、前端不可见(CRM 记录 ID)
   - unsafe_metadata:前后端均可读写,唯一允许注册时客户端写入,业务逻辑需校验
 - 元数据总大小上限 8KB,放入 JWT claims 建议不超 1.2KB
 - 用户属性 schema 可配置:租户定义额外字段(类型/必填/可搜索),存 JSON 列,D1 用 generated column + index 支持部分字段高效查询

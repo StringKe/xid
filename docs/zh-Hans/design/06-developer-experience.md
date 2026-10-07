@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=9eb7a181c764bedd9463257b36d9f6e94ff1ac32 -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=working-tree source-blob=b695c09268ba7110ddb872c4921ec1bd3407d071 -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -98,9 +98,9 @@ setTokenStorage(adapter)
 
 `<OrganizationSwitcher />` `<OrganizationProfile />`(成员/角色/SSO/域名) `<CreateOrganization />` `<OrganizationList />`
 
-### Billing 组件(未开始,规划)
+### 不提供计费组件
 
-`<PricingTable />` `<CheckoutButton />` `<PlanDetailsButton />` `<SubscriptionDetailsButton />`
+XID 没有套餐或档位(见 07 章第 7 节),所以 SDK 不提供价格表、Checkout 或订阅组件,也不规划。
 
 ### 控制组件
 
@@ -118,7 +118,7 @@ setTokenStorage(adapter)
 
 高级(未开始,规划):`useReverification()`(敏感操作重验)、`useWaitlist()`
 
-Billing/APIKey:`useCheckout` `usePlans` `useSubscription` `usePaymentMethods` `useAPIKeys` 等(可迭代)
+APIKey:`useAPIKeys`(可迭代)
 
 ## 4. Next.js SDK 特有
 
@@ -462,11 +462,11 @@ org manager 的退化路径是直接管理 `user_grants`。`PATCH /v1/projects/:
 (状态机、审批人解析、JIT grant)定义在 02 章 7.5 节。
 
 以下仍是明确设计目标,不存在 tenant-scoped Management API resource:`emailAddresses`、
-`phoneNumbers`、`allowlistIdentifiers`、`oauthApplications`、`redirectUrls` 与 billing CRUD。
+`phoneNumbers`、`allowlistIdentifiers`、`oauthApplications`、`redirectUrls` 与发票、付款方式 CRUD。
 User impersonation 有意不做成 tenant-scoped Management API resource;它是已实现的 Instance
 Manager platform operation,使用 `POST /v1/platform/impersonation/start` 与 cookie handoff
-lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform billing overview
-属于独立的 `/v1/platform/*` Console surface,不是 billing CRUD。
+lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform 用量总览
+(`/v1/platform/usage`)属于独立的 `/v1/platform/*` Console surface,不是计费资源。
 
 ## 8. Webhook 与事件系统
 
@@ -490,7 +490,6 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform bil
 - project:access_policy_changed
 - org_unit:created/updated/moved/archived/member_added/member_removed/primary_changed
 - email/sms:created(开发者接管发送时)
-- billing:subscription._、paymentAttempt._
 
 ### 投递
 
