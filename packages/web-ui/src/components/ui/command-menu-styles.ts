@@ -19,7 +19,7 @@ export const commandStyles = stylex.create({
     paddingInline: '1rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
+    borderBottomColor: { default: tokens['--xid-border'], ':focus-within': tokens['--xid-accent'] },
   },
   inputIcon: {
     display: 'inline-flex',

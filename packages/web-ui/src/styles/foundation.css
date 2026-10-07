@@ -221,6 +221,11 @@
   }
 }
 
+/* 搜索框占满输入行,外扩轮廓会被弹层裁掉;焦点改由输入行底边强调色表示。 */
+.xid-command-viewport input:focus-visible {
+  outline: none;
+}
+
 @media (min-width: 48rem) {
   .xid-command-viewport {
     align-items: flex-start;
