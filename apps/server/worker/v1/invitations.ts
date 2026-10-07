@@ -41,20 +41,12 @@ import {
 const app = new Hono<XidHonoEnv>()
 
 // 形状校验只管字段类型/必填/边界;50/hour 限速语义不变(见 api-sdk-conventions rule)。
-const invitationRoleSchema = v.picklist(ORGANIZATION_MEMBERSHIP_ROLES)
+export const invitationRoleSchema = v.picklist(ORGANIZATION_MEMBERSHIP_ROLES)
 
 const createInvitationBodySchema = v.object({
   email: emailSchema,
   role: v.optional(invitationRoleSchema),
   expires_in_days: v.optional(v.pipe(v.number(), v.minValue(1))),
-})
-
-const bulkInvitationsBodySchema = v.object({
-  invitations: v.pipe(
-    v.array(v.object({ email: emailSchema, role: v.optional(invitationRoleSchema) })),
-    v.minLength(1),
-    v.maxLength(50),
-  ),
 })
 
 type InvitationInternalField =
@@ -73,7 +65,7 @@ type InvitationInternalField =
   | 'displacedUserId'
   | 'displacedEmailId'
 
-type SafeInvitation = Omit<typeof schema.invitations.$inferSelect, InvitationInternalField>
+export type SafeInvitation = Omit<typeof schema.invitations.$inferSelect, InvitationInternalField>
 
 type PreparedInvitation = {
   invitation: typeof schema.invitations.$inferSelect
@@ -82,11 +74,13 @@ type PreparedInvitation = {
   statements: [D1PreparedStatement, D1PreparedStatement]
 }
 
-async function assertInvitationTargetAvailable(
+type InvitationTargetState = 'available' | 'already_member' | 'already_invited'
+
+export async function invitationTargetState(
   db: ReturnType<typeof createTenantDb>,
   orgId: string,
   email: string,
-): Promise<void> {
+): Promise<InvitationTargetState> {
   const normalizedEmail = email.trim().toLowerCase()
   const [existingInvitation, emailRow] = await Promise.all([
     db
@@ -99,14 +93,9 @@ async function assertInvitationTargetAvailable(
       ),
     db.userEmails.findOne(eq(schema.userEmails.email, normalizedEmail)),
   ])
-  if (existingInvitation) {
-    throw new AppError('already_exists', {
-      httpStatus: 409,
-      meta: { paramName: 'email' },
-    })
-  }
+  if (existingInvitation) return 'already_invited'
   // 已验证邮箱所属账号已是该 org 的 active 成员:邀请没有意义,接受时也只会落到同一账号。
-  if (emailRow?.verified !== true || emailRow.verificationStatus !== 'verified') return
+  if (emailRow?.verified !== true || emailRow.verificationStatus !== 'verified') return 'available'
   const [user, membership] = await Promise.all([
     db.users.findOne(eq(schema.users.id, emailRow.userId)),
     db
@@ -118,21 +107,26 @@ async function assertInvitationTargetAvailable(
         ),
       ),
   ])
-  if (
+  const activeMember =
     membership &&
     user?.status === 'active' &&
     user.deletedAt === null &&
     user.mergedIntoUserId === null
-  ) {
-    throw new AppError('already_exists', {
-      httpStatus: 409,
-      meta: { paramName: 'email' },
-    })
+  return activeMember ? 'already_member' : 'available'
+}
+
+async function assertInvitationTargetAvailable(
+  db: ReturnType<typeof createTenantDb>,
+  orgId: string,
+  email: string,
+): Promise<void> {
+  if ((await invitationTargetState(db, orgId, email)) !== 'available') {
+    throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'email' } })
   }
 }
 
 // 邀请邮件用收件人的语言:本租户已有账户取 users.locale,没有账户回落默认语言;不用邀请人的请求语言。
-async function invitationRecipientLocale(
+export async function invitationRecipientLocale(
   db: ReturnType<typeof createTenantDb>,
   email: string,
 ): Promise<string> {
@@ -141,7 +135,36 @@ async function invitationRecipientLocale(
   return resolveLocale({ userLocale: user?.locale ?? null })
 }
 
-async function prepareInvitation(
+export function buildInvitationDelivery(input: {
+  messageId: string
+  tenantId: string
+  orgName: string
+  email: string
+  role: string
+  token: string
+  authOrigin: string
+  expiresInDays: number
+  locale: string
+}): NotificationDeliveryInput {
+  return {
+    messageId: input.messageId,
+    tenantId: input.tenantId,
+    channel: 'email',
+    type: 'organization_invitation',
+    provider: 'cloudflare',
+    recipient: input.email,
+    payload: {
+      tenantId: input.tenantId,
+      orgName: input.orgName,
+      role: input.role,
+      link: `${input.authOrigin}/accept-invitation?token=${encodeURIComponent(input.token)}`,
+      expiresInDays: input.expiresInDays,
+      locale: input.locale,
+    },
+  }
+}
+
+export async function prepareInvitation(
   env: Env,
   input: {
     tenantId: string
@@ -191,23 +214,7 @@ async function prepareInvitation(
     createdAt: new Date(now),
     updatedAt: new Date(now),
   }
-  const acceptLink = `${input.authOrigin}/accept-invitation?token=${encodeURIComponent(token)}`
-  const delivery: NotificationDeliveryInput = {
-    messageId: id,
-    tenantId: input.tenantId,
-    channel: 'email',
-    type: 'organization_invitation',
-    provider: 'cloudflare',
-    recipient: email,
-    payload: {
-      tenantId: input.tenantId,
-      orgName: input.orgName,
-      role: input.role,
-      link: acceptLink,
-      expiresInDays: input.expiresInDays,
-      locale: input.locale,
-    },
-  }
+  const delivery = buildInvitationDelivery({ ...input, messageId: id, email, token })
   const invitationStatement = env.DB.prepare(
     `INSERT INTO invitations (
        id, tenant_id, org_id, email, role, token_hash, token_version, invite_type,
@@ -351,88 +358,6 @@ app.post('/:orgId/invitations', async (c) => {
   return c.json({ ...safeInvitation(prepared.invitation), token: prepared.token }, 201)
 })
 
-// ---- 批量创建(50/hour 限速) ----
-
-// POST /v1/organizations/:orgId/invitations/bulk
-app.post('/:orgId/invitations/bulk', async (c) => {
-  const key = await requireApiKey(c, 'invitations:write')
-  const orgId = c.req.param('orgId')
-  await requireOrg(c, orgId)
-
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
-  const body = validateBody(bulkInvitationsBodySchema, json.value)
-  if (body.invitations.some((invitation) => invitation.role === 'owner')) {
-    throw new AppError('forbidden', { httpStatus: 403 })
-  }
-  // 限速检查:本批 + 当前小时已用量不超 50
-  await checkInvitationRateLimit(c, body.invitations.length)
-
-  const tenant = c.get('tenant')
-  const org = await requireOrg(c, orgId)
-  const authOrigin = hostedAuthOriginForTenant(tenant)
-  const db = createTenantDb(c.env.DB, tenant)
-  const normalizedEmails = body.invitations.map((item) => item.email.trim().toLowerCase())
-  if (new Set(normalizedEmails).size !== normalizedEmails.length) {
-    throw new AppError('already_exists', {
-      httpStatus: 409,
-      meta: { paramName: 'email' },
-    })
-  }
-  await Promise.all(
-    normalizedEmails.map((email) => assertInvitationTargetAvailable(db, orgId, email)),
-  )
-
-  const prepared = await Promise.all(
-    body.invitations.map(async (item, index) =>
-      prepareInvitation(c.env, {
-        tenantId: tenant.tenantId,
-        orgId,
-        orgName: org.name,
-        email: normalizedEmails[index]!,
-        role: item.role ?? 'member',
-        invitedByUserId: null,
-        expiresInDays: INVITATION_TTL_DAYS,
-        authOrigin,
-        locale: await invitationRecipientLocale(db, normalizedEmails[index]!),
-      }),
-    ),
-  )
-  try {
-    await c.env.DB.batch(prepared.flatMap((item) => item.statements))
-  } catch (error) {
-    await Promise.all(
-      normalizedEmails.map((email) => assertInvitationTargetAvailable(db, orgId, email)),
-    )
-    throw new AppError('server_error', { cause: error })
-  }
-  await Promise.all(prepared.map((item) => enqueuePersistedEmailNotification(c.env, item.delivery)))
-  for (const item of prepared) {
-    emitWebhookAsync(c, {
-      tenantId: tenant.tenantId,
-      event: 'organizationInvitation.created',
-      payload: {
-        orgId,
-        invitationId: item.invitation.id,
-        email: item.invitation.email,
-      },
-    })
-    emitManagementAuditAsync(c, {
-      action: 'invitation.created',
-      actorId: key.id,
-      orgId,
-      targetType: 'invitation',
-      targetId: item.invitation.id,
-      details: { role: item.invitation.role },
-    })
-  }
-  const results = prepared.map((item) => ({
-    ...safeInvitation(item.invitation),
-    token: item.token,
-  }))
-  return c.json({ data: results }, 201)
-})
-
 // ---- 撤销 ----
 
 async function markInvitationRevoked(
@@ -511,7 +436,7 @@ app.delete('/:orgId/invitations/:invitationId', async (c) => {
 
 // Claim capability hashes, session reservations and displaced identity references never leave the
 // Worker. claim_verified remains a public pending invitation until final acceptance or revocation.
-function safeInvitation(row: typeof schema.invitations.$inferSelect): SafeInvitation {
+export function safeInvitation(row: typeof schema.invitations.$inferSelect): SafeInvitation {
   const {
     tokenHash: _tokenHash,
     tokenVersion: _tokenVersion,

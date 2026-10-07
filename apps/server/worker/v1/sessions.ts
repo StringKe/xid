@@ -1,126 +1,174 @@
 // Management API v1: /v1/sessions 会话资源。
 // list(cursor 分页,按 user_id 筛选)+ revoke(走 SessionDO 强一致)。
-// 撤销:先更新 SessionDO(强一致,JWT 60s 窗口),再异步落 D1 status=revoked。
-// 见 cloudflare-bindings rule 会话存储方案 + anti-abuse rule。
-// 认证:sk_live_ Bearer。租户隔离:createTenantDb。
+// 撤销:先更新 SessionDO(强一致,JWT 60s 窗口),再落 D1 status=revoked。
+// 认证:sk_live_ Bearer,或顶层组织管理员 cookie 会话。租户隔离:createTenantDb。
+// 响应字段白名单:不返回 refresh_token_hash 与 device_fingerprint_hash。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { sessionDoRevoke, sessionDoRevokeAll } from '../lib/session'
-import { requireApiKey, parsePagination, paginate, idAfterCursor } from './shared'
+import {
+  auditActorId,
+  emitManagementAuditAsync,
+  idAfterCursor,
+  paginate,
+  parsePagination,
+  requireApiKeyOrTopLevelOrgManager,
+  type OrgScopedAuth,
+} from './shared'
+import { notDeletedUser, userDisplayName } from './user-query'
 
 const app = new Hono<XidHonoEnv>()
 
-// ---- 列表 ----
+type SessionRow = typeof schema.sessions.$inferSelect
+
+function toSessionResponse(row: SessionRow, impersonatorDisplayName: string | null) {
+  return {
+    id: row.id,
+    userId: row.userId,
+    activeOrgId: row.activeOrgId,
+    deviceName: row.deviceName,
+    userAgent: row.userAgent,
+    ip: row.ip,
+    location: row.location,
+    status: row.status,
+    rememberMe: row.rememberMe,
+    isImpersonation: row.isImpersonation,
+    impersonatorUserId: row.impersonatorUserId,
+    impersonatorDisplayName,
+    acr: row.acr,
+    amr: row.amr,
+    aal: row.aal,
+    authenticatedAt: row.authenticatedAt,
+    lastActiveAt: row.lastActiveAt,
+    expiresAt: row.expiresAt,
+    createdAt: row.createdAt,
+  }
+}
+
+async function impersonatorNames(
+  c: Context<XidHonoEnv>,
+  rows: readonly SessionRow[],
+): Promise<Map<string, string>> {
+  const ids = [
+    ...new Set(rows.map((row) => row.impersonatorUserId).filter((id): id is string => Boolean(id))),
+  ]
+  if (ids.length === 0) return new Map()
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const users = await db.users.findMany(inArray(schema.users.id, ids), { limit: ids.length })
+  const names = new Map<string, string>()
+  for (const user of users) {
+    const name = userDisplayName(user)
+    if (name) names.set(user.id, name)
+  }
+  return names
+}
+
+function auditSessionRevoke(
+  c: Context<XidHonoEnv>,
+  auth: OrgScopedAuth,
+  input: { action: string; targetType: string; targetId: string; userId: string },
+): void {
+  emitManagementAuditAsync(c, {
+    action: input.action,
+    actorId: auditActorId(auth),
+    orgId: c.get('tenant').tenantId,
+    targetType: input.targetType,
+    targetId: input.targetId,
+    details: { userId: input.userId },
+  })
+}
 
 // GET /v1/sessions?limit=&cursor=&user_id=
 app.get('/', async (c) => {
-  await requireApiKey(c, 'sessions:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
+  await requireApiKeyOrTopLevelOrgManager(c, 'sessions:read')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
   const { limit, cursor } = parsePagination(c)
-  const userId = c.req.query('user_id') ?? null
-
-  const afterCond = idAfterCursor(schema.sessions.id, cursor)
-
-  let rows: (typeof schema.sessions.$inferSelect)[]
-  const activeCond = eq(schema.sessions.status, 'active')
-  if (userId) {
-    const userCond = eq(schema.sessions.userId, userId)
-    const where = afterCond ? and(activeCond, userCond, afterCond) : and(activeCond, userCond)
-    rows = await db.sessions.findMany(where, {
-      orderBy: asc(schema.sessions.id),
-      limit: limit + 1,
-    })
-  } else {
-    rows = await db.sessions.findMany(afterCond ? and(activeCond, afterCond) : activeCond, {
-      orderBy: asc(schema.sessions.id),
-      limit: limit + 1,
-    })
-  }
-
-  return c.json(paginate(rows.map(safeSession), (r) => r.id, limit))
+  const userId = c.req.query('user_id')
+  const rows = await db.sessions.findMany(
+    and(
+      eq(schema.sessions.status, 'active'),
+      userId ? eq(schema.sessions.userId, userId) : undefined,
+      idAfterCursor(schema.sessions.id, cursor),
+    ),
+    { orderBy: asc(schema.sessions.id), limit: limit + 1 },
+  )
+  const page = paginate(rows, (row) => row.id, limit)
+  const names = await impersonatorNames(c, page.data)
+  return c.json({
+    ...page,
+    data: page.data.map((row) =>
+      toSessionResponse(
+        row,
+        row.impersonatorUserId ? (names.get(row.impersonatorUserId) ?? null) : null,
+      ),
+    ),
+  })
 })
-
-// ---- 单个 ----
 
 // GET /v1/sessions/:id
 app.get('/:id', async (c) => {
-  await requireApiKey(c, 'sessions:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const id = c.req.param('id')
+  await requireApiKeyOrTopLevelOrgManager(c, 'sessions:read')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
   const row = await db.sessions.findOne(
-    and(eq(schema.sessions.id, id), eq(schema.sessions.status, 'active')),
+    and(eq(schema.sessions.id, c.req.param('id')), eq(schema.sessions.status, 'active')),
   )
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
-  return c.json(safeSession(row))
+  const names = await impersonatorNames(c, [row])
+  return c.json(
+    toSessionResponse(
+      row,
+      row.impersonatorUserId ? (names.get(row.impersonatorUserId) ?? null) : null,
+    ),
+  )
 })
-
-// ---- 撤销单条 ----
 
 // POST /v1/sessions/:id/revoke
 app.post('/:id/revoke', async (c) => {
-  await requireApiKey(c, 'sessions:write')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'sessions:write')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
   const id = c.req.param('id')
-
   const row = await db.sessions.findOne(eq(schema.sessions.id, id))
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
-  if (row.status === 'revoked') {
-    return c.json(safeSession(row))
-  }
+  if (row.status === 'revoked') return c.json(toSessionResponse(row, null))
 
-  // 1. SessionDO 强一致撤销(per-user DO,统一走 sessionDoStub 命中签发时同一实例)
   await sessionDoRevoke(c.env, row.userId, id)
-
-  // 2. 异步落 D1
   await db.sessions.update({ status: 'revoked' }, eq(schema.sessions.id, id))
+  auditSessionRevoke(c, auth, {
+    action: 'session.revoked',
+    targetType: 'session',
+    targetId: id,
+    userId: row.userId,
+  })
   return c.json({ revoked: true, session_id: id })
 })
 
-// ---- 撤销用户全部会话 ----
-
-// POST /v1/users/:userId/sessions/revoke_all
+// POST /v1/sessions/users/:userId/revoke_all:active 与 banned 用户都可撤销(暂停后立即下线);已删除用户 404。
 app.post('/users/:userId/revoke_all', async (c) => {
-  await requireApiKey(c, 'sessions:write')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'sessions:write')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
   const userId = c.req.param('userId')
-
-  const user = await db.users.findOne(
-    and(
-      eq(schema.users.id, userId),
-      eq(schema.users.status, 'active'),
-      isNull(schema.users.deletedAt),
-    ),
-  )
+  const user = await db.users.findOne(and(eq(schema.users.id, userId), notDeletedUser()))
   if (!user) throw new AppError('not_found', { httpStatus: 404 })
 
-  // SessionDO revoke-all(统一走 sessionDoStub 命中签发时同一实例)
   await sessionDoRevokeAll(c.env, userId)
-
-  // 批量落 D1
   await db.sessions.update(
     { status: 'revoked' },
     and(eq(schema.sessions.userId, userId), eq(schema.sessions.status, 'active')),
   )
+  auditSessionRevoke(c, auth, {
+    action: 'user.sessions_revoked',
+    targetType: 'user',
+    targetId: userId,
+    userId,
+  })
   return c.json({ revoked: true, user_id: userId })
 })
 
-// safeSession: 剔除 refreshTokenHash(不暴露给 API 响应)。
-function safeSession(
-  row: typeof schema.sessions.$inferSelect,
-): Omit<typeof schema.sessions.$inferSelect, 'refreshTokenHash'> {
-  const { refreshTokenHash: _omit, ...rest } = row
-  return rest
-}
-
 export function registerSessionsRoutes(honoApp: Hono<XidHonoEnv>): void {
   honoApp.route('/v1/sessions', app)
-  // 用户级 revoke_all 挂到 /v1 下(路径: /v1/sessions/users/:userId/revoke_all)
 }

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=2e4e8cbbdaa9b3187a0944bb2664fcb50944e72e -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=9eb7a181c764bedd9463257b36d9f6e94ff1ac32 -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -383,26 +383,26 @@ JWT handoff。Core 浏览器 session 必须先完成一次同源 cookie-to-JWT e
 
 下表是当前已实现 surface,不是 roadmap:
 
-| 资源                 | 操作                                                                      |
-| -------------------- | ------------------------------------------------------------------------- |
-| users                | CRUD、搜索、ban/unban、bulk metadata、export、soft delete、restore        |
-| organizations        | CRUD、logo、域名验证、branding/policy、嵌套 enterprise resources、restore |
-| memberships          | list/create/update role/delete/restore                                    |
-| invitations          | create(bulk 限速)、revoke、list                                           |
-| sessions             | list/get/revoke/revoke all                                                |
-| applications/clients | CRUD、secret rotate、delete、restore                                      |
-| connections(SSO)     | CRUD、delete、restore                                                     |
-| directories(SCIM)    | CRUD、token rotate、delete、restore                                       |
-| projects             | CRUD、soft delete、restore、active/deleted/all list                       |
-| roles/permissions    | CRUD、delete、restore                                                     |
-| role-permissions     | list/create/update/delete,校验同一 Project 与 ABAC                        |
-| manager-assignments  | tenant-scoped list/provision/revoke;instance manager 走独立 platform path |
-| org-units            | 树 CRUD、move、archive 与成员放置(见下文)                                 |
-| access-requests      | Organization 内 list/get,支持 status 与 project 过滤(见下文)              |
-| project-grants       | list/get/create/revoke/delete                                             |
-| user-grants          | list/get/create/reactivate/revoke/delete                                  |
-| webhooks             | CRUD、delete、restore                                                     |
-| apiKeys              | create/list/revoke                                                        |
+| 资源                 | 操作                                                                                                                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| users                | CRUD(含主邮箱与手机号)、搜索与筛选及状态计数、ban/unban、bulk metadata、NDJSON/CSV export、soft delete、restore、登录方式、组织成员关系、相关审计事件、发送重置密码邮件、重置 MFA |
+| organizations        | CRUD、logo、域名验证、branding/policy、嵌套 enterprise resources、restore                                                                                                         |
+| memberships          | list/create/update role/delete/restore;移除或降级最后一位 owner 返回 `last_owner`                                                                                                 |
+| invitations          | create、bulk(逐条结果,限速)、resend、revoke、list                                                                                                                                 |
+| sessions             | list/get/revoke/revoke all(字段白名单,不含指纹与 token 哈希)                                                                                                                      |
+| applications/clients | CRUD(含名称、logo、所属 Project、登出元数据)、secret rotate、delete、restore                                                                                                      |
+| connections(SSO)     | CRUD、delete、restore                                                                                                                                                             |
+| directories(SCIM)    | CRUD、token rotate、delete、restore                                                                                                                                               |
+| projects             | CRUD、soft delete、restore、active/deleted/all list                                                                                                                               |
+| roles/permissions    | CRUD、delete、restore                                                                                                                                                             |
+| role-permissions     | list/create/update/delete,校验同一 Project 与 ABAC                                                                                                                                |
+| manager-assignments  | tenant-scoped list/provision/revoke;instance manager 走独立 platform path                                                                                                         |
+| org-units            | 树 CRUD、move、archive 与成员放置(见下文)                                                                                                                                         |
+| access-requests      | Organization 内 list/get,支持 status 与 project 过滤(见下文)                                                                                                                      |
+| project-grants       | list/get/create/revoke/delete                                                                                                                                                     |
+| user-grants          | list(按 Project,或租户管理员按用户跨 Project)/get/create/reactivate/revoke/delete                                                                                                 |
+| webhooks             | CRUD、delete、restore                                                                                                                                                             |
+| apiKeys              | create/list/revoke                                                                                                                                                                |
 
 认证使用 `Authorization: Bearer sk_live_xxx` 或 `sk_test_xxx`。M2M Client 在根 token endpoint
 `POST /token` 使用 `client_credentials`;不存在 `/oauth/token` route。分页只支持 cursor,

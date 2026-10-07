@@ -141,6 +141,13 @@
       "when": 1791331488645,
       "tag": "0019_sso_connection_display_name",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1791342295363,
+      "tag": "0020_console_users_applications",
+      "breakpoints": true
     }
   ]
 }

@@ -386,6 +386,26 @@ describe('POST /register', () => {
     }
   })
 
+  it('client_name 写入应用名称并在 RFC7592 GET 回读', async () => {
+    const { app, env } = makeEmptyApp()
+    const res = await postRegister(app, env, {
+      redirect_uris: ['https://example.com/cb'],
+      client_name: '  Fleet Planner  ',
+      application_type: 'web',
+    })
+    expect(res.status).toBe(201)
+    const body = await res.json<Record<string, unknown>>()
+    expect(body['client_name']).toBe('Fleet Planner')
+
+    const get = await app.request(
+      `http://test.xid.dev/register/${String(body['client_id'])}`,
+      { headers: { authorization: `Bearer ${String(body['registration_access_token'])}` } },
+      env,
+    )
+    expect(get.status).toBe(200)
+    expect((await get.json<Record<string, unknown>>())['client_name']).toBe('Fleet Planner')
+  })
+
   it('持久化 backchannel_logout_session_required=true 并在 RFC7592 GET 回读', async () => {
     const { app, env } = makeEmptyApp()
     const res = await postRegister(app, env, {

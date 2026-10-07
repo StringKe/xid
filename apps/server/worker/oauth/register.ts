@@ -61,8 +61,8 @@ const registrationBodySchema = v.object({
   access_token_ttl_sec: v.optional(v.nullable(v.number())),
   fapi_profile: v.optional(v.boolean()),
   software_statement: v.optional(v.string()),
-  // RFC7591 application_type(web/native):仅校验期使用(applications 表无此列),
-  // native 放行 loopback http 与自定义 scheme redirect_uri(RFC8252)。
+  client_name: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(200))),
+  // RFC7591 application_type(web/native):native 放行 loopback http 与自定义 scheme redirect_uri(RFC8252)。
   application_type: v.optional(v.string()),
 })
 
@@ -265,7 +265,7 @@ function validateOidcMetadata(body: Partial<RegistrationRequest>): DcrError | nu
   return null
 }
 
-function validateFrontchannelLogoutUri(uri: string): DcrError | null {
+export function validateFrontchannelLogoutUri(uri: string): DcrError | null {
   let parsed: URL
   try {
     parsed = new URL(uri)
@@ -304,7 +304,7 @@ function normalizeTlsThumbprints(values: readonly string[]): Result<string[], Dc
 
 // backchannel_logout_uri 是 worker 服务端 POST logout_token 的目标(RP-Init Logout 03 章):
 // 只查 https 可指内网/云 metadata(SSRF),必须 https + 公网(见 validate.ts isPublicHttpsUrl)。
-function validateBackchannelLogoutUri(uri: string): DcrError | null {
+export function validateBackchannelLogoutUri(uri: string): DcrError | null {
   if (!isPublicHttpsUrl(uri)) {
     return redirectErr('backchannel_logout_uri must be a public https URL')
   }
@@ -400,6 +400,11 @@ function buildInsert(opts: {
   return {
     id: createPersistedId('application'),
     tenantId,
+    name: body.client_name || null,
+    applicationType:
+      body.application_type === 'web' || body.application_type === 'native'
+        ? body.application_type
+        : null,
     clientId,
     clientSecretHash,
     clientType: isPublic ? 'public' : 'confidential',
@@ -537,6 +542,7 @@ app.post('/register', async (c) => {
   const now = insert.createdAt as Date
   const respBody: Record<string, unknown> = {
     client_id: clientId,
+    ...(insert.name ? { client_name: insert.name } : {}),
     client_id_issued_at: Math.floor(now.getTime() / 1000),
     registration_access_token: rat,
     registration_client_uri: `${ctx.issuer}/register/${clientId}`,
@@ -598,6 +604,7 @@ function buildPatchValues(
   normalizedJwks: NormalizedPublicJwks | undefined,
 ): Result<Partial<AppInsert>, DcrError> {
   const patchValues: Partial<AppInsert> = { updatedAt: new Date() }
+  if (updates.client_name !== undefined) patchValues.name = updates.client_name || null
   if (updates.redirect_uris !== undefined) patchValues.redirectUris = updates.redirect_uris
   if (updates.post_logout_redirect_uris !== undefined)
     patchValues.postLogoutRedirectUris = updates.post_logout_redirect_uris
@@ -747,6 +754,7 @@ function buildClientResponse(
   const mtlsConfig = row.customClaimsConfig as Record<string, unknown>
   return {
     client_id: row.clientId,
+    ...(row.name ? { client_name: row.name } : {}),
     client_id_issued_at: Math.floor(row.createdAt.getTime() / 1000),
     token_endpoint_auth_method: row.tokenEndpointAuthMethod,
     grant_types: row.allowedGrantTypes,

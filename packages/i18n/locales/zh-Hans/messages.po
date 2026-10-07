@@ -1141,6 +1141,10 @@ msgstr "组织拥有自己的成员、登录规则和应用。你将成为所有
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
 msgstr "组织用于注册 OAuth 应用、邀请成员、开启企业 SSO 或目录同步。创建一个组织即可获得你的第一个 issuer 和托管登录页面。"
 
+#: packages/i18n/src/messages.ts
+msgid "An organization needs at least one owner. Make another member an owner first."
+msgstr "组织至少需要一位所有者。请先将另一位成员设为所有者。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
 msgstr "组织单位是一个组织内的一个部门或团队。它永远不会更改 TenantContext、发行者、令牌声明或一级 SubOrg 限制。"

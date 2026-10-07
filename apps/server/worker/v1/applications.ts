@@ -1,6 +1,7 @@
 // Management API v1: applications/oauthApplications(= OAuthClient)
 // CRUD + client_secret rotate。见 06 章 7 Management API 表、oidc-oauth rule。
 // 租户隔离:tenant_id 从 TenantContext 取,禁信任 body(见 tenant-isolation rule)。
+// 授权见 application-access.ts:顶层组织管理员与 API key 全租户,Project Manager 只见本项目应用。
 // 路由前缀:/v1/applications
 
 import { sha256Hex } from '@xid-kit/crypto'
@@ -15,21 +16,22 @@ import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import {
+  publicHttpsUrlSchema,
   readJsonBody,
   ttlSecSchema,
   validateBody,
   validatePostLogoutRedirectUris,
   validateRedirectUris,
 } from '../lib/validate'
+import { validateBackchannelLogoutUri, validateFrontchannelLogoutUri } from '../oauth/register'
+import { emitManagementAuditAsync, idAfterCursor, paginate, parsePagination } from './shared'
 import {
-  auditActorId,
-  emitManagementAuditAsync,
-  idAfterCursor,
-  requireApiKeyOrTopLevelOrgManager,
-  paginate,
-  parsePagination,
-  type OrgScopedAuth,
-} from './shared'
+  assertApplicationVisible,
+  assertProjectAssignable,
+  assertProjectListable,
+  resolveApplicationAccess,
+  type ApplicationAccess,
+} from './application-access'
 import {
   VALID_AUTH_METHODS,
   VALID_CLIENT_TYPES,
@@ -50,8 +52,19 @@ const accessTokenTtlSecSchema = v.nullable(
 )
 
 // 形状校验只管字段类型/必填性;唯一性等业务校验留在 handler(见 error-handling rule)。
-// application_type 仅校验期使用(表无此列):native 放行 loopback http 与自定义 scheme redirect_uri(RFC8252)。
+// application_type:native 放行 loopback http 与自定义 scheme redirect_uri(RFC8252)。
+const applicationNameSchema = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200))
+const logoutUriSchema = v.nullable(v.pipe(v.string(), v.maxLength(2048)))
+
 const createApplicationBodySchema = v.object({
+  name: applicationNameSchema,
+  logo_uri: v.optional(v.nullable(publicHttpsUrlSchema)),
+  project_id: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
+  backchannel_logout_uri: v.optional(logoutUriSchema),
+  backchannel_logout_session_required: v.optional(v.boolean()),
+  frontchannel_logout_uri: v.optional(logoutUriSchema),
+  first_party: v.optional(v.boolean()),
+  require_org_context: v.optional(v.boolean()),
   client_type: v.optional(v.picklist(VALID_CLIENT_TYPES)),
   token_endpoint_auth_method: v.optional(v.picklist(VALID_AUTH_METHODS)),
   application_type: v.optional(v.picklist(['web', 'native'])),
@@ -68,6 +81,14 @@ const createApplicationBodySchema = v.object({
 })
 
 const patchApplicationBodySchema = v.object({
+  name: v.optional(applicationNameSchema),
+  logo_uri: v.optional(v.nullable(publicHttpsUrlSchema)),
+  project_id: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
+  backchannel_logout_uri: v.optional(logoutUriSchema),
+  backchannel_logout_session_required: v.optional(v.boolean()),
+  frontchannel_logout_uri: v.optional(logoutUriSchema),
+  first_party: v.optional(v.boolean()),
+  require_org_context: v.optional(v.boolean()),
   application_type: v.optional(v.picklist(['web', 'native'])),
   redirect_uris: v.optional(v.array(v.string())),
   post_logout_redirect_uris: v.optional(v.array(v.string())),
@@ -205,12 +226,12 @@ function normalizeJwks(value: Record<string, unknown> | undefined): Record<strin
 // application 是租户级资源,审计 orgId 记顶层组织,顶层组织管理员的审计页可见。
 function auditApplication(
   c: Context<XidHonoEnv>,
-  auth: OrgScopedAuth,
+  access: ApplicationAccess,
   input: { action: string; row: typeof schema.applications.$inferSelect },
 ): void {
   emitManagementAuditAsync(c, {
     action: input.action,
-    actorId: auditActorId(auth),
+    actorId: access.actorId,
     orgId: c.get('tenant').tenantId,
     targetType: 'application',
     targetId: input.row.id,
@@ -218,11 +239,51 @@ function auditApplication(
   })
 }
 
-// 应用行转对外响应(不返回 clientSecretHash)。
+// 登出 URI 与 DCR 同一套规则:back-channel 必须是公网 https 且无 fragment,front-channel 必须是绝对 https。
+function assertLogoutUris(input: {
+  backchannel: string | null | undefined
+  frontchannel: string | null | undefined
+}): void {
+  if (input.backchannel && validateBackchannelLogoutUri(input.backchannel)) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'backchannel_logout_uri' },
+    })
+  }
+  if (input.frontchannel && validateFrontchannelLogoutUri(input.frontchannel)) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'frontchannel_logout_uri' },
+    })
+  }
+}
+
+async function findActiveApplication(
+  c: Context<XidHonoEnv>,
+  access: ApplicationAccess,
+  status: 'active' | 'deleted' = 'active',
+): Promise<typeof schema.applications.$inferSelect> {
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const row = await db.applications.findOne(
+    and(
+      eq(schema.applications.id, c.req.param('id') ?? ''),
+      eq(schema.applications.status, status),
+    ),
+  )
+  if (!row) throw new AppError('not_found')
+  await assertApplicationVisible(c, access, row)
+  return row
+}
+
+// 应用行转对外响应(不返回 clientSecretHash)。name 为空(旧数据或 DCR 未带 client_name)时回退 client_id。
 function toResponse(row: typeof schema.applications.$inferSelect) {
   const mtlsConfig = (row.customClaimsConfig ?? {}) as Record<string, unknown>
   return {
     id: row.id,
+    name: row.name ?? row.clientId,
+    logo_uri: row.logoUri,
+    project_id: row.projectId,
+    application_type: row.applicationType,
     client_id: row.clientId,
     client_type: row.clientType,
     token_endpoint_auth_method: row.tokenEndpointAuthMethod,
@@ -239,35 +300,48 @@ function toResponse(row: typeof schema.applications.$inferSelect) {
     tls_client_auth_subject_dn: mtlsConfig['tlsClientAuthSubjectDn'] ?? null,
     tls_client_auth_cert_thumbprints: mtlsConfig['tlsClientAuthCertThumbprints'] ?? [],
     first_party: row.firstParty,
+    require_org_context: row.requireOrgContext,
+    backchannel_logout_uri: row.backchannelLogoutUri,
+    backchannel_logout_session_required: row.backchannelLogoutSessionRequired,
+    frontchannel_logout_uri: row.frontchannelLogoutUri,
     status: row.status,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   }
 }
 
-// GET /v1/applications
+// GET /v1/applications?project_id=
 app.get('/', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'applications:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
+  const access = await resolveApplicationAccess(c, 'applications:read')
+  const projectId = c.req.query('project_id') || undefined
+  await assertProjectListable(c, access, projectId)
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
   const { limit, cursor } = parsePagination(c)
-  const active = eq(schema.applications.status, 'active')
-  const after = idAfterCursor(schema.applications.id, cursor)
-  const rows = await db.applications.findMany(after ? and(active, after) : active, {
-    orderBy: asc(schema.applications.id),
-    limit: limit + 1,
-  })
+  const rows = await db.applications.findMany(
+    and(
+      eq(schema.applications.status, 'active'),
+      projectId ? eq(schema.applications.projectId, projectId) : undefined,
+      idAfterCursor(schema.applications.id, cursor),
+    ),
+    { orderBy: asc(schema.applications.id), limit: limit + 1 },
+  )
   return c.json(paginate(rows.map(toResponse), (r) => r.id, limit))
 })
 
 // POST /v1/applications
 app.post('/', async (c) => {
-  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
+  const access = await resolveApplicationAccess(c, 'applications:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(createApplicationBodySchema, json.value)
+  if (body.project_id) await assertProjectAssignable(c, access, body.project_id)
+  else if (!access.tenantWide) throw new AppError('forbidden', { httpStatus: 403 })
+  assertLogoutUris({
+    backchannel: body.backchannel_logout_uri,
+    frontchannel: body.frontchannel_logout_uri,
+  })
   const clientType = body.client_type ?? 'confidential'
   const tokenEndpointAuthMethod =
     body.token_endpoint_auth_method ?? (clientType === 'public' ? 'none' : 'client_secret_basic')
@@ -318,6 +392,15 @@ app.post('/', async (c) => {
   const row = await db.applications.insert({
     id,
     tenantId: tenant.tenantId,
+    name: body.name,
+    logoUri: body.logo_uri ?? null,
+    projectId: body.project_id ?? null,
+    applicationType: body.application_type ?? null,
+    backchannelLogoutUri: body.backchannel_logout_uri ?? null,
+    backchannelLogoutSessionRequired: body.backchannel_logout_session_required ?? false,
+    frontchannelLogoutUri: body.frontchannel_logout_uri ?? null,
+    firstParty: body.first_party ?? false,
+    requireOrgContext: body.require_org_context ?? false,
     clientId,
     clientSecretHash,
     clientType,
@@ -338,7 +421,7 @@ app.post('/', async (c) => {
     },
     status: 'active',
   })
-  auditApplication(c, auth, { action: 'application.created', row })
+  auditApplication(c, access, { action: 'application.created', row })
 
   return c.json(
     {
@@ -351,32 +434,55 @@ app.post('/', async (c) => {
 
 // GET /v1/applications/:id
 app.get('/:id', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'applications:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const row = await db.applications.findOne(
-    and(eq(schema.applications.id, c.req.param('id')), eq(schema.applications.status, 'active')),
-  )
-  if (!row) throw new AppError('not_found')
-  return c.json(toResponse(row))
+  const access = await resolveApplicationAccess(c, 'applications:read')
+  return c.json(toResponse(await findActiveApplication(c, access)))
 })
+
+function applyDisplayAndLogoutPatch(
+  body: v.InferOutput<typeof patchApplicationBodySchema>,
+  patch: Partial<typeof schema.applications.$inferInsert>,
+): void {
+  if (body.name !== undefined) patch.name = body.name
+  if (body.logo_uri !== undefined) patch.logoUri = body.logo_uri
+  if (body.project_id !== undefined) patch.projectId = body.project_id
+  if (body.application_type !== undefined) patch.applicationType = body.application_type
+  if (body.backchannel_logout_uri !== undefined) {
+    patch.backchannelLogoutUri = body.backchannel_logout_uri
+  }
+  if (body.backchannel_logout_session_required !== undefined) {
+    patch.backchannelLogoutSessionRequired = body.backchannel_logout_session_required
+  }
+  if (body.frontchannel_logout_uri !== undefined) {
+    patch.frontchannelLogoutUri = body.frontchannel_logout_uri
+  }
+  if (body.first_party !== undefined) patch.firstParty = body.first_party
+  if (body.require_org_context !== undefined) patch.requireOrgContext = body.require_org_context
+}
 
 // PATCH /v1/applications/:id
 app.patch('/:id', async (c) => {
-  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
+  const access = await resolveApplicationAccess(c, 'applications:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(patchApplicationBodySchema, json.value)
+  const existing = await findActiveApplication(c, access)
   const where = and(
-    eq(schema.applications.id, c.req.param('id')),
+    eq(schema.applications.id, existing.id),
     eq(schema.applications.status, 'active'),
   )
-  const existing = await db.applications.findOne(where)
-  if (!existing) throw new AppError('not_found')
+  if (body.project_id) await assertProjectAssignable(c, access, body.project_id)
+  if (body.project_id === null && !access.tenantWide) {
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'project_id' } })
+  }
+  assertLogoutUris({
+    backchannel: body.backchannel_logout_uri,
+    frontchannel: body.frontchannel_logout_uri,
+  })
 
   const patch: Partial<typeof schema.applications.$inferInsert> = {}
+  applyDisplayAndLogoutPatch(body, patch)
   const grantTypes = body.allowed_grant_types ?? existing.allowedGrantTypes
   const responseTypes = body.allowed_response_types ?? existing.allowedResponseTypes
   const allowedScopes = body.allowed_scopes ?? existing.allowedScopes
@@ -384,7 +490,7 @@ app.patch('/:id', async (c) => {
   const requirePkce = body.require_pkce ?? existing.requirePkce
   const dpopBoundAccessTokens = body.dpop_bound_access_tokens ?? existing.dpopBoundAccessTokens
   assertRedirectUris(redirectUris, {
-    applicationType: body.application_type ?? 'web',
+    applicationType: body.application_type ?? existing.applicationType ?? 'web',
     grantTypes,
   })
   if (body.redirect_uris !== undefined) patch.redirectUris = body.redirect_uris
@@ -450,57 +556,49 @@ app.patch('/:id', async (c) => {
   const updated = await db.applications.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
-  auditApplication(c, auth, { action: 'application.updated', row })
+  auditApplication(c, access, { action: 'application.updated', row })
   return c.json(toResponse(row))
 })
 
 // DELETE /v1/applications/:id
 app.delete('/:id', async (c) => {
-  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const where = and(
-    eq(schema.applications.id, c.req.param('id')),
-    eq(schema.applications.status, 'active'),
+  const access = await resolveApplicationAccess(c, 'applications:write')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const existing = await findActiveApplication(c, access)
+  await db.applications.update(
+    { status: 'deleted', updatedAt: new Date() },
+    and(eq(schema.applications.id, existing.id), eq(schema.applications.status, 'active')),
   )
-  const existing = await db.applications.findOne(where)
-  if (!existing) throw new AppError('not_found')
-  await db.applications.update({ status: 'deleted', updatedAt: new Date() }, where)
-  auditApplication(c, auth, { action: 'application.deleted', row: existing })
+  auditApplication(c, access, { action: 'application.deleted', row: existing })
   return new Response(null, { status: 204 })
 })
 
 // POST /v1/applications/:id/restore
 app.post('/:id/restore', async (c) => {
-  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const where = and(
-    eq(schema.applications.id, c.req.param('id')),
-    eq(schema.applications.status, 'deleted'),
-  )
-  const existing = await db.applications.findOne(where)
-  if (!existing) throw new AppError('not_found')
+  const access = await resolveApplicationAccess(c, 'applications:write')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const existing = await findActiveApplication(c, access, 'deleted')
   assertClientPolicy(storedClientPolicy(existing))
   await assertScopes(db, existing.allowedScopes)
-  const updated = await db.applications.update({ status: 'active', updatedAt: new Date() }, where)
+  const updated = await db.applications.update(
+    { status: 'active', updatedAt: new Date() },
+    and(eq(schema.applications.id, existing.id), eq(schema.applications.status, 'deleted')),
+  )
   const row = updated[0]
   if (!row) throw new AppError('not_found')
-  auditApplication(c, auth, { action: 'application.restored', row })
+  auditApplication(c, access, { action: 'application.restored', row })
   return c.json(toResponse(row))
 })
 
 // POST /v1/applications/:id/rotate-secret
 app.post('/:id/rotate-secret', async (c) => {
-  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
+  const access = await resolveApplicationAccess(c, 'applications:write')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const existing = await findActiveApplication(c, access)
   const where = and(
-    eq(schema.applications.id, c.req.param('id')),
+    eq(schema.applications.id, existing.id),
     eq(schema.applications.status, 'active'),
   )
-  const existing = await db.applications.findOne(where)
-  if (!existing) throw new AppError('not_found')
   assertClientPolicy(storedClientPolicy(existing))
   if (!sharedSecretAuthMethod(existing.tokenEndpointAuthMethod)) {
     throw new AppError('validation_failed', {
@@ -512,7 +610,7 @@ app.post('/:id/rotate-secret', async (c) => {
   const newSecret = genClientSecret()
   const newHash = await sha256Hex(newSecret)
   await db.applications.update({ clientSecretHash: newHash }, where)
-  auditApplication(c, auth, { action: 'application.secret_rotated', row: existing })
+  auditApplication(c, access, { action: 'application.secret_rotated', row: existing })
   return c.json({ client_secret: newSecret })
 })
 

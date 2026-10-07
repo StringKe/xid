@@ -1,19 +1,25 @@
 // Management API v1: /v1/users 身份资源。
-// CRUD + list(cursor 分页) + ban/unban + search + bulk metadata PATCH + export 元数据。
-// 认证:sk_live_/sk_test_ Bearer(requireApiKey)。
+// CRUD + list(筛选、计数、cursor 分页) + ban/unban + bulk metadata PATCH + NDJSON / CSV 导出。
+// 认证:sk_live_/sk_test_ Bearer,或顶层组织 owner/admin/org_manager 的 cookie 会话
+// (requireApiKeyOrTopLevelOrgManager);子组织管理员无权访问租户级用户目录。
 // 租户隔离:所有查询走 createTenantDb(P0),tenant_id 从 TenantContext 取。
-// 见 api-sdk-conventions rule、tenant-isolation rule。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, gt, isNull, like, ne, or } from 'drizzle-orm'
+import { normalizePhoneNumber } from '@xid-kit/types'
+import { and, desc, eq, gt, lt, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
+import { resolveLocale } from '../lib/locale'
+import { revokeUserCredentials } from '../lib/revoke-user-credentials'
+import { requireStepUp } from '../lib/step-up'
 import {
   bcp47LocaleSchema,
+  emailSchema,
   ianaTimeZoneSchema,
   PROFILE_NAME_MAX_LENGTH,
   profileNameSchema,
@@ -21,21 +27,44 @@ import {
   validateBody,
   validateQuery,
 } from '../lib/validate'
+import { sendPasswordResetEmail } from '../me-auth/password-reset-token'
 import { scheduleUserScimTargetSyncs } from '../scim/outbound'
-import { requireApiKey, parsePagination, paginate, idAfterCursor, emitWebhookAsync } from './shared'
+import {
+  auditActorId,
+  decodeCursor,
+  emitManagementAuditAsync,
+  emitWebhookAsync,
+  encodeCursor,
+  parsePagination,
+  requireApiKeyOrTopLevelOrgManager,
+  type OrgScopedAuth,
+} from './shared'
+import {
+  countUsersByStatus,
+  csvHeader,
+  csvRow,
+  notDeletedUser,
+  readUserListQuery,
+  statusFilter,
+  summarizeUsers,
+  userFiltersWithoutStatus,
+  userListQuerySchema,
+} from './user-query'
+import { registerUserDetailRoutes } from './user-detail'
 
 const app = new Hono<XidHonoEnv>()
 const EXPORT_BATCH_SIZE = 100
 
-// 形状校验只管字段类型/必填性;唯一性等业务校验留在 handler(见 error-handling rule)。
 const metadataSchema = v.record(v.string(), v.unknown())
-
 const usernameSchema = v.pipe(v.string(), v.maxLength(PROFILE_NAME_MAX_LENGTH))
 const externalIdSchema = v.pipe(v.string(), v.maxLength(255))
 
 const createUserBodySchema = v.object({
   username: v.optional(usernameSchema),
   external_id: v.optional(externalIdSchema),
+  email: v.optional(emailSchema),
+  phone: v.optional(v.pipe(v.string(), v.maxLength(32))),
+  send_password_setup: v.optional(v.boolean()),
   first_name: v.optional(profileNameSchema),
   last_name: v.optional(profileNameSchema),
   display_name: v.optional(profileNameSchema),
@@ -65,16 +94,13 @@ const bulkMetadataBodySchema = v.object({
   ),
 })
 
-function notDeletedUser() {
-  return and(ne(schema.users.status, 'deleted'), isNull(schema.users.deletedAt))
-}
+const exportQuerySchema = v.object({ format: v.optional(v.picklist(['ndjson', 'csv'])) })
 
-// 用户行转对外响应:白名单显式列出,剔除内部实现字段。
-// 保留 status/lockoutUntil/lastLoginAt 等运维状态(sk 可见),剔除 failedLoginCount(内部计数)、
-// provisionedBy/mergedIntoUserId(内部实现)、primaryEmailId/primaryPhoneId(内部 FK)、
-// tenantId(隔离键)、isNewUser/profileCompletionStatus(内部 onboarding)、deletedAt(软删标记)。
+type UserRow = typeof schema.users.$inferSelect
+
+// 白名单显式列出;剔除 failedLoginCount、provisionedBy、mergedIntoUserId、主联系方式 FK、tenantId 等内部字段。
 // 字段名保持 camelCase:@xid-kit/core 的 ManagementUser wire 契约按 camelCase 读。
-function toResponse(row: typeof schema.users.$inferSelect) {
+export function toUserResponse(row: UserRow) {
   return {
     id: row.id,
     username: row.username,
@@ -89,7 +115,7 @@ function toResponse(row: typeof schema.users.$inferSelect) {
     privateMetadata: row.privateMetadata,
     unsafeMetadata: row.unsafeMetadata,
     customAttributes: row.customAttributes,
-    status: row.status,
+    status: row.deletedAt !== null ? 'deleted' : row.status,
     passwordChangeRequired: row.passwordChangeRequired,
     lockoutUntil: row.lockoutUntil,
     lastLoginAt: row.lastLoginAt,
@@ -98,82 +124,103 @@ function toResponse(row: typeof schema.users.$inferSelect) {
   }
 }
 
-// ---- 列表 ----
-
-// 列表 query:provisioned_by 过滤(如 ?provisioned_by=anonymous 只看 guest)。
-// provisioned_by 是自由文本(登记值见 schema/users.ts),形状层只约束长度。
-const listUsersQuerySchema = v.object({
-  provisioned_by: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(64))),
-})
-
-// GET /v1/users?limit=&cursor=&search=&provisioned_by=
-app.get('/', async (c) => {
-  await requireApiKey(c, 'users:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const { limit, cursor } = parsePagination(c)
-  const search = c.req.query('search') ?? null
-  const query = validateQuery(listUsersQuerySchema, {
-    provisioned_by: c.req.query('provisioned_by'),
+function auditUser(
+  c: Context<XidHonoEnv>,
+  auth: OrgScopedAuth,
+  input: { action: string; userId: string; details?: Record<string, unknown> },
+): void {
+  emitManagementAuditAsync(c, {
+    action: input.action,
+    actorId: auditActorId(auth),
+    orgId: c.get('tenant').tenantId,
+    targetType: 'user',
+    targetId: input.userId,
+    ...(input.details ? { details: input.details } : {}),
   })
+}
 
-  const afterCond = idAfterCursor(schema.users.id, cursor)
-  const notDeleted = notDeletedUser()
-  const provisionedCond: SQL | undefined = query.provisioned_by
-    ? eq(schema.users.provisionedBy, query.provisioned_by)
-    : undefined
-  const baseConds = [notDeleted, provisionedCond, afterCond].filter(
-    (cond): cond is NonNullable<typeof cond> => cond != null,
-  )
-
-  let rows: (typeof schema.users.$inferSelect)[]
-
-  if (search) {
-    const pattern = `%${search}%`
-    const searchCond = or(
-      like(schema.users.username, pattern),
-      like(schema.users.firstName, pattern),
-      like(schema.users.lastName, pattern),
-    )
-    rows = await db.users.findMany(and(searchCond, ...baseConds), {
-      orderBy: asc(schema.users.id),
-      limit: limit + 1,
-    })
-  } else {
-    rows = await db.users.findMany(and(...baseConds), {
-      orderBy: asc(schema.users.id),
-      limit: limit + 1,
-    })
+// 列表按 created_at DESC, id DESC 排序;复合游标 "createdAtMs|id"。
+function decodeUserCursor(cursor: string): { createdAt: Date; id: string } {
+  const raw = decodeCursor(cursor)
+  const sep = raw.indexOf('|')
+  const createdAt = Number(raw.slice(0, sep))
+  if (sep === -1 || !Number.isFinite(createdAt)) {
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'cursor' } })
   }
+  return { createdAt: new Date(createdAt), id: raw.slice(sep + 1) }
+}
 
-  return c.json(paginate(rows.map(toResponse), (r) => r.id, limit))
+function userAfterCursor(cursor: string | null): SQL | undefined {
+  if (!cursor) return undefined
+  const after = decodeUserCursor(cursor)
+  return or(
+    lt(schema.users.createdAt, after.createdAt),
+    and(eq(schema.users.createdAt, after.createdAt), lt(schema.users.id, after.id)),
+  )
+}
+
+// GET /v1/users?limit=&cursor=&search=&status=&sign_in_method=&created_from=&created_to=
+//   &last_sign_in_from=&last_sign_in_to=&provisioned_by=
+app.get('/', async (c) => {
+  await requireApiKeyOrTopLevelOrgManager(c, 'users:read')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const { limit, cursor } = parsePagination(c)
+  const query = validateQuery(userListQuerySchema, readUserListQuery(c.req.query()))
+  const base = userFiltersWithoutStatus(query)
+  const filters = [...base, statusFilter(query.status)]
+
+  const [rows, total, counts] = await Promise.all([
+    db.users.findMany(and(...filters, userAfterCursor(cursor)), {
+      orderBy: [desc(schema.users.createdAt), desc(schema.users.id)],
+      limit: limit + 1,
+    }),
+    db.users.count(and(...filters)),
+    countUsersByStatus(db, base),
+  ])
+  const hasMore = rows.length > limit
+  const page = hasMore ? rows.slice(0, limit) : rows
+  const last = page[page.length - 1]
+  const extras = await summarizeUsers(db, page)
+  return c.json({
+    data: page.map((row) => ({
+      ...toUserResponse(row),
+      ...(extras.get(row.id) ?? {
+        primaryEmail: null,
+        primaryPhone: null,
+        signInMethods: [],
+        organizations: [],
+      }),
+    })),
+    next_cursor: hasMore && last ? encodeCursor(`${last.createdAt.getTime()}|${last.id}`) : null,
+    has_more: hasMore,
+    total,
+    counts,
+  })
 })
 
-// ---- export(元数据,不含密码哈希) ----
-
-// GET /v1/users/export -- 返回 NDJSON 流
-app.get('/export', async (c) => {
-  await requireApiKey(c, 'users:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-
-  // 仅导出非删除用户的公开字段(不含 privateMetadata/密码哈希)。
+function exportStream(
+  db: ReturnType<typeof createTenantDb>,
+  filters: readonly SQL[],
+  format: 'ndjson' | 'csv',
+): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
-  const stream = new ReadableStream<Uint8Array>({
+  return new ReadableStream<Uint8Array>({
     async start(controller) {
       let cursor: string | null = null
       try {
+        if (format === 'csv') controller.enqueue(encoder.encode(csvHeader()))
         while (true) {
           const after = cursor ? gt(schema.users.id, cursor) : undefined
-          const rows = await db.users.findMany(
-            after ? and(notDeletedUser(), after) : notDeletedUser(),
-            { orderBy: asc(schema.users.id), limit: EXPORT_BATCH_SIZE },
-          )
+          const rows = await db.users.findMany(and(...filters, after), {
+            orderBy: schema.users.id,
+            limit: EXPORT_BATCH_SIZE,
+          })
           if (rows.length === 0) break
+          const extras = format === 'csv' ? await summarizeUsers(db, rows) : null
           for (const user of rows) {
-            controller.enqueue(
-              encoder.encode(
-                `${JSON.stringify({
+            const line = extras
+              ? csvRow(user, extras.get(user.id))
+              : `${JSON.stringify({
                   id: user.id,
                   username: user.username,
                   external_id: user.externalId,
@@ -184,9 +231,8 @@ app.get('/export', async (c) => {
                   public_metadata: user.publicMetadata,
                   locale: user.locale,
                   created_at: user.createdAt,
-                })}\n`,
-              ),
-            )
+                })}\n`
+            controller.enqueue(encoder.encode(line))
           }
           cursor = rows[rows.length - 1]?.id ?? null
           if (rows.length < EXPORT_BATCH_SIZE) break
@@ -197,60 +243,168 @@ app.get('/export', async (c) => {
       }
     },
   })
-  return new Response(stream, {
+}
+
+// GET /v1/users/export?format=ndjson|csv&<列表筛选>:按当前筛选流式导出,不含密码哈希与 private metadata。
+app.get('/export', async (c) => {
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'users:read')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const { format = 'ndjson' } = validateQuery(exportQuerySchema, {
+    ...(c.req.query('format') ? { format: c.req.query('format') } : {}),
+  })
+  const query = validateQuery(userListQuerySchema, readUserListQuery(c.req.query()))
+  const filters = [...userFiltersWithoutStatus(query), statusFilter(query.status)]
+  emitManagementAuditAsync(c, {
+    action: 'user.exported',
+    actorId: auditActorId(auth),
+    orgId: c.get('tenant').tenantId,
+    targetType: 'user_export',
+    targetId: format,
+    details: { filters: Object.keys(readUserListQuery(c.req.query())) },
+  })
+  const csv = format === 'csv'
+  return new Response(exportStream(db, filters, format), {
     headers: {
-      'content-type': 'application/x-ndjson',
-      'content-disposition': 'attachment; filename="users-export.ndjson"',
+      'content-type': csv ? 'text/csv; charset=utf-8' : 'application/x-ndjson',
+      'content-disposition': `attachment; filename="users-export.${csv ? 'csv' : 'ndjson'}"`,
+      'cache-control': 'no-store',
     },
   })
 })
 
-// ---- 单个用户 ----
+// POST /v1/users/bulk_metadata:批量更新 public_metadata
+app.post('/bulk_metadata', async (c) => {
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'users:write')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const json = await readJsonBody(c)
+  if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
+  const body = validateBody(bulkMetadataBodySchema, json.value)
 
-// GET /v1/users/:id
-app.get('/:id', async (c) => {
-  await requireApiKey(c, 'users:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const id = c.req.param('id')
-  const user = await db.users.findOne(and(eq(schema.users.id, id), notDeletedUser()))
-  if (!user) throw new AppError('not_found', { httpStatus: 404 })
-  return c.json(toResponse(user))
+  const results = await Promise.all(
+    body.updates.map(async (item) => {
+      const rows = await db.users.update(
+        { publicMetadata: item.public_metadata },
+        and(eq(schema.users.id, item.user_id), notDeletedUser()),
+      )
+      return rows[0] ?? null
+    }),
+  )
+  const updated = results.filter((row): row is UserRow => row !== null)
+  for (const row of updated) auditUser(c, auth, { action: 'user.metadata_updated', userId: row.id })
+  return c.json({ updated: updated.length })
 })
 
-// ---- 创建 ----
+// GET /v1/users/:id?include_deleted=true
+app.get('/:id', async (c) => {
+  await requireApiKeyOrTopLevelOrgManager(c, 'users:read')
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const id = c.req.param('id')
+  const includeDeleted = c.req.query('include_deleted') === 'true'
+  const user = await db.users.findOne(
+    includeDeleted ? eq(schema.users.id, id) : and(eq(schema.users.id, id), notDeletedUser()),
+  )
+  if (!user) throw new AppError('not_found', { httpStatus: 404 })
+  const [emails, phones] = await Promise.all([
+    db.userEmails.findMany(eq(schema.userEmails.userId, id), {
+      orderBy: schema.userEmails.createdAt,
+      limit: 100,
+    }),
+    db.userPhones.findMany(eq(schema.userPhones.userId, id), {
+      orderBy: schema.userPhones.createdAt,
+      limit: 100,
+    }),
+  ])
+  const primaryEmailId =
+    user.primaryEmailId ?? emails.find((row) => row.isPrimary)?.id ?? emails[0]?.id ?? null
+  const primaryPhoneId =
+    user.primaryPhoneId ?? phones.find((row) => row.isPrimary)?.id ?? phones[0]?.id ?? null
+  return c.json({
+    ...toUserResponse(user),
+    isGuest: user.provisionedBy === 'anonymous',
+    emails: emails.map((row) => ({
+      id: row.id,
+      email: row.email,
+      verified: row.verified,
+      isPrimary: row.id === primaryEmailId,
+    })),
+    phones: phones.map((row) => ({
+      id: row.id,
+      phone: row.phone,
+      verified: row.verified,
+      isPrimary: row.id === primaryPhoneId,
+    })),
+  })
+})
 
-// POST /v1/users
+async function assertIdentifiersAvailable(
+  db: ReturnType<typeof createTenantDb>,
+  input: { username?: string; externalId?: string; email?: string; phone?: string },
+): Promise<void> {
+  const [username, externalId, email, phone] = await Promise.all([
+    input.username === undefined
+      ? null
+      : db.users.findOne(and(eq(schema.users.username, input.username), notDeletedUser())),
+    input.externalId === undefined
+      ? null
+      : db.users.findOne(and(eq(schema.users.externalId, input.externalId), notDeletedUser())),
+    input.email === undefined
+      ? null
+      : db.userEmails.findOne(eq(schema.userEmails.email, input.email)),
+    input.phone === undefined
+      ? null
+      : db.userPhones.findOne(eq(schema.userPhones.phone, input.phone)),
+  ])
+  const conflict = username
+    ? 'username'
+    : externalId
+      ? 'external_id'
+      : email
+        ? 'email'
+        : phone
+          ? 'phone'
+          : null
+  if (conflict)
+    throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: conflict } })
+}
+
+function normalizeAdminPhone(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined
+  const phone = normalizePhoneNumber(raw)
+  if (!phone)
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'phone' } })
+  return phone
+}
+
+// POST /v1/users:可带主邮箱与手机号;租户内邮箱或手机号冲突 409(管理接口,不受枚举规则约束)。
 app.post('/', async (c) => {
-  await requireApiKey(c, 'users:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'users:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
-
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(createUserBodySchema, json.value)
-
-  if (body.username !== undefined) {
-    const existing = await db.users.findOne(
-      and(eq(schema.users.username, body.username), notDeletedUser()),
-    )
-    if (existing)
-      throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'username' } })
+  const email = body.email?.trim().toLowerCase()
+  const phone = normalizeAdminPhone(body.phone)
+  if (body.send_password_setup && !email) {
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'email' } })
   }
-  if (body.external_id !== undefined) {
-    const existing = await db.users.findOne(
-      and(eq(schema.users.externalId, body.external_id), notDeletedUser()),
-    )
-    if (existing)
-      throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'external_id' } })
-  }
+  await assertIdentifiersAvailable(db, {
+    username: body.username,
+    externalId: body.external_id,
+    email,
+    phone,
+  })
 
   const id = createPersistedId('user')
+  const emailId = email ? crypto.randomUUID() : null
+  const phoneId = phone ? crypto.randomUUID() : null
   const user = await db.users.insert({
     id,
     tenantId: tenant.tenantId,
     username: body.username ?? null,
     externalId: body.external_id ?? null,
+    primaryEmailId: emailId,
+    primaryPhoneId: phoneId,
     firstName: body.first_name ?? null,
     lastName: body.last_name ?? null,
     displayName: body.display_name ?? null,
@@ -259,44 +413,76 @@ app.post('/', async (c) => {
     unsafeMetadata: body.unsafe_metadata ?? {},
     status: 'active',
   })
-  emitWebhookAsync(c, {
-    tenantId: tenant.tenantId,
-    event: 'user.created',
-    payload: { userId: id },
-  })
-  return c.json(toResponse(user), 201)
+  try {
+    if (email && emailId) {
+      await db.userEmails.insert({
+        id: emailId,
+        tenantId: tenant.tenantId,
+        userId: id,
+        email,
+        verified: false,
+        verificationStatus: 'unverified',
+        isPrimary: true,
+      })
+    }
+    if (phone && phoneId) {
+      await db.userPhones.insert({
+        id: phoneId,
+        tenantId: tenant.tenantId,
+        userId: id,
+        phone,
+        verified: false,
+        verificationStatus: 'unverified',
+        isPrimary: true,
+      })
+    }
+  } catch (error) {
+    // 并发写入同一联系方式时唯一索引兜底;回滚刚建的用户,避免留下无联系方式的孤儿。
+    await db.userEmails.hardDelete(eq(schema.userEmails.userId, id))
+    await db.users.hardDelete(eq(schema.users.id, id))
+    throw new AppError('already_exists', {
+      httpStatus: 409,
+      meta: { paramName: email ? 'email' : 'phone' },
+      cause: error,
+    })
+  }
+  if (body.send_password_setup && email) {
+    await sendPasswordResetEmail({
+      env: c.env,
+      tenant,
+      db,
+      userId: id,
+      email,
+      locale: resolveLocale({ userLocale: null }),
+    })
+  }
+  emitWebhookAsync(c, { tenantId: tenant.tenantId, event: 'user.created', payload: { userId: id } })
+  auditUser(c, auth, { action: 'user.created', userId: id })
+  return c.json(toUserResponse(user), 201)
 })
 
-// ---- 更新 ----
-
-// PATCH /v1/users/:id  (metadata PATCH 限速:10/10s/user 见 api-sdk-conventions rule)
+// PATCH /v1/users/:id
 app.patch('/:id', async (c) => {
-  await requireApiKey(c, 'users:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'users:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const id = c.req.param('id')
-
   const existing = await db.users.findOne(and(eq(schema.users.id, id), notDeletedUser()))
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
 
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(patchUserBodySchema, json.value)
-
-  if (body.username !== undefined && body.username !== existing.username) {
-    const dup = await db.users.findOne(
-      and(eq(schema.users.username, body.username), notDeletedUser()),
-    )
-    if (dup)
-      throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'username' } })
-  }
-  if (body.external_id !== undefined && body.external_id !== existing.externalId) {
-    const dup = await db.users.findOne(
-      and(eq(schema.users.externalId, body.external_id), notDeletedUser()),
-    )
-    if (dup)
-      throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'external_id' } })
-  }
+  await assertIdentifiersAvailable(db, {
+    username:
+      body.username !== undefined && body.username !== existing.username
+        ? body.username
+        : undefined,
+    externalId:
+      body.external_id !== undefined && body.external_id !== existing.externalId
+        ? body.external_id
+        : undefined,
+  })
 
   const patch: Partial<typeof schema.users.$inferInsert> = {}
   if (body.first_name !== undefined) patch.firstName = body.first_name
@@ -313,67 +499,43 @@ app.patch('/:id', async (c) => {
   const updated = await db.users.update(patch, eq(schema.users.id, id))
   const row = updated[0]
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
-  emitWebhookAsync(c, {
-    tenantId: tenant.tenantId,
-    event: 'user.updated',
-    payload: { userId: id },
-  })
-  return c.json(toResponse(row))
+  emitWebhookAsync(c, { tenantId: tenant.tenantId, event: 'user.updated', payload: { userId: id } })
+  auditUser(c, auth, { action: 'user.updated', userId: id })
+  return c.json(toUserResponse(row))
 })
 
-// ---- 删除 ----
-
-// DELETE /v1/users/:id
+// DELETE /v1/users/:id:软删除并撤销全部会话;cookie 调用方需要 step-up,API key 调用不变。
 app.delete('/:id', async (c) => {
-  await requireApiKey(c, 'users:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'users:write')
   const tenant = c.get('tenant')
+  if (auth.kind === 'org_console') await requireStepUp(c, tenant, auth.session)
   const db = createTenantDb(c.env.DB, tenant)
   const id = c.req.param('id')
-
   const existing = await db.users.findOne(and(eq(schema.users.id, id), notDeletedUser()))
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
 
-  // 软删除:设 deleted_at + status=deleted。
   await db.users.update({ deletedAt: new Date(), status: 'deleted' }, eq(schema.users.id, id))
-  emitWebhookAsync(c, {
-    tenantId: tenant.tenantId,
-    event: 'user.deleted',
-    payload: { userId: id },
-  })
+  await revokeUserCredentials(c.env, tenant, id)
+  emitWebhookAsync(c, { tenantId: tenant.tenantId, event: 'user.deleted', payload: { userId: id } })
+  auditUser(c, auth, { action: 'user.deleted', userId: id })
   scheduleUserScimTargetSyncs(c, id)
   return new Response(null, { status: 204 })
 })
 
 // POST /v1/users/:id/restore
 app.post('/:id/restore', async (c) => {
-  await requireApiKey(c, 'users:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'users:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const id = c.req.param('id')
-
   const existing = await db.users.findOne(eq(schema.users.id, id))
   if (!existing || (existing.status !== 'deleted' && existing.deletedAt === null)) {
     throw new AppError('not_found', { httpStatus: 404 })
   }
-
-  if (existing.username) {
-    const dup = await db.users.findOne(
-      and(eq(schema.users.username, existing.username), notDeletedUser()),
-    )
-    if (dup)
-      throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'username' } })
-  }
-  if (existing.externalId) {
-    const dup = await db.users.findOne(
-      and(eq(schema.users.externalId, existing.externalId), notDeletedUser()),
-    )
-    if (dup)
-      throw new AppError('already_exists', {
-        httpStatus: 409,
-        meta: { paramName: 'external_id' },
-      })
-  }
-
+  await assertIdentifiersAvailable(db, {
+    username: existing.username ?? undefined,
+    externalId: existing.externalId ?? undefined,
+  })
   const updated = await db.users.update(
     { deletedAt: null, status: 'active' },
     eq(schema.users.id, id),
@@ -385,83 +547,39 @@ app.post('/:id/restore', async (c) => {
     event: 'user.restored',
     payload: { userId: id },
   })
+  auditUser(c, auth, { action: 'user.restored', userId: id })
   scheduleUserScimTargetSyncs(c, id)
-  return c.json(toResponse(row))
+  return c.json(toUserResponse(row))
 })
 
-// ---- ban / unban ----
-
-// POST /v1/users/:id/ban
-app.post('/:id/ban', async (c) => {
-  await requireApiKey(c, 'users:write')
+// POST /v1/users/:id/ban | /unban:界面文案为 Suspend / Resume。
+async function setBanned(c: Context<XidHonoEnv>, banned: boolean): Promise<Response> {
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'users:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
-  const id = c.req.param('id')
-
+  const id = c.req.param('id') ?? ''
   const existing = await db.users.findOne(and(eq(schema.users.id, id), notDeletedUser()))
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
-  if (existing.status === 'banned') return c.json(toResponse(existing))
+  if ((existing.status === 'banned') === banned) return c.json(toUserResponse(existing))
 
-  const updated = await db.users.update({ status: 'banned' }, eq(schema.users.id, id))
-  const row = updated[0]
-  if (!row) throw new AppError('not_found', { httpStatus: 404 })
-  emitWebhookAsync(c, {
-    tenantId: tenant.tenantId,
-    event: 'user.banned',
-    payload: { userId: id },
-  })
-  scheduleUserScimTargetSyncs(c, id)
-  return c.json(toResponse(row))
-})
-
-// POST /v1/users/:id/unban
-app.post('/:id/unban', async (c) => {
-  await requireApiKey(c, 'users:write')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const id = c.req.param('id')
-
-  const existing = await db.users.findOne(and(eq(schema.users.id, id), notDeletedUser()))
-  if (!existing) throw new AppError('not_found', { httpStatus: 404 })
-  if (existing.status !== 'banned') return c.json(toResponse(existing))
-
-  const updated = await db.users.update({ status: 'active' }, eq(schema.users.id, id))
-  const row = updated[0]
-  if (!row) throw new AppError('not_found', { httpStatus: 404 })
-  emitWebhookAsync(c, {
-    tenantId: tenant.tenantId,
-    event: 'user.unbanned',
-    payload: { userId: id },
-  })
-  scheduleUserScimTargetSyncs(c, id)
-  return c.json(toResponse(row))
-})
-
-// ---- bulk metadata PATCH ----
-
-// POST /v1/users/bulk_metadata  -- 批量更新 public_metadata(限速:10/10s/user 在 api-sdk-conventions rule)
-app.post('/bulk_metadata', async (c) => {
-  await requireApiKey(c, 'users:write')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
-  const body = validateBody(bulkMetadataBodySchema, json.value)
-
-  const results = await Promise.all(
-    body.updates.map(async (item) => {
-      const rows = await db.users.update(
-        { publicMetadata: item.public_metadata },
-        and(eq(schema.users.id, item.user_id), notDeletedUser()),
-      )
-      return rows[0] ?? null
-    }),
+  const updated = await db.users.update(
+    { status: banned ? 'banned' : 'active' },
+    eq(schema.users.id, id),
   )
-  return c.json({ updated: results.filter(Boolean).length })
-})
+  const row = updated[0]
+  if (!row) throw new AppError('not_found', { httpStatus: 404 })
+  const event = banned ? 'user.banned' : 'user.unbanned'
+  emitWebhookAsync(c, { tenantId: tenant.tenantId, event, payload: { userId: id } })
+  auditUser(c, auth, { action: event, userId: id })
+  scheduleUserScimTargetSyncs(c, id)
+  return c.json(toUserResponse(row))
+}
+
+app.post('/:id/ban', (c) => setBanned(c, true))
+app.post('/:id/unban', (c) => setBanned(c, false))
 
 export function registerUsersRoutes(honoApp: Hono<XidHonoEnv>): void {
-  // export(/v1/users/export) 已在 /:id 前注册,避免被详情路由截获。
+  // /export 与 /bulk_metadata 在 /:id 之前注册,避免被详情路由截获。
   honoApp.route('/v1/users', app)
+  registerUserDetailRoutes(honoApp)
 }

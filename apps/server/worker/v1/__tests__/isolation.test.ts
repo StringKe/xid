@@ -40,6 +40,10 @@ import {
   SqliteD1,
 } from '../../me/__tests__/sqlite-d1'
 import { makeRateLimitNs } from '../../me-auth/__tests__/helpers'
+import { registerInvitationActionRoutes } from '../invitation-actions'
+import { schema } from '@xid-kit/db'
+import { eq } from 'drizzle-orm'
+import * as consoleFixtures from './console-fixtures'
 
 const TENANT: TenantContext = {
   tenantId: 't_1',
@@ -930,7 +934,7 @@ describe('v1 applications client registration policy', () => {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ name: 'Fleet Planner', ...body }),
       },
       env,
     )
@@ -1055,7 +1059,7 @@ describe('v1 applications redirect_uris 注册校验', () => {
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ redirect_uris: uris }),
+          body: JSON.stringify({ name: 'Fleet Planner', redirect_uris: uris }),
         },
         env,
       )
@@ -1084,9 +1088,13 @@ describe('v1 applications redirect_uris 注册校验', () => {
         },
         env,
       )
-    const empty = await post({ redirect_uris: [] })
+    const empty = await post({ name: 'Billing Portal', redirect_uris: [] })
     expect(empty.status).toBe(422)
-    const m2m = await post({ redirect_uris: [], allowed_grant_types: ['client_credentials'] })
+    const m2m = await post({
+      name: 'Billing Portal',
+      redirect_uris: [],
+      allowed_grant_types: ['client_credentials'],
+    })
     expect(m2m.status).toBe(201)
   })
 
@@ -1116,6 +1124,7 @@ describe('v1 applications redirect_uris 注册校验', () => {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          name: 'Fleet Planner',
           redirect_uris: ['https://app.example.com/callback'],
           post_logout_redirect_uris: ['https://user:pass@rp.example/logout'],
         }),
@@ -1149,7 +1158,7 @@ describe('v1 applications redirect_uris 注册校验', () => {
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ name: 'Driver App', ...body }),
         },
         env,
       )
@@ -2710,7 +2719,10 @@ describe('v1 租户级资源 cookie 双认证(requireApiKeyOrTopLevelOrgManager)
       {
         method: 'POST',
         headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ redirect_uris: ['https://app.example.com/cb'] }),
+        body: JSON.stringify({
+          name: 'Fleet Planner',
+          redirect_uris: ['https://app.example.com/cb'],
+        }),
       },
       env,
     )
@@ -3754,7 +3766,12 @@ describe('v1 users Management API 契约', () => {
       updated_at: Date.now(),
     }
     const db = makeFakeD1({ api_keys: [apiKey], users: [user] })
-    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const sessionNames: string[] = []
+    const env = asUnknown<Env>({
+      DB: db,
+      WEBHOOK_QUEUE: makeFakeQueue(),
+      SESSION_REVOCATION: makeFakeSessionNs(sessionNames),
+    })
     const app = buildApp(registerUsersRoutes)
 
     const del = await app.request(
@@ -3765,6 +3782,7 @@ describe('v1 users Management API 契约', () => {
     expect(del.status).toBe(204)
     expect(user['status']).toBe('deleted')
     expect(user['deleted_at']).toBeTypeOf('number')
+    expect(sessionNames).toEqual(['session:user_1'])
 
     const list = await app.request(
       'https://acme.xid.dev/v1/users',
@@ -9412,5 +9430,131 @@ describe('account portal /v1/me 资源跨租户隔离', () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ allAcceptedCredentialIds: [] })
+  })
+})
+
+// Console 管理路由(Users / Sessions / Members / Invitations / Applications):租户 A 的顶层组织 owner
+// 以 cookie 会话访问租户 B 的资源,一律 404 且不改动对方数据。
+describe('Console 管理路由跨租户隔离', () => {
+  async function seedTwoTenants() {
+    const d1 = consoleFixtures.makeDb()
+    await consoleFixtures.seedOrg(d1, { id: 't_a' })
+    await consoleFixtures.seedOrg(d1, { id: 't_b', tenant: consoleFixtures.TENANT_B })
+    await consoleFixtures.seedUser(d1, { id: 'user_a_owner', email: 'owner@a.example' })
+    await consoleFixtures.seedMembership(d1, {
+      id: 'mem_a_owner',
+      userId: 'user_a_owner',
+      orgId: 't_a',
+      role: 'owner',
+    })
+    await consoleFixtures.seedUser(d1, {
+      id: 'user_b',
+      tenant: consoleFixtures.TENANT_B,
+      email: 'member@b.example',
+    })
+    await consoleFixtures.seedMembership(d1, {
+      id: 'mem_b',
+      userId: 'user_b',
+      orgId: 't_b',
+      role: 'owner',
+      tenant: consoleFixtures.TENANT_B,
+    })
+    const dbB = consoleFixtures.tenantDb(d1, consoleFixtures.TENANT_B)
+    await dbB.invitations.insert({
+      id: 'inv_b',
+      tenantId: 't_b',
+      orgId: 't_b',
+      email: 'invitee@b.example',
+      tokenHash: 'hash-b',
+      tokenVersion: 'locator_v1',
+      expiresAt: new Date(Date.now() + 86_400_000),
+    })
+    await dbB.applications.insert({
+      id: 'app_b',
+      tenantId: 't_b',
+      clientId: 'client_b',
+      name: 'Other App',
+      redirectUris: ['https://b.example/cb'],
+    })
+    return d1
+  }
+
+  const register = (app: Hono<XidHonoEnv>) => {
+    registerUsersRoutes(app)
+    registerSessionsRoutes(app)
+    registerMembershipsRoutes(app)
+    registerInvitationsRoutes(app)
+    registerInvitationActionRoutes(app)
+    registerApplications(app)
+  }
+
+  it.each([
+    ['GET', '/v1/users/user_b'],
+    ['GET', '/v1/users/user_b/sign-in-methods'],
+    ['GET', '/v1/users/user_b/memberships'],
+    ['GET', '/v1/users/user_b/audit-events'],
+    ['PATCH', '/v1/users/user_b'],
+    ['POST', '/v1/users/user_b/ban'],
+    ['POST', '/v1/users/user_b/unban'],
+    ['POST', '/v1/users/user_b/password-reset'],
+    ['POST', '/v1/users/user_b/mfa/reset'],
+    ['DELETE', '/v1/users/user_b'],
+    ['POST', '/v1/sessions/users/user_b/revoke_all'],
+    ['PATCH', '/v1/organizations/t_b/memberships/mem_b'],
+    ['DELETE', '/v1/organizations/t_b/memberships/mem_b'],
+    ['POST', '/v1/organizations/t_b/invitations/inv_b/resend'],
+    ['POST', '/v1/organizations/t_b/invitations/bulk'],
+    ['GET', '/v1/applications/app_b'],
+    ['PATCH', '/v1/applications/app_b'],
+    ['POST', '/v1/applications/app_b/rotate-secret'],
+  ])('%s %s -> 404', async (method, path) => {
+    const d1 = await seedTwoTenants()
+    const app = consoleFixtures.buildApp(register, {
+      session: consoleFixtures.sessionFor('user_a_owner'),
+    })
+    const body =
+      method === 'GET' || method === 'DELETE'
+        ? {}
+        : {
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+              path.endsWith('/bulk')
+                ? { invitations: [{ email: 'x@b.example' }] }
+                : path.includes('memberships')
+                  ? { role: 'admin' }
+                  : {},
+            ),
+          }
+
+    const res = await app.request(
+      `https://acme.xid.dev${path}`,
+      { method, ...body },
+      consoleFixtures.envOf(d1),
+    )
+
+    expect(res.status).toBe(404)
+    const membership = await consoleFixtures
+      .tenantDb(d1, consoleFixtures.TENANT_B)
+      .memberships.findOne(eq(schema.memberships.id, 'mem_b'))
+    expect(membership?.role).toBe('owner')
+  })
+
+  it('GET /v1/sessions?user_id=<租户 B 用户> 返回空列表', async () => {
+    const d1 = await seedTwoTenants()
+    await consoleFixtures.tenantDb(d1, consoleFixtures.TENANT_B).sessions.insert({
+      id: 'sess_b',
+      tenantId: 't_b',
+      userId: 'user_b',
+      refreshTokenHash: 'rt-b',
+      authenticatedAt: new Date(1000),
+      lastActiveAt: new Date(1000),
+      expiresAt: new Date(Date.now() + 3_600_000),
+    })
+    const res = await consoleFixtures
+      .buildApp(register, { session: consoleFixtures.sessionFor('user_a_owner') })
+      .request('https://acme.xid.dev/v1/sessions?user_id=user_b', {}, consoleFixtures.envOf(d1))
+
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { data: unknown[] }).data).toEqual([])
   })
 })

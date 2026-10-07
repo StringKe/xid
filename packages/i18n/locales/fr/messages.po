@@ -1141,6 +1141,10 @@ msgstr "Une organisation a ses propres membres, règles de connexion et applicat
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
 msgstr "Une organisation vous permet d'enregistrer des applications OAuth, d'inviter des membres et d'activer le SSO d'entreprise ou la synchronisation d'annuaire. Créez-en une pour obtenir votre premier émetteur et vos pages de connexion gérées."
 
+#: packages/i18n/src/messages.ts
+msgid "An organization needs at least one owner. Make another member an owner first."
+msgstr "Une organisation doit avoir au moins un propriétaire. Désignez d’abord un autre membre comme propriétaire."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
 msgstr "Une OrgUnit est un département ou une équipe au sein d’une organisation. Cela ne modifie jamais TenantContext, l'émetteur, les revendications de jeton ou la limite SubOrg à un niveau."

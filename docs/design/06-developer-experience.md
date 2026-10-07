@@ -458,26 +458,26 @@ refresh cookies across origins.
 
 The table below is the current implemented surface, not a roadmap:
 
-| Resource             | Operations                                                                                     |
-| -------------------- | ---------------------------------------------------------------------------------------------- |
-| users                | CRUD, search, ban/unban, bulk metadata, export, soft delete, and restore                       |
-| organizations        | CRUD, logo, domain verification, branding and policy, nested enterprise resources, and restore |
-| memberships          | list/create/update role/delete/restore                                                         |
-| invitations          | create (bulk rate-limited), revoke, list                                                       |
-| sessions             | list/get/revoke/revoke all                                                                     |
-| applications/clients | CRUD, secret rotate, delete, and restore                                                       |
-| connections (SSO)    | CRUD, delete, and restore                                                                      |
-| directories (SCIM)   | CRUD, token rotate, delete, and restore                                                        |
-| projects             | CRUD, soft delete, restore, and active/deleted/all listing                                     |
-| roles/permissions    | CRUD, delete, and restore                                                                      |
-| role-permissions     | list/create/update/delete with same-Project and ABAC validation                                |
-| manager-assignments  | tenant-scoped list/provision/revoke; instance managers use the separate platform path          |
-| org-units            | tree CRUD, move, archive, and member placement (see below)                                     |
-| access-requests      | list/get within an Organization, with status and project filters (see below)                   |
-| project-grants       | list/get/create/revoke/delete                                                                  |
-| user-grants          | list/get/create/reactivate/revoke/delete                                                       |
-| webhooks             | CRUD, delete, and restore                                                                      |
-| apiKeys              | create/list/revoke                                                                             |
+| Resource             | Operations                                                                                                                                                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| users                | CRUD with primary email/phone, search and filters with status counts, ban/unban, bulk metadata, NDJSON/CSV export, soft delete, restore, sign-in methods, memberships, related audit events, password reset email, MFA reset |
+| organizations        | CRUD, logo, domain verification, branding and policy, nested enterprise resources, and restore                                                                                                                               |
+| memberships          | list/create/update role/delete/restore; removing or demoting the last owner returns `last_owner`                                                                                                                             |
+| invitations          | create, bulk with per-row results (rate-limited), resend, revoke, list                                                                                                                                                       |
+| sessions             | list/get/revoke/revoke all (field whitelist, no fingerprint or token hashes)                                                                                                                                                 |
+| applications/clients | CRUD with name, logo, Project assignment and logout metadata, secret rotate, delete, and restore                                                                                                                             |
+| connections (SSO)    | CRUD, delete, and restore                                                                                                                                                                                                    |
+| directories (SCIM)   | CRUD, token rotate, delete, and restore                                                                                                                                                                                      |
+| projects             | CRUD, soft delete, restore, and active/deleted/all listing                                                                                                                                                                   |
+| roles/permissions    | CRUD, delete, and restore                                                                                                                                                                                                    |
+| role-permissions     | list/create/update/delete with same-Project and ABAC validation                                                                                                                                                              |
+| manager-assignments  | tenant-scoped list/provision/revoke; instance managers use the separate platform path                                                                                                                                        |
+| org-units            | tree CRUD, move, archive, and member placement (see below)                                                                                                                                                                   |
+| access-requests      | list/get within an Organization, with status and project filters (see below)                                                                                                                                                 |
+| project-grants       | list/get/create/revoke/delete                                                                                                                                                                                                |
+| user-grants          | list (per Project, or per user across Projects for tenant admins)/get/create/reactivate/revoke/delete                                                                                                                        |
+| webhooks             | CRUD, delete, and restore                                                                                                                                                                                                    |
+| apiKeys              | create/list/revoke                                                                                                                                                                                                           |
 
 Authentication uses `Authorization: Bearer sk_live_xxx` or `sk_test_xxx`. M2M clients use
 `client_credentials` at the root token endpoint, `POST /token`; there is no `/oauth/token` route.

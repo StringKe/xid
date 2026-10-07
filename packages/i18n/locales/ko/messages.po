@@ -1141,6 +1141,10 @@ msgstr "조직에는 자체 멤버, 로그인 규칙, 앱이 있습니다. 내�
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
 msgstr "조직에서 OAuth 애플리케이션을 등록하고, 멤버를 초대하고, 엔터프라이즈 SSO 또는 디렉터리 동기화를 활성화합니다. 조직을 만들어 첫 번째 issuer와 관리되는 로그인 페이지를 얻으세요."
 
+#: packages/i18n/src/messages.ts
+msgid "An organization needs at least one owner. Make another member an owner first."
+msgstr "조직에는 소유자가 한 명 이상 있어야 합니다. 먼저 다른 멤버를 소유자로 지정하세요."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
 msgstr "OrgUnit은 하나의 조직 내의 부서 또는 팀입니다. TenantContext, 발급자, 토큰 클레임 또는 한 수준 SubOrg 제한은 변경되지 않습니다."

@@ -4,7 +4,7 @@
 // 见 tenant-isolation rule:org 级实体双重注入 tenant_id + org_id。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -256,11 +256,41 @@ app.post('/:orgId/memberships', async (c) => {
   return c.json(toResponse(membership), 201)
 })
 
+// 条件更新未命中时区分原因:目标仍是 active owner 且组织里没有其他可用 owner -> last_owner,其余 -> conflict。
+async function ownerProtectionError(
+  db: ReturnType<typeof createTenantDb>,
+  orgId: string,
+  membershipId: string,
+): Promise<AppError> {
+  const orgDb = db.forOrg(orgId)
+  const current = await orgDb.memberships.findOne(
+    and(eq(schema.memberships.id, membershipId), eq(schema.memberships.status, 'active')),
+  )
+  if (current?.role !== 'owner') return new AppError('conflict', { httpStatus: 409 })
+  const owners = await orgDb.memberships.findMany(
+    and(eq(schema.memberships.role, 'owner'), eq(schema.memberships.status, 'active')),
+    { limit: 2 },
+  )
+  const otherOwnerIds = owners.filter((row) => row.id !== membershipId).map((row) => row.userId)
+  const activeOtherOwners =
+    otherOwnerIds.length === 0
+      ? 0
+      : await db.users.count(
+          and(
+            inArray(schema.users.id, otherOwnerIds),
+            eq(schema.users.status, 'active'),
+            isNull(schema.users.deletedAt),
+          ),
+        )
+  return activeOtherOwners === 0
+    ? new AppError('last_owner', { httpStatus: 409 })
+    : new AppError('conflict', { httpStatus: 409 })
+}
+
 // PATCH /v1/organizations/:orgId/memberships/:membershipId -- 更新角色
 app.patch('/:orgId/memberships/:membershipId', async (c) => {
-  const key = await requireApiKey(c, 'memberships:write')
   const orgId = c.req.param('orgId')
-  await requireOrg(c, orgId)
+  const auth = await requireApiKeyOrOrgManager(c, orgId, 'memberships:write')
 
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
@@ -276,7 +306,13 @@ app.patch('/:orgId/memberships/:membershipId', async (c) => {
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(patchMembershipBodySchema, json.value)
 
-  if (body.role === 'owner' && existing.role !== 'owner') {
+  const promotesOwner = body.role === 'owner' && existing.role !== 'owner'
+  const demotesOwner =
+    existing.role === 'owner' &&
+    (body.status === 'inactive' || (body.role !== undefined && body.role !== 'owner'))
+  // 与 DELETE 一致:console 里只有 owner / org_manager 能降级 owner;API key 不能授予 owner(它不携带签发人的角色)。
+  if (promotesOwner && !canManageOwners(auth)) throw new AppError('forbidden', { httpStatus: 403 })
+  if (demotesOwner && auth.kind === 'org_console' && !canManageOwners(auth)) {
     throw new AppError('forbidden', { httpStatus: 403 })
   }
   const changed = await mutateMembership(c.env, {
@@ -288,9 +324,9 @@ app.patch('/:orgId/memberships/:membershipId', async (c) => {
     status: body.status,
     protectActiveOwner:
       body.status === 'inactive' || (body.role !== undefined && body.role !== 'owner'),
-    requireCurrentRole: body.role === 'owner' ? 'owner' : undefined,
+    requireCurrentRole: promotesOwner ? 'non_owner' : body.role === 'owner' ? 'owner' : undefined,
   })
-  if (!changed) throw new AppError('conflict', { httpStatus: 409 })
+  if (!changed) throw await ownerProtectionError(db, orgId, membershipId)
   const row = await orgDb.memberships.findOne(eq(schema.memberships.id, membershipId))
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
   emitWebhookAsync(c, {
@@ -299,7 +335,7 @@ app.patch('/:orgId/memberships/:membershipId', async (c) => {
     payload: { orgId, membershipId },
   })
   scheduleOrgScimTargetSyncs(c, orgId)
-  auditMembership(c, { action: 'membership.updated', actorId: key.id, row })
+  auditMembership(c, { action: 'membership.updated', actorId: auditActorId(auth), row })
   return c.json(toResponse(row))
 })
 
@@ -330,7 +366,7 @@ app.delete('/:orgId/memberships/:membershipId', async (c) => {
     status: 'inactive',
     protectActiveOwner: true,
   })
-  if (!changed) throw new AppError('conflict', { httpStatus: 409 })
+  if (!changed) throw await ownerProtectionError(db, orgId, membershipId)
   emitWebhookAsync(c, {
     tenantId: tenant.tenantId,
     event: 'organizationMembership.deleted',

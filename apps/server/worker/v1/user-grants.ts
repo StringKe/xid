@@ -3,7 +3,7 @@
 // 只能管理精确 ProjectGrant 下、目标 Organization 成员的授予。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -14,6 +14,7 @@ import { readJsonBody, validateBody } from '../lib/validate'
 import {
   authorizeProjectGrantAssignment,
   authorizeProjectManagement,
+  hasOrganizationAdminAccess,
   requireProjectAccessActor,
   type ProjectAccessActor,
 } from './project-access'
@@ -109,25 +110,61 @@ async function validateUserGrantTargets(
   if (!user || !role || !membership) throw new AppError('not_found', { httpStatus: 404 })
 }
 
+// 不带 project_id 的跨项目查询只给 API key 与顶层组织管理员(租户管理员),且必须带 user_id;
+// Project Manager 与被授权组织管理员仍必须指定 project_id。
+async function authorizeUserScopedListing(
+  c: Context<XidHonoEnv>,
+  actor: ProjectAccessActor,
+  userId: string | undefined,
+): Promise<void> {
+  if (actor.kind === 'api_key') return
+  const tenantAdmin = userId
+    ? await hasOrganizationAdminAccess(c, actor.session, c.get('tenant').tenantId)
+    : false
+  if (!tenantAdmin) {
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'project_id' } })
+  }
+}
+
+type UserGrantRow = typeof schema.userGrants.$inferSelect
+
+async function expandUserGrants(c: Context<XidHonoEnv>, rows: readonly UserGrantRow[]) {
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const roleIds = [...new Set(rows.map((row) => row.roleId))]
+  const projectIds = [...new Set(rows.map((row) => row.projectId))]
+  const [roles, projects] = await Promise.all([
+    roleIds.length === 0
+      ? []
+      : db.roles.findMany(inArray(schema.roles.id, roleIds), { limit: roleIds.length }),
+    projectIds.length === 0
+      ? []
+      : db.projects.findMany(inArray(schema.projects.id, projectIds), { limit: projectIds.length }),
+  ])
+  const roleById = new Map(roles.map((row) => [row.id, row]))
+  const projectById = new Map(projects.map((row) => [row.id, row]))
+  return rows.map((row) => ({
+    ...toResponse(row),
+    role_key: roleById.get(row.roleId)?.key ?? null,
+    role_name: roleById.get(row.roleId)?.displayName ?? null,
+    project_name: projectById.get(row.projectId)?.name ?? null,
+    granted_via: row.grantedViaGrantId ? 'project_grant' : 'direct',
+  }))
+}
+
 app.get('/', async (c) => {
   const actor = await requireProjectAccessActor(c, 'user_grants:read')
   const { limit, cursor } = parsePagination(c)
   const projectId = c.req.query('project_id')
   const grantId = c.req.query('granted_via_grant_id')
-  if (actor.kind === 'session' && !projectId) {
-    throw new AppError('validation_failed', {
-      httpStatus: 422,
-      meta: { paramName: 'project_id' },
-    })
-  }
+  const userId = c.req.query('user_id')
   if (projectId) await authorizeUserGrantScope(c, actor, projectId, grantId)
+  else await authorizeUserScopedListing(c, actor, userId)
 
   const filters = [isNull(schema.userGrants.revokedAt)]
   const after = idAfterCursor(schema.userGrants.id, cursor)
   if (after) filters.push(after)
   if (projectId) filters.push(eq(schema.userGrants.projectId, projectId))
   if (grantId) filters.push(eq(schema.userGrants.grantedViaGrantId, grantId))
-  const userId = c.req.query('user_id')
   if (userId) filters.push(eq(schema.userGrants.userId, userId))
 
   const db = createTenantDb(c.env.DB, c.get('tenant'))
@@ -135,7 +172,8 @@ app.get('/', async (c) => {
     orderBy: asc(schema.userGrants.id),
     limit: limit + 1,
   })
-  return c.json(paginate(rows.map(toResponse), (row) => row.id, limit))
+  const page = paginate(rows, (row) => row.id, limit)
+  return c.json({ ...page, data: await expandUserGrants(c, page.data) })
 })
 
 app.post('/', async (c) => {

@@ -20,6 +20,7 @@ import { registerMembershipsRoutes } from './memberships'
 import { registerOrgUnitsRoutes } from './org-units'
 import { registerAccessRequestsRoutes } from './access-requests'
 import { registerInvitationsRoutes } from './invitations'
+import { registerInvitationActionRoutes } from './invitation-actions'
 import { registerSessionsRoutes } from './sessions'
 import { registerCustomHostnameRoutes } from './custom-hostnames'
 import { registerProjects } from './projects'
@@ -43,6 +44,7 @@ export function registerV1Routes(app: Hono<XidHonoEnv>): void {
   registerOrgUnitsRoutes(app)
   registerAccessRequestsRoutes(app)
   registerInvitationsRoutes(app)
+  registerInvitationActionRoutes(app)
   registerSessionsRoutes(app)
   registerCustomHostnameRoutes(app)
   registerProjects(app)

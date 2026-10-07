@@ -87,6 +87,7 @@ const ALLOWED_NON_ENTITY_UUIDS: Record<string, AllowedUuidUse> = {
   'v1/org-branding.ts': { count: 1, reason: 'R2 logo object suffix' },
   'v1/org-domains.ts': { count: 2, reason: 'organization-domain verification tokens' },
   'v1/organizations.ts': { count: 1, reason: 'org policy' },
+  'v1/users.ts': { count: 2, reason: 'user email and phone row ids' },
 }
 
 const REQUIRED_ENTITY_SOURCE_USAGE: Record<string, Record<string, number>> = {
@@ -214,7 +215,9 @@ describe('persisted ID production contract', () => {
     expect(factoryEnd).toBeGreaterThan(factoryStart)
     const factory = source.slice(factoryStart, factoryEnd)
     expect(factory).toContain("createPersistedId('invitation')")
-    expect(source.match(/prepareInvitation\(c\.env,/gu)).toHaveLength(2)
+    const bulkSource = await readFile(path.join(WORKER_ROOT, 'v1/invitation-actions.ts'), 'utf8')
+    expect(source.match(/prepareInvitation\(c\.env,/gu)).toHaveLength(1)
+    expect(bulkSource.match(/prepareInvitation\(c\.env,/gu)).toHaveLength(1)
   })
 
   it('does not build any design prefix around randomUUID', async () => {

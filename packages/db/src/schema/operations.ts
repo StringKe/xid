@@ -30,6 +30,8 @@ export const auditEvents = sqliteTable(
     index('audit_events_event_idx').on(t.eventType),
     index('audit_events_tenant_occurred_idx').on(t.tenantId, t.occurredAt),
     index('audit_events_tenant_actor_idx').on(t.tenantId, t.actorId),
+    index('audit_events_tenant_actor_occurred_idx').on(t.tenantId, t.actorId, t.occurredAt),
+    index('audit_events_tenant_target_occurred_idx').on(t.tenantId, t.targetId, t.occurredAt),
     index('audit_events_tenant_event_idx').on(t.tenantId, t.eventType),
     index('audit_events_tenant_event_occurred_idx').on(t.tenantId, t.eventType, t.occurredAt),
     uniqueIndex('audit_events_tenant_source_message_id_unq')

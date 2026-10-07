@@ -73,6 +73,7 @@ export const users = sqliteTable(
       .where(sql`${t.deletedAt} IS NULL AND ${t.status} <> 'deleted'`),
     index('users_tenant_status_idx').on(t.tenantId, t.status),
     index('users_tenant_created_idx').on(t.tenantId, t.createdAt),
+    index('users_tenant_last_login_idx').on(t.tenantId, t.lastLoginAt),
     index('users_primary_email_idx').on(t.primaryEmailId),
     index('users_merged_into_idx').on(t.mergedIntoUserId),
   ],
