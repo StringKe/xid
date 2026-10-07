@@ -9476,6 +9476,30 @@ describe('Console 管理路由跨租户隔离', () => {
       name: 'Other App',
       redirectUris: ['https://b.example/cb'],
     })
+    await dbB.sessions.insert({
+      id: 'sess_b',
+      tenantId: 't_b',
+      userId: 'user_b',
+      refreshTokenHash: 'rt-b',
+      authenticatedAt: new Date(1000),
+      lastActiveAt: new Date(1000),
+      expiresAt: new Date(Date.now() + 3_600_000),
+    })
+    await dbB.projects.insert({ id: 'proj_b', tenantId: 't_b', orgId: 't_b', name: 'Other' })
+    await dbB.roles.insert({
+      id: 'role_b',
+      tenantId: 't_b',
+      projectId: 'proj_b',
+      key: 'viewer',
+      displayName: 'Viewer',
+    })
+    await dbB.userGrants.insert({
+      id: 'ug_b',
+      tenantId: 't_b',
+      userId: 'user_b',
+      projectId: 'proj_b',
+      roleId: 'role_b',
+    })
     return d1
   }
 
@@ -9486,7 +9510,14 @@ describe('Console 管理路由跨租户隔离', () => {
     registerInvitationsRoutes(app)
     registerInvitationActionRoutes(app)
     registerApplications(app)
+    registerOrganizationsRoutes(app)
+    registerUserGrants(app)
   }
+
+  const asOwnerA = (d1: Awaited<ReturnType<typeof seedTwoTenants>>, path: string) =>
+    consoleFixtures
+      .buildApp(register, { session: consoleFixtures.sessionFor('user_a_owner') })
+      .request(`https://acme.xid.dev${path}`, {}, consoleFixtures.envOf(d1))
 
   it.each([
     ['GET', '/v1/users/user_b'],
@@ -9500,6 +9531,9 @@ describe('Console 管理路由跨租户隔离', () => {
     ['POST', '/v1/users/user_b/mfa/reset'],
     ['DELETE', '/v1/users/user_b'],
     ['POST', '/v1/sessions/users/user_b/revoke_all'],
+    ['GET', '/v1/sessions/sess_b'],
+    ['POST', '/v1/sessions/sess_b/revoke'],
+    ['GET', '/v1/organizations/t_b/members'],
     ['POST', '/v1/organizations/t_b/memberships'],
     ['PATCH', '/v1/organizations/t_b/memberships/mem_b'],
     ['DELETE', '/v1/organizations/t_b/memberships/mem_b'],
@@ -9544,18 +9578,48 @@ describe('Console 管理路由跨租户隔离', () => {
 
   it('GET /v1/sessions?user_id=<租户 B 用户> 返回空列表', async () => {
     const d1 = await seedTwoTenants()
-    await consoleFixtures.tenantDb(d1, consoleFixtures.TENANT_B).sessions.insert({
-      id: 'sess_b',
-      tenantId: 't_b',
-      userId: 'user_b',
-      refreshTokenHash: 'rt-b',
-      authenticatedAt: new Date(1000),
-      lastActiveAt: new Date(1000),
-      expiresAt: new Date(Date.now() + 3_600_000),
-    })
     const res = await consoleFixtures
       .buildApp(register, { session: consoleFixtures.sessionFor('user_a_owner') })
       .request('https://acme.xid.dev/v1/sessions?user_id=user_b', {}, consoleFixtures.envOf(d1))
+
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { data: unknown[] }).data).toEqual([])
+  })
+
+  it('用户列表、计数与 CSV 导出只含本租户用户', async () => {
+    const d1 = await seedTwoTenants()
+
+    const list = await asOwnerA(d1, '/v1/users?search=b.example')
+    const all = await asOwnerA(d1, '/v1/users')
+    const csv = await asOwnerA(d1, '/v1/users/export?format=csv')
+
+    expect(list.status).toBe(200)
+    expect(((await list.json()) as { data: unknown[]; total: number }).total).toBe(0)
+    const body = (await all.json()) as { data: { id: string }[]; counts: { active: number } }
+    expect(body.data.map((row) => row.id)).toEqual(['user_a_owner'])
+    expect(body.counts.active).toBe(1)
+    const text = await csv.text()
+    expect(text).toContain('user_a_owner')
+    expect(text).not.toContain('user_b')
+    expect(text).not.toContain('member@b.example')
+  })
+
+  it('GET /v1/user-grants?user_id=<租户 B 用户> 返回空列表', async () => {
+    const d1 = await seedTwoTenants()
+
+    const res = await asOwnerA(d1, '/v1/user-grants?user_id=user_b')
+
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { data: unknown[] }).data).toEqual([])
+  })
+
+  it('GET /v1/applications?project_id=<租户 B 项目> 不返回租户 B 应用', async () => {
+    const d1 = await seedTwoTenants()
+    await consoleFixtures
+      .tenantDb(d1, consoleFixtures.TENANT_B)
+      .applications.update({ projectId: 'proj_b' }, eq(schema.applications.id, 'app_b'))
+
+    const res = await asOwnerA(d1, '/v1/applications?project_id=proj_b')
 
     expect(res.status).toBe(200)
     expect(((await res.json()) as { data: unknown[] }).data).toEqual([])
