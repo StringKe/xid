@@ -188,9 +188,9 @@ app.get('/:orgId/memberships/:membershipId', async (c) => {
 
 // POST /v1/organizations/:orgId/memberships -- 添加成员
 app.post('/:orgId/memberships', async (c) => {
-  const key = await requireApiKey(c, 'memberships:write')
   const orgId = c.req.param('orgId')
-  await requireOrg(c, orgId)
+  const auth = await requireApiKeyOrOrgManager(c, orgId, 'memberships:write')
+  const actorId = auditActorId(auth)
 
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
@@ -234,7 +234,7 @@ app.post('/:orgId/memberships', async (c) => {
       event: 'organizationMembership.created',
       payload: { orgId, userId: body.user_id },
     })
-    auditMembership(c, { action: 'membership.created', actorId: key.id, row })
+    auditMembership(c, { action: 'membership.created', actorId, row })
     return c.json(toResponse(row), 201)
   }
   if (existing) throw new AppError('already_exists', { httpStatus: 409 })
@@ -252,7 +252,7 @@ app.post('/:orgId/memberships', async (c) => {
     event: 'organizationMembership.created',
     payload: { orgId, userId: body.user_id },
   })
-  auditMembership(c, { action: 'membership.created', actorId: key.id, row: membership })
+  auditMembership(c, { action: 'membership.created', actorId, row: membership })
   return c.json(toResponse(membership), 201)
 })
 

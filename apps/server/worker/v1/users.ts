@@ -294,6 +294,17 @@ app.post('/bulk_metadata', async (c) => {
   return c.json({ updated: updated.length })
 })
 
+// provisioned_by 是内部登记值;对外只给来源类别(目录同步、SSO JIT、自助注册、访客、管理员或 API 创建)。
+function userSource(
+  provisionedBy: string | null,
+): 'directory_sync' | 'sso' | 'self_signup' | 'guest' | 'admin' {
+  if (provisionedBy === 'scim') return 'directory_sync'
+  if (provisionedBy === 'jit_sso') return 'sso'
+  if (provisionedBy === 'anonymous') return 'guest'
+  if (provisionedBy?.startsWith('hosted_')) return 'self_signup'
+  return 'admin'
+}
+
 // GET /v1/users/:id?include_deleted=true
 app.get('/:id', async (c) => {
   await requireApiKeyOrTopLevelOrgManager(c, 'users:read')
@@ -321,6 +332,7 @@ app.get('/:id', async (c) => {
   return c.json({
     ...toUserResponse(user),
     isGuest: user.provisionedBy === 'anonymous',
+    source: userSource(user.provisionedBy),
     emails: emails.map((row) => ({
       id: row.id,
       email: row.email,

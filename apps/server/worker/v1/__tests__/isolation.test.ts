@@ -9500,6 +9500,7 @@ describe('Console 管理路由跨租户隔离', () => {
     ['POST', '/v1/users/user_b/mfa/reset'],
     ['DELETE', '/v1/users/user_b'],
     ['POST', '/v1/sessions/users/user_b/revoke_all'],
+    ['POST', '/v1/organizations/t_b/memberships'],
     ['PATCH', '/v1/organizations/t_b/memberships/mem_b'],
     ['DELETE', '/v1/organizations/t_b/memberships/mem_b'],
     ['POST', '/v1/organizations/t_b/invitations/inv_b/resend'],
@@ -9520,9 +9521,11 @@ describe('Console 管理路由跨租户隔离', () => {
             body: JSON.stringify(
               path.endsWith('/bulk')
                 ? { invitations: [{ email: 'x@b.example' }] }
-                : path.includes('memberships')
-                  ? { role: 'admin' }
-                  : {},
+                : path.endsWith('/memberships')
+                  ? { user_id: 'user_b', role: 'member' }
+                  : path.includes('memberships')
+                    ? { role: 'admin' }
+                    : {},
             ),
           }
 

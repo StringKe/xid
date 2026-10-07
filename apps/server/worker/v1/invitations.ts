@@ -272,7 +272,30 @@ app.get('/:orgId/invitations', async (c) => {
     }),
     orgDb.invitations.count(statusCond),
   ])
-  return c.json({ ...paginate(rows.map(safeInvitation), (r) => r.id, limit), total })
+  const page = paginate(rows.map(safeInvitation), (r) => r.id, limit)
+  const inviterIds = [
+    ...new Set(
+      page.data.map((row) => row.invitedByUserId).filter((id): id is string => Boolean(id)),
+    ),
+  ]
+  const inviters =
+    inviterIds.length === 0
+      ? []
+      : await db.users.findMany(inArray(schema.users.id, inviterIds), { limit: inviterIds.length })
+  const inviterName = new Map(
+    inviters.map((user) => [
+      user.id,
+      user.displayName ?? ([user.firstName, user.lastName].filter(Boolean).join(' ') || null),
+    ]),
+  )
+  return c.json({
+    ...page,
+    data: page.data.map((row) => ({
+      ...row,
+      invitedByName: row.invitedByUserId ? (inviterName.get(row.invitedByUserId) ?? null) : null,
+    })),
+    total,
+  })
 })
 
 // ---- 单个 ----

@@ -2,9 +2,12 @@
 // 成员写操作统一走 memberships.ts(owner 保护与条件更新只有一份实现)。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm'
+import { ORGANIZATION_MEMBERSHIP_ROLES } from '@xid-kit/types'
+import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
+import * as v from 'valibot'
 import { loginOutcomeFilters, loginSuccessRate } from '../lib/login-audit'
 import type { XidHonoEnv } from '../lib/types'
 import { paginationQuerySchema, validateQuery } from '../lib/validate'
@@ -125,10 +128,21 @@ async function toMemberViews(
       ),
     ),
   ])
-  const userById = new Map(users.map((user) => [user.id, user]))
+  const inviterIds = [
+    ...new Set(rows.map((row) => row.invitedByUserId).filter((id): id is string => Boolean(id))),
+  ]
+  const inviters =
+    inviterIds.length === 0
+      ? []
+      : await db.users.findMany(inArray(schema.users.id, inviterIds), { limit: inviterIds.length })
+  const userById = new Map([...users, ...inviters].map((user) => [user.id, user]))
   const emailsByUser = new Map<string, (typeof schema.userEmails.$inferSelect)[]>()
   for (const email of emails) {
     emailsByUser.set(email.userId, [...(emailsByUser.get(email.userId) ?? []), email])
+  }
+  const nameOf = (user: typeof schema.users.$inferSelect | undefined): string | null => {
+    const parts = [user?.firstName, user?.lastName].filter((part): part is string => Boolean(part))
+    return user?.displayName ?? (parts.length > 0 ? parts.join(' ') : null)
   }
   return rows.map((row) => {
     const user = userById.get(row.userId)
@@ -137,17 +151,42 @@ async function toMemberViews(
       candidates.find((candidate) => candidate.id === user?.primaryEmailId) ??
       candidates.find((candidate) => candidate.isPrimary) ??
       candidates[0]
-    const parts = [user?.firstName, user?.lastName].filter((part): part is string => Boolean(part))
     return {
       id: row.id,
       userId: row.userId,
       email: email?.email ?? '',
-      name: user?.displayName ?? (parts.length > 0 ? parts.join(' ') : null),
+      name: nameOf(user),
       role: row.role,
       status: row.status,
       joinedAt: toIso(row.joinedAt) ?? toIso(row.createdAt) ?? '',
+      lastSignInAt: toIso(user?.lastLoginAt),
+      joinedThrough: row.isManaged
+        ? 'directory_sync'
+        : row.invitedByUserId
+          ? 'invitation'
+          : 'added',
+      invitedByName: row.invitedByUserId
+        ? (nameOf(userById.get(row.invitedByUserId)) ?? null)
+        : null,
     }
   })
+}
+
+const membersQuerySchema = v.object({
+  ...paginationQuerySchema.entries,
+  role: v.optional(v.picklist(ORGANIZATION_MEMBERSHIP_ROLES)),
+  search: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(200))),
+})
+
+// 姓名或邮箱包含查询词;子查询按外层 memberships.tenant_id 关联,外层由 forOrg 注入租户与组织谓词。
+function memberSearchFilter(search: string): SQL {
+  const pattern = `%${search.replace(/[\\%_]/g, (match) => `\\${match}`)}%`
+  return sql`EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = ${schema.memberships.tenantId}
+      AND u.id = ${schema.memberships.userId}
+      AND (u.first_name LIKE ${pattern} ESCAPE '\\' OR u.last_name LIKE ${pattern} ESCAPE '\\'
+        OR u.display_name LIKE ${pattern} ESCAPE '\\'
+        OR EXISTS (SELECT 1 FROM user_emails ue WHERE ue.tenant_id = u.tenant_id
+          AND ue.user_id = u.id AND ue.email LIKE ${pattern} ESCAPE '\\')))`
 }
 
 // GET /v1/organizations/:id/stats
@@ -157,24 +196,36 @@ app.get('/:id/stats', async (c) => {
   return c.json(await buildOrgStats(c, id))
 })
 
-// GET /v1/organizations/:id/members
+// GET /v1/organizations/:id/members?role=&search=
 app.get('/:id/members', async (c) => {
   const id = c.req.param('id')
   await requireApiKeyOrOrgManager(c, id, 'memberships:read')
   const orgDb = createTenantDb(c.env.DB, c.get('tenant')).forOrg(id)
-  const query = validateQuery(paginationQuerySchema, c.req.query())
+  const query = validateQuery(membersQuerySchema, c.req.query())
   const limit = query.limit ?? MAX_PAGE_SIZE
   const active = eq(schema.memberships.status, 'active')
+  const filters = [
+    active,
+    query.role ? eq(schema.memberships.role, query.role) : undefined,
+    query.search ? memberSearchFilter(query.search) : undefined,
+  ]
   const afterCond = idAfterCursor(schema.memberships.id, query.cursor ?? null)
-  const [total, rows] = await Promise.all([
-    orgDb.memberships.count(active),
-    orgDb.memberships.findMany(afterCond ? and(active, afterCond) : active, {
+  const [total, owners, admins, rows] = await Promise.all([
+    orgDb.memberships.count(and(...filters)),
+    orgDb.memberships.count(and(active, eq(schema.memberships.role, 'owner'))),
+    orgDb.memberships.count(and(active, eq(schema.memberships.role, 'admin'))),
+    orgDb.memberships.findMany(and(...filters, afterCond), {
       orderBy: asc(schema.memberships.id),
       limit: limit + 1,
     }),
   ])
   const page = paginate(rows, (row) => row.id, limit)
-  return c.json({ ...page, data: await toMemberViews(c, page.data), total })
+  return c.json({
+    ...page,
+    data: await toMemberViews(c, page.data),
+    total,
+    counts: { owner: owners, admin: admins },
+  })
 })
 
 export function registerOrgMembersRoutes(parent: Hono<XidHonoEnv>): void {

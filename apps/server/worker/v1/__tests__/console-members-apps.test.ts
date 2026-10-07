@@ -8,6 +8,7 @@ import { registerApplications } from '../applications'
 import { registerInvitationActionRoutes } from '../invitation-actions'
 import { registerInvitationsRoutes } from '../invitations'
 import { registerMembershipsRoutes } from '../memberships'
+import { registerOrgMembersRoutes } from '../org-members'
 import { registerUserGrants } from '../user-grants'
 import {
   TENANT_B,
@@ -96,6 +97,29 @@ describe('memberships 改角色与最后一位 owner', () => {
     const d1 = await seedOrgWithPeople()
     const res = await patchMembership(d1, 'user_owner', 't_b/memberships/mem_b', { role: 'admin' })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('members 列表筛选与计数', () => {
+  it('按角色与姓名或邮箱筛选,返回 owner / admin 计数与加入方式', async () => {
+    const d1 = await seedOrgWithPeople()
+    const app = buildApp(registerOrgMembersRoutes, { session: sessionFor('user_admin') })
+    const env = envOf(d1)
+
+    const admins = await json<{ data: { userId: string }[]; counts: unknown }>(
+      await app.request(`${BASE}/organizations/t_a/members?role=admin`, {}, env),
+    )
+    const searched = await json<{
+      data: { userId: string; joinedThrough: string }[]
+      total: number
+    }>(await app.request(`${BASE}/organizations/t_a/members?search=wen%40north`, {}, env))
+
+    expect(admins.data.map((row) => row.userId)).toEqual(['user_admin'])
+    expect(admins.counts).toEqual({ owner: 1, admin: 1 })
+    expect(searched.data).toEqual([
+      expect.objectContaining({ userId: 'user_member', joinedThrough: 'added' }),
+    ])
+    expect(searched.total).toBe(1)
   })
 })
 
