@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { useLocalizedAuthConfig } from '../../components/hosted/use-hosted-auth-config'
 import { useAuth } from '../../lib/auth-context'
 import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { emptyProfileValues, federatedSignInErrorKey } from './shared'
@@ -49,7 +50,7 @@ export function useSignIn(): [SignInState, SignInActions] {
   const resetTurnstile = useCallback((): void => setTurnstileToken(null), [])
 
   const authConfigQuery = useQuery(authConfigQueryOptions(search, api))
-  const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
+  const authConfig = useLocalizedAuthConfig(authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG)
   const configSettled = !authConfigQuery.isPending && !authConfigQuery.isPlaceholderData
   const hostedReturn = resolveHostedReturn(search, authConfig.defaultLandingPath)
   const turnstileReady =

@@ -39,6 +39,10 @@ vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   useNavigate: () => routerState.navigate,
 }))
 
+vi.mock('@lingui/react/macro', () => ({
+  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings.join('') }),
+}))
+
 vi.mock('../../lib/auth-context', () => ({
   useAuth: () => ({
     api: {
