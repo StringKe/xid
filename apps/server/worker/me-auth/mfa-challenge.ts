@@ -152,6 +152,10 @@ export async function handleMfaVerify(c: Context<XidHonoEnv>): Promise<Response>
     code: 'otp_invalid',
     credentialFields: ['method', 'code'],
   })
+  // 短信码可被 SIM 劫持截获,只能作登录第二因子,不能确认敏感改动;在消费验证码前拒绝。
+  if (body.stepUp === true && body.method === 'sms') {
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'method' } })
+  }
 
   // 失败限流:account=userId + IP(anti-abuse rule);成功后清除 account 维度计数与退避档。
   await enforceVerifyRateLimit({

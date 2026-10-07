@@ -324,6 +324,40 @@ describe('POST /auth/mfa/verify', () => {
     expect(res.headers.get('set-cookie')).toContain('__Host-xid.acr=')
   })
 
+  it('stepUp=true + sms -> 422 且不消费验证码、不颁发 step-up', async () => {
+    mockSmsFactor()
+    const app = makeApp(registerSessionAuthRoutes, {
+      session: makeSession(),
+      tenant: tenantWithSmsDelivery() as never,
+    })
+
+    const res = await post(app, makeEnv({ smsProvider: 'twilio' }), '/auth/mfa/verify', {
+      method: 'sms',
+      code: '123456',
+      stepUp: true,
+    })
+
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({ code: 'validation_failed' })
+    expect(loadVerifiableOtp).not.toHaveBeenCalled()
+    expect(issueStepUpToken).not.toHaveBeenCalled()
+    expect(res.headers.get('set-cookie')).toBeNull()
+  })
+
+  it('stepUp=true + backup -> 仍颁发 step-up', async () => {
+    vi.mocked(verifyAndConsumeBackupCode).mockResolvedValue({ ok: true, codeId: 'bc-1' })
+    const app = makeApp(registerSessionAuthRoutes, { session: makeSession() })
+
+    const res = await post(app, makeEnv(), '/auth/mfa/verify', {
+      method: 'backup',
+      code: 'ABCD2345',
+      stepUp: true,
+    })
+
+    expect(res.status).toBe(200)
+    expect(issueStepUpToken).toHaveBeenCalledWith(expect.objectContaining({ method: 'backup' }))
+  })
+
   it('限流 -> 429', async () => {
     const app = makeApp(registerSessionAuthRoutes, { session: makeSession() })
     const res = await post(app, makeEnv({ rateLimitAllowed: false }), '/auth/mfa/verify', {
