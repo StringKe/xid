@@ -479,6 +479,16 @@ describe('管理员动作', () => {
     const banOwner = await as('user_lena', 'POST', '/users/user_admin/ban')
     const deleteOwner = await as('user_lena', 'DELETE', '/users/user_admin')
     const resetOwnerMfa = await as('user_lena', 'POST', '/users/user_admin/mfa/reset')
+    await tenantDb(d1).managerAssignments.insert({
+      id: 'mgr_im',
+      tenantId: 't_a',
+      userId: 'user_ravi_im',
+      managerRole: 'instance_manager',
+      scopeType: 'instance',
+      scopeId: null,
+    })
+    await seedUser(d1, { id: 'user_ravi_im', email: 'im@northwind.com' })
+    const banInstanceManager = await as('user_lena', 'POST', '/users/user_ravi_im/ban')
     const banMember = await as('user_lena', 'POST', '/users/user_ravi/ban')
     const banSelf = await as('user_admin', 'POST', '/users/user_admin/ban')
     const ownerBansAdmin = await as('user_admin', 'POST', '/users/user_lena/ban')
@@ -486,6 +496,7 @@ describe('管理员动作', () => {
     expect(banOwner.status).toBe(403)
     expect(deleteOwner.status).toBe(403)
     expect(resetOwnerMfa.status).toBe(403)
+    expect(banInstanceManager.status).toBe(403)
     expect(banMember.status).toBe(200)
     expect(banSelf.status).toBe(403)
     expect(ownerBansAdmin.status).toBe(200)

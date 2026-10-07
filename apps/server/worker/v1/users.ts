@@ -381,6 +381,16 @@ async function assertIdentifiersAvailable(
     throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: conflict } })
 }
 
+// drizzle 把 D1 的 UNIQUE 消息放在 cause 链上,表名可能只出现在内层。
+function errorChainMentions(error: unknown, needle: string): boolean {
+  let current: unknown = error
+  for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
+    if (current.message.includes(needle)) return true
+    current = current.cause
+  }
+  return false
+}
+
 function normalizeAdminPhone(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined
   const phone = normalizePhoneNumber(raw)
@@ -456,10 +466,9 @@ app.post('/', async (c) => {
     await db.userPhones.hardDelete(eq(schema.userPhones.userId, id))
     await db.users.hardDelete(eq(schema.users.id, id))
     if (!isUniqueConstraintError(error)) throw error
-    const message = error instanceof Error ? error.message : ''
     throw new AppError('already_exists', {
       httpStatus: 409,
-      meta: { paramName: message.includes('user_phones') ? 'phone' : 'email' },
+      meta: { paramName: errorChainMentions(error, 'user_phones') ? 'phone' : 'email' },
       cause: error,
     })
   }
