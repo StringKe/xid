@@ -13260,7 +13260,7 @@ msgstr "最近已使用过此密码。请选择其他密码。"
 
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "This removes the authenticator app, text message codes and backup codes. Passkeys stay. {name} is signed out everywhere and sets up two-step verification again at the next sign-in if the organization requires it."
-msgstr "这会移除身份验证器应用、短信验证码和备用码，通行密钥保留。{name} 会在所有设备上登出；如果组织要求，下次登录时需要重新设置两步验证。"
+msgstr "这会移除认证器应用、短信验证码和备用码，通行密钥保留。{name} 会在所有设备上登出；如果组织要求，下次登录时需要重新设置两步验证。"
 
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "This request can't be approved"

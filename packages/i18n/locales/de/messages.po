@@ -152,7 +152,7 @@ msgstr "{actor} hat {subject} aus einer Organisation entfernt."
 
 #: apps/console/src/routes/users/activity-sentence.ts
 msgid "{actor} reset two-step verification for {subject}."
-msgstr "{actor} hat die Zwei-Schritt-Verifizierung von {subject} zurückgesetzt."
+msgstr "{actor} hat die Bestätigung in zwei Schritten von {subject} zurückgesetzt."
 
 #: apps/console/src/routes/users/activity-sentence.ts
 msgid "{actor} restored {subject}."
@@ -10324,7 +10324,7 @@ msgstr "Passwort zurücksetzen…"
 
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "Reset two-step verification for {name}?"
-msgstr "Zwei-Schritt-Verifizierung für {name} zurücksetzen?"
+msgstr "Bestätigung in zwei Schritten für {name} zurücksetzen?"
 
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 msgid "Reset your password"
@@ -13260,7 +13260,7 @@ msgstr "Dieses Passwort wurde kürzlich verwendet. Bitte wählen Sie ein anderes
 
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "This removes the authenticator app, text message codes and backup codes. Passkeys stay. {name} is signed out everywhere and sets up two-step verification again at the next sign-in if the organization requires it."
-msgstr "Dadurch werden Authenticator-App, SMS-Codes und Backup-Codes entfernt. Passkeys bleiben erhalten. {name} wird überall abgemeldet und richtet die Zwei-Schritt-Verifizierung bei der nächsten Anmeldung neu ein, sofern die Organisation sie verlangt."
+msgstr "Dadurch werden Authenticator-App, SMS-Codes und Backup-Codes entfernt. Passkeys bleiben erhalten. {name} wird überall abgemeldet und richtet die Bestätigung in zwei Schritten bei der nächsten Anmeldung neu ein, sofern die Organisation sie verlangt."
 
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "This request can't be approved"
@@ -13554,7 +13554,7 @@ msgstr "Zwei-Faktor-Authentifizierung | | XID"
 #: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Two-step verification"
-msgstr "Zwei-Schritt-Verifizierung"
+msgstr "Bestätigung in zwei Schritten"
 
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Two-step verification is on"
@@ -13562,7 +13562,7 @@ msgstr "Bestätigung in zwei Schritten ist aktiv"
 
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "Two-step verification reset for {name}"
-msgstr "Zwei-Schritt-Verifizierung für {name} zurückgesetzt"
+msgstr "Bestätigung in zwei Schritten für {name} zurückgesetzt"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "TXT record name"
