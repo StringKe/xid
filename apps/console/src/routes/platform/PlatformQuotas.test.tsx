@@ -64,7 +64,7 @@ const BILLING_OFF: BillingConfig = { enabled: false, portal: false, metering: fa
 
 function quotaOptions(container: HTMLElement, key: string): (string | null)[] {
   const row = [...container.querySelectorAll('code')].find((node) => node.textContent === key)
-  return [...(row?.parentElement?.querySelectorAll('option') ?? [])].map((option) =>
+  return [...(row?.parentElement?.parentElement?.querySelectorAll('option') ?? [])].map((option) =>
     option.getAttribute('value'),
   )
 }
@@ -137,7 +137,7 @@ describe('PlatformQuotas', () => {
     })
     const ssoLimit = [...container.querySelectorAll('code')]
       .find((node) => node.textContent === 'sso_connections')
-      ?.parentElement?.querySelector<HTMLInputElement>('input')
+      ?.parentElement?.parentElement?.querySelector<HTMLInputElement>('input')
 
     await act(async () => {
       container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true }))

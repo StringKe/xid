@@ -58,11 +58,19 @@ const styles = stylex.create({
     borderBottomStyle: 'solid',
     borderBottomColor: tokens['--xid-border'],
   },
-  quotaKey: {
+  quotaName: {
     alignSelf: 'center',
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.8125rem',
+    display: 'grid',
+    gap: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
     color: tokens['--xid-fg'],
+  },
+  quotaKey: {
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: '0.75rem',
+    fontWeight: 400,
+    color: tokens['--xid-muted-foreground'],
   },
   actions: {
     display: 'flex',
@@ -140,6 +148,12 @@ function SelectOrganizationPrompt(): ReactNode {
 
 export default function PlatformQuotas(): ReactNode {
   const { t } = useLingui()
+  const quotaLabels: Record<OrganizationQuotaKey, string> = {
+    seats: t`Seats`,
+    organizations: t`Child organizations`,
+    sso_connections: t`SSO connections`,
+    mau: t`Monthly active users`,
+  }
   const [searchParams] = useSearchParams()
   const tenantId = searchParams.get('tenantId')?.trim() ?? ''
   const quotaQuery = useOrganizationQuotaQuery(tenantId)
@@ -217,7 +231,10 @@ export default function PlatformQuotas(): ReactNode {
             <div {...stylex.props(styles.quotaLedger)}>
               {ORGANIZATION_QUOTA_KEYS.map((key) => (
                 <div key={key} {...stylex.props(styles.quotaRow)}>
-                  <code {...stylex.props(styles.quotaKey)}>{key}</code>
+                  <div {...stylex.props(styles.quotaName)}>
+                    {quotaLabels[key]}
+                    <code {...stylex.props(styles.quotaKey)}>{key}</code>
+                  </div>
                   <Field label={t`Limit`}>
                     <Input
                       type="number"

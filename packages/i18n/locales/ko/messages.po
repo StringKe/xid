@@ -2459,6 +2459,10 @@ msgstr "메시지를 확인하세요"
 msgid "Checked at sign-in for every application in {name}."
 msgstr "{name}의 모든 애플리케이션에 로그인할 때 확인합니다."
 
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Child organizations"
+msgstr "하위 조직"
+
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
 msgstr "다른 비밀번호를 선택하세요."
@@ -7214,6 +7218,7 @@ msgstr "모니터링"
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Monthly active users"
 msgstr "월간 활성 사용자"
 
@@ -10977,6 +10982,7 @@ msgstr "사용자와 앱을 검색하거나 페이지로 이동"
 msgid "Searching"
 msgstr "검색 중"
 
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Seats"
 msgstr "시트"
@@ -11996,6 +12002,10 @@ msgstr "SSO 연결이 삭제되었습니다."
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SSO connection saved."
 msgstr "SSO 연결이 저장되었습니다."
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "SSO connections"
+msgstr "SSO 연결"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Stable keys cannot be changed after creation."

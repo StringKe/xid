@@ -2459,6 +2459,10 @@ msgstr "Consultez vos messages"
 msgid "Checked at sign-in for every application in {name}."
 msgstr "Vérifié à la connexion pour chaque application de {name}."
 
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Child organizations"
+msgstr "Sous-organisations"
+
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
 msgstr "Choisissez un autre mot de passe."
@@ -7214,6 +7218,7 @@ msgstr "Surveillance"
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Monthly active users"
 msgstr "Utilisateurs actifs mensuels"
 
@@ -10977,6 +10982,7 @@ msgstr "Rechercher des utilisateurs, des applications ou aller à une page"
 msgid "Searching"
 msgstr "Recherche en cours"
 
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Seats"
 msgstr "Places"
@@ -11996,6 +12002,10 @@ msgstr "Connexion SSO supprimée."
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SSO connection saved."
 msgstr "Connexion SSO enregistrée."
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "SSO connections"
+msgstr "Connexions SSO"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Stable keys cannot be changed after creation."

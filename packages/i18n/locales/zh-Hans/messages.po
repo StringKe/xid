@@ -2459,6 +2459,10 @@ msgstr "查看你的短信"
 msgid "Checked at sign-in for every application in {name}."
 msgstr "登录 {name} 中的任何应用时检查。"
 
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Child organizations"
+msgstr "子组织"
+
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
 msgstr "请换一个密码。"
@@ -7214,6 +7218,7 @@ msgstr "监控"
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Monthly active users"
 msgstr "月活跃用户"
 
@@ -10977,6 +10982,7 @@ msgstr "搜索用户、应用，或跳转到页面"
 msgid "Searching"
 msgstr "正在搜索"
 
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Seats"
 msgstr "席位"
@@ -11996,6 +12002,10 @@ msgstr "SSO 连接已删除。"
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SSO connection saved."
 msgstr "SSO 连接已保存。"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "SSO connections"
+msgstr "SSO 连接"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Stable keys cannot be changed after creation."

@@ -2459,6 +2459,10 @@ msgstr "メッセージを確認してください"
 msgid "Checked at sign-in for every application in {name}."
 msgstr "{name} のすべてのアプリケーションへのサインイン時に確認されます。"
 
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Child organizations"
+msgstr "サブ組織"
+
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
 msgstr "別のパスワードを選んでください。"
@@ -7214,6 +7218,7 @@ msgstr "監視"
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Monthly active users"
 msgstr "月次アクティブユーザー"
 
@@ -10977,6 +10982,7 @@ msgstr "ユーザーやアプリを検索、またはページに移動"
 msgid "Searching"
 msgstr "検索中"
 
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Seats"
 msgstr "シート"
@@ -11996,6 +12002,10 @@ msgstr "SSO 接続を削除しました。"
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SSO connection saved."
 msgstr "SSO 接続を保存しました。"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "SSO connections"
+msgstr "SSO 接続"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Stable keys cannot be changed after creation."
