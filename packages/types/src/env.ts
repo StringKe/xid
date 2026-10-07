@@ -104,12 +104,10 @@ export type CloudflareForSaasEnv = {
   CLOUDFLARE_FOR_SAAS_CNAME_TARGET?: string
 }
 
-// 托管计费适配器；任一字段都不是 license 或鉴权功能开关，未运营付费服务则整组不配
+// 按用量（MAU）计费适配器：三项全配置=开启，全不配置=关闭，只配一部分=配置错误。
+// 不是 license 或鉴权功能开关。
 export type StripeBillingEnv = {
   STRIPE_SECRET_KEY?: string
   STRIPE_WEBHOOK_SECRET?: string
-  STRIPE_STARTER_PRICE_ID?: string
-  STRIPE_PRO_PRICE_ID?: string
-  STRIPE_ENTERPRISE_PRICE_ID?: string
   STRIPE_METER_EVENT_NAME?: string
 }

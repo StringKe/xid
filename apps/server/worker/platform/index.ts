@@ -9,10 +9,10 @@ import { registerPlatformOrganizationsRoutes } from './organizations'
 import { registerPlatformUsersRoutes } from './users'
 import { registerPlatformAuditEventsRoutes } from './audit-events'
 import { registerPlatformAuditVerifyRoutes } from './audit-verify'
-import { registerPlatformBillingRoutes } from './billing'
+import { registerPlatformUsageRoutes } from './usage'
 import { registerPlatformSettingsRoutes } from './settings'
 import { registerPlatformDeadLetterRoutes } from './dead-letters'
-import { registerPlatformPlanRoutes } from './plans'
+import { registerPlatformQuotaRoutes } from './quotas'
 import { registerPlatformAnnouncementRoutes } from './announcements'
 import { registerPlatformStatusIncidentRoutes } from './status-incidents'
 import { registerPlatformComplianceRoutes } from './compliance'
@@ -25,10 +25,10 @@ export function registerPlatformConsoleRoutes(app: Hono<XidHonoEnv>): void {
   registerPlatformUsersRoutes(app)
   registerPlatformAuditEventsRoutes(app)
   registerPlatformAuditVerifyRoutes(app)
-  registerPlatformBillingRoutes(app)
+  registerPlatformUsageRoutes(app)
   registerPlatformSettingsRoutes(app)
   registerPlatformDeadLetterRoutes(app)
-  registerPlatformPlanRoutes(app)
+  registerPlatformQuotaRoutes(app)
   registerPlatformAnnouncementRoutes(app)
   registerPlatformStatusIncidentRoutes(app)
   registerPlatformComplianceRoutes(app)

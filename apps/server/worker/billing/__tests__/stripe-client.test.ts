@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../../lib/errors'
+import { billingEnabled } from '../../lib/usage-billing'
 import {
-  createStripeCheckoutSession,
   createStripeMeterEvent,
+  createStripePortalSession,
   parseStripeEvent,
-  retrieveStripeCheckoutSession,
   verifyStripeWebhookSignature,
 } from '../stripe-client'
 
@@ -12,9 +12,6 @@ function env(overrides: Partial<Env> = {}): Env {
   return {
     STRIPE_SECRET_KEY: 'sk_test_local',
     STRIPE_WEBHOOK_SECRET: 'whsec_local',
-    STRIPE_STARTER_PRICE_ID: 'price_starter',
-    STRIPE_PRO_PRICE_ID: 'price_pro',
-    STRIPE_ENTERPRISE_PRICE_ID: 'price_enterprise',
     STRIPE_METER_EVENT_NAME: 'xid_mau',
     ...overrides,
   } as Env
@@ -37,6 +34,33 @@ async function signature(secret: string, timestamp: number, body: string): Promi
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('billingEnabled', () => {
+  it('is off when no Stripe value is configured', () => {
+    expect(billingEnabled({} as Env)).toBe(false)
+    expect(billingEnabled({ STRIPE_SECRET_KEY: '  ' } as Env)).toBe(false)
+  })
+
+  it('is on only when secret key, webhook secret and meter event name are all configured', () => {
+    expect(billingEnabled(env())).toBe(true)
+  })
+
+  it.each([
+    { STRIPE_SECRET_KEY: undefined },
+    { STRIPE_WEBHOOK_SECRET: undefined },
+    { STRIPE_METER_EVENT_NAME: undefined },
+  ])('fails closed with server_error when partially configured: %o', (missing) => {
+    expect(() => billingEnabled(env(missing))).toThrow(
+      expect.objectContaining({ code: 'server_error' }),
+    )
+  })
+
+  it('fails closed when the meter event name is longer than Stripe accepts', () => {
+    expect(() => billingEnabled(env({ STRIPE_METER_EVENT_NAME: 'x'.repeat(101) }))).toThrow(
+      expect.objectContaining({ code: 'server_error' }),
+    )
+  })
 })
 
 describe('Stripe Worker boundary', () => {
@@ -72,73 +96,39 @@ describe('Stripe Worker boundary', () => {
       parseStripeEvent(
         JSON.stringify({
           id: 'evt_1',
-          type: 'checkout.session.completed',
+          type: 'customer.subscription.updated',
           created: 1_785_240_000,
           data: { object: { customer: 'cus_1' } },
         }),
       ),
-    ).toMatchObject({ id: 'evt_1', type: 'checkout.session.completed' })
+    ).toMatchObject({ id: 'evt_1', type: 'customer.subscription.updated' })
     expect(() => parseStripeEvent('{"type":"missing-id"}')).toThrow(AppError)
     expect(() => parseStripeEvent('{')).toThrow(AppError)
   })
 
-  it('creates a subscription Checkout Session with internal reconciliation metadata', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: 'cs_test_1',
-          url: 'https://checkout.stripe.com/c/pay/cs_test_1',
-          expires_at: 1_785_326_400,
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ),
-    )
+  it('opens a Customer Portal session on a Stripe-hosted URL', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ id: 'bps_1', url: 'https://billing.stripe.com/p/session/bps_1' }),
+        ),
+      )
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(
-      createStripeCheckoutSession(env(), {
-        tenantId: 'org_1',
-        plan: 'starter',
-        customerId: null,
-        successUrl: 'https://xid.example/console/platform/plans?tenantId=org_1&checkout=success',
-        cancelUrl: 'https://xid.example/console/platform/plans?tenantId=org_1&checkout=canceled',
-        idempotencyKey: 'checkout_1',
+      createStripePortalSession(env(), {
+        customerId: 'cus_1',
+        returnUrl: 'https://xid.example/console/platform/usage',
       }),
     ).resolves.toEqual({
-      id: 'cs_test_1',
-      url: 'https://checkout.stripe.com/c/pay/cs_test_1',
-      expiresAt: 1_785_326_400_000,
-    })
-
-    const [, request] = fetchMock.mock.calls[0]!
-    const body = new URLSearchParams(String(request?.body))
-    expect(body.get('mode')).toBe('subscription')
-    expect(body.get('line_items[0][price]')).toBe('price_starter')
-    expect(body.get('metadata[xid_tenant_id]')).toBe('org_1')
-    expect(body.get('subscription_data[metadata][xid_plan]')).toBe('starter')
-    expect(new Headers(request?.headers).get('idempotency-key')).toBe('checkout_1')
-  })
-
-  it('retrieves authoritative Checkout status before replacing an elapsed hosted session', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: 'cs_test_1',
-          status: 'complete',
-          expires_at: 1_785_326_400,
-        }),
-      ),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(retrieveStripeCheckoutSession(env(), 'cs_test_1')).resolves.toEqual({
-      id: 'cs_test_1',
-      status: 'complete',
-      expiresAt: 1_785_326_400_000,
+      id: 'bps_1',
+      url: 'https://billing.stripe.com/p/session/bps_1',
+      expiresAt: null,
     })
     const [url, request] = fetchMock.mock.calls[0]!
-    expect(url).toBe('https://api.stripe.com/v1/checkout/sessions/cs_test_1')
-    expect(request?.method).toBeUndefined()
+    expect(url).toBe('https://api.stripe.com/v1/billing_portal/sessions')
+    expect(new URLSearchParams(String(request?.body)).get('customer')).toBe('cus_1')
   })
 
   it('reports an idempotent Billing meter event with the accepted form contract', async () => {
@@ -164,16 +154,28 @@ describe('Stripe Worker boundary', () => {
     expect(body.get('payload[value]')).toBe('7')
   })
 
-  it('fails closed when the optional adapter is only partially configured', async () => {
+  it('refuses Stripe calls when billing is switched off', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+
     await expect(
-      createStripeCheckoutSession(env({ STRIPE_SECRET_KEY: undefined }), {
-        tenantId: 'org_1',
-        plan: 'starter',
-        customerId: null,
-        successUrl: 'https://xid.example/success',
-        cancelUrl: 'https://xid.example/cancel',
-        idempotencyKey: 'checkout_1',
+      createStripePortalSession({} as Env, {
+        customerId: 'cus_1',
+        returnUrl: 'https://xid.example/console/platform/usage',
       }),
     ).rejects.toMatchObject({ code: 'service_unavailable', httpStatus: 503 })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the adapter is only partially configured', async () => {
+    await expect(
+      createStripeMeterEvent(env({ STRIPE_SECRET_KEY: undefined }), {
+        eventName: 'xid_mau',
+        identifier: 'xid_mau_org_1',
+        customerId: 'cus_1',
+        value: 1,
+        timestampSeconds: 1_785_240_000,
+      }),
+    ).rejects.toMatchObject({ code: 'server_error' })
   })
 })

@@ -8,20 +8,10 @@ export type PlatformPage<T> = {
   total: number
 }
 
-export const ORGANIZATION_PLANS = ['free', 'starter', 'pro', 'enterprise'] as const
-export type OrganizationPlanName = (typeof ORGANIZATION_PLANS)[number]
+export const BILLING_ACCOUNT_STATUSES = ['active', 'trialing', 'past_due', 'canceled'] as const
+export type BillingAccountStatus = (typeof BILLING_ACCOUNT_STATUSES)[number]
 
-export const ORGANIZATION_PLAN_STATUSES = ['active', 'trialing', 'past_due', 'canceled'] as const
-export type OrganizationPlanStatus = (typeof ORGANIZATION_PLAN_STATUSES)[number]
-
-export const ORGANIZATION_QUOTA_KEYS = [
-  'seats',
-  'organizations',
-  'sso_connections',
-  'api_calls',
-  'emails',
-  'mau',
-] as const
+export const ORGANIZATION_QUOTA_KEYS = ['seats', 'organizations', 'sso_connections', 'mau'] as const
 export type OrganizationQuotaKey = (typeof ORGANIZATION_QUOTA_KEYS)[number]
 
 export const ORGANIZATION_QUOTA_ENFORCEMENTS = ['observe', 'block_creation'] as const
@@ -33,7 +23,6 @@ export type PlatformOrganization = {
   id: string
   slug: string
   name: string
-  plan: OrganizationPlanName
   status: PlatformOrganizationStatus
   userCount: number
   orgCount: number
@@ -120,17 +109,15 @@ export type QueueDeadLetterReplay = {
   idempotent: boolean
 }
 
-export type BillingOverviewStatus = 'ok' | 'overdue' | 'exceeded'
+export type UsageBillingStatus = 'ok' | 'overdue'
 
-export type BillingOverview = {
+export type UsageOverview = {
   organizationId: string
   organizationName: string
-  plan: OrganizationPlanName
   mau: number
   dau: number
   seatUsed: number
-  seatLimit: number | null
-  status: BillingOverviewStatus
+  billingStatus?: UsageBillingStatus
 }
 
 export type OrganizationQuota = {
@@ -139,26 +126,18 @@ export type OrganizationQuota = {
   enforcement: OrganizationQuotaEnforcement
 }
 
-export type OrganizationPlanDetail = {
+export type OrganizationQuotaDetail = {
   tenantId: string
-  organizationName: string
-  plan: OrganizationPlanName
-  status: OrganizationPlanStatus
-  source: string
-  supportLabel: string
-  trialEndsAt: string | null
-  effectiveAt: string
-  seatLimit: number | null
+  name: string
   quotas: OrganizationQuota[]
 }
 
-export type OrganizationPlanPatch = Partial<
-  Pick<OrganizationPlanDetail, 'plan' | 'status' | 'trialEndsAt' | 'seatLimit' | 'quotas'>
->
+export type OrganizationQuotaPatch = {
+  quotas: OrganizationQuota[]
+}
 
-export type StripeBillingConfig = {
+export type BillingConfig = {
   enabled: boolean
-  checkout: Record<Exclude<OrganizationPlanName, 'free'>, boolean>
   portal: boolean
   metering: boolean
 }
@@ -202,7 +181,7 @@ export type PlatformStats = {
   activeOrgCount: number
 }
 
-export type PlatformAnnouncementScope = 'global' | 'tenant' | 'plan'
+export type PlatformAnnouncementScope = 'global' | 'tenant'
 export type PlatformAnnouncementSeverity = 'info' | 'success' | 'warning' | 'critical'
 export type PlatformAnnouncementStatus = 'draft' | 'published' | 'archived'
 

@@ -1,18 +1,16 @@
 import { Hono } from 'hono'
 import {
   parseStripeEvent,
-  stripeWebhookSecret,
+  requireUsageBilling,
   verifyStripeWebhookSignature,
   type StripeEvent,
-  type StripeManagedPlan,
 } from './stripe-client'
-import { deriveStripePlanMutation, type StripePlanMutation } from './stripe-events'
+import { deriveStripeSubscriptionMutation, type StripeSubscriptionMutation } from './stripe-events'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
 import { enqueuePersistedPlatformAudit } from '../platform/audit-outbox'
-import { planDefaultQuotas } from '../platform/plans'
 
 const app = new Hono<XidHonoEnv>()
 export const STRIPE_WEBHOOK_MAX_BODY_BYTES = 1024 * 1024
@@ -23,22 +21,15 @@ type ExistingWebhookEvent = {
   status: string
 }
 
-type PlanRow = {
+type BillingAccountRow = {
   tenantId: string
-  plan: string
-  status: string
   customerId: string | null
 }
 
 type StripeTarget = {
   tenantId: string
-  plan: StripeManagedPlan | 'free'
-  status: StripePlanMutation['status']
+  status: StripeSubscriptionMutation['status']
   customerId: string
-}
-
-function isOrganizationPlan(value: string): value is StripeTarget['plan'] {
-  return value === 'free' || value === 'starter' || value === 'pro' || value === 'enterprise'
 }
 
 function eventPriority(eventType: string): number {
@@ -117,26 +108,29 @@ async function existingEvent(env: Env, event: StripeEvent): Promise<ExistingWebh
   return row
 }
 
-async function loadPlanByCustomer(env: Env, customerId: string): Promise<PlanRow | null> {
+async function loadAccountByCustomer(
+  env: Env,
+  customerId: string,
+): Promise<BillingAccountRow | null> {
   return env.DB.prepare(
-    `SELECT tenant_id AS tenantId, plan, status, external_customer_id AS customerId
+    `SELECT tenant_id AS tenantId, external_customer_id AS customerId
      FROM organization_plans
      WHERE external_customer_id = ?
      LIMIT 1`,
   )
     .bind(customerId)
-    .first<PlanRow>()
+    .first<BillingAccountRow>()
 }
 
-async function loadPlanByTenant(env: Env, tenantId: string): Promise<PlanRow | null> {
+async function loadAccountByTenant(env: Env, tenantId: string): Promise<BillingAccountRow | null> {
   return env.DB.prepare(
-    `SELECT tenant_id AS tenantId, plan, status, external_customer_id AS customerId
+    `SELECT tenant_id AS tenantId, external_customer_id AS customerId
      FROM organization_plans
      WHERE tenant_id = ?
      LIMIT 1`,
   )
     .bind(tenantId)
-    .first<PlanRow>()
+    .first<BillingAccountRow>()
 }
 
 async function isTopLevelTenant(env: Env, tenantId: string): Promise<boolean> {
@@ -151,37 +145,31 @@ async function isTopLevelTenant(env: Env, tenantId: string): Promise<boolean> {
   return row !== null
 }
 
-async function resolveTarget(env: Env, mutation: StripePlanMutation): Promise<StripeTarget> {
-  if (mutation.planResolutionError) {
-    throw new Error(`stripe_${mutation.planResolutionError}`)
-  }
-  const [customerPlan, hintedPlan, tenantExists] = await Promise.all([
-    loadPlanByCustomer(env, mutation.customerId),
-    mutation.tenantHint ? loadPlanByTenant(env, mutation.tenantHint) : Promise.resolve(null),
+async function resolveTarget(
+  env: Env,
+  mutation: StripeSubscriptionMutation,
+): Promise<StripeTarget> {
+  const [customerAccount, hintedAccount, tenantExists] = await Promise.all([
+    loadAccountByCustomer(env, mutation.customerId),
+    mutation.tenantHint ? loadAccountByTenant(env, mutation.tenantHint) : Promise.resolve(null),
     mutation.tenantHint ? isTopLevelTenant(env, mutation.tenantHint) : Promise.resolve(false),
   ])
 
   if (mutation.tenantHint && !tenantExists) {
     throw new Error('stripe_tenant_hint_unknown')
   }
-  if (customerPlan && mutation.tenantHint && customerPlan.tenantId !== mutation.tenantHint) {
+  if (customerAccount && mutation.tenantHint && customerAccount.tenantId !== mutation.tenantHint) {
     throw new Error('stripe_customer_tenant_mismatch')
   }
 
-  const tenantId = customerPlan?.tenantId ?? mutation.tenantHint
+  const tenantId = customerAccount?.tenantId ?? mutation.tenantHint
   if (!tenantId) throw new Error('stripe_tenant_unresolved')
-  const current = customerPlan ?? hintedPlan
+  const current = customerAccount ?? hintedAccount
   if (current?.customerId && current.customerId !== mutation.customerId) {
     throw new Error('stripe_tenant_customer_mismatch')
   }
-
-  const plan = mutation.planHint ?? current?.plan
-  if (!plan || !isOrganizationPlan(plan)) {
-    throw new Error('stripe_plan_unresolved')
-  }
   return {
     tenantId,
-    plan,
     status: mutation.status,
     customerId: mutation.customerId,
   }
@@ -241,7 +229,8 @@ function orderedMutationBindings(
   return [event.id, tenantId, event.created, event.created, priority, priority, event.id] as const
 }
 
-function conditionalPlanStatement(
+// organization_plans 是计费账户表(表名沿用);plan 列已停用,插入时由列默认值补齐。
+function conditionalBillingAccountStatement(
   env: Env,
   event: StripeEvent,
   target: StripeTarget,
@@ -250,13 +239,12 @@ function conditionalPlanStatement(
   const canApply = `${pendingEventPredicate()} AND ${newerProcessedEventPredicate()}`
   return env.DB.prepare(
     `INSERT INTO organization_plans (
-       tenant_id, plan, status, source, external_customer_id, trial_ends_at,
+       tenant_id, status, source, external_customer_id, trial_ends_at,
        effective_at, updated_by, created_at, updated_at
      )
-     SELECT ?, ?, ?, 'stripe', ?, NULL, ?, NULL, ?, ?
+     SELECT ?, ?, 'stripe', ?, NULL, ?, NULL, ?, ?
      WHERE ${canApply}
      ON CONFLICT (tenant_id) DO UPDATE SET
-       plan = excluded.plan,
        status = excluded.status,
        source = 'stripe',
        external_customer_id = excluded.external_customer_id,
@@ -265,7 +253,6 @@ function conditionalPlanStatement(
        updated_at = excluded.updated_at`,
   ).bind(
     target.tenantId,
-    target.plan,
     target.status,
     target.customerId,
     event.created * 1000,
@@ -275,89 +262,21 @@ function conditionalPlanStatement(
   )
 }
 
-function conditionalQuotaStatement(
-  env: Env,
-  input: {
-    event: StripeEvent
-    target: StripeTarget
-    quota: ReturnType<typeof planDefaultQuotas>[number]
-    now: number
-  },
-): D1PreparedStatement {
-  const { event, target, quota, now } = input
-  const canApply = `${pendingEventPredicate()} AND ${newerProcessedEventPredicate()}`
-  return env.DB.prepare(
-    `INSERT INTO organization_quotas (
-       tenant_id, quota_key, "limit", enforcement, updated_by, created_at, updated_at
-     )
-     SELECT ?, ?, ?, ?, NULL, ?, ?
-     WHERE ${canApply}
-     ON CONFLICT (tenant_id, quota_key) DO UPDATE SET
-       "limit" = excluded."limit",
-       enforcement = excluded.enforcement,
-       updated_at = excluded.updated_at
-     WHERE organization_quotas.updated_by IS NULL`,
-  ).bind(
-    target.tenantId,
-    quota.key,
-    quota.limit,
-    quota.enforcement,
-    now,
-    now,
-    ...orderedMutationBindings(event, target.tenantId),
-  )
-}
-
-function conditionalSeatMirrorStatement(
-  env: Env,
-  event: StripeEvent,
-  target: StripeTarget,
-  now: number,
-): D1PreparedStatement {
-  const canApply = `${pendingEventPredicate()} AND ${newerProcessedEventPredicate()}`
-  return env.DB.prepare(
-    `UPDATE organizations
-     SET seat_limit = (
-       SELECT "limit"
-       FROM organization_quotas
-       WHERE tenant_id = ? AND quota_key = 'seats'
-     ), updated_at = ?
-     WHERE id = ? AND tenant_id = ? AND parent_org_id IS NULL
-       AND ${canApply}`,
-  ).bind(
-    target.tenantId,
-    now,
-    target.tenantId,
-    target.tenantId,
-    ...orderedMutationBindings(event, target.tenantId),
-  )
-}
-
-function conditionalCheckoutCompletionStatement(
-  env: Env,
-  input: { event: StripeEvent; target: StripeTarget; now: number },
-): D1PreparedStatement {
-  const canApply = `${pendingEventPredicate()} AND ${newerProcessedEventPredicate()}`
-  return env.DB.prepare(
-    `UPDATE stripe_checkout_reservations
-     SET customer_id = COALESCE(customer_id, ?), status = 'completed', updated_at = ?
-     WHERE tenant_id = ? AND status IN ('reserved', 'ready')
-       AND (customer_id IS NULL OR customer_id = ?)
-       AND ${canApply}`,
-  ).bind(
-    input.target.customerId,
-    input.now,
-    input.target.tenantId,
-    input.target.customerId,
-    ...orderedMutationBindings(input.event, input.target.tenantId),
-  )
+function subscriptionAuditPayload(event: StripeEvent, target: StripeTarget) {
+  return {
+    targetType: 'billing_account',
+    targetId: target.tenantId,
+    eventId: event.id,
+    eventType: event.type,
+    status: target.status,
+  }
 }
 
 function conditionalAuditStatement(
   env: Env,
   input: {
     event: StripeEvent
-    mutation: StripePlanMutation
+    mutation: StripeSubscriptionMutation
     target: StripeTarget
     auditId: string
     now: number
@@ -376,14 +295,7 @@ function conditionalAuditStatement(
     auditId,
     target.tenantId,
     mutation.auditAction,
-    JSON.stringify({
-      targetType: 'organization_plan',
-      targetId: target.tenantId,
-      eventId: event.id,
-      eventType: event.type,
-      plan: target.plan,
-      status: target.status,
-    }),
+    JSON.stringify(subscriptionAuditPayload(event, target)),
     now,
     now,
     now,
@@ -426,11 +338,7 @@ export async function applyStripeEvent(env: Env, event: StripeEvent): Promise<vo
   const prior = await existingEvent(env, event)
   if (prior?.status === 'processed' || prior?.status === 'ignored') return
 
-  const mutation = deriveStripePlanMutation(event, {
-    starter: env.STRIPE_STARTER_PRICE_ID,
-    pro: env.STRIPE_PRO_PRICE_ID,
-    enterprise: env.STRIPE_ENTERPRISE_PRICE_ID,
-  })
+  const mutation = deriveStripeSubscriptionMutation(event)
   const now = Date.now()
   if (!mutation) {
     await recordIgnoredEvent(env, event, now)
@@ -461,19 +369,7 @@ export async function applyStripeEvent(env: Env, event: StripeEvent): Promise<vo
          status = 'pending', error_code = NULL, updated_at = excluded.updated_at
        WHERE stripe_webhook_events.status = 'failed'`,
     ).bind(event.id, event.type, target.tenantId, event.created, now, now),
-    conditionalPlanStatement(env, event, target, now),
-  ]
-
-  if (mutation.planHint !== null) {
-    for (const quota of planDefaultQuotas(target.plan)) {
-      statements.push(conditionalQuotaStatement(env, { event, target, quota, now }))
-    }
-    statements.push(conditionalSeatMirrorStatement(env, event, target, now))
-  }
-  if (event.type === 'customer.subscription.created') {
-    statements.push(conditionalCheckoutCompletionStatement(env, { event, target, now }))
-  }
-  statements.push(
+    conditionalBillingAccountStatement(env, event, target, now),
     conditionalAuditStatement(env, { event, mutation, target, auditId, now }),
     env.DB.prepare(
       `UPDATE stripe_webhook_events
@@ -481,7 +377,7 @@ export async function applyStripeEvent(env: Env, event: StripeEvent): Promise<vo
            processed_at = ?, updated_at = ?
        WHERE event_id = ? AND status = 'pending'`,
     ).bind(target.tenantId, now, now, event.id),
-  )
+  ]
   await env.DB.batch(statements)
 
   const auditExists = await env.DB.prepare(
@@ -497,14 +393,7 @@ export async function applyStripeEvent(env: Env, event: StripeEvent): Promise<vo
         tenantId: target.tenantId,
         action: mutation.auditAction,
         actorId: 'system',
-        payload: {
-          targetType: 'organization_plan',
-          targetId: target.tenantId,
-          eventId: event.id,
-          eventType: event.type,
-          plan: target.plan,
-          status: target.status,
-        },
+        payload: subscriptionAuditPayload(event, target),
         ts: now,
       },
     })
@@ -515,7 +404,11 @@ app.post('/', async (c) => {
   const rawBody = await readStripeWebhookBody(c.req.raw)
   const signature = c.req.header('stripe-signature')
   if (!signature) throw new AppError('invalid_request', { httpStatus: 400 })
-  const valid = await verifyStripeWebhookSignature(rawBody, signature, stripeWebhookSecret(c.env))
+  const valid = await verifyStripeWebhookSignature(
+    rawBody,
+    signature,
+    requireUsageBilling(c.env).webhookSecret,
+  )
   if (!valid) throw new AppError('invalid_request', { httpStatus: 400 })
   await applyStripeEvent(c.env, parseStripeEvent(decodeStripeWebhookBody(rawBody)))
   return c.json({ received: true })

@@ -132,16 +132,6 @@ export function isAppError(value: unknown): value is AppError {
 
 // D1 trigger errors are otherwise untyped runtime exceptions. Only the exact migration-owned
 // sentinel is promoted to the public business error; arbitrary SQL/provider messages remain 500.
-export function isSeatLimitConstraintError(value: unknown): boolean {
-  let current: unknown = value
-  for (let depth = 0; depth < 3; depth += 1) {
-    if (!(current instanceof Error)) return false
-    if (current.message.includes('seat_limit_exceeded')) return true
-    current = current.cause
-  }
-  return false
-}
-
 export function isResourceQuotaConstraintError(value: unknown): boolean {
   let current: unknown = value
   for (let depth = 0; depth < 3; depth += 1) {

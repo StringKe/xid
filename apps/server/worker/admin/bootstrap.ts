@@ -12,7 +12,6 @@ import type { XidHonoEnv } from '../lib/types'
 import { createPersistedId } from '../lib/persisted-id'
 import { emailSchema, firstIssuePath, readJsonBody } from '../lib/validate'
 import { decodeKek } from '../oidc/shared'
-import { PLAN_DEFAULTS } from '../platform/plans'
 
 const KEK_VERSION = 1
 
@@ -136,7 +135,6 @@ async function handleBootstrap(c: Context<XidHonoEnv>): Promise<Response> {
   const signingKey = await prepareInstanceSigningKey(c)
   const instanceKid = signingKey.material.kid
   const now = Date.now()
-  const seatLimit = PLAN_DEFAULTS.free.seatLimit
 
   // 整批事务:instance 不可先于其余资源单独提交,否则重试误判 already_initialized。
   await c.env.DB.batch([
@@ -161,14 +159,8 @@ async function handleBootstrap(c: Context<XidHonoEnv>): Promise<Response> {
       id: defaultOrgId,
       slug: defaultSlug,
       name: body.defaultOrgName ?? 'Default Organization',
-      seatLimit,
       now,
     }),
-    c.env.DB.prepare(
-      `INSERT INTO organization_quotas (
-         tenant_id, quota_key, "limit", enforcement, updated_by, created_at, updated_at
-       ) VALUES (?, 'seats', ?, 'block_creation', NULL, ?, ?)`,
-    ).bind(defaultOrgId, seatLimit, now, now),
     instanceSigningKeyStatement(c.env.DB, instanceId, signingKey),
     c.env.DB.prepare(
       `INSERT INTO users (
@@ -317,7 +309,6 @@ function topOrgStatement(
     id: string
     slug: string
     name: string
-    seatLimit: number | null
     now: number
   },
 ): D1PreparedStatement {
@@ -327,7 +318,7 @@ function topOrgStatement(
          id, tenant_id, instance_id, parent_org_id, slug, name,
          public_metadata, private_metadata, seat_limit, seat_used,
          enrollment_mode, allow_org_self_service, status, created_at, updated_at
-       ) VALUES (?, ?, ?, NULL, ?, ?, '{}', ?, ?, 0, 'invite_required', 1, 'active', ?, ?)`,
+       ) VALUES (?, ?, ?, NULL, ?, ?, '{}', ?, NULL, 0, 'invite_required', 1, 'active', ?, ?)`,
     )
     .bind(
       input.id,
@@ -336,7 +327,6 @@ function topOrgStatement(
       input.slug,
       input.name,
       JSON.stringify(defaultOrgMetadata()),
-      input.seatLimit,
       input.now,
       input.now,
     )

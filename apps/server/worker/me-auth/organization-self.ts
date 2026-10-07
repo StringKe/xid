@@ -11,7 +11,6 @@ import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { emailSchema, readJsonBody, slugSchema, validateBody } from '../lib/validate'
 import { emitWebhookAsync } from '../v1/shared'
-import { PLAN_DEFAULTS } from '../platform/plans'
 import { findSelfOrganizationCreateUser } from './organization-self-eligibility'
 import { checkRateLimit, ORG_CREATE_PER_DAY_POLICY, requireSession } from './shared'
 
@@ -237,10 +236,10 @@ export function buildTenantMigrationStatements(opts: {
   const createTenant = env.DB.prepare(
     `INSERT INTO organizations (
        id, tenant_id, instance_id, parent_org_id, slug, name,
-       public_metadata, private_metadata, seat_limit, enrollment_mode,
+       public_metadata, private_metadata, enrollment_mode,
        allow_org_self_service, status, created_at, updated_at
      )
-     SELECT ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'invite_required', 1, 'active', ?, ?
+     SELECT ?, ?, ?, NULL, ?, ?, ?, ?, 'invite_required', 1, 'active', ?, ?
        FROM users
       WHERE id = ? AND tenant_id = ?`,
   ).bind(
@@ -251,21 +250,11 @@ export function buildTenantMigrationStatements(opts: {
     name,
     JSON.stringify({}),
     JSON.stringify(defaultOrgMetadata()),
-    PLAN_DEFAULTS.free.seatLimit,
     nowMs,
     nowMs,
     userId,
     targetTenantId,
   )
-
-  const createSeatQuota = env.DB.prepare(
-    `INSERT INTO organization_quotas (
-       tenant_id, quota_key, "limit", enforcement, updated_by, created_at, updated_at
-     )
-     SELECT ?, 'seats', ?, 'block_creation', NULL, ?, ?
-       FROM organizations
-      WHERE id = ? AND tenant_id = ? AND parent_org_id IS NULL`,
-  ).bind(targetTenantId, PLAN_DEFAULTS.free.seatLimit, nowMs, nowMs, targetTenantId, targetTenantId)
 
   const createOwnerMembership = env.DB.prepare(
     `INSERT INTO memberships (
@@ -311,14 +300,7 @@ export function buildTenantMigrationStatements(opts: {
         )`,
   ).bind(targetTenantId, targetTenantId, sourceTenantId, userId, userId, targetTenantId)
 
-  return [
-    claimUser,
-    createTenant,
-    createSeatQuota,
-    createOwnerMembership,
-    ...moveUserOwnedRows,
-    moveSessions,
-  ]
+  return [claimUser, createTenant, createOwnerMembership, ...moveUserOwnedRows, moveSessions]
 }
 
 export async function handleSelfOrganizationCreate(c: Context<XidHonoEnv>): Promise<Response> {
@@ -395,7 +377,6 @@ export async function handleSelfOrganizationCreate(c: Context<XidHonoEnv>): Prom
     d1Changes(results[0]) !== 1 ||
     d1Changes(results[1]) !== 1 ||
     d1Changes(results[2]) !== 1 ||
-    d1Changes(results[3]) !== 1 ||
     d1Changes(results.at(-1)) < 1
   ) {
     throw new AppError('conflict', { httpStatus: 409 })

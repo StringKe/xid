@@ -321,8 +321,9 @@ export const queueDeadLetters = sqliteTable(
   ],
 )
 
-// 部署方计费元数据,非许可证门闸;鉴权路径永不读此表。
-export const organizationPlans = sqliteTable(
+// 按用量计费账户(Stripe customer 关联与订阅状态),非许可证门闸;鉴权路径永不读此表。
+// plan 列已停用,写入时省略由默认值补齐。
+export const organizationBillingAccounts = sqliteTable(
   'organization_plans',
   {
     tenantId: text('tenant_id').primaryKey(),
@@ -343,7 +344,7 @@ export const organizationPlans = sqliteTable(
   ],
 )
 
-// 配额只管资源创建/运营计量,不挡登录;null=无限;seats 计全租户 active 成员,seat_limit 仅兼容镜像。
+// 配额只管资源创建/运营观测,不挡登录;null=无限;seats 只观测,seat_limit 仅兼容镜像。
 export const organizationQuotas = sqliteTable(
   'organization_quotas',
   {
@@ -388,7 +389,7 @@ export const billingMeterReports = sqliteTable(
   ],
 )
 
-// 每租户一个活跃 Checkout 预留;幂等键先落库,未过期 session 复用。
+// 已停用:XID 不创建 Checkout,表与历史行仅为增量迁移保留,代码不读写。
 export const stripeCheckoutReservations = sqliteTable(
   'stripe_checkout_reservations',
   {

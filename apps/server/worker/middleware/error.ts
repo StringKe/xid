@@ -4,12 +4,7 @@ import { errorMessages } from '@xid-kit/i18n'
 import type { XidError, XidErrorCode } from '@xid-kit/types'
 import type { ErrorHandler } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import {
-  AppError,
-  isAppError,
-  isResourceQuotaConstraintError,
-  isSeatLimitConstraintError,
-} from '../lib/errors'
+import { AppError, isAppError, isResourceQuotaConstraintError } from '../lib/errors'
 import { recordLoginFailure } from '../lib/login-audit'
 import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
@@ -95,11 +90,9 @@ function logOneTimeLinkRejection(
 
 // 未知错误恒打日志;结构化预期失败不打;响应 no-store。
 export const errorHandler: ErrorHandler<XidHonoEnv> = (err, c) => {
-  const normalized = isSeatLimitConstraintError(err)
-    ? new AppError('seat_limit_exceeded')
-    : isResourceQuotaConstraintError(err)
-      ? new AppError('resource_quota_exceeded')
-      : err
+  const normalized = isResourceQuotaConstraintError(err)
+    ? new AppError('resource_quota_exceeded')
+    : err
   if (!isAppError(normalized) && !isXidErrorShape(normalized)) {
     logWorkerError('request.unhandled_exception', err, {
       component: 'error-middleware',

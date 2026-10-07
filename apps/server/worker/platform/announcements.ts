@@ -13,9 +13,7 @@ import {
   prepareConditionalPlatformAuditOutboxInsert,
   preparePlatformAuditOutboxInsert,
 } from './audit-outbox'
-import { ORGANIZATION_PLANS } from '@xid-kit/types'
 import type { PlatformAnnouncement } from '@xid-kit/types'
-import { loadOrganizationPlanMap } from './plans'
 import {
   decodeCursor,
   encodeCursor,
@@ -26,7 +24,7 @@ import {
 
 const platformApp = new Hono<XidHonoEnv>()
 const activeApp = new Hono<XidHonoEnv>()
-const ANNOUNCEMENT_SCOPES = ['global', 'tenant', 'plan'] as const
+const ANNOUNCEMENT_SCOPES = ['global', 'tenant'] as const
 const ANNOUNCEMENT_SEVERITIES = ['info', 'success', 'warning', 'critical'] as const
 const ANNOUNCEMENT_STATUSES = ['draft', 'published', 'archived'] as const
 const CURSOR_SEPARATOR = '|'
@@ -99,15 +97,6 @@ async function assertScope(
       httpStatus: 422,
       meta: { paramName: 'scopeValue' },
     })
-  }
-  if (scopeType === 'plan') {
-    if (!ORGANIZATION_PLANS.includes(scopeValue as (typeof ORGANIZATION_PLANS)[number])) {
-      throw new AppError('validation_failed', {
-        httpStatus: 422,
-        meta: { paramName: 'scopeValue' },
-      })
-    }
-    return
   }
   const [tenant] = await managementDb(env)
     .select({ id: schema.organizations.id })
@@ -393,8 +382,6 @@ platformApp.delete('/:id', async (c) => {
 activeApp.get('/', async (c) => {
   await requireSession(c)
   const tenant = c.get('tenant')
-  const plan =
-    (await loadOrganizationPlanMap(c.env, [tenant.tenantId])).get(tenant.tenantId) ?? 'free'
   const now = new Date()
   const rows = await managementDb(c.env)
     .select()
@@ -412,10 +399,6 @@ activeApp.get('/', async (c) => {
           and(
             eq(schema.platformAnnouncements.scopeType, 'tenant'),
             eq(schema.platformAnnouncements.scopeValue, tenant.tenantId),
-          ),
-          and(
-            eq(schema.platformAnnouncements.scopeType, 'plan'),
-            eq(schema.platformAnnouncements.scopeValue, plan),
           ),
         ),
       ),

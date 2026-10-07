@@ -65,7 +65,7 @@ import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import {
   buildOrganizationQuotaUpsertStatement,
   buildSeatLimitMirrorStatement,
-} from '../platform/plans'
+} from '../platform/quotas'
 import {
   assertHeaderConnectionConfig,
   assertInboundSsoProtocol,
@@ -1751,7 +1751,7 @@ app.patch('/:id', async (c) => {
         quota: {
           key: 'seats',
           limit: body.seat_limit,
-          enforcement: 'block_creation',
+          enforcement: 'observe',
         },
         updatedBy: apiKey.id,
         now,

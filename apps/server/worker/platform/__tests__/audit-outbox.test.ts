@@ -115,7 +115,7 @@ describe('platform audit outbox', () => {
 
     const prepared = await recordPlatformAudit(env, {
       tenantId: 'tenant_1',
-      action: 'platform.plan_changed',
+      action: 'platform.quota_changed',
       payload: { targetId: 'tenant_1' },
       ts: 100,
     })

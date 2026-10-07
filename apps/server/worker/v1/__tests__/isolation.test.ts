@@ -8550,7 +8550,7 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
     expect(child['seat_limit']).toBeNull()
   })
 
-  it('PATCH root seat_limit atomically updates the mirror and hard seats quota', async () => {
+  it('PATCH root seat_limit atomically updates the mirror and an observe-only seats quota', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const root = {
       id: 't_1',
@@ -8597,10 +8597,55 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
         tenant_id: 't_1',
         quota_key: 'seats',
         limit: 25,
-        enforcement: 'block_creation',
+        enforcement: 'observe',
         updated_by: 'ak_1',
       }),
     ])
+  })
+
+  it('PATCH 他租户根组织 seat_limit -> 404 且不修改受害租户的镜像与配额', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const victim = {
+      id: 't_2',
+      tenant_id: 't_2',
+      instance_id: 'inst_1',
+      parent_org_id: null,
+      slug: 'victim',
+      name: 'Victim',
+      logo_url: null,
+      public_metadata: {},
+      private_metadata: {},
+      seat_limit: 10,
+      seat_used: 0,
+      enrollment_mode: 'invite_required',
+      allow_org_self_service: 1,
+      status: 'active',
+      deleted_at: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }
+    const quotas: Record<string, unknown>[] = []
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [victim],
+      organization_quotas: quotas,
+    })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerOrganizationsRoutes, { ...TENANT, instanceId: 'inst_1' })
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/t_2',
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seat_limit: 1 }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(404)
+    expect(victim['seat_limit']).toBe(10)
+    expect(quotas).toEqual([])
   })
 })
 

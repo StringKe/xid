@@ -74,12 +74,9 @@ type WorkerBindings = {
   TURNSTILE_SECRET?: string
   // LDAP HTTP gateway bearer;缺省时生产 bind fail-closed。
   LDAP_GATEWAY_SHARED_SECRET?: string
-  // 可选托管计费适配;普通自托管不配置。
+  // 可选按用量计费;三项全配置才开启,全不配置即关闭,只配一部分时 fail closed。
   STRIPE_SECRET_KEY?: string
   STRIPE_WEBHOOK_SECRET?: string
-  STRIPE_STARTER_PRICE_ID?: string
-  STRIPE_PRO_PRICE_ID?: string
-  STRIPE_ENTERPRISE_PRICE_ID?: string
   STRIPE_METER_EVENT_NAME?: string
   // 内置 social secret 固定名;自定义 provider 由部署方通过此非 secret JSON 映射。
   SOCIAL_PROVIDER_SECRET_BINDINGS?: string

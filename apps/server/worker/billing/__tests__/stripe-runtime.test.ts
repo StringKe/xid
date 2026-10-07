@@ -10,11 +10,6 @@ import {
   STRIPE_WEBHOOK_MAX_BODY_BYTES,
 } from '../stripe-webhook'
 import type { StripeEvent } from '../stripe-client'
-import {
-  createOrReuseStripeCheckout,
-  reserveCheckout,
-  stripeConfiguration,
-} from '../../platform/stripe-billing'
 
 type SqliteRow = Record<string, unknown>
 
@@ -151,10 +146,8 @@ function subscriptionEvent(
       object: {
         customer: 'cus_1',
         status,
-        metadata: {
-          xid_tenant_id: 'org_1',
-          xid_plan: 'pro',
-        },
+        metadata: { xid_tenant_id: 'org_1' },
+        items: { data: [{ price: { id: 'price_metered_mau' } }] },
       },
     },
   }
@@ -170,9 +163,6 @@ function makeEnv(d1: SqliteD1): Env {
     },
     STRIPE_SECRET_KEY: 'sk_test_local',
     STRIPE_WEBHOOK_SECRET: 'whsec_local',
-    STRIPE_STARTER_PRICE_ID: 'price_starter',
-    STRIPE_PRO_PRICE_ID: 'price_pro',
-    STRIPE_ENTERPRISE_PRICE_ID: 'price_enterprise',
     STRIPE_METER_EVENT_NAME: 'xid_mau',
   } as unknown as Env
 }
@@ -188,17 +178,6 @@ describe('Stripe webhook persistence', () => {
     applyMigrations(d1.database)
     seedTenant(d1.database)
     const env = makeEnv(d1)
-    d1.database
-      .prepare(
-        `INSERT INTO stripe_checkout_reservations (
-           tenant_id, request_id, plan, customer_id, provider_idempotency_key,
-           status, created_at, updated_at
-         ) VALUES (
-           'org_1', 'request_00000001', 'pro', NULL, 'xid_checkout_test',
-           'reserved', 1000, 1000
-         )`,
-      )
-      .run()
 
     await applyStripeEvent(
       env,
@@ -216,7 +195,7 @@ describe('Stripe webhook persistence', () => {
         )
         .get(),
     ).toEqual({
-      plan: 'pro',
+      plan: 'free',
       status: 'active',
       source: 'stripe',
       external_customer_id: 'cus_1',
@@ -224,14 +203,12 @@ describe('Stripe webhook persistence', () => {
     expect(
       d1.database.prepare(`SELECT COUNT(*) AS value FROM platform_audit_outbox`).get(),
     ).toEqual({ value: 1 })
+    expect(d1.database.prepare(`SELECT COUNT(*) AS value FROM organization_quotas`).get()).toEqual({
+      value: 0,
+    })
     expect(
-      d1.database
-        .prepare(
-          `SELECT status, customer_id
-           FROM stripe_checkout_reservations WHERE tenant_id = 'org_1'`,
-        )
-        .get(),
-    ).toEqual({ status: 'completed', customer_id: 'cus_1' })
+      d1.database.prepare(`SELECT seat_limit FROM organizations WHERE id = 'org_1'`).get(),
+    ).toEqual({ seat_limit: null })
 
     await applyStripeEvent(
       env,
@@ -279,247 +256,15 @@ describe('Stripe webhook persistence', () => {
   })
 })
 
-describe('Stripe Checkout reservation', () => {
-  it('reuses one unexpired hosted session across distinct caller retries', async () => {
-    const d1 = new SqliteD1()
-    applyMigrations(d1.database)
-    seedTenant(d1.database)
-    const now = new Date('2026-07-28T12:00:00.000Z').getTime()
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: 'cs_test_1',
-          url: 'https://checkout.stripe.com/c/pay/cs_test_1',
-          expires_at: Math.floor((now + 60 * 60 * 1000) / 1000),
-        }),
-      ),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-    const env = makeEnv(d1)
-    const base = {
-      tenantId: 'org_1',
-      plan: 'pro' as const,
-      customerId: null,
-      currentStatus: null,
-      successUrl: 'https://xid.test/console/platform/plans?checkout=success',
-      cancelUrl: 'https://xid.test/console/platform/plans?checkout=canceled',
-      now,
-    }
-
-    const first = await createOrReuseStripeCheckout(env, {
-      ...base,
-      requestId: 'request_00000001',
-    })
-    const retried = await createOrReuseStripeCheckout(env, {
-      ...base,
-      requestId: 'request_00000002',
-    })
-
-    expect(retried).toEqual(first)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(
-      d1.database
-        .prepare(
-          `SELECT request_id, status, session_id
-           FROM stripe_checkout_reservations WHERE tenant_id = 'org_1'`,
-        )
-        .get(),
-    ).toEqual({
-      request_id: 'request_00000001',
-      status: 'ready',
-      session_id: 'cs_test_1',
-    })
-    expect(
-      stripeConfiguration(env, { customerId: 'cus_1', status: 'active', source: 'stripe' })
-        .checkout,
-    ).toEqual({
-      starter: false,
-      pro: false,
-      enterprise: false,
-    })
-    expect(
-      stripeConfiguration(env, { customerId: null, status: 'active', source: 'stripe' }).checkout,
-    ).toEqual({
-      starter: false,
-      pro: false,
-      enterprise: false,
-    })
-    d1.close()
-  })
-
-  it('fails closed when an unresolved reservation outlives Stripe idempotency retention', async () => {
-    const d1 = new SqliteD1()
-    applyMigrations(d1.database)
-    seedTenant(d1.database)
-    const env = makeEnv(d1)
-    const now = new Date('2026-07-28T12:00:00.000Z').getTime()
-    const input = {
-      tenantId: 'org_1',
-      requestId: 'request_00000001',
-      plan: 'pro' as const,
-      customerId: null,
-      currentStatus: null,
-      now,
-    }
-    await reserveCheckout(env, input)
-
-    await expect(
-      reserveCheckout(env, {
-        ...input,
-        requestId: 'request_00000002',
-        now: now + 24 * 60 * 60 * 1000,
-      }),
-    ).rejects.toMatchObject({ code: 'service_unavailable', httpStatus: 503 })
-    expect(
-      d1.database
-        .prepare(`SELECT status FROM stripe_checkout_reservations WHERE tenant_id = 'org_1'`)
-        .get(),
-    ).toEqual({ status: 'reconciliation_required' })
-    d1.close()
-  })
-
-  it('does not replace an elapsed hosted session that Stripe reports as complete', async () => {
-    const d1 = new SqliteD1()
-    applyMigrations(d1.database)
-    seedTenant(d1.database)
-    const now = new Date('2026-07-28T12:00:00.000Z').getTime()
-    const elapsedAt = now + 2 * 60 * 60 * 1000
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: 'cs_test_complete',
-            url: 'https://checkout.stripe.com/c/pay/cs_test_complete',
-            expires_at: Math.floor((now + 60 * 60 * 1000) / 1000),
-          }),
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: 'cs_test_complete',
-            status: 'complete',
-            expires_at: Math.floor((now + 60 * 60 * 1000) / 1000),
-          }),
-        ),
-      )
-    vi.stubGlobal('fetch', fetchMock)
-    const env = makeEnv(d1)
-    const input = {
-      tenantId: 'org_1',
-      plan: 'pro' as const,
-      customerId: null,
-      currentStatus: null,
-      successUrl: 'https://xid.test/console/platform/plans?checkout=success',
-      cancelUrl: 'https://xid.test/console/platform/plans?checkout=canceled',
-    }
-
-    await createOrReuseStripeCheckout(env, {
-      ...input,
-      requestId: 'request_00000001',
-      now,
-    })
-    await expect(
-      createOrReuseStripeCheckout(env, {
-        ...input,
-        requestId: 'request_00000002',
-        now: elapsedAt,
-      }),
-    ).rejects.toMatchObject({ code: 'conflict', httpStatus: 409 })
-
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(
-      d1.database
-        .prepare(`SELECT status FROM stripe_checkout_reservations WHERE tenant_id = 'org_1'`)
-        .get(),
-    ).toEqual({ status: 'completed' })
-    d1.close()
-  })
-
-  it('replaces an elapsed hosted session only after Stripe reports it as expired', async () => {
-    const d1 = new SqliteD1()
-    applyMigrations(d1.database)
-    seedTenant(d1.database)
-    const now = new Date('2026-07-28T12:00:00.000Z').getTime()
-    const elapsedAt = now + 2 * 60 * 60 * 1000
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: 'cs_test_expired',
-            url: 'https://checkout.stripe.com/c/pay/cs_test_expired',
-            expires_at: Math.floor((now + 60 * 60 * 1000) / 1000),
-          }),
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: 'cs_test_expired',
-            status: 'expired',
-            expires_at: Math.floor((now + 60 * 60 * 1000) / 1000),
-          }),
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: 'cs_test_replacement',
-            url: 'https://checkout.stripe.com/c/pay/cs_test_replacement',
-            expires_at: Math.floor((elapsedAt + 60 * 60 * 1000) / 1000),
-          }),
-        ),
-      )
-    vi.stubGlobal('fetch', fetchMock)
-    const env = makeEnv(d1)
-    const input = {
-      tenantId: 'org_1',
-      plan: 'pro' as const,
-      customerId: null,
-      currentStatus: null,
-      successUrl: 'https://xid.test/console/platform/plans?checkout=success',
-      cancelUrl: 'https://xid.test/console/platform/plans?checkout=canceled',
-    }
-
-    await createOrReuseStripeCheckout(env, {
-      ...input,
-      requestId: 'request_00000001',
-      now,
-    })
-    await expect(
-      createOrReuseStripeCheckout(env, {
-        ...input,
-        requestId: 'request_00000002',
-        now: elapsedAt,
-      }),
-    ).resolves.toMatchObject({ id: 'cs_test_replacement' })
-
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-    expect(
-      d1.database
-        .prepare(
-          `SELECT request_id, session_id, status
-           FROM stripe_checkout_reservations WHERE tenant_id = 'org_1'`,
-        )
-        .get(),
-    ).toEqual({
-      request_id: 'request_00000002',
-      session_id: 'cs_test_replacement',
-      status: 'ready',
-    })
-    d1.close()
-  })
-})
-
 describe('Stripe MAU meter cursor', () => {
-  it('stays disabled when subscription billing is configured without a meter', async () => {
+  it('does nothing when billing is switched off', async () => {
     const d1 = new SqliteD1()
     applyMigrations(d1.database)
     seedTenant(d1.database)
     const env = {
       ...makeEnv(d1),
+      STRIPE_SECRET_KEY: undefined,
+      STRIPE_WEBHOOK_SECRET: undefined,
       STRIPE_METER_EVENT_NAME: undefined,
     } as Env
     const fetchMock = vi.fn<typeof fetch>()
@@ -528,7 +273,21 @@ describe('Stripe MAU meter cursor', () => {
     await expect(
       reportStripeMauUsage(env, new Date('2026-07-28T12:00:00.000Z')),
     ).resolves.toBeUndefined()
+    expect(env.METERING_QUEUE.send).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
+    d1.close()
+  })
+
+  it('fails closed without enqueueing when billing is only partially configured', async () => {
+    const d1 = new SqliteD1()
+    applyMigrations(d1.database)
+    seedTenant(d1.database)
+    const env = { ...makeEnv(d1), STRIPE_METER_EVENT_NAME: undefined } as Env
+
+    await expect(
+      reportStripeMauUsage(env, new Date('2026-07-28T12:00:00.000Z')),
+    ).rejects.toMatchObject({ code: 'server_error' })
+    expect(env.METERING_QUEUE.send).not.toHaveBeenCalled()
     d1.close()
   })
 
@@ -558,9 +317,9 @@ describe('Stripe MAU meter cursor', () => {
     seedTenant(d1.database)
     const insertPlan = d1.database.prepare(
       `INSERT INTO organization_plans (
-         tenant_id, plan, status, source, external_customer_id,
+         tenant_id, status, source, external_customer_id,
          effective_at, created_at, updated_at
-       ) VALUES (?, 'pro', 'active', 'stripe', ?, 1000, 1000, 1000)`,
+       ) VALUES (?, 'active', 'stripe', ?, 1000, 1000, 1000)`,
     )
     const insertUsage = d1.database.prepare(
       `INSERT INTO usage_monthly (tenant_id, year_month, mau, archived_at)
@@ -603,9 +362,9 @@ describe('Stripe MAU meter cursor', () => {
     d1.database
       .prepare(
         `INSERT INTO organization_plans (
-           tenant_id, plan, status, source, external_customer_id,
+           tenant_id, status, source, external_customer_id,
            effective_at, created_at, updated_at
-         ) VALUES ('org_1', 'pro', 'active', 'stripe', 'cus_1', 1000, 1000, 1000)`,
+         ) VALUES ('org_1', 'active', 'stripe', 'cus_1', 1000, 1000, 1000)`,
       )
       .run()
     d1.database
@@ -670,9 +429,9 @@ describe('Stripe MAU meter cursor', () => {
     d1.database
       .prepare(
         `INSERT INTO organization_plans (
-           tenant_id, plan, status, source, external_customer_id,
+           tenant_id, status, source, external_customer_id,
            effective_at, created_at, updated_at
-         ) VALUES ('org_1', 'pro', 'active', 'stripe', 'cus_1', 1000, 1000, 1000)`,
+         ) VALUES ('org_1', 'active', 'stripe', 'cus_1', 1000, 1000, 1000)`,
       )
       .run()
     d1.database
@@ -733,9 +492,9 @@ describe('Stripe MAU meter cursor', () => {
     d1.database
       .prepare(
         `INSERT INTO organization_plans (
-           tenant_id, plan, status, source, external_customer_id,
+           tenant_id, status, source, external_customer_id,
            effective_at, created_at, updated_at
-         ) VALUES ('org_1', 'pro', 'active', 'stripe', 'cus_1', 1000, 1000, 1000)`,
+         ) VALUES ('org_1', 'active', 'stripe', 'cus_1', 1000, 1000, 1000)`,
       )
       .run()
     d1.database

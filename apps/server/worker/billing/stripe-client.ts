@@ -1,11 +1,10 @@
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { usageBillingConfiguration, type UsageBillingConfiguration } from '../lib/usage-billing'
 
 const STRIPE_API_BASE = 'https://api.stripe.com'
 const STRIPE_REQUEST_TIMEOUT_MS = 10_000
 export const STRIPE_WEBHOOK_TOLERANCE_SECONDS = 300
-
-export type StripeManagedPlan = 'starter' | 'pro' | 'enterprise'
 
 export type StripeEvent = {
   id: string
@@ -31,22 +30,10 @@ const stripeSessionSchema = v.object({
   expires_at: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
 })
 
-const stripeCheckoutSessionStateSchema = v.object({
-  id: v.pipe(v.string(), v.minLength(1), v.maxLength(255)),
-  status: v.picklist(['open', 'complete', 'expired']),
-  expires_at: v.pipe(v.number(), v.integer(), v.minValue(1)),
-})
-
 export type StripeHostedSession = {
   id: string
   url: string
   expiresAt: number | null
-}
-
-export type StripeCheckoutSessionState = {
-  id: string
-  status: 'open' | 'complete' | 'expired'
-  expiresAt: number
 }
 
 export class StripeApiError extends Error {
@@ -59,34 +46,11 @@ export class StripeApiError extends Error {
   }
 }
 
-function requiredSecret(value: string | undefined): string {
-  if (!value) {
-    throw new AppError('service_unavailable', { httpStatus: 503 })
-  }
-  return value
-}
-
-export function stripePriceId(env: Env, plan: StripeManagedPlan): string {
-  const value =
-    plan === 'starter'
-      ? env.STRIPE_STARTER_PRICE_ID
-      : plan === 'pro'
-        ? env.STRIPE_PRO_PRICE_ID
-        : env.STRIPE_ENTERPRISE_PRICE_ID
-  return requiredSecret(value)
-}
-
-export function stripeWebhookSecret(env: Env): string {
-  return requiredSecret(env.STRIPE_WEBHOOK_SECRET)
-}
-
-export function stripeMeterEventName(env: Env): string | null {
-  const value = env.STRIPE_METER_EVENT_NAME?.trim()
-  if (!value) return null
-  if (value.length > 100) {
-    throw new AppError('service_unavailable', { httpStatus: 503 })
-  }
-  return value
+// 计费关闭时 Stripe 调用不可用;部分配置由 usageBillingConfiguration 抛 server_error。
+export function requireUsageBilling(env: Env): UsageBillingConfiguration {
+  const config = usageBillingConfiguration(env)
+  if (!config) throw new AppError('service_unavailable', { httpStatus: 503 })
+  return config
 }
 
 function parseSignatureHeader(header: string): {
@@ -170,7 +134,7 @@ async function stripeFormRequest(
   body: URLSearchParams,
   idempotencyKey?: string,
 ): Promise<unknown> {
-  const secret = requiredSecret(env.STRIPE_SECRET_KEY)
+  const secret = requireUsageBilling(env).secretKey
   const response = await fetch(`${STRIPE_API_BASE}${path}`, {
     method: 'POST',
     headers: {
@@ -185,20 +149,9 @@ async function stripeFormRequest(
   return response.json()
 }
 
-async function stripeGetRequest(env: Env, path: string): Promise<unknown> {
-  const secret = requiredSecret(env.STRIPE_SECRET_KEY)
-  const response = await fetch(`${STRIPE_API_BASE}${path}`, {
-    headers: { authorization: `Bearer ${secret}` },
-    signal: AbortSignal.timeout(STRIPE_REQUEST_TIMEOUT_MS),
-  })
-  if (!response.ok) throw new StripeApiError(response.status)
-  return response.json()
-}
-
-function parseHostedSession(value: unknown, requireExpiry: boolean): StripeHostedSession {
+function parseHostedSession(value: unknown): StripeHostedSession {
   const parsed = v.safeParse(stripeSessionSchema, value)
   if (!parsed.success) throw new StripeApiError(502)
-  if (requireExpiry && parsed.output.expires_at === undefined) throw new StripeApiError(502)
   const url = new URL(parsed.output.url)
   if (
     url.protocol !== 'https:' ||
@@ -213,53 +166,6 @@ function parseHostedSession(value: unknown, requireExpiry: boolean): StripeHoste
   }
 }
 
-export async function createStripeCheckoutSession(
-  env: Env,
-  input: {
-    tenantId: string
-    plan: StripeManagedPlan
-    customerId: string | null
-    successUrl: string
-    cancelUrl: string
-    idempotencyKey: string
-  },
-): Promise<StripeHostedSession> {
-  const body = new URLSearchParams({
-    mode: 'subscription',
-    client_reference_id: input.tenantId,
-    'metadata[xid_tenant_id]': input.tenantId,
-    'metadata[xid_plan]': input.plan,
-    'subscription_data[metadata][xid_tenant_id]': input.tenantId,
-    'subscription_data[metadata][xid_plan]': input.plan,
-    'line_items[0][price]': stripePriceId(env, input.plan),
-    'line_items[0][quantity]': '1',
-    success_url: input.successUrl,
-    cancel_url: input.cancelUrl,
-  })
-  if (input.customerId) body.set('customer', input.customerId)
-  return parseHostedSession(
-    await stripeFormRequest(env, '/v1/checkout/sessions', body, input.idempotencyKey),
-    true,
-  )
-}
-
-export async function retrieveStripeCheckoutSession(
-  env: Env,
-  sessionId: string,
-): Promise<StripeCheckoutSessionState> {
-  if (sessionId.length === 0 || sessionId.length > 255) throw new StripeApiError(502)
-  const result = v.safeParse(
-    stripeCheckoutSessionStateSchema,
-    await stripeGetRequest(env, `/v1/checkout/sessions/${encodeURIComponent(sessionId)}`),
-  )
-  if (!result.success || result.output.id !== sessionId) throw new StripeApiError(502)
-  return {
-    id: result.output.id,
-    status: result.output.status,
-    expiresAt: result.output.expires_at * 1000,
-  }
-}
-
 export async function createStripePortalSession(
   env: Env,
   input: { customerId: string; returnUrl: string },
@@ -268,10 +174,7 @@ export async function createStripePortalSession(
     customer: input.customerId,
     return_url: input.returnUrl,
   })
-  return parseHostedSession(
-    await stripeFormRequest(env, '/v1/billing_portal/sessions', body),
-    false,
-  )
+  return parseHostedSession(await stripeFormRequest(env, '/v1/billing_portal/sessions', body))
 }
 
 export async function createStripeMeterEvent(

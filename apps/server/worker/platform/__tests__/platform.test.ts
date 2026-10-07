@@ -429,6 +429,12 @@ function adminOrganizationRow(): Record<string, unknown> {
   }
 }
 
+const USAGE_BILLING_ENV = {
+  STRIPE_SECRET_KEY: 'sk_test_usage',
+  STRIPE_WEBHOOK_SECRET: 'whsec_usage',
+  STRIPE_METER_EVENT_NAME: 'xid_mau',
+}
+
 function activeUserRow(userId: string, tenantId = 'org_admin'): Record<string, unknown> {
   return {
     id: userId,
@@ -541,10 +547,11 @@ const GET_ENDPOINTS = [
   '/v1/platform/users?q=alice',
   '/v1/platform/audit-events',
   '/v1/platform/audit/verify?tenant_id=org_admin',
-  '/v1/platform/billing',
+  '/v1/platform/usage',
+  '/v1/platform/billing/config',
   '/v1/platform/settings',
   '/v1/platform/dead-letters',
-  '/v1/platform/plans/org_admin',
+  '/v1/platform/quotas/org_admin',
 ] as const
 
 describe('platform-console 门控:cookie 缺失 -> 401 unauthorized', () => {
@@ -1023,7 +1030,7 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     expect(serialized).not.toContain('secret-ciphertext')
   })
 
-  it('GET /v1/platform/billing -> 200 + Page<BillingOverview>', async () => {
+  it('GET /v1/platform/usage -> 200 + Page<UsageOverview> without plan, seat limit or billing status when billing is off', async () => {
     const { env, cookie } = await instanceManagerEnv({
       organizations: [
         {
@@ -1078,62 +1085,108 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
       ],
     })
     const app = buildApp()
-    const res = await doRequest(app, env, '/v1/platform/billing', cookie)
+    const res = await doRequest(app, env, '/v1/platform/usage', cookie)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(Array.isArray(body['data'])).toBe(true)
     expect('nextCursor' in body).toBe(true)
     expect(body['total']).toBeTypeOf('number')
     expect(body['data']).toEqual([
-      expect.objectContaining({ organizationId: 'org_admin', seatUsed: 2, seatLimit: 2 }),
+      {
+        organizationId: 'org_admin',
+        organizationName: 'Admin',
+        mau: 0,
+        dau: 0,
+        seatUsed: 2,
+      },
     ])
   })
 
-  it('GET /v1/platform/plans/:tenantId -> 200 + default accounting label without feature gating', async () => {
+  it('GET /v1/platform/usage reports overdue only when billing is enabled', async () => {
     const { env, cookie } = await instanceManagerEnv({
-      organizations: [
+      organizations: [adminOrganizationRow()],
+      organization_plans: [
         {
-          id: 'org_admin',
           tenant_id: 'org_admin',
-          parent_org_id: null,
-          status: 'active',
-          slug: 'admin',
-          name: 'Admin',
-          seat_used: 1,
-          seat_limit: null,
-          created_at: Date.now(),
+          plan: 'free',
+          status: 'past_due',
+          source: 'stripe',
+          external_customer_id: 'cus_1',
+          effective_at: Date.now(),
+        },
+      ],
+      memberships: [],
+    })
+    Object.assign(env, USAGE_BILLING_ENV)
+
+    const res = await doRequest(buildApp(), env, '/v1/platform/usage', cookie)
+
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { data: unknown[] }).data).toEqual([
+      expect.objectContaining({ organizationId: 'org_admin', billingStatus: 'overdue' }),
+    ])
+  })
+
+  it('GET /v1/platform/quotas/:tenantId -> 200 + stored quotas only, legacy keys filtered', async () => {
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [adminOrganizationRow()],
+      organization_quotas: [
+        { tenant_id: 'org_admin', quota_key: 'seats', limit: 10, enforcement: 'block_creation' },
+        { tenant_id: 'org_admin', quota_key: 'api_calls', limit: 100_000, enforcement: 'observe' },
+        {
+          tenant_id: 'org_admin',
+          quota_key: 'organizations',
+          limit: 5,
+          enforcement: 'block_creation',
         },
       ],
     })
-    const response = await doRequest(buildApp(), env, '/v1/platform/plans/org_admin', cookie)
+
+    const response = await doRequest(buildApp(), env, '/v1/platform/quotas/org_admin', cookie)
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
+    expect(await response.json()).toEqual({
       tenantId: 'org_admin',
-      plan: 'free',
-      status: 'active',
-      supportLabel: 'community',
-      seatLimit: null,
-      quotas: [{ key: 'seats', limit: null, enforcement: 'block_creation' }],
+      name: 'Admin',
+      quotas: [
+        { key: 'seats', limit: 10, enforcement: 'observe' },
+        { key: 'organizations', limit: 5, enforcement: 'block_creation' },
+      ],
     })
   })
 
-  it('PATCH /v1/platform/plans/:tenantId 只改配额时保留 Stripe 来源与生效时间', async () => {
+  it('GET /v1/platform/quotas/:tenantId 无 seats 行时以 seat_limit 镜像作为观测阈值', async () => {
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [{ ...adminOrganizationRow(), seat_limit: 25 }],
+      organization_quotas: [],
+    })
+
+    const response = await doRequest(buildApp(), env, '/v1/platform/quotas/org_admin', cookie)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      quotas: [{ key: 'seats', limit: 25, enforcement: 'observe' }],
+    })
+  })
+
+  it('PATCH /v1/platform/quotas/:tenantId 不改动计费账户', async () => {
     const effectiveAt = Date.now() - 86_400_000
-    const planRow: Record<string, unknown> = {
+    const accountRow: Record<string, unknown> = {
       tenant_id: 'org_admin',
-      plan: 'pro',
+      plan: 'free',
       status: 'active',
       source: 'stripe',
+      external_customer_id: 'cus_1',
       trial_ends_at: null,
       effective_at: effectiveAt,
       updated_by: null,
       created_at: effectiveAt,
       updated_at: effectiveAt,
     }
+    const snapshot = { ...accountRow }
     const tables: TableSet = {
       organizations: [adminOrganizationRow()],
-      organization_plans: [planRow],
+      organization_plans: [accountRow],
       organization_quotas: [],
       platform_audit_outbox: [],
     }
@@ -1142,20 +1195,23 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     const response = await doPatch({
       app: buildApp(),
       env,
-      path: '/v1/platform/plans/org_admin',
-      body: { quotas: [{ key: 'emails', limit: 5_000, enforcement: 'observe' }] },
+      path: '/v1/platform/quotas/org_admin',
+      body: { quotas: [{ key: 'sso_connections', limit: 3, enforcement: 'block_creation' }] },
       cookie,
     })
 
     expect(response.status).toBe(200)
-    expect(planRow).toMatchObject({ plan: 'pro', source: 'stripe', effective_at: effectiveAt })
+    expect(accountRow).toEqual(snapshot)
     expect(tables.organization_quotas).toEqual([
-      expect.objectContaining({ quota_key: 'emails', limit: 5_000 }),
+      expect.objectContaining({
+        quota_key: 'sso_connections',
+        limit: 3,
+        enforcement: 'block_creation',
+      }),
     ])
-    expect(await response.json()).toMatchObject({ organizationName: 'Admin', source: 'stripe' })
   })
 
-  it('PATCH /v1/platform/plans/:tenantId atomically persists plan, seat, quota and audit outbox', async () => {
+  it('PATCH /v1/platform/quotas/:tenantId atomically persists observed seats, seat mirror, quota and audit outbox', async () => {
     const organization = {
       id: 'org_admin',
       tenant_id: 'org_admin',
@@ -1177,74 +1233,35 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     const response = await doPatch({
       app: buildApp(),
       env,
-      path: '/v1/platform/plans/org_admin',
+      path: '/v1/platform/quotas/org_admin',
       body: {
-        plan: 'starter',
-        status: 'trialing',
-        seatLimit: 50,
-        quotas: [{ key: 'api_calls', limit: 1_000_000, enforcement: 'observe' }],
+        quotas: [
+          { key: 'seats', limit: 50, enforcement: 'observe' },
+          { key: 'organizations', limit: 5, enforcement: 'block_creation' },
+        ],
       },
       cookie,
     })
 
     expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body).toMatchObject({
+    expect(await response.json()).toEqual({
       tenantId: 'org_admin',
-      plan: 'starter',
-      status: 'trialing',
-      seatLimit: 50,
-      quotas: expect.arrayContaining([
-        { key: 'seats', limit: 50, enforcement: 'block_creation' },
-        { key: 'api_calls', limit: 1_000_000, enforcement: 'observe' },
-      ]),
+      name: 'Admin',
+      quotas: [
+        { key: 'seats', limit: 50, enforcement: 'observe' },
+        { key: 'organizations', limit: 5, enforcement: 'block_creation' },
+      ],
     })
     expect(organization['seat_limit']).toBe(50)
-    expect(tables.organization_plans).toHaveLength(1)
+    expect(tables.organization_plans).toHaveLength(0)
     expect(tables.organization_quotas).toHaveLength(2)
-    expect(tables.platform_audit_outbox).toHaveLength(1)
+    expect(tables.platform_audit_outbox).toEqual([
+      expect.objectContaining({ action: 'platform.quota_changed' }),
+    ])
   })
 
-  it('PATCH plan-only applies the accounting label defaults without a license gate', async () => {
-    const organization = {
-      id: 'org_admin',
-      tenant_id: 'org_admin',
-      parent_org_id: null,
-      status: 'active',
-      slug: 'admin',
-      name: 'Admin',
-      seat_used: 1,
-      seat_limit: null,
-      created_at: Date.now(),
-    }
-    const { env, cookie } = await instanceManagerEnv({
-      organizations: [organization],
-      organization_plans: [],
-      organization_quotas: [],
-      platform_audit_outbox: [],
-    })
-    const response = await doPatch({
-      app: buildApp(),
-      env,
-      path: '/v1/platform/plans/org_admin',
-      body: { plan: 'pro' },
-      cookie,
-    })
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      plan: 'pro',
-      supportLabel: 'priority',
-      seatLimit: 250,
-      quotas: expect.arrayContaining([
-        { key: 'seats', limit: 250, enforcement: 'block_creation' },
-        { key: 'api_calls', limit: 10_000_000, enforcement: 'observe' },
-      ]),
-    })
-  })
-
-  it.each(['api_calls', 'emails', 'mau'])(
-    'PATCH rejects block_creation for observational quota %s',
+  it.each(['seats', 'mau'])(
+    'PATCH rejects block_creation for observe-only quota %s',
     async (key) => {
       const { env, cookie } = await instanceManagerEnv({
         organizations: [
@@ -1267,16 +1284,17 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
       const response = await doPatch({
         app: buildApp(),
         env,
-        path: '/v1/platform/plans/org_admin',
+        path: '/v1/platform/quotas/org_admin',
         body: { quotas: [{ key, limit: 1, enforcement: 'block_creation' }] },
         cookie,
       })
 
       expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ code: 'validation_failed' })
     },
   )
 
-  it('PATCH rejects an observational seats quota alias', async () => {
+  it.each(['api_calls', 'emails'])('PATCH rejects retired quota key %s', async (key) => {
     const { env, cookie } = await instanceManagerEnv({
       organizations: [
         {
@@ -1298,15 +1316,15 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     const response = await doPatch({
       app: buildApp(),
       env,
-      path: '/v1/platform/plans/org_admin',
-      body: { quotas: [{ key: 'seats', limit: 10, enforcement: 'observe' }] },
+      path: '/v1/platform/quotas/org_admin',
+      body: { quotas: [{ key, limit: 10, enforcement: 'observe' }] },
       cookie,
     })
 
     expect(response.status).toBe(422)
   })
 
-  it('PATCH rejects conflicting seatLimit and seats quota aliases', async () => {
+  it('PATCH rejects plan fields and duplicate quota keys', async () => {
     const { env, cookie } = await instanceManagerEnv({
       organizations: [
         {
@@ -1328,13 +1346,108 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     const response = await doPatch({
       app: buildApp(),
       env,
-      path: '/v1/platform/plans/org_admin',
+      path: '/v1/platform/quotas/org_admin',
       body: {
-        seatLimit: 10,
-        quotas: [{ key: 'seats', limit: 20, enforcement: 'block_creation' }],
+        quotas: [
+          { key: 'seats', limit: 10, enforcement: 'observe' },
+          { key: 'seats', limit: 20, enforcement: 'observe' },
+        ],
       },
       cookie,
     })
+    const planOnly = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/quotas/org_admin',
+      body: { plan: 'pro' },
+      cookie,
+    })
+
+    expect(response.status).toBe(422)
+    expect(planOnly.status).toBe(422)
+  })
+
+  it('GET /v1/platform/billing/config -> enabled:false when no Stripe value is configured', async () => {
+    const { env, cookie } = await instanceManagerEnv({ organizations: [adminOrganizationRow()] })
+
+    const response = await doRequest(buildApp(), env, '/v1/platform/billing/config', cookie)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ enabled: false, portal: false, metering: false })
+  })
+
+  it('GET /v1/platform/billing/config -> server_error when billing is partially configured', async () => {
+    const { env, cookie } = await instanceManagerEnv({ organizations: [adminOrganizationRow()] })
+    Object.assign(env, { STRIPE_SECRET_KEY: 'sk_test_partial' })
+
+    const response = await doRequest(buildApp(), env, '/v1/platform/billing/config', cookie)
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ code: 'server_error' })
+  })
+
+  it('GET /v1/platform/billing/config -> portal only for a tenant bound to a Stripe customer', async () => {
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [adminOrganizationRow()],
+      organization_plans: [
+        {
+          tenant_id: 'org_admin',
+          plan: 'free',
+          status: 'active',
+          source: 'stripe',
+          external_customer_id: 'cus_1',
+          effective_at: Date.now(),
+        },
+      ],
+    })
+    Object.assign(env, USAGE_BILLING_ENV)
+
+    const bound = await doRequest(
+      buildApp(),
+      env,
+      '/v1/platform/billing/config?tenantId=org_admin',
+      cookie,
+    )
+
+    expect(bound.status).toBe(200)
+    expect(await bound.json()).toEqual({ enabled: true, portal: true, metering: true })
+  })
+
+  it.each(['/v1/platform/billing/checkout', '/v1/platform/plans/org_admin'])(
+    '%s no longer exists -> 404',
+    async (path) => {
+      const { env, cookie } = await instanceManagerEnv({ organizations: [adminOrganizationRow()] })
+
+      const response = await doPost(buildApp(), env, path, cookie)
+
+      expect(response.status).toBe(404)
+    },
+  )
+
+  it('POST /v1/platform/announcements rejects the retired plan scope', async () => {
+    const { env, cookie } = await instanceManagerEnv({ platform_announcements: [] })
+
+    const response = await buildApp().request(
+      'https://xid.dev/v1/platform/announcements',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `${cookie.name}=${cookie.value}`,
+        },
+        body: JSON.stringify({
+          scopeType: 'plan',
+          scopeValue: 'free',
+          title: 'Maintenance',
+          body: 'Scheduled maintenance.',
+          severity: 'info',
+          status: 'draft',
+          startsAt: new Date().toISOString(),
+        }),
+      },
+      env,
+      execCtx,
+    )
 
     expect(response.status).toBe(422)
   })

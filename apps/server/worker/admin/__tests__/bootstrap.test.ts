@@ -402,18 +402,11 @@ describe('bootstrap idempotency + gating', () => {
     expect(result.issuer).toBe('https://xid.test')
     expect(result.kid.startsWith('key_')).toBe(true)
 
-    // 实体落库:root org 与 authoritative seat quota 同 batch 初始化。
+    // 实体落库:root org 不带席位上限,也不写任何配额行。
     expect(store['instances']).toHaveLength(1)
     expect(store['organizations']).toHaveLength(1)
-    expect(store['organizations']?.[0]?.['seat_limit']).toBe(10)
-    expect(store['organization_quotas']).toEqual([
-      expect.objectContaining({
-        tenant_id: result.tenantId,
-        quota_key: 'seats',
-        limit: 10,
-        enforcement: 'block_creation',
-      }),
-    ])
+    expect(store['organizations']?.[0]?.['seat_limit']).toBeNull()
+    expect(store['organization_quotas'] ?? []).toEqual([])
     expect(store['instance_signing_keys']).toHaveLength(1)
     expect(store['users']).toHaveLength(1)
     expect(store['user_emails']).toHaveLength(1)
@@ -511,10 +504,10 @@ describe('bootstrap idempotency + gating', () => {
       })
 
       expect(retry.status).toBe(201)
+      expect(store['organization_quotas'] ?? []).toHaveLength(0)
       for (const table of [
         'instances',
         'organizations',
-        'organization_quotas',
         'instance_signing_keys',
         'users',
         'user_emails',

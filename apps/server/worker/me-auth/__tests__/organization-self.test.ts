@@ -4,6 +4,12 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTenantDb } from '@xid-kit/db'
 import { invitationAcceptContinuePath } from '../../auth/invitations'
+import {
+  seedMembership,
+  seedOrganization,
+  seedUser,
+  SqliteD1 as MigratedSqliteD1,
+} from '../../me/__tests__/sqlite-d1'
 import { emitWebhookAsync } from '../../v1/shared'
 import { registerSessionAuthRoutes } from '../index'
 import { buildTenantMigrationStatements } from '../organization-self'
@@ -113,19 +119,10 @@ function makeOnboardingSqlite(): SqliteD1 {
       name TEXT NOT NULL,
       public_metadata TEXT NOT NULL,
       private_metadata TEXT NOT NULL,
-      seat_limit INTEGER NOT NULL,
+      seat_limit INTEGER,
       enrollment_mode TEXT NOT NULL,
       allow_org_self_service INTEGER NOT NULL,
       status TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE organization_quotas (
-      tenant_id TEXT NOT NULL,
-      quota_key TEXT NOT NULL,
-      "limit" INTEGER NOT NULL,
-      enforcement TEXT NOT NULL,
-      updated_by TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -367,6 +364,63 @@ describe('POST /v1/organizations/self', () => {
     ).toEqual({ tenant_id: 'tenant-target', active_org_id: 'tenant-target' })
   })
 
+  it('自助创建的 Tenant 在完整迁移链上不写席位上限，第 11 个及以后的成员全部写入成功', async () => {
+    const db = new MigratedSqliteD1()
+    seedOrganization(db, { id: 'tenant-source', tenantId: 'tenant-source' })
+    seedUser(db, { id: 'user-1', tenantId: 'tenant-source' })
+    db.database.prepare(`UPDATE users SET is_new_user = 1 WHERE id = 'user-1'`).run()
+    db.insert('sessions', {
+      id: 'session-1',
+      tenant_id: 'tenant-source',
+      user_id: 'user-1',
+      refresh_token_hash: 'session_hash',
+      status: 'active',
+      remember_me: 0,
+      is_impersonation: 0,
+      authenticated_at: 1,
+      last_active_at: 1,
+      expires_at: Date.now() + 86_400_000,
+      created_at: 1,
+    })
+    const statements = buildTenantMigrationStatements({
+      env: { DB: db.asD1() } as Env,
+      sourceTenantId: 'tenant-source',
+      targetTenantId: 'tenant-target',
+      instanceId: 'inst_1',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      email: 'owner@example.com',
+      pendingEmail: 'owner@example.com',
+      slug: 'acme',
+      name: 'Acme',
+      membershipId: 'membership-owner',
+      nowMs: 2,
+    })
+
+    await db.batch(statements)
+    for (let index = 2; index <= 12; index += 1) {
+      seedUser(db, { id: `user-${index}`, tenantId: 'tenant-target' })
+      seedMembership(db, {
+        id: `membership-${index}`,
+        tenantId: 'tenant-target',
+        orgId: 'tenant-target',
+        userId: `user-${index}`,
+      })
+    }
+
+    expect(db.rows(`SELECT seat_limit FROM organizations WHERE id = 'tenant-target'`)).toEqual([
+      { seat_limit: null },
+    ])
+    expect(
+      db.rows(`SELECT quota_key FROM organization_quotas WHERE tenant_id = 'tenant-target'`),
+    ).toEqual([])
+    expect(
+      db.rows(
+        `SELECT COUNT(*) AS value FROM memberships WHERE tenant_id = 'tenant-target' AND status = 'active'`,
+      ),
+    ).toEqual([{ value: 12 }])
+  })
+
   it('guest Email 保持 pending，并原子创建顶级 Tenant 和 owner membership', async () => {
     mockUser()
     const { db, batches } = makeD1()
@@ -387,14 +441,14 @@ describe('POST /v1/organizations/self', () => {
     expect(statements).toBeDefined()
     const claimUser = statements?.[0]
     const createTenant = statements?.[1]
-    const createSeatQuota = statements?.[2]
-    const createMembership = statements?.[3]
+    const createMembership = statements?.[2]
     expect(claimUser?.params[1]).toBe('guest@example.com')
     expect(createTenant?.sql).toContain('INSERT INTO organizations')
+    expect(createTenant?.sql).not.toContain('seat_limit')
     expect(createTenant?.params[0]).toBe(createTenant?.params[1])
-    expect(createTenant?.params).toContain(10)
-    expect(createSeatQuota?.sql).toContain('INSERT INTO organization_quotas')
-    expect(createSeatQuota?.params.slice(0, 2)).toEqual([createTenant?.params[0], 10])
+    expect(statements?.some((statement) => statement.sql.includes('organization_quotas'))).toBe(
+      false,
+    )
     expect(createMembership?.sql).toContain('INSERT INTO memberships')
     expect(createMembership?.params[1]).toBe(createMembership?.params[2])
     expect(emitWebhookAsync).toHaveBeenCalledTimes(2)

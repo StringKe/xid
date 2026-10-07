@@ -60,10 +60,6 @@ const ALLOWED_NON_ENTITY_UUIDS: Record<string, AllowedUuidUse> = {
     reason: 'access-token issuance row id and refresh-family correlation id',
   },
   'oidc/token.ts': { count: 1, reason: 'DPoP nonce' },
-  'platform/stripe-billing.ts': {
-    count: 1,
-    reason: 'Stripe provider idempotency key',
-  },
   'queues/audit.ts': { count: 1, reason: 'audit dead-letter id' },
   'queues/email.ts': { count: 1, reason: 'notification failure id' },
   'queues/notification-delivery-state.ts': {

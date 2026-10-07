@@ -1,7 +1,7 @@
 import type { StripeMeteringQueueMessage } from '@xid-kit/types'
-import { createStripeMeterEvent, stripeMeterEventName } from './stripe-client'
-import { AppError } from '../lib/errors'
+import { createStripeMeterEvent } from './stripe-client'
 import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
+import { billingEnabled, usageBillingConfiguration } from '../lib/usage-billing'
 
 const METER_KEY = 'mau'
 export const STRIPE_METER_PAGE_SIZE = 100
@@ -392,22 +392,11 @@ async function loadMeterTarget(
     .first<MeterTarget>()
 }
 
-function requireStripeMeteringConfiguration(env: Env): string | null {
-  const eventName = stripeMeterEventName(env)
-  if (!eventName) return null
-  if (!env.STRIPE_SECRET_KEY) {
-    throw new AppError('service_unavailable', { httpStatus: 503 })
-  }
-  return eventName
-}
-
 export async function enqueueStripeMauUsageReports(
   env: Env,
   now: Date = new Date(),
 ): Promise<void> {
-  const eventName = requireStripeMeteringConfiguration(env)
-  // 用量计费独立 opt-in:仅配置了 meter 名才走日批上报路径。
-  if (!eventName) return
+  if (!billingEnabled(env)) return
   await env.METERING_QUEUE.send({
     type: 'stripe_mau_dispatch',
     period: now.toISOString().slice(0, 7),
@@ -461,8 +450,9 @@ export async function handleStripeMeteringQueueMessage(
   ) {
     throw new Error('stripe_meter_queue_message_invalid')
   }
-  const eventName = requireStripeMeteringConfiguration(env)
-  if (!eventName) return
+  const config = usageBillingConfiguration(env)
+  if (!config) return
+  const eventName = config.meterEventName
   if (message.type === 'stripe_mau_dispatch') {
     await dispatchStripeMeterPage(env, message)
     return

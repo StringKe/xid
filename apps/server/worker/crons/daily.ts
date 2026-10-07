@@ -898,7 +898,7 @@ export async function runDaily(env: Env): Promise<void> {
     },
     failures,
   )
-  // 未配 Stripe 时 report 立即返回;自托管无此路径副作用。
+  // 计费关闭时直接返回;部分配置抛 server_error,由 runDailyPhase 记录后继续其余阶段。
   await runDailyPhase('stripe_metering', () => reportStripeMauUsage(env), failures)
 
   if (failures.length > 0) {

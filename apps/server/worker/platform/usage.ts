@@ -1,15 +1,16 @@
-// GET /v1/platform/billing:所有 organization 计费总览(契约 Page<BillingOverview>,nextCursor + total)。
-// BillingOverview 无独立 id,主键即 organizationId;cursor 按 organizationId 字典序。
-// 跨 organization 走独立管理路径(requireInstanceManager + managementDb,见 shared.ts、tenant-isolation rule)。
-// seat:tenant-wide distinct active membership user + hard seats quota;mau/dau:usage_monthly/usage_daily 当期。
-// status:seatLimit 非空且 seatUsed > seatLimit -> exceeded;否则 ok(overdue 需账务状态源,首版无 -> 不臆造,归 ok)。
+// GET /v1/platform/usage:所有顶层 organization 的用量总览(契约 Page<UsageOverview>,nextCursor + total)。
+// 主键即 organizationId;cursor 按 organizationId 字典序。跨 organization 走独立管理路径
+// (requireInstanceManager + managementDb,见 shared.ts、tenant-isolation rule)。
+// mau/dau 取 usage_monthly/usage_daily 当期;seatUsed 为全租户 distinct active 成员,只做观测。
+// 计费开启时附带 billingStatus:计费账户 past_due -> overdue,其余 ok。
 
 import { schema } from '@xid-kit/db'
-import type { BillingOverview, BillingOverviewStatus } from '@xid-kit/types'
+import type { UsageBillingStatus, UsageOverview } from '@xid-kit/types'
 import { and, count, countDistinct, eq, gt, inArray, isNull } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
+import { billingEnabled } from '../lib/usage-billing'
 import {
   decodeCursor,
   encodeCursor,
@@ -17,19 +18,8 @@ import {
   parsePlatformPagination,
   requireInstanceManager,
 } from './shared'
-import { loadOrganizationPlanAccountingMap, loadOrganizationSeatLimitMap } from './plans'
 
 const app = new Hono<XidHonoEnv>()
-
-function billingStatus(
-  seatUsed: number,
-  seatLimit: number | null,
-  planStatus: string,
-): BillingOverviewStatus {
-  if (planStatus === 'past_due') return 'overdue'
-  if (seatLimit !== null && seatUsed > seatLimit) return 'exceeded'
-  return 'ok'
-}
 
 function utcDay(now: Date): string {
   return now.toISOString().slice(0, 10)
@@ -94,11 +84,29 @@ async function activeSeatsByTenant(
   return new Map(rows.map((row) => [row.tenantId, row.value]))
 }
 
+async function billingStatusByTenant(
+  db: ReturnType<typeof managementDb>,
+  tenantIds: readonly string[],
+): Promise<Map<string, UsageBillingStatus>> {
+  if (tenantIds.length === 0) return new Map()
+  const rows = await db
+    .select({
+      tenantId: schema.organizationBillingAccounts.tenantId,
+      status: schema.organizationBillingAccounts.status,
+    })
+    .from(schema.organizationBillingAccounts)
+    .where(inArray(schema.organizationBillingAccounts.tenantId, tenantIds))
+  return new Map(
+    rows.map((row) => [row.tenantId, row.status === 'past_due' ? 'overdue' : 'ok'] as const),
+  )
+}
+
 app.get('/', async (c) => {
   await requireInstanceManager(c)
   const db = managementDb(c.env)
   const { limit, cursor } = parsePlatformPagination(c, 20)
   const now = new Date()
+  const withBilling = billingEnabled(c.env)
 
   const rows = await db
     .select()
@@ -118,33 +126,23 @@ app.get('/', async (c) => {
   const nextCursor = hasMore && last !== undefined ? encodeCursor(last.id) : null
 
   const tenantIds = pageRows.map((row) => row.id)
-  const [{ dau, mau }, seats, plans, seatLimits] = await Promise.all([
+  const [{ dau, mau }, seats, billing] = await Promise.all([
     usageByTenant(db, now, tenantIds),
     activeSeatsByTenant(db, tenantIds),
-    loadOrganizationPlanAccountingMap(c.env, tenantIds),
-    loadOrganizationSeatLimitMap(c.env, tenantIds),
+    withBilling ? billingStatusByTenant(db, tenantIds) : Promise.resolve(null),
   ])
-  const data: BillingOverview[] = pageRows.map((row) => {
-    const plan = plans.get(row.id) ?? { plan: 'free' as const, status: 'active' as const }
-    const seatUsed = seats.get(row.id) ?? 0
-    const seatLimit = seatLimits.has(row.id)
-      ? (seatLimits.get(row.id) ?? null)
-      : (row.seatLimit ?? null)
-    return {
-      organizationId: row.id,
-      organizationName: row.name,
-      plan: plan.plan,
-      mau: mau.get(row.id) ?? 0,
-      dau: dau.get(row.id) ?? 0,
-      seatUsed,
-      seatLimit,
-      status: billingStatus(seatUsed, seatLimit, plan.status),
-    }
-  })
+  const data: UsageOverview[] = pageRows.map((row) => ({
+    organizationId: row.id,
+    organizationName: row.name,
+    mau: mau.get(row.id) ?? 0,
+    dau: dau.get(row.id) ?? 0,
+    seatUsed: seats.get(row.id) ?? 0,
+    ...(billing ? { billingStatus: billing.get(row.id) ?? 'ok' } : {}),
+  }))
 
   return c.json({ data, nextCursor, total: totalRow?.value ?? 0 })
 })
 
-export function registerPlatformBillingRoutes(honoApp: Hono<XidHonoEnv>): void {
-  honoApp.route('/v1/platform/billing', app)
+export function registerPlatformUsageRoutes(honoApp: Hono<XidHonoEnv>): void {
+  honoApp.route('/v1/platform/usage', app)
 }

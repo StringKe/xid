@@ -2,7 +2,6 @@
 // 顶层 organization(parent_org_id IS NULL,tenant_id = 自身 id)。userCount/orgCount 按 tenant_id 聚合。
 // 跨租户走独立管理路径(requireInstanceManager + managementDb,见 shared.ts、tenant-isolation rule)。
 // q 按 name 或 slug 模糊搜(空 q 前端不发该 param);limit 默认 20(前端固定 20)。
-// plan 列在 organizations 无对应字段 -> 默认 'free'(契约 plan 必填,deterministic 回退,不臆造)。
 
 import { schema } from '@xid-kit/db'
 import { and, count, eq, gt, inArray, isNull, like, ne, or } from 'drizzle-orm'
@@ -19,12 +18,7 @@ import {
   parsePlatformPagination,
   requireInstanceManager,
 } from './shared'
-import type {
-  OrganizationPlanName,
-  PlatformOrganization,
-  PlatformOrganizationStatus,
-} from '@xid-kit/types'
-import { loadOrganizationPlanMap } from './plans'
+import type { PlatformOrganization, PlatformOrganizationStatus } from '@xid-kit/types'
 import {
   enqueuePersistedPlatformAudit,
   prepareConditionalPlatformAuditOutboxInsert,
@@ -45,7 +39,6 @@ const patchOrganizationBodySchema = v.object({
 
 function toOrganizationItem(
   row: typeof schema.organizations.$inferSelect,
-  plan: OrganizationPlanName,
   users: Map<string, number>,
   orgs: Map<string, number>,
 ): PlatformOrganization {
@@ -53,7 +46,6 @@ function toOrganizationItem(
     id: row.id,
     slug: row.slug,
     name: row.name,
-    plan,
     status: toOrganizationStatus(row.status),
     userCount: users.get(row.id) ?? 0,
     orgCount: orgs.get(row.id) ?? 0,
@@ -154,13 +146,7 @@ app.get('/', async (c) => {
     db,
     pageRows.map((row) => row.id),
   )
-  const plans = await loadOrganizationPlanMap(
-    c.env,
-    pageRows.map((row) => row.id),
-  )
-  const data: PlatformOrganization[] = pageRows.map((row) =>
-    toOrganizationItem(row, plans.get(row.id) ?? 'free', users, orgs),
-  )
+  const data: PlatformOrganization[] = pageRows.map((row) => toOrganizationItem(row, users, orgs))
 
   return c.json({ data, nextCursor, total: totalRow?.value ?? 0 })
 })
@@ -243,8 +229,7 @@ app.patch('/:organizationId', async (c) => {
   if (!updated) throw new AppError('not_found', { httpStatus: 404 })
 
   const { users, orgs } = await countsByTenant(db, [updated.tenantId])
-  const plans = await loadOrganizationPlanMap(c.env, [updated.tenantId])
-  return c.json(toOrganizationItem(updated, plans.get(updated.tenantId) ?? 'free', users, orgs))
+  return c.json(toOrganizationItem(updated, users, orgs))
 })
 
 export function registerPlatformOrganizationsRoutes(honoApp: Hono<XidHonoEnv>): void {
