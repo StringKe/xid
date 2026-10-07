@@ -1,7 +1,7 @@
 # XID Identity Platform
 
 XID is a multi-tenant identity platform on Cloudflare, MIT licensed (Copyright 2026 StringKe).
-Self-hosting gets the full feature set: no tiering, no license check. Scope = Clerk DX +
+Self-hosting gets the full feature set (iron rule 9). Scope = Clerk DX +
 Auth0/Zitadel (OIDC IdP, org model) + WorkOS (SSO federation, directory sync). One codebase serves
 single-tenant and multi-tenant; the difference is configuration, never stripped-out code.
 
@@ -23,7 +23,7 @@ in Core because an RP redirects unauthenticated users to `/authorize`.
 
 ## Global iron rules
 
-Binding summaries; long form with paths and rationale: reference `xid-iron-rules-detail`.
+Long form and rationale: reference `xid-iron-rules-detail`.
 
 1. **TenantContext is the single source**: issuer, signing keys, RPID and policy come from it, never
    from a module-level singleton.
@@ -43,6 +43,8 @@ Binding summaries; long form with paths and rationale: reference `xid-iron-rules
    normalized by constant-time comparison plus jitter.
 8. **Platform admin is ManagerAssignment**: one console driven by `manager_assignments`. **Do not
    build a separate admin tenant, app, API or RBAC.**
+9. **No plans**: `xid.dev` is free; any charge is metered MAU only. No tiers, trials, Checkout,
+   pricing UI or license check; billing can be off.
 
 ## AI configuration
 

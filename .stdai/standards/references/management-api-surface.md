@@ -67,7 +67,9 @@ real provider, DNS, certificate and traffic evidence remains `UNKNOWN`.
 Adjacent but separate route families, do not conflate them with the Management API:
 `/v1/me/*` is the self-service account portal (cookie session, not `sk_*`), and `/v1/platform/*` is the
 instance-manager Console API (cookie session + `requireInstanceManager`). The platform family owns
-organization plans and quotas, optional Stripe Checkout / Portal configuration, user impersonation,
+organization resource quotas (`/v1/platform/quotas/:tenantId`), the usage overview
+(`/v1/platform/usage`), optional usage-based billing (`/v1/platform/billing/config` and the Stripe
+Customer Portal; MAU meter reporting runs in the daily Cron), user impersonation,
 announcements, status incidents, compliance evidence, audit views and Queue dead-letter operations.
 `GET /v1/platform/audit/verify` synchronously recomputes a bounded audit chain range in D1 batches;
 the Console exposes the diagnostic. A Queue/KV verification job is not implemented.
@@ -81,9 +83,10 @@ signature validation, idempotency, ordering and crash-safe MAU retries; real Str
 remains `UNKNOWN`.
 
 Resources described in chapter 06 but NOT implemented: `emailAddresses`, `phoneNumbers`,
-`allowlistIdentifiers`, `oauthApplications`, `redirectUrls`, and invoice/payment-method/subscription
-CRUD. Do not reference them as if they exist. Platform accounting plans and quotas are implemented,
-but they are not a licensing gate and they do not imply the missing financial-record CRUD.
+`allowlistIdentifiers`, `oauthApplications`, `redirectUrls`, and invoice/payment-method
+CRUD. Do not reference them as if they exist. Resource quotas are implemented. XID has no plans or
+tiers; billing, when enabled, is usage-based only (metered MAU), and there is no Checkout endpoint.
+`seats` is observe-only; only `organizations` and `sso_connections` may block a management write.
 
 ## SDK Layering
 

@@ -38,7 +38,7 @@ judgment calls about which service to pick for a given job stay in the `cloudfla
 | Workers Secrets     | `KEK`, `PEPPER`, provider credentials (`TWILIO_*`, `VONAGE_*`, `INFOBIP_*`, `MESSAGEBIRD_*`, `STRIPE_*`, ...)          | Envelope-encryption master key, password pepper, optional provider credentials                                          |
 | Turnstile           | `TURNSTILE_SITE_KEY` (public variable) + `TURNSTILE_SECRET` (secret)                                                   | Atomic form-defense configuration; explicit widget plus Siteverify action validation                                    |
 | Cloudflare for SaaS | `CLOUDFLARE_FOR_SAAS_ZONE_ID`, optional `CLOUDFLARE_FOR_SAAS_CNAME_TARGET`, and secret `CLOUDFLARE_FOR_SAAS_API_TOKEN` | Optional custom hostname provisioning, polling and remote-first deletion                                                |
-| Stripe              | Secrets `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; variables `STRIPE_*_PRICE_ID`, `STRIPE_METER_EVENT_NAME`         | Optional Checkout, Billing Portal, signed plan reconciliation and crash-safe MAU reporting                              |
+| Stripe              | Secrets `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; variable `STRIPE_METER_EVENT_NAME`                               | Optional usage-based billing: Customer Portal, signed customer/status reconciliation and crash-safe MAU reporting       |
 | Analytics Engine    | `ANALYTICS` (`xid_analytics`)                                                                                          | Real-time metrics (login success, MFA adoption, active users)                                                           |
 
 There is no Cloudflare Rate Limiting binding and no WAF binding in `wrangler.jsonc`. Application-level
@@ -51,11 +51,15 @@ any partial required pair fails closed. `ZONE_ID` and `CNAME_TARGET` are non-sec
 The friendly CNAME target is optional; without it the client requires an active fallback origin.
 No value or credential is committed to `wrangler.jsonc`.
 
-The Stripe group is also optional. Both Stripe secrets are required before Checkout or Portal
-session creation is enabled. Price ids and the meter event name are non-secret variables. Stripe
-webhooks enter through the public signed callback at `/v1/billing/stripe/webhook`; the daily job
-reports only configured active/trialing customers and persists an exact retry cursor before the
-provider call. XID remains fully functional and MIT licensed without this billing adapter.
+The Stripe group is the single usage-billing switch (`billingEnabled` in
+`apps/server/worker/lib/usage-billing.ts`): all three values set enables billing, all three absent
+disables it, and a partial set fails closed with `server_error` while the daily Stripe phase is
+skipped and logged. There are no price ids and no Checkout; XID has no plans. The meter event name is
+a non-secret variable. Stripe webhooks enter through the public signed callback at
+`/v1/billing/stripe/webhook` and bind operator-created customers through subscription metadata
+`xid_tenant_id`; the daily job reports MAU only for bound active/trialing customers and persists an
+exact retry cursor before the provider call. XID remains fully functional and MIT licensed with
+billing switched off.
 
 ## Durable Object bindings
 
@@ -79,16 +83,16 @@ The first eight classes are registered in migration `v1`; `GuestStore` is regist
 
 ## Queues
 
-| Producer binding | Queue           | Consumer settings                                                                  |
-| ---------------- | --------------- | ---------------------------------------------------------------------------------- |
-| `EMAIL_QUEUE`    | `xid-email`     | batch 100, timeout 5s, max_retries 5, DLQ `xid-email-dlq`                          |
-| `WHATSAPP_QUEUE` | `xid-whatsapp`  | batch 100, timeout 5s, max_retries 5, DLQ `xid-whatsapp-dlq`                       |
-| `SMS_QUEUE`      | `xid-sms`       | batch 100, timeout 5s, max_retries 5, DLQ `xid-sms-dlq`                            |
+| Producer binding | Queue           | Consumer settings                                                                                 |
+| ---------------- | --------------- | ------------------------------------------------------------------------------------------------- |
+| `EMAIL_QUEUE`    | `xid-email`     | batch 100, timeout 5s, max_retries 5, DLQ `xid-email-dlq`                                         |
+| `WHATSAPP_QUEUE` | `xid-whatsapp`  | batch 100, timeout 5s, max_retries 5, DLQ `xid-whatsapp-dlq`                                      |
+| `SMS_QUEUE`      | `xid-sms`       | batch 100, timeout 5s, max_retries 5, DLQ `xid-sms-dlq`                                           |
 | `AUDIT_QUEUE`    | `xid-audit`     | batch 100, timeout 5s, **max_concurrency 1**, max_retries 5, retry delay 60s, DLQ `xid-audit-dlq` |
-| `WEBHOOK_QUEUE`  | `xid-webhook`   | batch 50, timeout 5s, max_retries 5, DLQ `xid-webhook-dlq`                         |
-| `METERING_QUEUE` | `xid-metering`  | batch 100, timeout 5s, max_retries 5, DLQ `xid-metering-dlq`                       |
-| `SCIM_QUEUE`     | `xid-scim-sync` | batch 1, timeout 1s, **max_concurrency 1**, max_retries 5, DLQ `xid-scim-sync-dlq` |
-| `PRIVACY_QUEUE`  | `xid-privacy`   | batch 10, timeout 5s, **max_concurrency 1**, max_retries 5, DLQ `xid-privacy-dlq`  |
+| `WEBHOOK_QUEUE`  | `xid-webhook`   | batch 50, timeout 5s, max_retries 5, DLQ `xid-webhook-dlq`                                        |
+| `METERING_QUEUE` | `xid-metering`  | batch 100, timeout 5s, max_retries 5, DLQ `xid-metering-dlq`                                      |
+| `SCIM_QUEUE`     | `xid-scim-sync` | batch 1, timeout 1s, **max_concurrency 1**, max_retries 5, DLQ `xid-scim-sync-dlq`                |
+| `PRIVACY_QUEUE`  | `xid-privacy`   | batch 10, timeout 5s, **max_concurrency 1**, max_retries 5, DLQ `xid-privacy-dlq`                 |
 
 Each source-specific DLQ has a Core consumer with batch 25, timeout 5s, concurrency 1, retry delay
 60s, and 100 persistence retries. Exhaustion moves to the corresponding

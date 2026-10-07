@@ -56,7 +56,7 @@ the hostname tombstone to prevent cross-tenant stale-DNS takeover.
 
 ## How isolation shows up in the product
 
-- Instance Manager: read users / audit / usage across all orgs, suspend / resume / delete an org, seat and quota accounting. Served by `/v1/platform/*`, never by the business API.
+- Instance Manager: read users / audit / usage across all orgs, suspend / resume / delete an org, usage and quota management. Served by `/v1/platform/*`, never by the business API.
 - Org Admin: only their own org's users, members, roles and audit; configures SSO, MFA and branding. Org-scoped `/v1` routes accept either a `sk_live_` / `sk_test_` API key or a cookie session with membership role `owner` / `admin` / `org_manager` (`requireApiKeyOrOrgManager`).
 - Audit events are keyed by `PRIMARY KEY (tenant_id, seq)`; `org_id` is an optional column for finer filtering, not the partition key.
 - `organizations.allow_org_self_service` (default true): when false, an org console caller cannot change SSO / MFA / login policy and the platform has to step in (`apps/server/worker/v1/organizations.ts`).

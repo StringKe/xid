@@ -1,12 +1,12 @@
 ---
 type: references
 name: xid-iron-rules-detail
-description: The long form of each of the eight XID iron rules, with the concrete file paths, table names, and rationale behind each one
+description: The long form of each of the nine XID iron rules, with the concrete file paths, table names, and rationale behind each one
 ---
 
 # XID Global Iron Rules, Long Form
 
-These are the eight non-negotiable platform-wide constraints of XID, in their full form. The root
+These are the nine non-negotiable platform-wide constraints of XID, in their full form. The root
 overview (`.stdai/standards/root.md`) keeps a one-line summary of each so the always-loaded rules
 stay small; this file holds the full statement with the concrete file paths, table names, and
 reasoning. Read it when you need to know exactly where a rule is implemented, what its exact wording
@@ -52,3 +52,18 @@ forbids, or why it exists. Rule numbering matches the root overview one for one.
    an Org Admin sees only their own org. **Do not build a separate admin tenant, parallel admin
    product, admin API, or admin RBAC**. A separate static Console deployment is a frontend runtime
    boundary, not a second administration system.
+9. **No plans, usage-based billing only**: XID has no plans, tiers or packages -- no free / starter
+   / pro / enterprise, no trial, no support label, no Checkout, no pricing table or plan UI, no
+   plan-scoped announcement. XID Cloud (`https://xid.dev`) is free today; if it ever charges, it
+   charges by metered MAU only (`MeteringDO` exact counts reported by the daily Stripe phase).
+   Self-hosted XID has exactly the same features. Usage billing is one switch with no extra
+   variable: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `STRIPE_METER_EVENT_NAME` all set
+   enables it, none set disables it, a partial set fails closed with `server_error`
+   (`billingEnabled` in `apps/server/worker/lib/usage-billing.ts`). Operators bind a tenant by
+   creating the Stripe customer and metered subscription themselves with metadata `xid_tenant_id`.
+   Resource quotas (`/v1/platform/quotas/:tenantId`) are operator safety caps with no defaults:
+   `seats` is observe-only and never blocks; `organizations` and `sso_connections` may use
+   `block_creation`, which rejects only the matching management write. New tenants get no quota
+   rows and no `seat_limit`. No quota or billing state may block sign-up, sign-in, JIT, SCIM,
+   invitations, token issuance or a configured protocol. Full rule: `docs/design/07-platform-operations.md`
+   section 7.
