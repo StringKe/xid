@@ -407,7 +407,9 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
               <Avatar name={identity.name} src={identity.imageUrl} size="lg" />
               <span {...stylex.props(styles.identityText)}>
                 <span {...stylex.props(styles.identityName)}>{identity.name}</span>
-                <span {...stylex.props(styles.identityEmail)}>{identity.caption}</span>
+                {identity.caption === identity.name ? null : (
+                  <span {...stylex.props(styles.identityEmail)}>{identity.caption}</span>
+                )}
               </span>
             </div>
           ) : null}
