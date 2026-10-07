@@ -14,7 +14,8 @@ in this document is a placeholder that you must replace with your own resource i
 
 - A Cloudflare account. Workers Free includes D1, Durable Objects and Queues within their Free
   limits. Workers Paid is required when Cloudflare Email Service must deliver transactional mail
-  to arbitrary recipients, so it is the expected plan for a real production identity service.
+  to arbitrary recipients, so it is the expected Cloudflare account type for a real production
+  identity service.
   See `https://developers.cloudflare.com/workers/platform/pricing/`,
   `https://developers.cloudflare.com/changelog/post/2026-02-04-queues-free-plan/`, and
   `https://developers.cloudflare.com/email-service/platform/pricing/`.
@@ -202,7 +203,7 @@ pnpm --filter @xid-kit/site build
 
 - Main entry `/console/platform`
 - Sub-pages `/console/platform/organizations`, `/console/platform/users`, `/console/platform/events`,
-  `/console/platform/flags`, `/console/platform/billing`, `/console/platform/plans`,
+  `/console/platform/flags`, `/console/platform/usage`, `/console/platform/quotas`,
   `/console/platform/announcements`, `/console/platform/status`, `/console/platform/compliance`,
   `/console/platform/managers`, `/console/platform/dead-letters`, and
   `/console/platform/settings`
@@ -395,8 +396,8 @@ Optional Workers Secrets:
 | `BOOTSTRAP_TOKEN`               | Once set, `/admin/bootstrap` requires a constant-time matching `X-Bootstrap-Token` header |
 | `TURNSTILE_SECRET`              | Server-side Turnstile Siteverify secret; valid only with `TURNSTILE_SITE_KEY`             |
 | `CLOUDFLARE_FOR_SAAS_API_TOKEN` | Zone-scoped Cloudflare for SaaS Custom Hostnames create/read/delete token                 |
-| `STRIPE_SECRET_KEY`             | Optional managed-service Checkout, Billing Portal, and meter-event API credential         |
-| `STRIPE_WEBHOOK_SECRET`         | Optional Stripe webhook HMAC secret for plan reconciliation                               |
+| `STRIPE_SECRET_KEY`             | Optional usage billing: Customer Portal and MAU meter-event API credential                |
+| `STRIPE_WEBHOOK_SECRET`         | Optional usage billing: Stripe webhook HMAC secret for invoice and payment reconciliation |
 | `GOOGLE_CLIENT_SECRET`          | Google Social OAuth client secret                                                         |
 | `GITHUB_CLIENT_SECRET`          | GitHub Social OAuth client secret                                                         |
 | `MICROSOFT_CLIENT_SECRET`       | Microsoft Social OAuth client secret                                                      |
@@ -452,34 +453,40 @@ unavailable.
 
 This repository never commits a `.env` file or any secret value.
 
-### Optional Stripe billing adapter
+### Optional usage-based billing (Stripe)
 
-Stripe is an optional adapter for operators that sell a managed XID service. It is not a license
-check or a self-hosting feature gate: leaving every `STRIPE_*` value unset keeps the complete
-MIT-licensed product available and disables only Checkout, Billing Portal, webhook reconciliation,
-and Stripe MAU reporting.
+XID has no plans or tiers. XID Cloud (`https://xid.dev`) is free today, and any future charge is
+usage-based only: metered MAU. Self-hosted XID has the same features, and billing is an optional
+adapter for operators who charge for a service built on XID. It is not a license check or a feature
+gate.
 
-The complete adapter configuration is:
+| Name                      | Kind               | Purpose                                                        |
+| ------------------------- | ------------------ | -------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`       | Workers Secret     | Stripe REST API credential                                     |
+| `STRIPE_WEBHOOK_SECRET`   | Workers Secret     | Verifies the raw body of `POST /v1/billing/stripe/webhook`     |
+| `STRIPE_METER_EVENT_NAME` | Variable or secret | Stripe Billing meter event name used by the daily MAU reporter |
 
-| Name                         | Kind               | Purpose                                                        |
-| ---------------------------- | ------------------ | -------------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`          | Workers Secret     | Stripe REST API credential                                     |
-| `STRIPE_WEBHOOK_SECRET`      | Workers Secret     | Verifies the raw body of `POST /v1/billing/stripe/webhook`     |
-| `STRIPE_STARTER_PRICE_ID`    | Variable or secret | Checkout price for the `starter` accounting plan               |
-| `STRIPE_PRO_PRICE_ID`        | Variable or secret | Checkout price for the `pro` accounting plan                   |
-| `STRIPE_ENTERPRISE_PRICE_ID` | Variable or secret | Checkout price for the `enterprise` accounting plan            |
-| `STRIPE_METER_EVENT_NAME`    | Variable or secret | Stripe Billing meter event name used by the daily MAU reporter |
+These three values are one switch:
 
-Checkout and Portal creation remain disabled until both secrets are present. Each plan button also
-requires its matching price id. Configure the Stripe webhook destination as the public HTTPS
-endpoint `https://<your-domain>/v1/billing/stripe/webhook`; Core validates Stripe's timestamped HMAC
-before parsing JSON, deduplicates event ids, and prevents older events from reverting a newer plan.
-The daily Cron stores the exact meter identifier, customer, value, event name, and timestamp in D1
-before calling Stripe, so a crash between provider acceptance and local completion retries the same
-idempotent payload.
+- All three set: usage billing is enabled. The Console adds the overdue status and the Customer
+  Portal to the usage overview, and the daily Cron reports MAU to the meter.
+- None set: usage billing is disabled. Every feature keeps working, the Console shows only usage,
+  and no MAU is reported. This is the default.
+- Only some set: billing fails closed. `/v1/platform/usage`, `/v1/platform/billing/config`, and the
+  Portal endpoint return `server_error`, and the daily Stripe MAU phase is skipped and logged while
+  the other daily phases still run.
+
+XID never creates a Checkout Session and never sells a plan. To bill a tenant, create the Stripe
+customer and a metered subscription in the Stripe Dashboard or API, and set the subscription
+metadata `xid_tenant_id` to the tenant's top-level Organization id. Configure the Stripe webhook
+destination as the public HTTPS endpoint `https://<your-domain>/v1/billing/stripe/webhook`. Core
+validates Stripe's timestamped HMAC before parsing JSON, deduplicates event ids, binds the customer
+to the tenant, and prevents older events from reverting newer billing state. The daily Cron stores
+the exact meter identifier, customer, value, event name, and timestamp in D1 before calling Stripe,
+so a crash between provider acceptance and local completion retries the same idempotent payload.
 
 Repository tests prove the local signature, ordering, deduplication, and retry contracts. A real
-Stripe product, price, customer, webhook delivery, Checkout, Portal, and meter-event run remain L4
+Stripe customer, metered subscription, webhook delivery, Portal, and meter-event run remain L4
 `UNKNOWN` until the operator supplies those external resources and records live evidence.
 
 ### Outbound SCIM target tokens
@@ -701,7 +708,8 @@ the effective deployment config. The Core build fails unless that generated snap
 This is required because the Workers Builds deploy command intentionally stays a plain
 `wrangler deploy`, while optional non-secret dashboard variables such as `TURNSTILE_SITE_KEY`,
 `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`, `CLOUDFLARE_FOR_SAAS_ZONE_ID`,
-`CLOUDFLARE_FOR_SAAS_CNAME_TARGET`, and Stripe price ids may not be declared in the repository.
+`CLOUDFLARE_FOR_SAAS_CNAME_TARGET`, and `STRIPE_METER_EVENT_NAME` may not be declared in the
+repository.
 Wrangler otherwise removes dashboard variables that are absent from the configuration. Secrets are
 preserved independently by Wrangler and are not read by the build. Values explicitly declared under
 Wrangler `vars` remain repository-controlled.
@@ -991,9 +999,9 @@ three because automatic Fetch spans persist `url.full`, which can contain OAuth 
 authentication tokens. Application logs are structured and redact exception messages, stacks,
 causes, cookies, Authorization, IPs, URLs/queries, provider payloads, and user identifiers. Core,
 Site, Console, and Core staging logs sample 100%. Workers Logs retention
-is 3 days on Free and 7 days on Paid, with an overall maximum of 7 days. Current read-only evidence
-identifies the hosted account as Free, so its expected retention is 3 days; the active account plan
-and deployed retention remain `EXTERNAL` until reconciled there. See
+is 3 days on a Cloudflare Workers Free account and 7 days on a Workers Paid account, with an overall
+maximum of 7 days. Current read-only evidence identifies the hosted Cloudflare account as Workers
+Free, so its expected retention is 3 days; the active Cloudflare account type and deployed retention remain `EXTERNAL` until reconciled there. See
 `https://developers.cloudflare.com/workers/observability/logs/workers-logs/`.
 
 Before a production-readiness claim, verify in the active Cloudflare account:

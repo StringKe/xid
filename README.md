@@ -159,9 +159,9 @@ const userId = result.value.sub
 ### Self-hosting
 
 Requires Node >= 22.12 and pnpm 10.33.4. D1, KV, Queues, and SQLite-backed Durable Objects all have
-Workers Free tiers, but sending mail to arbitrary recipients through the `send_email` binding
-requires Workers Paid, so any deployment that actually delivers verification mail, magic links, or
-one-time codes needs the paid plan.
+Cloudflare Workers Free allowances, but sending mail to arbitrary recipients through the
+`send_email` binding requires a Cloudflare Workers Paid account, so any deployment that actually
+delivers verification mail, magic links, or one-time codes needs one.
 
 Bootstrap enables **only** email magic link and email OTP by default. The Worker falls back to
 `no-reply@xid.dev`. On a self-hosted deployment you must onboard **your** sending domain
@@ -349,3 +349,7 @@ cryptography summary are in [`SECURITY.md`](SECURITY.md).
 XID is licensed under the MIT License; see [`LICENSE`](LICENSE). You may use, modify, and
 distribute it, including commercially and in closed-source products, as long as you retain the
 copyright notice and the license text.
+
+XID has no plans, tiers, or paid editions. XID Cloud at [https://xid.dev](https://xid.dev) is free
+today; if it ever charges, it charges by metered MAU only. A self-hosted deployment has every
+feature, and its optional usage-billing adapter can stay switched off.

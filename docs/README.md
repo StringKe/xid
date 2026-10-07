@@ -112,3 +112,5 @@ For copy changes or adding a language, see [i18n.md](./i18n.md). Changing protoc
 ## License
 
 MIT, copyright StringKe, 2026. Commercial use, closed-source use and redistribution are all permitted; the only obligation is to keep the copyright and license notice. Full terms are in `LICENSE` at the repository root.
+
+XID has no plans, tiers, or paid editions. XID Cloud (`https://xid.dev`) is free today, and any future charge is usage-based only (metered MAU). Self-hosted XID has every feature, and its optional usage billing can stay switched off; see [07 Platform operations](./design/07-platform-operations.md) section 7.

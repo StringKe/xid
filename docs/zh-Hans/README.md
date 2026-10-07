@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/README.md source-commit=5d55b0c source-blob=7de3a71164c737ef3aac29496f3eee1158f78db8 -->
+<!-- xid-translation source=docs/README.md source-commit=working-tree source-blob=53953997e899906007b563488e4221ee02031f22 -->
 
 > Translation of `docs/README.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/README.md`](../README.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -115,3 +115,5 @@ XID 是跑在 Cloudflare Workers 上的多租户身份认证平台:OIDC/OAuth2 I
 ## 许可
 
 MIT。版权人 StringKe,2026。可商用、可闭源、可再分发,唯一义务是保留版权与许可声明。完整条款见仓库根 `LICENSE`。
+
+XID 没有套餐、档位或付费版本。XID Cloud(`https://xid.dev`)当前完全免费,将来如果收费,只按用量(MAU 计量)收费。自托管 XID 拥有全部功能,可选的按量计费可以保持关闭;见 [07 平台运营](./design/07-platform-operations.md) 第 7 节。

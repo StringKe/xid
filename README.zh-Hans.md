@@ -143,9 +143,9 @@ const userId = result.value.sub
 
 ### 自托管
 
-要求 Node >= 22.12 与 pnpm 10.33.4。D1、KV、Queues 与 SQLite 支持的 Durable Objects 都有 Workers Free
-额度,但通过 `send_email` binding 向任意收件人发信需要 Workers Paid,因此任何真正投递验证邮件、magic
-link 或一次性验证码的部署都需要付费套餐。
+要求 Node >= 22.12 与 pnpm 10.33.4。D1、KV、Queues 与 SQLite 支持的 Durable Objects 都有 Cloudflare
+Workers Free 额度,但通过 `send_email` binding 向任意收件人发信需要 Cloudflare Workers Paid 账号,因此任何
+真正投递验证邮件、magic link 或一次性验证码的部署都需要这类账号。
 
 ```bash
 git clone https://github.com/StringKe/xid.git
@@ -311,3 +311,6 @@ release 声明。
 
 XID 以 MIT License 授权,见 [`LICENSE`](LICENSE)。你可以使用、修改和分发它,包括商业用途和闭源产品,
 只要保留版权声明与许可证文本。
+
+XID 没有套餐、档位或付费版本。[https://xid.dev](https://xid.dev) 上的 XID Cloud 当前免费;将来如果收费,
+只按计量的 MAU 收费。自托管部署拥有全部功能,可选的按量计费适配器可以一直保持关闭。

@@ -168,10 +168,10 @@ const userId = result.value.sub
 ### Auto-hébergement
 
 Nécessite Node >= 22.12 et pnpm 10.33.4. D1, KV, Queues et les Durable Objects adossés à SQLite
-disposent tous d'un palier gratuit Workers, mais l'envoi de courrier à des destinataires
-quelconques via le binding `send_email` exige Workers Paid : tout déploiement qui délivre
-réellement des e-mails de vérification, des magic links ou des codes à usage unique a donc besoin
-du plan payant.
+disposent tous d'un quota Cloudflare Workers Free, mais l'envoi de courrier à des destinataires
+quelconques via le binding `send_email` exige un compte Cloudflare Workers Paid : tout déploiement
+qui délivre réellement des e-mails de vérification, des magic links ou des codes à usage unique a
+donc besoin d'un tel compte.
 
 ```bash
 git clone https://github.com/StringKe/xid.git
@@ -352,3 +352,8 @@ le calendrier de divulgation figurent dans [`SECURITY.md`](SECURITY.md).
 XID est distribué sous licence MIT ; voir [`LICENSE`](LICENSE). Vous pouvez l'utiliser, le modifier
 et le redistribuer, y compris à des fins commerciales et dans des produits propriétaires, tant que
 vous conservez la mention de copyright et le texte de la licence.
+
+XID n'a ni offres, ni paliers, ni éditions payantes. XID Cloud sur [https://xid.dev](https://xid.dev)
+est gratuit aujourd'hui ; s'il devient payant un jour, il facturera uniquement les MAU mesurés. Un
+déploiement auto-hébergé dispose de toutes les fonctionnalités, et son adaptateur optionnel de
+facturation à l'usage peut rester désactivé.

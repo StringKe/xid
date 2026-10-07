@@ -156,9 +156,9 @@ const userId = result.value.sub
 ### 셀프 호스팅
 
 Node 22.12 이상과 pnpm 10.33.4가 필요합니다. D1, KV, Queues, SQLite 기반 Durable Object는 모두
-Workers Free 티어를 제공하지만, `send_email` binding으로 임의의 수신자에게 메일을 보내려면 Workers
-Paid가 필요합니다. 따라서 실제로 검증 메일, magic link, 일회용 코드를 발송하는 배포라면 유료
-플랜이 필요합니다.
+Cloudflare Workers Free 사용량을 제공하지만, `send_email` binding으로 임의의 수신자에게 메일을
+보내려면 Cloudflare Workers Paid 계정이 필요합니다. 따라서 실제로 검증 메일, magic link, 일회용 코드를
+발송하는 배포라면 이 계정이 필요합니다.
 
 ```bash
 git clone https://github.com/StringKe/xid.git
@@ -329,3 +329,7 @@ Developer Certificate of Origin 서명 절차를 다룹니다. 참여는
 
 XID는 MIT License로 배포됩니다. [`LICENSE`](LICENSE)를 참고하십시오. 저작권 고지와 라이선스 전문을
 유지하는 한, 상업적 용도와 비공개 소스 제품을 포함하여 자유롭게 사용, 수정, 배포할 수 있습니다.
+
+XID에는 플랜, 등급, 유료 에디션이 없습니다. [https://xid.dev](https://xid.dev)의 XID Cloud는 현재
+무료이며, 앞으로 과금하더라도 측정된 MAU만을 기준으로 합니다. 자체 호스팅 배포는 모든 기능을 갖추며,
+선택 사항인 사용량 기반 과금 어댑터는 계속 꺼 둘 수 있습니다.

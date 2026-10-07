@@ -165,10 +165,10 @@ und `verifyWebhook(request, options)` validiert eingehende Webhook-Signaturen.
 ### Self-Hosting
 
 Erfordert Node >= 22.12 und pnpm 10.33.4. D1, KV, Queues und SQLite-gestützte Durable Objects haben
-jeweils ein Workers-Free-Kontingent, doch der Mailversand an beliebige Empfänger über das
-`send_email`-Binding setzt Workers Paid voraus. Jede Installation, die tatsächlich
-Verifizierungsmails, Magic Links oder Einmalcodes zustellt, braucht daher den kostenpflichtigen
-Plan.
+jeweils ein Kontingent in Cloudflare Workers Free, doch der Mailversand an beliebige Empfänger über
+das `send_email`-Binding setzt ein Cloudflare-Workers-Paid-Konto voraus. Jede Installation, die
+tatsächlich Verifizierungsmails, Magic Links oder Einmalcodes zustellt, braucht daher ein solches
+Konto.
 
 ```bash
 git clone https://github.com/StringKe/xid.git
@@ -347,3 +347,8 @@ anlegen -- Meldewege, Scope und Offenlegungszeitplan stehen in [`SECURITY.md`](S
 XID steht unter der MIT-Lizenz; siehe [`LICENSE`](LICENSE). Nutzung, Änderung und Weitergabe sind
 erlaubt, auch kommerziell und in Closed-Source-Produkten, solange Copyright-Hinweis und Lizenztext
 erhalten bleiben.
+
+XID hat keine Pläne, Stufen oder kostenpflichtigen Editionen. XID Cloud unter
+[https://xid.dev](https://xid.dev) ist derzeit kostenlos; falls jemals Kosten anfallen, wird
+ausschließlich nach gemessenen MAU abgerechnet. Eine selbst gehostete Installation hat alle
+Funktionen, und ihr optionaler Adapter für nutzungsbasierte Abrechnung kann ausgeschaltet bleiben.

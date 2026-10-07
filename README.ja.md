@@ -156,8 +156,9 @@ const userId = result.value.sub
 ### セルフホスティング
 
 Node >= 22.12 と pnpm 10.33.4 が必要である。D1、KV、Queues、SQLite ベースの Durable Objects はいずれも
-Workers Free の枠を持つが、`send_email` binding で任意の宛先にメールを送るには Workers Paid が要る。
-したがって検証メール、magic link、ワンタイムコードを実際に配信する配備には有料プランが必要となる。
+Cloudflare Workers Free の枠を持つが、`send_email` binding で任意の宛先にメールを送るには Cloudflare
+Workers Paid アカウントが要る。したがって検証メール、magic link、ワンタイムコードを実際に配信する配備には
+このアカウントが必要となる。
 
 ```bash
 git clone https://github.com/StringKe/xid.git
@@ -324,3 +325,7 @@ Developer Certificate of Origin の sign-off について書いてある。参�
 
 XID は MIT License の下で提供される。[`LICENSE`](LICENSE) を参照。著作権表示とライセンス本文を保持する
 限り、商用利用やクローズドソース製品への組み込みを含め、使用、改変、再配布ができる。
+
+XID にはプラン、ティア、有料エディションがない。[https://xid.dev](https://xid.dev) の XID Cloud は現在無料
+であり、将来課金する場合も計測した MAU のみに基づく。セルフホスト配備はすべての機能を持ち、任意の従量課金
+アダプターは無効のままにできる。

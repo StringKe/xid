@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=98768755408049a291acc091f4967ef52c06a60c -->
+<!-- xid-translation source=docs/deployment.md source-commit=working-tree source-blob=b785f279db37facfb857d273e6d0a9c8d215347c -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -17,7 +17,7 @@ ownership contract 是部署真相源。本文中所有形如 `<...>` 的值都�
 
 - Cloudflare 账号。Workers Free 在免费额度内已包含 D1、Durable Objects 与 Queues。使用
   Cloudflare Email Service 向任意收件人发送事务邮件时必须使用 Workers Paid,因此真实生产
-  identity service 应使用 Paid。参考
+  identity service 应使用 Cloudflare Workers Paid 账号。参考
   `https://developers.cloudflare.com/workers/platform/pricing/`、
   `https://developers.cloudflare.com/changelog/post/2026-02-04-queues-free-plan/` 与
   `https://developers.cloudflare.com/email-service/platform/pricing/`。
@@ -193,7 +193,7 @@ pnpm --filter @xid-kit/site build
 
 - 主入口 `/console/platform`
 - 子页 `/console/platform/organizations`、`/console/platform/users`、`/console/platform/events`、
-  `/console/platform/flags`、`/console/platform/billing`、`/console/platform/plans`、
+  `/console/platform/flags`、`/console/platform/usage`、`/console/platform/quotas`、
   `/console/platform/announcements`、`/console/platform/status`、
   `/console/platform/compliance`、`/console/platform/managers`、
   `/console/platform/dead-letters` 和 `/console/platform/settings`
@@ -382,8 +382,8 @@ Cron triggers:
 | `BOOTSTRAP_TOKEN`               | 配置后 `/admin/bootstrap` 必须带 `X-Bootstrap-Token` 等长匹配             |
 | `TURNSTILE_SECRET`              | Turnstile Siteverify 服务端 secret,只能与 `TURNSTILE_SITE_KEY` 成对使用   |
 | `CLOUDFLARE_FOR_SAAS_API_TOKEN` | zone-scoped Cloudflare for SaaS Custom Hostnames create/read/delete token |
-| `STRIPE_SECRET_KEY`             | 可选托管服务的 Checkout、Billing Portal 与 meter-event API 凭证           |
-| `STRIPE_WEBHOOK_SECRET`         | 可选 Stripe webhook HMAC secret,用于 plan 对账                            |
+| `STRIPE_SECRET_KEY`             | 可选按量计费:Customer Portal 与 MAU meter-event API 凭证                  |
+| `STRIPE_WEBHOOK_SECRET`         | 可选按量计费:Stripe webhook HMAC secret,用于发票与付款对账                |
 | `GOOGLE_CLIENT_SECRET`          | Google Social OAuth client secret                                         |
 | `GITHUB_CLIENT_SECRET`          | GitHub Social OAuth client secret                                         |
 | `MICROSOFT_CLIENT_SECRET`       | Microsoft Social OAuth client secret                                      |
@@ -438,33 +438,37 @@ pnpm --dir apps/server exec wrangler secret put SOCIAL_ACME_CLIENT_SECRET
 
 本仓库不提交任何 `.env` 或 secret 值。
 
-### 可选 Stripe billing adapter
+### 可选按量计费(Stripe)
 
-Stripe 是面向托管 XID 服务运营方的可选 adapter。它不是 license check,也不是 self-hosting
-feature gate:全部 `STRIPE_*` 值保持未配置时,完整 MIT 产品仍然可用,只关闭 Checkout、
-Billing Portal、webhook plan 对账和 Stripe MAU 上报。
+XID 没有套餐或档位。XID Cloud(`https://xid.dev`)当前完全免费,将来如果收费,只按用量收费:
+按 MAU 计量。自托管 XID 功能完全相同,计费只是给在 XID 上提供收费服务的运营方使用的可选
+adapter,不是 license check,也不是 feature gate。
 
-完整 adapter 配置如下:
+| 名称                      | 类型               | 用途                                                      |
+| ------------------------- | ------------------ | --------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`       | Workers Secret     | Stripe REST API 凭证                                      |
+| `STRIPE_WEBHOOK_SECRET`   | Workers Secret     | 校验 `POST /v1/billing/stripe/webhook` 的原始 body        |
+| `STRIPE_METER_EVENT_NAME` | Variable 或 secret | daily MAU reporter 使用的 Stripe Billing meter event name |
 
-| 名称                         | 类型               | 用途                                                      |
-| ---------------------------- | ------------------ | --------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`          | Workers Secret     | Stripe REST API 凭证                                      |
-| `STRIPE_WEBHOOK_SECRET`      | Workers Secret     | 校验 `POST /v1/billing/stripe/webhook` 的原始 body        |
-| `STRIPE_STARTER_PRICE_ID`    | Variable 或 secret | `starter` accounting plan 的 Checkout price               |
-| `STRIPE_PRO_PRICE_ID`        | Variable 或 secret | `pro` accounting plan 的 Checkout price                   |
-| `STRIPE_ENTERPRISE_PRICE_ID` | Variable 或 secret | `enterprise` accounting plan 的 Checkout price            |
-| `STRIPE_METER_EVENT_NAME`    | Variable 或 secret | daily MAU reporter 使用的 Stripe Billing meter event name |
+这三项合起来就是计费开关:
 
-只有两个 secret 都存在时才启用 Checkout 与 Portal;每个 plan button 还要求对应 price id。
-把 Stripe webhook destination 配置为 public HTTPS endpoint
+- 三项都配置:按量计费开启。Console 在用量总览中增加欠费状态和 Customer Portal 入口,daily
+  Cron 向 meter 上报 MAU。
+- 三项都不配置:按量计费关闭。所有功能照常可用,Console 只显示用量,不上报 MAU。这是默认状态。
+- 只配置了一部分:计费 fail-closed。`/v1/platform/usage`、`/v1/platform/billing/config` 和 Portal
+  端点返回 `server_error`,daily Stripe MAU phase 跳过并记日志,其他 daily phase 照常运行。
+
+XID 从不创建 Checkout Session,也从不售卖套餐。需要向某个租户收费时,在 Stripe Dashboard 或 API
+中创建 customer 和按量 subscription,并把 subscription metadata `xid_tenant_id` 设为该租户顶层
+Organization 的 id。把 Stripe webhook destination 配置为 public HTTPS endpoint
 `https://<your-domain>/v1/billing/stripe/webhook`。Core 在解析 JSON 前验证 Stripe timestamped
-HMAC,按 event id 去重,并阻止旧事件覆盖更新的 plan。daily Cron 会在调用 Stripe 前把精确
-meter identifier、customer、value、event name 和 timestamp 写入 D1,因此 provider 已接受而
-本地 completion 未完成时,重试仍使用同一个 idempotent payload。
+HMAC,按 event id 去重,把 customer 绑定到租户,并阻止旧事件覆盖更新的计费状态。daily Cron 会
+在调用 Stripe 前把精确 meter identifier、customer、value、event name 和 timestamp 写入 D1,
+因此 provider 已接受而本地 completion 未完成时,重试仍使用同一个 idempotent payload。
 
 仓库测试只证明本地 signature、ordering、deduplication 和 retry contract。真实 Stripe
-product、price、customer、webhook delivery、Checkout、Portal 与 meter-event 运行在运营方
-提供外部资源并记录 live evidence 前保持 L4 `UNKNOWN`。
+customer、按量 subscription、webhook delivery、Portal 与 meter-event 运行在运营方提供外部资源
+并记录 live evidence 前保持 L4 `UNKNOWN`。
 
 ### Outbound SCIM target tokens
 
@@ -674,7 +678,7 @@ Wrangler 文件并不等于实际部署配置。只要生成 snapshot 中缺少 
 
 这是必要配置,因为 Workers Builds deploy command 有意保持为普通 `wrangler deploy`,而
 `TURNSTILE_SITE_KEY`、`EMAIL_FROM_ADDRESS`、`EMAIL_FROM_NAME`、
-`CLOUDFLARE_FOR_SAAS_ZONE_ID`、`CLOUDFLARE_FOR_SAAS_CNAME_TARGET` 和 Stripe price id 等
+`CLOUDFLARE_FOR_SAAS_ZONE_ID`、`CLOUDFLARE_FOR_SAAS_CNAME_TARGET` 和 `STRIPE_METER_EVENT_NAME` 等
 可选 non-secret dashboard variables 不一定声明在仓库中。没有 `keep_vars`,Wrangler 会删除
 配置文件中不存在的 dashboard variables。Wrangler 会独立保留 secret,build 不会读取 secret
 value。Wrangler `vars` 中显式声明的值仍由仓库控制。
@@ -949,8 +953,9 @@ light 和 dark rendering。
 `url.full`,其中可能包含 OAuth code 或一次性认证 token。应用日志使用结构化输出,并移除
 exception message、stack、cause、cookie、Authorization、IP、URL/query、provider payload
 与 user identifier。Core、Site、Console production logs 和 Core staging logs 都采样
-100%。Workers Logs 在 Free plan 保留 3 天、Paid plan 保留 7 天,整体上限为 7 天。
-当前只读证据显示托管账号为 Free,所以预期 retention 是 3 天;active account plan 与实际
+100%。Workers Logs 在 Cloudflare Workers Free 账号保留 3 天、Workers Paid 账号保留 7 天,
+整体上限为 7 天。当前只读证据显示托管的 Cloudflare 账号为 Workers Free,所以预期 retention
+是 3 天;Cloudflare 账号类型与实际
 retention 在账号内完成 reconciliation 前仍标记为 `EXTERNAL`。官方来源:
 `https://developers.cloudflare.com/workers/observability/logs/workers-logs/`。
 
