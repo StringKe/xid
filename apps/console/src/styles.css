@@ -38,28 +38,6 @@ body {
   outline-offset: 2px;
 }
 
-/* 行内 code:mono 字族、0.875em 对齐正文、浅底与边框区分,不影响 pre > code 代码块。 */
-:not(pre) > code {
-  font-family: var(--xid-font-mono);
-  font-size: 0.875em;
-  font-variant-numeric: tabular-nums;
-  background-color: var(--xid-muted);
-  color: var(--xid-fg);
-  border: 1px solid var(--xid-border);
-  border-radius: var(--xid-radius-sm);
-  padding-inline: 0.3em;
-  padding-block: 0.1em;
-  white-space: nowrap;
-}
-
-/* 窄屏放行断行:nowrap 的长 token 会把 docs 表格列压成一字符宽、段落溢出。 */
-@media (max-width: 48rem) {
-  :not(pre) > code {
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-}
-
 /* 选中文本用 primary 色配前景色,保持品牌一致性。 */
 ::selection {
   background-color: var(--xid-primary);

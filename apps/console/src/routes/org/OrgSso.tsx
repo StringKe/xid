@@ -415,7 +415,8 @@ export default function OrgSso(): ReactNode {
         description={
           <Trans>
             Register SAML, OIDC, or legacy enterprise protocol connections for this organization.
-            Legacy protocols use the <code>_legacy</code> JSON helper in attribute mapping.
+            Legacy protocols use the <code {...stylex.props(consoleShell.mono)}>_legacy</code> JSON
+            helper in attribute mapping.
           </Trans>
         }
       >
@@ -646,9 +647,10 @@ function ConnectionFields({
           <div {...stylex.props(styles.fullSpan)}>
             <p {...stylex.props(consoleShell.sectionDescription)}>
               <Trans>
-                Configure protocol-specific fields under <code>_legacy</code> in attribute mapping.
-                SWA vaulted credentials are stored via the authenticated{' '}
-                <code>/sso/swa/:connectionId/vault</code> API.
+                Configure protocol-specific fields under{' '}
+                <code {...stylex.props(consoleShell.mono)}>_legacy</code> in attribute mapping. SWA
+                vaulted credentials are stored via the authenticated{' '}
+                <code {...stylex.props(consoleShell.mono)}>/sso/swa/:connectionId/vault</code> API.
               </Trans>
             </p>
           </div>
