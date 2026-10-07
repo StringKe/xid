@@ -119,6 +119,7 @@ export function DataTable<T extends DataTableRow>({
                   key={header.id}
                   header={header}
                   isStickyFirst={isScroll && index === 0}
+                  isPriorityFill={!isScroll && index === 0}
                   narrowMode={narrowMode}
                 />
               ))}
@@ -155,12 +156,14 @@ export function DataTable<T extends DataTableRow>({
 type HeaderCellProps<T extends DataTableRow> = {
   header: Header<DataTableFeatures, T, unknown>
   isStickyFirst: boolean
+  isPriorityFill: boolean
   narrowMode: 'priority' | 'scroll'
 }
 
 function HeaderCell<T extends DataTableRow>({
   header,
   isStickyFirst,
+  isPriorityFill,
   narrowMode,
 }: HeaderCellProps<T>): ReactNode {
   const meta = header.column.columnDef.meta
@@ -170,7 +173,13 @@ function HeaderCell<T extends DataTableRow>({
     styles.th,
     meta?.align === 'end' && styles.alignEnd,
     isStickyFirst && styles.stickyFirst,
+    isPriorityFill && styles.priorityFillHead,
   )
+  const width = meta?.width
+    ? isPriorityFill
+      ? { ['--xid-col-width' as string]: meta.width }
+      : { width: meta.width }
+    : {}
   const content = header.isPlaceholder
     ? null
     : flexRender(header.column.columnDef.header, header.getContext())
@@ -179,7 +188,7 @@ function HeaderCell<T extends DataTableRow>({
       scope="col"
       aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
       className={mergeClassNames(props.className, cellClassName(meta, narrowMode))}
-      style={{ ...props.style, ...(meta?.width ? { width: meta.width } : {}) }}
+      style={{ ...props.style, ...width }}
     >
       {canSort ? (
         <button
@@ -262,6 +271,7 @@ function DataRow<T extends DataTableRow>({
           styles.cell,
           meta?.align === 'end' && styles.alignEnd,
           isScroll && index === 0 && styles.stickyFirst,
+          !isScroll && index === 0 && styles.priorityFillCell,
         )
         return (
           <td

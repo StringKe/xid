@@ -21,6 +21,14 @@ export const tableStyles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: tokens['--xid-fg'],
   },
+  // 列优先级模式下窄屏的标识列吃掉剩余宽度;max-width: 0 让单元格可以窄于邮箱等长串,由 IdentityCell 省略。
+  priorityFillHead: {
+    width: { default: 'var(--xid-col-width, auto)', '@media (max-width: 47.99rem)': '100%' },
+    maxWidth: { default: 'none', '@media (max-width: 47.99rem)': 0 },
+  },
+  priorityFillCell: {
+    maxWidth: { default: 'none', '@media (max-width: 47.99rem)': 0 },
+  },
   caption: {
     captionSide: 'top',
     textAlign: 'start',
