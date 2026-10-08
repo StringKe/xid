@@ -17,6 +17,7 @@
     "./brand-color": "./src/brand-color.ts",
     "./foundation.css": "./src/styles/foundation.css",
     "./tokens.css": "./src/styles/tokens.css",
+    "./icon-glyphs": "./src/components/ui/icon-glyphs.ts",
     "./class-name": "./src/class-name.ts",
     "./display-names": "./src/display-names.tsx",
     "./enum-labels": "./src/enum-labels.tsx",
