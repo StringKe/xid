@@ -29,10 +29,10 @@ Two budgets, split by surface, never mixed:
 | ------------- | ----------------------------------------------------------- | --------------------------------------------------------- |
 | Role          | The design serves the task; motion only communicates state  | Nimbus makes technical content readable and navigable     |
 | Motion budget | 150-250ms across the board, no page-load choreography       | 100-300ms controls, no page-load choreography             |
-| Typography    | Fixed rem steps plus one clamped page title                 | Nimbus CSS tokens and documentation type scale            |
-| Color         | Accent only for primary action, selection, and status       | Nimbus semantic CSS tokens                                |
+| Typography    | Fixed rem steps plus one clamped page title                 | The same scale; 16px docs body, one clamped Site hero     |
+| Color         | Accent only for primary action, selection, and status       | The same `--xid-*` values; accent for links and focus     |
 | Density       | Long table rows are normal                                  | Reading density with stable sidebar and table of contents |
-| Tokens        | `tokens` from `packages/web-ui/src/styles/tokens.stylex.ts` | Nimbus tokens in `apps/site/src/styles`                   |
+| Tokens        | `tokens` from `packages/web-ui/src/styles/tokens.stylex.ts` | Nimbus `--nb-*` aliases resolving to `--xid-*` values     |
 
 ## 1. Hard numbers (red lines -- violations get fixed, not discussed)
 
@@ -147,8 +147,9 @@ A missing state is a hole in the experience, not a follow-up ticket. XID specifi
 6. Copy: one name per thing; consistent punctuation (labels take no period, sentences do); buttons
    are verb plus object; link text stands on its own. English source strings go through lingui
    macros, and new copy goes extract -> translate -> compile (see the lingui-i18n skill)
-7. Icons: one family and one size scale per surface. Nimbus docs use the configured Nimbus icon
-   system. Product surfaces reuse their existing icon system. Never use emoji as icons
+7. Icons: one family and one size scale on every surface -- the internal `Icon` glyph set
+   (24 grid, 1.6 stroke, `currentColor`), shared by the Site and the product. Never use emoji as
+   icons
 8. Forms: labels wired up (the aria chain in `Field`), required fields marked, one validation timing
    throughout (blur or submit, pick one), sensible tab order
 9. Edge states: loading / empty (teach the user, do not just say "nothing here") / error (offer a
@@ -171,7 +172,7 @@ A missing state is a hole in the experience, not a follow-up ticket. XID specifi
 - The hero-numbers template (big number, small label, gradient garnish); infinitely repeated grids
   of equally sized cards
 - A 1px border and a >= 16px blur shadow on the same element (the "ghost card"); card radius above
-  16px (the token ramp tops out at `--xid-radius-lg`, 0.875rem)
+  16px (the token ramp tops out at `--xid-radius-lg`, 0.625rem)
 - Hand-drawn SVG doodles; decorative bounce or elastic CSS easing (gesture-momentum spring bounce
   <= 0.2 remains legal)
 - Text overflowing its container -- test headings at every breakpoint and lower the `clamp` ceiling

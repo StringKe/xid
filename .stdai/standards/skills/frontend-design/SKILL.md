@@ -1,117 +1,257 @@
 ---
 type: skills
 name: frontend-design
-description: Design execution rules for building or reworking XID product surfaces (Hosted UI / console / SDK components) -- produce non-templated interfaces inside the existing --xid-* design system and avoid recognizable AI-default patterns
-when_to_use: Creating a page or component, reworking a layout, writing UI copy, or when a reviewer says the interface "looks AI-generated" or "too templated"
+description: Design execution rules for building or reworking any XID surface (Nimbus Site, Hosted Auth and account portal, Console, SDK components) -- one shared --xid-* design language, no recognizable AI-default patterns, honest copy, and a scored review with hard gates
+when_to_use: Creating a page or component, reworking a layout, writing UI or marketing copy, reviewing a design or screenshot, or when someone says the interface "looks AI-generated" or "too templated"
 allowed_tools: [Read, Edit, Write, Glob, Grep, Bash]
 metadata:
   category: frontend
-  stack: react-stylex
+  stack: react-stylex-astro
 ---
 
 # Front-end design: XID anti-AI-default rules
 
-LLM front-end output converges on the statistical median of its training data, and that average is
-recognizable. XID already has a complete product design system, so this skill does **not** cover
-picking fonts or colors. Product tokens and runtime brand override live in
-`packages/web-ui/src/styles/tokens.stylex.ts`. The public surface is a Nimbus documentation site;
-its shell and components stay in the Nimbus design system and do not use the XID React product
-system. This skill covers the three things that are left:
-**layouts that avoid the template, hierarchy expressed through the system, and copy that reads like
-a person wrote it.**
+XID already ships its design system, so this skill does not pick fonts or colors. It covers what is
+left: layouts that avoid the template, hierarchy expressed through the system, copy that states
+facts, and a review that catches defaults before they ship. The full ban list with sources is
+`references/anti-slop-catalog.md`; the scored review is `references/review-checklist.md`.
 
-## 1. Design input priority (settle this before writing code)
+## 1. Why AI-default output happens
 
-1. A design exists (exported from claude.ai/design, or a chapter of `docs/design/`): match it
-   pixel for pixel, no improvising. Glyphs, symbols, and numeric values in the design are the
-   truth -- keep them as they are.
+- Without direction a model samples the most common choices in its training data (distributional
+  convergence): indigo buttons, centered hero, three icon cards, scroll fade-ins.
+- Defaults nobody replaced: a component kit ships primitives and CSS variables; whatever stays at
+  its initial value, or is filled by the model, reads as generic. Brand guides cover a small part of
+  the decisions a screen needs; the model fills the rest with the corpus average.
+- No structural stance: vague audience, sections ordered by component inventory instead of a story,
+  a layout that would fit any other product unchanged.
+- Bans leak and lists age. A banned phrase still appears, and avoiding purple pushes output into a
+  second generation of defaults. Ban both generations and scan the finished work again.
+
+The test for any choice: can you state why it was chosen for this XID surface? Unexplained, it is a
+default. Explained, it may stay even if it appears on the ban list, with the reason in the review
+record.
+
+## 2. Design input priority (settle this before writing code)
+
+1. A design exists (exported from claude.ai/design, Paper, or a chapter of `docs/design/`): match it
+   exactly. Glyphs, symbols and numeric values in the design are the truth.
 2. No design, but a comparable surface already ships: reuse its layout grammar and density.
    Consistency across the product beats uniqueness on one page.
-3. New surface with no reference: write a five-line design brief first (purpose and audience /
-   layout grammar / density strategy / where motion belongs / relationship to adjacent pages),
-   then write code. Do not fall back to a generic dashboard template by default.
+3. New surface with no reference: run the two-pass plan in section 7 first. Never fall back to a
+   generic landing or dashboard template.
 
-## 2. Express hierarchy through the system, no escape hatches
+## 3. One design language, three surfaces
 
-- Color, radius, shadow, and type always come from `tokens['--xid-*']`. Literal `oklch()` or hex
-  values MUST NOT appear in a component -- runtime brand
-  override and `darkTheme` both work by flipping CSS variables, so a literal value is a color
-  incident under dark mode or a white-label tenant. The only exception is content that stays dark
-  in both themes, such as a code panel, and it MUST live in a central token definition.
-- The palette is the neutral ledger: workspace `bg`/`surface`, shell `sidebar` one step darker,
-  `muted` for selected rows and wells, `border` for dividers and `border-strong` for control outlines
-  only. The primary button is ink (`--xid-primary`); `--xid-accent` (tenant-overridable) is only for
-  focus, selection, links and the Hosted Auth primary button. Status colors only tint text, icons
-  and washes, never large fills. Build hierarchy from that ramp plus size and weight -- not by
-  adding a border, a shadow, and a tint everywhere. One panel gets at most one level of emphasis.
-- Display and headings use weight 560 (`weight.display`); sizes, line heights, spacing and
-  breakpoints come from `packages/web-ui/src/styles/scale.stylex.ts`. Components adapt with
-  container queries; page-level layout uses the four viewport tiers (narrow < 48rem, regular,
-  sidebar >= 64rem, wide >= 90rem).
-- Interactive primitives (dialog, sheet, drawer, menu, popover, tooltip, tabs, select, toast,
-  command menu) come from the Base UI wrappers in `@xid-kit/web-ui/ui`; apps never import
+The single source is `packages/web-ui/src/styles/` (`tokens.stylex.ts`, `scale.stylex.ts`,
+`product-surface.stylex.ts`, `foundation.css`) plus `@xid-kit/web-ui/ui`. Site, docs, Hosted Auth,
+the account portal and Console use the same values; a reader moving from `xid.dev` to `/sign-in` to
+`/console` sees one product.
+
+- Color, radius, shadow, type and spacing come from `--xid-*` tokens and the scale. Literal hex,
+  `oklch()` or arbitrary values (`p-[13px]`, `text-[#hex]`) MUST NOT appear in a component; tenant
+  brand override and `darkTheme` work by flipping CSS variables. Content that stays dark in both
+  themes (code panels) uses the central `--xid-code` tokens.
+- The Site has no palette of its own: Nimbus `--nb-*` variables are aliases that resolve to `--xid-*`
+  values. No purple, no Inter, no JetBrains Mono, no Phosphor icons, no `shadow-sm` on buttons and
+  cards.
+- Neutral ledger: `bg`/`surface` workspace, `sidebar` one step darker, `muted` for selected rows and
+  wells, `border` for dividers, `border-strong` for control outlines only. The only hue is
+  `--xid-accent`: links, focus, info states, and the Hosted Auth / account primary button (tenant
+  overridable). Console and Site primary buttons are ink (`--xid-primary`). Status colors tint text,
+  icons and washes, never large fills.
+- Type: Geist (`--xid-font`) for everything people read; Geist Mono (`--xid-font-mono`) only for
+  content that is monospaced by nature (client IDs, `kid`, JWTs, code, commands, key prefixes).
+  Weights 400 / 500 / 560 (`weight.display` for every heading). Sizes only from the scale; the Site
+  hero adds one step, `clamp(2.5rem, 1.6rem + 2.6vw, 3.5rem)` (40-56px, line height 1.05). Tracking
+  from `--xid-tracking-*`. Counts and times use `tabular-nums`.
+- Radius and shadow are tiered: `--xid-radius-sm` / `--xid-radius` / `--xid-radius-lg` by level;
+  static elements have no shadow; `shadow-md` for menus, popovers and the single Site hero frame;
+  `shadow-lg` for dialogs. One panel gets at most one level of emphasis.
+- Layout: components adapt with container queries; pages use the viewport tiers (narrow < 48rem,
+  regular, sidebar >= 64rem, wide >= 90rem). Section structure is the 1px hairline, not tinted blocks
+  or card grids.
+- Interactive primitives come from the Base UI wrappers in `@xid-kit/web-ui/ui`; apps never import
   `@base-ui/react` directly. Buttons that cannot run stay focusable with `aria-disabled` and say why
-  next to them.
-- Light and dark flip automatically through the tokens and `darkTheme`, applied to
-  `documentElement` (see `packages/web-ui/src/theme.tsx`). Components MUST NOT branch on
-  `prefers-color-scheme` for color. Express states with StyleX conditional values, never descendant
-  selectors.
-- Product surfaces have no scroll-entrance choreography. They use the spring presets in
-  `packages/web-ui/src/motion/`, and motion only communicates state. New keyframes MUST be
-  module-level constants.
+  next to them. Icons come from the internal `Icon` glyph set on every surface; emoji are never icons.
+- Theme flips through tokens and `data-theme` on `<html>`, with one `localStorage` key shared by all
+  surfaces (`xid.theme`: `system` | `light` | `dark`, next to `xid.locale`); components
+  never branch on `prefers-color-scheme` for color. Product state uses StyleX conditional values,
+  never descendant selectors.
+- Motion only communicates state: `packages/web-ui/src/motion/` springs and the CSS durations in
+  `foundation.css`. No scroll-entrance choreography on any surface; high-frequency actions (row
+  hover, tab switch, command menu) are instant; `prefers-reduced-motion` is always honored.
 
-## 3. Anti-template checklist (any single hit means rework)
+## 4. Ban list (both generations)
 
-Layout:
+Full tables with reasons and sources: `references/anti-slop-catalog.md`. Summary:
 
-- Centered hero with a pill badge above the H1
-- Three equal-width "icon on top" feature cards; a 1-2-3 numbered step rail; a stat-number banner
-- Copying the hero -> features -> testimonials -> pricing -> FAQ skeleton
-- A whole page of vertically centered stacks: at least one composition MUST be asymmetric, span
-  columns, or break the grid
+- First-generation defaults: indigo/purple primary, purple-to-blue gradients, gradient text; centered
+  hero formula (pill badge, full-sentence headline, solid + ghost buttons, glow orb); hero ->
+  logo wall -> three cards -> testimonials -> stat bar -> three-tier pricing -> FAQ; three equal
+  "icon tile + bold title + two grey lines" cards; icon on a same-hue pale circle; one radius and one
+  soft shadow everywhere; glassmorphism, neon glow, colored box-shadows, bokeh; emoji icons; div-built
+  fake dashboards, fake terminals and traffic-light browser chrome; fade-up on every section.
+- Second-generation defaults: cream background + serif display + terracotta accent; near-black +
+  single acid-green or vermilion accent; newspaper hairlines with zero radius and dense columns;
+  emerald or cream "escape from purple"; Space Grotesk / Instrument Serif / Fraunces / Syne as the
+  escape from Inter; one italic or colored word in a headline; tracked ALL CAPS eyebrows over every
+  title; middle-dot meta strings; `->` suffixes on links and buttons; mono used as decoration;
+  bento grids with filler cells; 01/02/03 numbering on content that is not a sequence.
+- Console-specific defaults: sidebar + four KPI cards with red/green deltas + full-width line chart +
+  zebra table at marketing spacing; card mosaics; heavy borders on every region; a rainbow of status
+  pills; decorative gradients behind daily work.
+- Copy patterns: Empower / Unlock / Transform / Supercharge / Seamless / Elevate / Effortlessly /
+  Next-generation; "[Verb] your [noun] with [adjective] [noun]" headlines; padded triplets; "not X
+  but Y" and "not only... but also"; em dashes; simply / easy / just / quickly; exclamation marks;
+  Title Case; "Welcome back! We're thrilled..." openers; the same thing said by headline, subhead and
+  button; Console sentences that could be a marketing hero; "Oops!" errors and apologies; leftover
+  placeholders (John Doe, Acme, Lorem, `#` links); fabricated social proof.
 
-Components:
+## 5. Replacement practices per surface
 
-- One universal `radius-lg` + `shadow-lg` + generous-padding card wrapping everything
-- Colored left-border cards; check icons on pale circular backgrounds; five-star rating rows;
-  gradient "Most popular" pricing pills
-- Emoji standing in for icons. Reuse the existing icon system of the current product surface.
-- Large colored glows or colored box-shadows; decorative gradients that carry no information
+All surfaces:
 
-Copy (English source strings, always through lingui macros -- see the i18n-lingui rule):
+- Spend boldness in one place; keep the rest quiet. Every structural element (border, number, label,
+  divider) encodes a real relationship or it goes.
+- Hierarchy from size, weight, spacing and the neutral ramp. Delete decoration until something
+  breaks, then add back that one thing.
+- Real content and real lengths (long names, long URLs, long IDs) decide widths. Replace adjectives
+  with facts; if there is no fact, delete the sentence. One verb per action across button, toast and
+  email. Sentence case. English source strings always go through lingui macros or Site
+  `MessageDescriptor`s (see the i18n-lingui rule).
+- Design every state: empty (first use, filtered, failed), loading, error, long text, narrow width.
 
-- No Empower / Unlock / Transform / Supercharge / Seamless openers
-- No headline built from two abstract nouns, and no "Built for modern teams" filler that points at
-  nothing concrete
-- Every screen carries at least one concrete number or concrete noun. Claims MUST NOT exceed the
-  support level recorded in `docs/protocols/`; `pnpm run protocols:source-map` enforces this
+Site (`apps/site`, Nimbus on Astro, static):
 
-## 4. Console page skeleton (apps/console)
+- Low density. The landing page has at most five sections, one idea each, separated by 1px hairlines
+  with `clamp(4rem, 8vw, 8rem)` spacing; at most one `--xid-sidebar` tinted section, light theme only.
+- First screen: product name or literal category as the H1, one supporting sentence, one primary
+  action (ink) and one secondary, one dominant visual. The hero product frame is the only element
+  with `shadow-md`.
+- Prove, then claim: each claim is followed by a real artifact -- a real screenshot of Hosted Auth or
+  Console from the demo instance (light and dark), a real discovery or JWKS excerpt, a decoded
+  `at+jwt` with `tenant_id`. Capabilities are hairline-separated rows (name, one or two sentences,
+  evidence badge), never icon card grids. Specs for the Site parts (hero, section header, product
+  frame, capability row, comparison table, evidence badge, fact strip, closing band) are in
+  `references/anti-slop-catalog.md` section 5.
+- Honesty: claims never exceed `docs/protocols/source-map.md` and `gap-audit.md`; L0-L3 evidence is
+  never described as production support. Never write production-ready, OpenID Certified, certified
+  with Okta or Entra, SOC 2, data residency, latency numbers, cost or price comparisons, an
+  `npm install` command (SDKs are not published), an embeddable sign-in form, or "immutable" audit
+  (the audit chain is tamper-evident). No customer logo wall, testimonials or user counts.
+- Evidence badges follow `docs/protocols/README.md`: L4 "Production", L3 "Verified end to end,
+  local", L2 "Integration-tested", L0-L1 "Implemented", missing "Not yet". The badge always carries
+  text and links to its `source-map.md` row.
+- Business model (iron rule 9): XID Cloud is free today; any future charge is metered on MAU only;
+  never plans, tiers, trials, pricing tables or upgrade prompts. Self-hosting is the same product
+  with every feature; billing stays off unless the operator configures it.
+- A fact strip may carry structural facts checkable in the repository (MIT, 3 Workers, 8 locales,
+  1 codebase). Metrics -- users, uptime, latency, customers, ratings, percentages -- are banned.
 
-Every console page composes the shared skeleton from `@xid-kit/web-ui/ui` instead of hand-rolled
-header/section styles (the per-app `control-plane.styles` module is deleted):
+Hosted Auth and account portal (`apps/server/src`):
+
+- The form is the subject; platform decoration is minimal. The brand on screen is the tenant's:
+  override covers the accent family and `--xid-radius` only. No marketing glow, glass card or
+  illustration; a split layout's side panel carries only real tenant brand assets.
+- Credential copy is identical, not specific (iron rule 7): sign-in returns `invalid_credentials`
+  whether the account is missing or the secret is wrong, forgot-password gives the same response for
+  any input, `rate_limited` never names the dimension. Specificity goes only into the next step
+  (reset password, use another method). The account portal after sign-in may be specific.
+- Title says "Sign in", no welcome line. Password rules are listed up front with unmet items flagged.
+  Errors do not apologize or say please. Passkeys appear through autofill
+  (`autocomplete="username webauthn"`); an unused passkey prompt is not an error.
+- Design every state: field error, locked, rate limited, MFA pending, session expired, Turnstile
+  failure. Motion only for step transitions and the success redirect.
+
+Console (`apps/console`):
+
+- Quiet, dense, work-centered: predictable navigation, tables as the main body, no hero sections or
+  card-heavy composition. Cards only when the card is itself an interactive unit.
+- Page titles are nouns or tasks ("Signing keys", "Webhooks"); a subtitle states scope or data
+  freshness, or is omitted. No sentence that describes the product's features.
+- Every KPI maps to an action, or it is removed. IDs, times and counts use `tabular-nums`; status is
+  text plus color.
+- Empty states: first use (one executable action, e.g. "No applications. Create an application to get
+  a client ID."), filtered (the table keeps its shape), failed (fixed-copy notice).
+
+## 6. Console page skeleton (apps/console)
+
+Every console page composes the shared skeleton from `@xid-kit/web-ui/ui`:
 
 - `ConsolePage` (title + lead) owns the page frame; feedback goes through `ConsolePageNotice`,
   content through `ConsolePageSection` (single column) and `ConsolePageSplitSection` (5/7
-  title+description left, controls right) -- every create/edit form uses the split section.
-- Mutation failures render a fixed localized string in `ConsolePageNotice`; the raw
-  `error.message` never reaches the page. Query failures are a fixed-copy `Alert`. Success
-  feedback is a temporary section-top `Alert`.
-- Destructive actions always go through `ConfirmDialog` (`@xid-kit/web-ui/ConfirmDialog`,
-  default danger variant), never `window.confirm`.
-- Tables use `DataTable` with `isLoading` for pending state. Row-click implicit selection MUST
-  pair `onRowClick` with `isRowSelected` and surface the current target in the editing section's
-  `meta` via `consoleShell.selectorSummary`.
-- Status/pill labels and tones come from `@xid-kit/web-ui/enum-labels` hooks; never map enum
+  title+description left, controls right). Every create/edit form uses the split section.
+- Mutation failures render a fixed localized string in `ConsolePageNotice`; the raw `error.message`
+  never reaches the page. Query failures are a fixed-copy `Alert`. Success feedback is a temporary
+  section-top `Alert`.
+- Destructive actions go through `ConfirmDialog` (`@xid-kit/web-ui/ConfirmDialog`, default danger
+  variant), never `window.confirm`.
+- Tables use `DataTable` with `isLoading` for pending state. Row-click implicit selection pairs
+  `onRowClick` with `isRowSelected` and surfaces the current target in the editing section's `meta`
+  via `consoleShell.selectorSummary`.
+- Status and pill labels and tones come from `@xid-kit/web-ui/enum-labels` hooks; never map enum
   values to copy by hand.
 
-## 5. Pre-delivery self-check
+## 7. Process
 
-1. Walk section 3 item by item. Two or more hits means rework, without asking.
-2. Delete every decoration that cannot answer "why does this exist". Read the English source copy
-   out loud; if it does not sound like a person wrote it, rewrite it.
-3. Verify both light and dark. New copy goes through lingui extract -> translate -> compile (see
-   the lingui-i18n skill).
-4. Gates: `pnpm run check` (it already runs `i18n:audit` and `protocols:source-map`) and
-   `pnpm test`. Use `pnpm exec vp check --fix` to auto-fix format and lint. If you touched public
-   documentation claims, also run `pnpm run seo:audit`.
+Inputs, written before generating:
+
+1. Product facts: the concrete objects, data and actions on this surface; who uses it, when, and what
+   they decide.
+2. Real content and real lengths, no placeholders.
+3. Constraints: section 3 tokens and components, `docs/protocols/source-map.md` for claims, iron
+   rule 7 for credential copy, iron rule 9 for pricing language.
+4. Quantities: one H1, one primary action per screen, one accent, two font families. Inside the
+   existing system, invent no colors, shadows, tokens, animations or new UI elements.
+5. References: two or three per surface, each with the one thing borrowed and why (see the reference
+   table in `references/anti-slop-catalog.md`).
+6. The section 4 ban list, both generations.
+
+Two-pass plan:
+
+1. Write the plan: tokens used, type roles, a one-line layout plus an ASCII wireframe, the signature
+   element (Site only), motion per the frequency rule, the state list.
+2. Audit the plan: for each item ask "would any similar brief produce the same answer?" If yes,
+   change it and write down what changed and why. Only then write code. When the direction is
+   unclear, sketch three or four directions side by side, pick one, and port decisions, not code.
+
+Build in stages: rough layout -> hierarchy -> color and type -> interaction polish -> accessibility
+-> final review. Console pages: shell first (navigation, title, global actions), then the table or
+queue that drives the work, then filters, states and responsiveness.
+
+Independent review loop:
+
+1. Deterministic checks first: `npx impeccable detect`, Adrian Krebs' AI Design Checker, and
+   `pnpm run check` (includes `i18n:audit` and `protocols:source-map`). A clean detector is evidence,
+   not proof of visual quality.
+2. A reviewer agent that did not generate the surface drives it in a real browser (serially in the
+   user's Chrome via browser-use, never a second Chrome instance) and captures screenshots at 1440
+   and 390 wide, light and dark, for every state (empty, loading, error, long text). It scores
+   `references/review-checklist.md` and writes the four-criterion assessment.
+3. Feedback names the element and the screenshot; never "does it look good". The generator decides
+   per round whether to continue or change direction, and checks the page still belongs to the same
+   site.
+4. Scan copy and styles again after the final draft, because prompt bans leak.
+
+## 8. Scoring (one threshold everywhere)
+
+- Hard gates -- any FAIL blocks delivery and is fixed immediately: (1) no fabricated numbers,
+  customers, quotes, logos or certification badges; (2) no capability claim above the support level
+  in `docs/protocols/source-map.md`; (3) identical credential errors on Hosted Auth; (4) no literal
+  color or arbitrary value outside the central token definitions; (5) all visible copy through
+  lingui.
+- General items: count FAILs. 0-1 passes; 2-3 means replace each failing element; 4 or more means
+  rework the surface.
+- An item kept on purpose is recorded with its reason and code location as "kept on purpose" and
+  does not count as a FAIL. Items that do not apply to the surface are SKIP.
+- The reviewer is never the agent that generated the surface.
+
+## 9. Gates before handoff
+
+1. Delete every decoration that cannot answer "why does this exist". Read the English source copy
+   aloud; rewrite anything that does not sound like a person wrote it.
+2. Verify light and dark. New copy goes through lingui extract -> translate -> compile (see the
+   lingui-i18n skill).
+3. `pnpm run check` and `pnpm test`; `pnpm exec vp check --fix` for format and lint. If public docs
+   or Site claims changed, also run `pnpm run seo:audit`.
