@@ -175,7 +175,7 @@ export const consoleShell = stylex.create({
   },
   displayTitle: {
     margin: 0,
-    fontSize: `clamp(${text.xl}, 1.05rem + 1.5vw, ${text.xxl})`,
+    fontSize: { default: text.xl, '@media (min-width: 64rem)': text.xxl },
     fontWeight: weight.display,
     lineHeight: 1.1,
     letterSpacing: tokens['--xid-tracking-heading'],

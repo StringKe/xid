@@ -38,7 +38,7 @@ const countStyles = stylex.create({
   },
   value: {
     margin: 0,
-    fontSize: `clamp(${text.lg}, 0.95rem + 0.65vw, ${text.xl})`,
+    fontSize: text.lg,
     fontWeight: weight.medium,
     fontVariantNumeric: 'tabular-nums',
     lineHeight: 1.05,

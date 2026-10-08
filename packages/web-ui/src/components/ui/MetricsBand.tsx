@@ -92,11 +92,11 @@ const styles = stylex.create({
     letterSpacing: '-0.02em',
   },
   metricValueLg: {
-    fontSize: `clamp(${text.xl}, 1.1rem + 1.25vw, ${text.xxl})`,
+    fontSize: { default: text.xl, '@media (min-width: 64rem)': text.xxl },
     fontWeight: weight.medium,
   },
   metricValueMd: {
-    fontSize: `clamp(${text.lg}, 0.95rem + 0.65vw, ${text.xl})`,
+    fontSize: text.lg,
     fontWeight: weight.medium,
   },
   valueGood: {
