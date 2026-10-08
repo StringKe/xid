@@ -17,6 +17,7 @@ import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { statusToneFor, useOrganizationStatusLabel } from '@xid-kit/web-ui/enum-labels'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
@@ -36,16 +37,16 @@ const styles = stylex.create({
     maxWidth: '24rem',
   },
   organizationName: {
-    fontWeight: 500,
+    fontWeight: weight.medium,
     color: tokens['--xid-fg'],
   },
   organizationSlug: {
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font-mono'],
   },
   organizationId: {
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font-mono'],
     userSelect: 'all',
@@ -57,8 +58,8 @@ const styles = stylex.create({
   },
   actionLink: {
     color: tokens['--xid-primary'],
-    fontWeight: 600,
-    fontSize: '0.75rem',
+    fontWeight: weight.medium,
+    fontSize: text.xs,
     textDecoration: {
       default: 'none',
       ':hover': 'underline',

@@ -218,7 +218,7 @@ export default function OrgScim(): ReactNode {
           ) : null}
           {isError ? (
             <Alert tone="error">
-              <Trans>Failed to load SCIM directories. Please try again.</Trans>
+              <Trans>Failed to load SCIM directories. Reload the page to try again.</Trans>
             </Alert>
           ) : null}
         </ConsolePageNotice>

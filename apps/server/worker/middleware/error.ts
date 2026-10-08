@@ -35,7 +35,7 @@ function renderErrorMessage(
     logWorkerError('error.localization.render_failed', error, {
       component: 'error-middleware',
     })
-    return 'An unexpected server error occurred. Please try again.'
+    return 'An unexpected server error occurred. Try again.'
   }
 }
 

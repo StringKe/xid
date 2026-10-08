@@ -160,7 +160,7 @@ export default function PlatformAuditEvents(): ReactNode {
       {events.isError ? (
         <ConsolePageNotice>
           <Alert tone="error">
-            <Trans>Failed to load audit events. Please try again.</Trans>
+            <Trans>Failed to load audit events. Reload the page to try again.</Trans>
           </Alert>
         </ConsolePageNotice>
       ) : null}

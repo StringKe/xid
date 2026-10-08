@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { text } from '@xid-kit/web-ui/styles/scale.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Alert, Button, Dialog, OneTimeSecret } from '@xid-kit/web-ui/ui'
 import type { AppRecord } from './app-api'
 import { useRotateSecret } from './app-api'
@@ -44,7 +44,7 @@ const styles = stylex.create({
   subhead: {
     margin: 0,
     fontSize: text.sm,
-    fontWeight: 600,
+    fontWeight: weight.display,
   },
 })
 

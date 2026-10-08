@@ -44,7 +44,7 @@ export const list = stylex.create({
     backgroundColor: tokens['--xid-surface'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
-    fontSize: 'max(16px, 0.875rem)',
+    fontSize: text.md,
     outlineColor: tokens['--xid-accent'],
     boxSizing: 'border-box',
   },

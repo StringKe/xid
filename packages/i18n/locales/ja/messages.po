@@ -786,7 +786,7 @@ msgid "A platform administrator manages this setting for your organization. You 
 msgstr "この設定は組織に代わってプラットフォーム管理者が管理しています。内容は確認できますが、変更はできません。"
 
 #: packages/i18n/src/messages.ts
-msgid "A possible authenticator clone was detected. Please contact support."
+msgid "A possible authenticator clone was detected. Contact support."
 msgstr "認証器のクローンの疑いを検出しました。サポートに連絡してください。"
 
 #: apps/console/src/routes/projects/ProjectsList.tsx
@@ -1495,8 +1495,8 @@ msgid "An instance manager"
 msgstr "インスタンスマネージャー"
 
 #: packages/i18n/src/messages.ts
-msgid "An internal error occurred. Please try again."
-msgstr "内部エラーが発生しました。もう一度お試しください。"
+msgid "An internal error occurred. Try again."
+msgstr "内部エラーが発生しました。もう一度実行してください。"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
@@ -1511,8 +1511,8 @@ msgid "An OrgUnit is a department or team inside one Organization. It never chan
 msgstr "OrgUnit は、1 つの組織内の部門またはチームです。 TenantContext、発行者、トークン要求、または 1 レベルの SubOrg 制限は決して変更されません。"
 
 #: packages/i18n/src/messages.ts
-msgid "An unexpected server error occurred. Please try again."
-msgstr "予期しないサーバーエラーが発生しました。もう一度お試しください。"
+msgid "An unexpected server error occurred. Try again."
+msgstr "予期しないサーバーエラーが発生しました。もう一度実行してください。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "and"
@@ -2362,8 +2362,8 @@ msgid "Capabilities"
 msgstr "機能"
 
 #: packages/i18n/src/messages.ts
-msgid "CAPTCHA verification failed. Please try again."
-msgstr "CAPTCHA 検証に失敗しました。もう一度お試しください。"
+msgid "CAPTCHA verification failed. Try again."
+msgstr "CAPTCHA 検証に失敗しました。もう一度実行してください。"
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Certificate status:"
@@ -2702,6 +2702,10 @@ msgstr "コマンドメニュー"
 #: apps/site/src/lib/home-surface.ts
 msgid "Complete edition"
 msgstr "完全版"
+
+#: packages/i18n/src/messages.ts
+msgid "Complete the CAPTCHA verification to continue."
+msgstr "続行するには CAPTCHA 検証を完了してください。"
 
 #: apps/console/src/nav.tsx
 msgid "Compliance"
@@ -4926,8 +4930,8 @@ msgid "Failed to load announcements."
 msgstr "お知らせの読み込みに失敗しました。"
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-msgid "Failed to load audit events. Please try again."
-msgstr "監査イベントを読み込めませんでした。もう一度お試しください。"
+msgid "Failed to load audit events. Reload the page to try again."
+msgstr "監査イベントを読み込めませんでした。ページを再読み込みしてやり直してください。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Failed to load authentication policy."
@@ -4942,8 +4946,8 @@ msgid "Failed to load compliance documents."
 msgstr "コンプライアンス文書の読み込みに失敗しました。"
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-msgid "Failed to load custom hostnames. Please try again."
-msgstr "カスタムホスト名のロードに失敗しました。もう一度試してください。"
+msgid "Failed to load custom hostnames. Reload the page to try again."
+msgstr "カスタムホスト名を読み込めませんでした。ページを再読み込みしてやり直してください。"
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Failed to load dead letters."
@@ -4962,16 +4966,16 @@ msgid "Failed to load delivery channels."
 msgstr "配信チャネルを読み込めませんでした。"
 
 #: apps/console/src/routes/org/OrgSso.tsx
-msgid "Failed to load inbound SSO connections. Please try again."
-msgstr "入站 SSO 接続を読み込めませんでした。もう一度お試しください。"
+msgid "Failed to load inbound SSO connections. Reload the page to try again."
+msgstr "インバウンド SSO 接続を読み込めませんでした。ページを再読み込みしてやり直してください。"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to load instance managers."
 msgstr "インスタンスマネージャーのロードに失敗しました。"
 
 #: apps/console/src/routes/org/OrgOverview.tsx
-msgid "Failed to load organization stats. Please try again."
-msgstr "組織統計を読み込めませんでした。もう一度お試しください。"
+msgid "Failed to load organization stats. Reload the page to try again."
+msgstr "組織統計を読み込めませんでした。ページを再読み込みしてやり直してください。"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Failed to load organizations."
@@ -4990,16 +4994,16 @@ msgid "Failed to load platform settings."
 msgstr "プラットフォーム設定を読み込めませんでした。"
 
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
-msgid "Failed to load platform stats. Please try again."
-msgstr "プラットフォーム統計を読み込めませんでした。もう一度お試しください。"
+msgid "Failed to load platform stats. Reload the page to try again."
+msgstr "プラットフォーム統計を読み込めませんでした。ページを再読み込みしてやり直してください。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "プロジェクトのロードに失敗しました。"
 
 #: apps/console/src/routes/platform/PlatformQuotas.tsx
-msgid "Failed to load quota settings. Please try again."
-msgstr "割り当て設定を読み込めませんでした。もう一度お試しください。"
+msgid "Failed to load quota settings. Reload the page to try again."
+msgstr "割り当て設定を読み込めませんでした。ページを再読み込みしてやり直してください。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load role permission mappings."
@@ -5010,8 +5014,8 @@ msgid "Failed to load roles."
 msgstr "ロールのロードに失敗しました。"
 
 #: apps/console/src/routes/org/OrgScim.tsx
-msgid "Failed to load SCIM directories. Please try again."
-msgstr "SCIM ディレクトリを読み込めませんでした。もう一度お試しください。"
+msgid "Failed to load SCIM directories. Reload the page to try again."
+msgstr "SCIM ディレクトリを読み込めませんでした。ページを再読み込みしてやり直してください。"
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Failed to load SCIM targets."
@@ -5026,8 +5030,8 @@ msgid "Failed to load status incidents."
 msgstr "ステータスインシデントのロードに失敗しました。"
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
-msgid "Failed to load usage overview. Please try again."
-msgstr "使用量の概要を読み込めませんでした。もう一度お試しください。"
+msgid "Failed to load usage overview. Reload the page to try again."
+msgstr "使用量の概要を読み込めませんでした。ページを再読み込みしてやり直してください。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
@@ -5054,8 +5058,8 @@ msgid "Failed to search users."
 msgstr "ユーザーの検索に失敗しました。"
 
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-msgid "Failed to search users. Please try again."
-msgstr "ユーザーを検索できませんでした。もう一度お試しください。"
+msgid "Failed to search users. Run the search again."
+msgstr "ユーザーを検索できませんでした。もう一度検索してください。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
@@ -7635,8 +7639,8 @@ msgid "No organization selected."
 msgstr "組織が選択されていません。"
 
 #: apps/console/src/routes/org/OrgOverview.tsx
-msgid "No organization selected. Please select an organization to view the overview."
-msgstr "組織が選択されていません。概要を表示する組織を選択してください。"
+msgid "No organization selected. Choose one from the organization switcher to see its overview."
+msgstr "組織が選択されていません。組織の切り替えメニューで組織を選ぶと概要を表示できます。"
 
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "No organizations"
@@ -9004,17 +9008,13 @@ msgstr "プラットフォームセットアップ"
 msgid "Platform users | Console | XID"
 msgstr "プラットフォームユーザー | コンソール | XID"
 
-#: packages/i18n/src/messages.ts
-msgid "Please complete the CAPTCHA verification."
-msgstr "CAPTCHA 検証を完了してください。"
-
-#: packages/i18n/src/messages.ts
-msgid "Please wait before polling again."
-msgstr "再度ポーリングする前にお待ちください。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Plugin setup"
 msgstr "プラグインセットアップ"
+
+#: packages/i18n/src/messages.ts
+msgid "Polling too often. Wait for the polling interval before the next request."
+msgstr "ポーリングの頻度が高すぎます。ポーリング間隔が経過してから次のリクエストを送信してください。"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "POST /token"
@@ -12686,7 +12686,7 @@ msgid "the number ending in {last}"
 msgstr "末尾が {last} の電話番号"
 
 #: packages/i18n/src/messages.ts
-msgid "The one-time code has expired. Please request a new one."
+msgid "The one-time code has expired. Request a new one."
 msgstr "ワンタイムコードの有効期限が切れています。新しいコードをリクエストしてください。"
 
 #: packages/i18n/src/messages.ts
@@ -12878,8 +12878,8 @@ msgid "The service is currently unavailable."
 msgstr "サービスは現在利用できません。"
 
 #: packages/i18n/src/messages.ts
-msgid "The service is temporarily unavailable. Please try again later."
-msgstr "サービスは一時的に利用できません。後でもう一度お試しください。"
+msgid "The service is temporarily unavailable. Try again later."
+msgstr "サービスは一時的に利用できません。しばらくしてからもう一度実行してください。"
 
 #: packages/i18n/src/messages.ts
 msgid "The session could not be found."
@@ -13102,11 +13102,11 @@ msgid "This link has expired or was already used"
 msgstr "このリンクは期限切れか、既に使用されています"
 
 #: packages/i18n/src/messages.ts
-msgid "This link has expired. Please request a new one."
+msgid "This link has expired. Request a new one."
 msgstr "このリンクの有効期限が切れています。新しいリンクをリクエストしてください。"
 
 #: packages/i18n/src/messages.ts
-msgid "This link is invalid. Please request a new one."
+msgid "This link is invalid. Request a new one."
 msgstr "このリンクは無効です。新しいリンクをリクエストしてください。"
 
 #: apps/console/src/routes/console/RequireActiveOrganization.tsx
@@ -13114,7 +13114,7 @@ msgid "This link opens another organization. Switching the console to it."
 msgstr "このリンクは別の組織を開きます。コンソールをその組織に切り替えています。"
 
 #: packages/i18n/src/messages.ts
-msgid "This magic link has expired. Please request a new one."
+msgid "This magic link has expired. Request a new one."
 msgstr "このメールリンクの有効期限が切れています。新しいリンクをリクエストしてください。"
 
 #: packages/i18n/src/messages.ts
@@ -13186,7 +13186,7 @@ msgid "This password appeared in a data breach"
 msgstr "このパスワードはデータ漏えいで見つかっています"
 
 #: packages/i18n/src/messages.ts
-msgid "This password has appeared in a data breach. Please choose a different password."
+msgid "This password has appeared in a data breach. Choose a different password."
 msgstr "このパスワードはデータ漏えいに含まれていました。別のパスワードを選択してください。"
 
 #: apps/server/src/routes/account/PasswordSection.tsx
@@ -13194,7 +13194,7 @@ msgid "This password has appeared in a known data breach, so change it."
 msgstr "このパスワードは既知のデータ漏えいに含まれているため、変更してください。"
 
 #: packages/i18n/src/messages.ts
-msgid "This password has been used recently. Please choose a different password."
+msgid "This password has been used recently. Choose a different password."
 msgstr "このパスワードは最近使用されています。別のパスワードを選択してください。"
 
 #: apps/console/src/routes/users/UserActions.tsx
@@ -13373,13 +13373,13 @@ msgstr "試行回数が多すぎます。数分待ってからもう一度試す
 msgid "Too many requests"
 msgstr "リクエストが多すぎます"
 
-#: packages/i18n/src/messages.ts
-msgid "Too many requests. Please wait and try again."
-msgstr "リクエストが多すぎます。しばらく待ってからもう一度お試しください。"
-
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 msgid "Too many requests. Wait a minute, then try again."
 msgstr "リクエストが多すぎます。1 分待ってからもう一度お試しください。"
+
+#: packages/i18n/src/messages.ts
+msgid "Too many requests. Wait a moment and try again."
+msgstr "リクエストが多すぎます。少し待ってからもう一度実行してください。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers"
@@ -14076,7 +14076,7 @@ msgid "Validation boundary"
 msgstr "検証境界"
 
 #: packages/i18n/src/messages.ts
-msgid "Validation failed. Please check your input."
+msgid "Validation failed. Check your input."
 msgstr "検証に失敗しました。入力内容を確認してください。"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
@@ -15212,8 +15212,8 @@ msgid "Your account has been suspended. Contact support for assistance."
 msgstr "アカウントは停止されています。サポートにお問い合わせください。"
 
 #: packages/i18n/src/messages.ts
-msgid "Your account has been temporarily locked. Please try again later."
-msgstr "アカウントは一時的にロックされています。後でもう一度お試しください。"
+msgid "Your account has been temporarily locked. Try again later."
+msgstr "アカウントは一時的にロックされています。しばらくしてからもう一度実行してください。"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Your account is already scheduled for deletion. You can cancel it on Data & privacy."
@@ -15328,7 +15328,7 @@ msgid "Your profile, sign-in methods, devices, organizations and app permissions
 msgstr "プロフィール、サインイン方法、デバイス、組織、アプリの権限を 1 つの JSON ファイルにまとめたものです。パスワードとパスキーの鍵は含まれません。"
 
 #: packages/i18n/src/messages.ts
-msgid "Your session has expired. Please sign in again."
+msgid "Your session has expired. Sign in again."
 msgstr "セッションの有効期限が切れました。再度サインインしてください。"
 
 #: apps/server/src/routes/sign-in/sign-in-messages.ts

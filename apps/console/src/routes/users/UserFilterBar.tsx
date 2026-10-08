@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Button, Dialog, Dropdown, Field, FilterChip, Icon, Input } from '@xid-kit/web-ui/ui'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { list } from '../../components/page/list-styles'
 import type { UserCounts } from './user-api'
 import type { SignInMethodFilter, UserFilters, UserStatusFilter } from './user-filters'
@@ -157,7 +158,7 @@ const rangeStyles = stylex.create({
     flexDirection: 'column',
     gap: '0.5rem',
   },
-  legend: { padding: 0, fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.5rem' },
+  legend: { padding: 0, fontWeight: weight.display, fontSize: text.base, marginBottom: '0.5rem' },
   row: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))',

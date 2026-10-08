@@ -162,7 +162,7 @@ export default function OrgSso(): ReactNode {
           {actionError ? <Alert tone="error">{errorMessage(actionError)}</Alert> : null}
           {isError ? (
             <Alert tone="error">
-              <Trans>Failed to load inbound SSO connections. Please try again.</Trans>
+              <Trans>Failed to load inbound SSO connections. Reload the page to try again.</Trans>
             </Alert>
           ) : null}
         </ConsolePageNotice>

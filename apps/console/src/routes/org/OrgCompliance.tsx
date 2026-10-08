@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { Alert, Badge, Button, EmptyState, Spinner } from '@xid-kit/web-ui/ui'
 import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useAcceptDpa, useOrgComplianceDocumentsQuery } from './queries'
@@ -33,8 +34,8 @@ const styles = stylex.create({
   rowTitle: {
     margin: 0,
     color: tokens['--xid-fg'],
-    fontSize: '0.9375rem',
-    fontWeight: 620,
+    fontSize: text.base,
+    fontWeight: weight.display,
   },
   meta: {
     display: 'flex',
@@ -46,7 +47,7 @@ const styles = stylex.create({
   detail: {
     margin: '0.625rem 0 0',
     color: tokens['--xid-muted-foreground'],
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     lineHeight: 1.5,
   },
   checksum: {
@@ -54,7 +55,7 @@ const styles = stylex.create({
     marginTop: '0.375rem',
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
+    fontSize: text.xs,
     overflowWrap: 'anywhere',
   },
   actions: {
@@ -78,8 +79,8 @@ const styles = stylex.create({
     borderColor: tokens['--xid-border'],
     borderRadius: tokens['--xid-radius-sm'],
     color: tokens['--xid-fg'],
-    fontSize: '0.8125rem',
-    fontWeight: 550,
+    fontSize: text.sm,
+    fontWeight: weight.medium,
     textDecoration: 'none',
   },
 })

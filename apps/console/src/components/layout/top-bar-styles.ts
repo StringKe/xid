@@ -202,8 +202,8 @@ export const topBar = stylex.create({
     backgroundColor: tokens['--xid-muted'],
     boxShadow: `inset 0 0 0 1px ${tokens['--xid-border-strong']}`,
     color: tokens['--xid-fg'],
-    fontSize: '0.6875rem',
-    fontWeight: 600,
+    fontSize: text.xs,
+    fontWeight: weight.medium,
   },
   wideOnly: {
     display: { default: 'none', '@media (min-width: 64rem)': 'inline-flex' },

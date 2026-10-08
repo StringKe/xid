@@ -186,7 +186,7 @@ export default function PlatformUsers(): ReactNode {
           ) : null}
           {users.isError ? (
             <Alert tone="error">
-              <Trans>Failed to search users. Please try again.</Trans>
+              <Trans>Failed to search users. Run the search again.</Trans>
             </Alert>
           ) : null}
         </ConsolePageNotice>

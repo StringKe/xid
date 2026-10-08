@@ -18,6 +18,7 @@ import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { useRoleLabel } from '@xid-kit/web-ui/enum-labels'
 import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { msg } from '@lingui/core/macro'
 import { MANAGED_PROJECTS_NAV_ITEM, ORG_NAV, ORG_USERS_PATH } from '../../nav'
@@ -36,8 +37,8 @@ const styles = stylex.create({
     borderRadius: tokens['--xid-radius'],
     backgroundColor: tokens['--xid-primary'],
     color: tokens['--xid-primary-foreground'],
-    fontSize: '0.875rem',
-    fontWeight: 600,
+    fontSize: text.base,
+    fontWeight: weight.medium,
     textDecoration: 'none',
     // 0.25s 对齐 springPress 预算,与按压微交互同口径。
     transitionProperty: 'opacity',
@@ -99,8 +100,8 @@ const styles = stylex.create({
     borderRadius: tokens['--xid-radius-sm'],
     backgroundColor: tokens['--xid-accent'],
     color: tokens['--xid-primary-foreground'],
-    fontSize: '0.8125rem',
-    fontWeight: 650,
+    fontSize: text.sm,
+    fontWeight: weight.display,
     textTransform: 'uppercase',
   },
   orgText: {
@@ -111,8 +112,8 @@ const styles = stylex.create({
     flexGrow: 1,
   },
   orgName: {
-    fontSize: '0.875rem',
-    fontWeight: 600,
+    fontSize: text.base,
+    fontWeight: weight.medium,
     color: tokens['--xid-fg'],
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -125,17 +126,17 @@ const styles = stylex.create({
     maxWidth: '40rem',
   },
   secondaryLink: {
-    fontSize: '0.875rem',
-    fontWeight: 600,
+    fontSize: text.base,
+    fontWeight: weight.medium,
     color: tokens['--xid-primary'],
   },
   orgError: {
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     color: tokens['--xid-danger'],
   },
   orgSlug: {
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
+    fontSize: text.xs,
     letterSpacing: '0.04em',
     color: tokens['--xid-muted-foreground'],
     overflow: 'hidden',
@@ -143,7 +144,7 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   orgMeta: {
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     color: tokens['--xid-muted-foreground'],
     textWrap: 'pretty',
   },
@@ -194,7 +195,7 @@ const styles = stylex.create({
   },
   settingsCardDescription: {
     margin: 0,
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     lineHeight: 1.5,
     color: tokens['--xid-muted-foreground'],
   },

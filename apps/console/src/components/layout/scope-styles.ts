@@ -38,7 +38,7 @@ export const scope = stylex.create({
     backgroundColor: tokens['--xid-fg'],
     color: tokens['--xid-surface'],
     fontSize: text.xs,
-    fontWeight: 600,
+    fontWeight: weight.display,
   },
   triggerText: {
     display: 'flex',
@@ -103,7 +103,7 @@ export const scope = stylex.create({
     backgroundColor: 'transparent',
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
-    fontSize: 'max(16px, 0.875rem)',
+    fontSize: text.md,
     outline: 'none',
   },
   section: {
@@ -157,7 +157,7 @@ export const scope = stylex.create({
     boxShadow: `inset 0 0 0 1px ${tokens['--xid-border']}`,
     color: tokens['--xid-muted-foreground'],
     fontSize: text.xs,
-    fontWeight: 600,
+    fontWeight: weight.display,
   },
   rowMarkCurrent: {
     backgroundColor: tokens['--xid-fg'],

@@ -6,8 +6,8 @@
 //
 // hash 样本取自 packages/i18n/locales/en/messages.mjs:
 //   "c-i7v3" -> "The email or password is incorrect."
-//   "yO2Uxt" -> "Too many requests. Please wait and try again."
-//   "Z3PAZP" -> "Your session has expired. Please sign in again."
+//   "Vzj-XY" -> "Too many requests. Wait a moment and try again."
+//   "OqFX1a" -> "Your session has expired. Sign in again."
 
 import { Hono } from 'hono'
 import { readFileSync } from 'node:fs'
@@ -51,8 +51,8 @@ describe('en catalog 加载后 i18n._() 渲染可读文本', () => {
     inst.load('en', messages)
     inst.activate('en')
 
-    // yO2Uxt = "Too many requests. Please wait and try again."
-    const result = inst._({ id: 'yO2Uxt' })
+    // Vzj-XY = "Too many requests. Wait a moment and try again."
+    const result = inst._({ id: 'Vzj-XY' })
     expect(looksLikeHash(result)).toBe(false)
     expect(result).toContain('requests')
   })
@@ -63,8 +63,8 @@ describe('en catalog 加载后 i18n._() 渲染可读文本', () => {
     inst.load('en', messages)
     inst.activate('en')
 
-    // Z3PAZP = "Your session has expired. Please sign in again."
-    const result = inst._({ id: 'Z3PAZP' })
+    // OqFX1a = "Your session has expired. Sign in again."
+    const result = inst._({ id: 'OqFX1a' })
     expect(looksLikeHash(result)).toBe(false)
     expect(result.toLowerCase()).toContain('session')
   })

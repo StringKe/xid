@@ -10,24 +10,25 @@ import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { statusToneFor, useBillingStatusLabel } from '@xid-kit/web-ui/enum-labels'
 import { useBillingConfigQuery, useUsageOverviewList } from './queries'
 
 const styles = stylex.create({
   organizationName: {
-    fontWeight: 500,
+    fontWeight: weight.medium,
     color: tokens['--xid-fg'],
   },
   numericCell: {
     fontFamily: tokens['--xid-font-mono'],
     fontVariantNumeric: 'tabular-nums',
-    fontSize: '0.875rem',
+    fontSize: text.base,
   },
   actionLink: {
     color: tokens['--xid-primary'],
-    fontWeight: 600,
-    fontSize: '0.75rem',
+    fontWeight: weight.medium,
+    fontSize: text.xs,
     textDecoration: {
       default: 'none',
       ':hover': 'underline',
@@ -111,7 +112,7 @@ export default function PlatformUsage(): ReactNode {
       {usage.isError ? (
         <ConsolePageNotice>
           <Alert tone="error">
-            <Trans>Failed to load usage overview. Please try again.</Trans>
+            <Trans>Failed to load usage overview. Reload the page to try again.</Trans>
           </Alert>
         </ConsolePageNotice>
       ) : null}

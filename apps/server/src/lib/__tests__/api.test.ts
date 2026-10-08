@@ -29,7 +29,7 @@ describe('createApiClient', () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse(422, {
         code: 'validation_failed',
-        message: 'Validation failed. Please check your input.',
+        message: 'Validation failed. Check your input.',
         longMessage: 'Email is invalid.',
         meta: { paramName: 'email' },
       }),
@@ -43,7 +43,7 @@ describe('createApiClient', () => {
       ok: false,
       error: {
         code: 'validation_failed',
-        message: 'Validation failed. Please check your input.',
+        message: 'Validation failed. Check your input.',
         httpStatus: 422,
         longMessage: 'Email is invalid.',
         meta: { paramName: 'email' },

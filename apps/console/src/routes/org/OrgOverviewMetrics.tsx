@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { MetricsBand as MetricsBandShell } from '@xid-kit/web-ui/ui'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 
 export type OrgStats = {
@@ -37,8 +38,8 @@ const countStyles = stylex.create({
   },
   value: {
     margin: 0,
-    fontSize: 'clamp(1.5rem, 1.05rem + 0.7vw, 2rem)',
-    fontWeight: 470,
+    fontSize: `clamp(${text.lg}, 0.95rem + 0.65vw, ${text.xl})`,
+    fontWeight: weight.medium,
     fontVariantNumeric: 'tabular-nums',
     lineHeight: 1.05,
     letterSpacing: '-0.02em',

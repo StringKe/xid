@@ -13,6 +13,7 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { Link, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
 import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { ORGANIZATION_QUOTA_KEYS } from '@xid-kit/types'
 import type {
@@ -62,14 +63,14 @@ const styles = stylex.create({
     alignSelf: 'center',
     display: 'grid',
     gap: '0.25rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
+    fontSize: text.base,
+    fontWeight: weight.medium,
     color: tokens['--xid-fg'],
   },
   quotaKey: {
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.75rem',
-    fontWeight: 400,
+    fontSize: text.xs,
+    fontWeight: weight.regular,
     color: tokens['--xid-muted-foreground'],
   },
   actions: {
@@ -80,8 +81,8 @@ const styles = stylex.create({
   },
   organizationLink: {
     color: tokens['--xid-primary'],
-    fontWeight: 600,
-    fontSize: '0.875rem',
+    fontWeight: weight.medium,
+    fontSize: text.base,
     textDecoration: {
       default: 'none',
       ':hover': 'underline',
@@ -198,7 +199,7 @@ export default function PlatformQuotas(): ReactNode {
         <ConsolePageNotice>
           {quotaQuery.isError ? (
             <Alert tone="error">
-              <Trans>Failed to load quota settings. Please try again.</Trans>
+              <Trans>Failed to load quota settings. Reload the page to try again.</Trans>
             </Alert>
           ) : null}
           {updateQuotas.isError ? (

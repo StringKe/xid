@@ -786,8 +786,8 @@ msgid "A platform administrator manages this setting for your organization. You 
 msgstr "此设置由平台管理员为你的组织管理。你可以查看，但不能修改。"
 
 #: packages/i18n/src/messages.ts
-msgid "A possible authenticator clone was detected. Please contact support."
-msgstr "检测到认证器存在克隆风险。请联系支持。"
+msgid "A possible authenticator clone was detected. Contact support."
+msgstr "检测到认证器可能被克隆。联系支持团队处理。"
 
 #: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "A project holds applications that share one set of roles and permissions."
@@ -1495,8 +1495,8 @@ msgid "An instance manager"
 msgstr "实例管理员"
 
 #: packages/i18n/src/messages.ts
-msgid "An internal error occurred. Please try again."
-msgstr "发生内部错误。请重试。"
+msgid "An internal error occurred. Try again."
+msgstr "发生内部错误。再试一次。"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
@@ -1511,8 +1511,8 @@ msgid "An OrgUnit is a department or team inside one Organization. It never chan
 msgstr "组织单位是一个组织内的一个部门或团队。它永远不会更改 TenantContext、发行者、令牌声明或一级 SubOrg 限制。"
 
 #: packages/i18n/src/messages.ts
-msgid "An unexpected server error occurred. Please try again."
-msgstr "发生意外服务端错误。请重试。"
+msgid "An unexpected server error occurred. Try again."
+msgstr "服务端发生意外错误。再试一次。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "and"
@@ -2362,8 +2362,8 @@ msgid "Capabilities"
 msgstr "能力"
 
 #: packages/i18n/src/messages.ts
-msgid "CAPTCHA verification failed. Please try again."
-msgstr "CAPTCHA 验证失败。请重试。"
+msgid "CAPTCHA verification failed. Try again."
+msgstr "CAPTCHA 验证失败。再试一次。"
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Certificate status:"
@@ -2702,6 +2702,10 @@ msgstr "命令菜单"
 #: apps/site/src/lib/home-surface.ts
 msgid "Complete edition"
 msgstr "完整版"
+
+#: packages/i18n/src/messages.ts
+msgid "Complete the CAPTCHA verification to continue."
+msgstr "完成 CAPTCHA 验证后继续。"
 
 #: apps/console/src/nav.tsx
 msgid "Compliance"
@@ -4926,8 +4930,8 @@ msgid "Failed to load announcements."
 msgstr "无法加载公告。"
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-msgid "Failed to load audit events. Please try again."
-msgstr "加载审计事件失败。请重试。"
+msgid "Failed to load audit events. Reload the page to try again."
+msgstr "加载审计事件失败。刷新页面重试。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Failed to load authentication policy."
@@ -4942,8 +4946,8 @@ msgid "Failed to load compliance documents."
 msgstr "无法加载合规文档。"
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-msgid "Failed to load custom hostnames. Please try again."
-msgstr "无法加载自定义主机名。请再试一次。"
+msgid "Failed to load custom hostnames. Reload the page to try again."
+msgstr "加载自定义主机名失败。刷新页面重试。"
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Failed to load dead letters."
@@ -4962,16 +4966,16 @@ msgid "Failed to load delivery channels."
 msgstr "加载交付通道失败。"
 
 #: apps/console/src/routes/org/OrgSso.tsx
-msgid "Failed to load inbound SSO connections. Please try again."
-msgstr "无法加载入站 SSO 连接。请重试。"
+msgid "Failed to load inbound SSO connections. Reload the page to try again."
+msgstr "加载入站 SSO 连接失败。刷新页面重试。"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to load instance managers."
 msgstr "无法加载实例管理员。"
 
 #: apps/console/src/routes/org/OrgOverview.tsx
-msgid "Failed to load organization stats. Please try again."
-msgstr "加载组织统计失败。请重试。"
+msgid "Failed to load organization stats. Reload the page to try again."
+msgstr "加载组织统计失败。刷新页面重试。"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Failed to load organizations."
@@ -4990,16 +4994,16 @@ msgid "Failed to load platform settings."
 msgstr "加载平台设置失败。"
 
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
-msgid "Failed to load platform stats. Please try again."
-msgstr "加载平台统计失败。请重试。"
+msgid "Failed to load platform stats. Reload the page to try again."
+msgstr "加载平台统计失败。刷新页面重试。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "无法加载项目。"
 
 #: apps/console/src/routes/platform/PlatformQuotas.tsx
-msgid "Failed to load quota settings. Please try again."
-msgstr "加载配额设置失败。请重试。"
+msgid "Failed to load quota settings. Reload the page to try again."
+msgstr "加载配额设置失败。刷新页面重试。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load role permission mappings."
@@ -5010,8 +5014,8 @@ msgid "Failed to load roles."
 msgstr "无法加载角色。"
 
 #: apps/console/src/routes/org/OrgScim.tsx
-msgid "Failed to load SCIM directories. Please try again."
-msgstr "加载 SCIM 目录失败。请重试。"
+msgid "Failed to load SCIM directories. Reload the page to try again."
+msgstr "加载 SCIM 目录失败。刷新页面重试。"
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Failed to load SCIM targets."
@@ -5026,8 +5030,8 @@ msgid "Failed to load status incidents."
 msgstr "无法加载状态事件。"
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
-msgid "Failed to load usage overview. Please try again."
-msgstr "加载用量概览失败。请重试。"
+msgid "Failed to load usage overview. Reload the page to try again."
+msgstr "加载用量概览失败。刷新页面重试。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
@@ -5054,8 +5058,8 @@ msgid "Failed to search users."
 msgstr "搜索用户失败。"
 
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-msgid "Failed to search users. Please try again."
-msgstr "搜索用户失败。请重试。"
+msgid "Failed to search users. Run the search again."
+msgstr "搜索用户失败。重新搜索一次。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
@@ -7635,8 +7639,8 @@ msgid "No organization selected."
 msgstr "未选择组织。"
 
 #: apps/console/src/routes/org/OrgOverview.tsx
-msgid "No organization selected. Please select an organization to view the overview."
-msgstr "未选择组织。请选择组织以查看概览。"
+msgid "No organization selected. Choose one from the organization switcher to see its overview."
+msgstr "未选择组织。在组织切换菜单中选择一个组织，即可查看它的概览。"
 
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "No organizations"
@@ -9004,17 +9008,13 @@ msgstr "平台配置"
 msgid "Platform users | Console | XID"
 msgstr "平台用户 | 控制台 | XID"
 
-#: packages/i18n/src/messages.ts
-msgid "Please complete the CAPTCHA verification."
-msgstr "请完成 CAPTCHA 验证。"
-
-#: packages/i18n/src/messages.ts
-msgid "Please wait before polling again."
-msgstr "请稍后再轮询。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Plugin setup"
 msgstr "插件配置"
+
+#: packages/i18n/src/messages.ts
+msgid "Polling too often. Wait for the polling interval before the next request."
+msgstr "轮询过于频繁。等满轮询间隔后再发下一次请求。"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "POST /token"
@@ -12686,8 +12686,8 @@ msgid "the number ending in {last}"
 msgstr "尾号为 {last} 的号码"
 
 #: packages/i18n/src/messages.ts
-msgid "The one-time code has expired. Please request a new one."
-msgstr "一次性验证码已过期。请重新获取。"
+msgid "The one-time code has expired. Request a new one."
+msgstr "一次性验证码已过期。重新获取一个。"
 
 #: packages/i18n/src/messages.ts
 msgid "The one-time code is incorrect."
@@ -12878,8 +12878,8 @@ msgid "The service is currently unavailable."
 msgstr "服务当前不可用。"
 
 #: packages/i18n/src/messages.ts
-msgid "The service is temporarily unavailable. Please try again later."
-msgstr "服务暂时不可用。请稍后重试。"
+msgid "The service is temporarily unavailable. Try again later."
+msgstr "服务暂时不可用。稍后再试。"
 
 #: packages/i18n/src/messages.ts
 msgid "The session could not be found."
@@ -13102,20 +13102,20 @@ msgid "This link has expired or was already used"
 msgstr "此链接已过期或已被使用"
 
 #: packages/i18n/src/messages.ts
-msgid "This link has expired. Please request a new one."
-msgstr "此链接已过期。请重新获取。"
+msgid "This link has expired. Request a new one."
+msgstr "此链接已过期。重新获取一个。"
 
 #: packages/i18n/src/messages.ts
-msgid "This link is invalid. Please request a new one."
-msgstr "此链接无效。请重新获取。"
+msgid "This link is invalid. Request a new one."
+msgstr "此链接无效。重新获取一个。"
 
 #: apps/console/src/routes/console/RequireActiveOrganization.tsx
 msgid "This link opens another organization. Switching the console to it."
 msgstr "此链接指向另一个组织。正在把控制台切换到该组织。"
 
 #: packages/i18n/src/messages.ts
-msgid "This magic link has expired. Please request a new one."
-msgstr "此登录链接已过期。请重新获取。"
+msgid "This magic link has expired. Request a new one."
+msgstr "此登录链接已过期。重新获取一个。"
 
 #: packages/i18n/src/messages.ts
 msgid "This magic link is invalid."
@@ -13186,16 +13186,16 @@ msgid "This password appeared in a data breach"
 msgstr "此密码出现在数据泄露中"
 
 #: packages/i18n/src/messages.ts
-msgid "This password has appeared in a data breach. Please choose a different password."
-msgstr "此密码曾出现在数据泄露中。请选择其他密码。"
+msgid "This password has appeared in a data breach. Choose a different password."
+msgstr "此密码曾出现在数据泄露中。换一个密码。"
 
 #: apps/server/src/routes/account/PasswordSection.tsx
 msgid "This password has appeared in a known data breach, so change it."
 msgstr "此密码出现在已知的数据泄露中，请修改。"
 
 #: packages/i18n/src/messages.ts
-msgid "This password has been used recently. Please choose a different password."
-msgstr "最近已使用过此密码。请选择其他密码。"
+msgid "This password has been used recently. Choose a different password."
+msgstr "最近已使用过此密码。换一个密码。"
 
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "This removes the authenticator app, text message codes and backup codes. Passkeys stay. {name} is signed out everywhere and sets up two-step verification again at the next sign-in if the organization requires it."
@@ -13373,13 +13373,13 @@ msgstr "尝试次数过多。请等待几分钟后重试，也可以用其他方
 msgid "Too many requests"
 msgstr "请求过多"
 
-#: packages/i18n/src/messages.ts
-msgid "Too many requests. Please wait and try again."
-msgstr "请求过多。请稍后重试。"
-
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 msgid "Too many requests. Wait a minute, then try again."
 msgstr "请求过多。请等待一分钟后重试。"
+
+#: packages/i18n/src/messages.ts
+msgid "Too many requests. Wait a moment and try again."
+msgstr "请求过多。稍等片刻再试。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers"
@@ -14076,8 +14076,8 @@ msgid "Validation boundary"
 msgstr "验证边界"
 
 #: packages/i18n/src/messages.ts
-msgid "Validation failed. Please check your input."
-msgstr "校验失败。请检查输入。"
+msgid "Validation failed. Check your input."
+msgstr "校验失败。检查输入内容。"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -15212,8 +15212,8 @@ msgid "Your account has been suspended. Contact support for assistance."
 msgstr "你的账户已被暂停。请联系支持获取帮助。"
 
 #: packages/i18n/src/messages.ts
-msgid "Your account has been temporarily locked. Please try again later."
-msgstr "你的账户已被临时锁定。请稍后重试。"
+msgid "Your account has been temporarily locked. Try again later."
+msgstr "你的账户已被临时锁定。稍后再试。"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Your account is already scheduled for deletion. You can cancel it on Data & privacy."
@@ -15328,8 +15328,8 @@ msgid "Your profile, sign-in methods, devices, organizations and app permissions
 msgstr "你的资料、登录方式、设备、组织和应用权限，打包为一个 JSON 文件。不包含密码和通行密钥的密钥。"
 
 #: packages/i18n/src/messages.ts
-msgid "Your session has expired. Please sign in again."
-msgstr "你的会话已过期。请重新登录。"
+msgid "Your session has expired. Sign in again."
+msgstr "你的会话已过期。重新登录。"
 
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
 msgid "Your sign-in took too long and expired. Start again."

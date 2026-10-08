@@ -6,6 +6,7 @@ import { ConsolePage, ConsolePageNotice } from '@xid-kit/web-ui/ui'
 import { MetricBarChart } from '@xid-kit/web-ui/ui/MetricBarChart'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useApiQuery } from '@xid-kit/web-ui/queries'
 import type { AuthOrg } from '@xid-kit/web-ui/session'
@@ -48,8 +49,8 @@ const styles = stylex.create({
       ':focus-visible': tokens['--xid-muted'],
     },
     color: tokens['--xid-fg'],
-    fontSize: '0.8125rem',
-    fontWeight: 550,
+    fontSize: text.sm,
+    fontWeight: weight.medium,
     textDecoration: 'none',
     transitionProperty: 'background-color',
     transitionDuration: '150ms',
@@ -255,7 +256,8 @@ export default function OrgOverview(): ReactNode {
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>
-              No organization selected. Please select an organization to view the overview.
+              No organization selected. Choose one from the organization switcher to see its
+              overview.
             </Trans>
           </Alert>
         </ConsolePageNotice>
@@ -276,7 +278,7 @@ export default function OrgOverview(): ReactNode {
       ) : isError ? (
         <ConsolePageNotice>
           <Alert tone="error">
-            <Trans>Failed to load organization stats. Please try again.</Trans>
+            <Trans>Failed to load organization stats. Reload the page to try again.</Trans>
           </Alert>
         </ConsolePageNotice>
       ) : data ? (

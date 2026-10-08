@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@xid-kit/web-ui'
 import { useApiMutation, useApiQuery } from '@xid-kit/web-ui/queries'
 import { Alert, Badge, Button, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useCanManageOrg } from './useOrgTarget'
 
@@ -88,7 +89,7 @@ const styles = stylex.create({
     margin: 0,
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     lineHeight: 1.55,
     maxWidth: '32rem',
   },
@@ -142,8 +143,8 @@ const styles = stylex.create({
     margin: 0,
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.9375rem',
-    fontWeight: 600,
+    fontSize: text.base,
+    fontWeight: weight.display,
     wordBreak: 'break-all',
   },
   statusRow: {
@@ -172,13 +173,13 @@ const styles = stylex.create({
   recordLabel: {
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     lineHeight: 1.4,
   },
   recordCode: {
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     lineHeight: 1.5,
     wordBreak: 'break-all',
   },
@@ -192,13 +193,13 @@ const styles = stylex.create({
     margin: 0,
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.875rem',
+    fontSize: text.base,
   },
   metaText: {
     margin: 0,
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     lineHeight: 1.5,
   },
 })
@@ -383,7 +384,7 @@ export function OrgCustomHostnames({ orgId }: { orgId: string }): ReactNode {
         </div>
       ) : hostnamesQuery.isError ? (
         <Alert tone="error">
-          <Trans>Failed to load custom hostnames. Please try again.</Trans>
+          <Trans>Failed to load custom hostnames. Reload the page to try again.</Trans>
         </Alert>
       ) : hostnames.length === 0 ? (
         <p {...stylex.props(styles.empty)}>

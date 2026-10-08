@@ -786,7 +786,7 @@ msgid "A platform administrator manages this setting for your organization. You 
 msgstr "이 설정은 플랫폼 관리자가 조직을 대신해 관리합니다. 확인은 할 수 있지만 변경할 수는 없습니다."
 
 #: packages/i18n/src/messages.ts
-msgid "A possible authenticator clone was detected. Please contact support."
+msgid "A possible authenticator clone was detected. Contact support."
 msgstr "인증 장치 복제 가능성이 감지되었습니다. 지원팀에 문의하세요."
 
 #: apps/console/src/routes/projects/ProjectsList.tsx
@@ -1495,7 +1495,7 @@ msgid "An instance manager"
 msgstr "인스턴스 관리자"
 
 #: packages/i18n/src/messages.ts
-msgid "An internal error occurred. Please try again."
+msgid "An internal error occurred. Try again."
 msgstr "내부 오류가 발생했습니다. 다시 시도하세요."
 
 #: apps/server/src/routes/create-organization/index.tsx
@@ -1511,7 +1511,7 @@ msgid "An OrgUnit is a department or team inside one Organization. It never chan
 msgstr "OrgUnit은 하나의 조직 내의 부서 또는 팀입니다. TenantContext, 발급자, 토큰 클레임 또는 한 수준 SubOrg 제한은 변경되지 않습니다."
 
 #: packages/i18n/src/messages.ts
-msgid "An unexpected server error occurred. Please try again."
+msgid "An unexpected server error occurred. Try again."
 msgstr "예상치 못한 서버 오류가 발생했습니다. 다시 시도하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -2362,7 +2362,7 @@ msgid "Capabilities"
 msgstr "기능"
 
 #: packages/i18n/src/messages.ts
-msgid "CAPTCHA verification failed. Please try again."
+msgid "CAPTCHA verification failed. Try again."
 msgstr "CAPTCHA 인증에 실패했습니다. 다시 시도하세요."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
@@ -2702,6 +2702,10 @@ msgstr "명령 메뉴"
 #: apps/site/src/lib/home-surface.ts
 msgid "Complete edition"
 msgstr "완전한 판"
+
+#: packages/i18n/src/messages.ts
+msgid "Complete the CAPTCHA verification to continue."
+msgstr "계속하려면 CAPTCHA 인증을 완료하세요."
 
 #: apps/console/src/nav.tsx
 msgid "Compliance"
@@ -4926,8 +4930,8 @@ msgid "Failed to load announcements."
 msgstr "공지사항을 로드하지 못했습니다."
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-msgid "Failed to load audit events. Please try again."
-msgstr "감사 이벤트를 불러오지 못했습니다. 다시 시도하세요."
+msgid "Failed to load audit events. Reload the page to try again."
+msgstr "감사 이벤트를 불러오지 못했습니다. 페이지를 새로고침한 후 다시 시도하세요."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Failed to load authentication policy."
@@ -4942,8 +4946,8 @@ msgid "Failed to load compliance documents."
 msgstr "규정 준수 문서를 로드하지 못했습니다."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-msgid "Failed to load custom hostnames. Please try again."
-msgstr "맞춤 호스트 이름을 로드하지 못했습니다. 다시 시도해 주세요."
+msgid "Failed to load custom hostnames. Reload the page to try again."
+msgstr "맞춤 호스트 이름을 불러오지 못했습니다. 페이지를 새로고침한 후 다시 시도하세요."
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Failed to load dead letters."
@@ -4962,16 +4966,16 @@ msgid "Failed to load delivery channels."
 msgstr "전송 채널을 불러오지 못했습니다."
 
 #: apps/console/src/routes/org/OrgSso.tsx
-msgid "Failed to load inbound SSO connections. Please try again."
-msgstr "inbound SSO 연결을 로드하지 못했습니다. 다시 시도하세요."
+msgid "Failed to load inbound SSO connections. Reload the page to try again."
+msgstr "인바운드 SSO 연결을 불러오지 못했습니다. 페이지를 새로고침한 후 다시 시도하세요."
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to load instance managers."
 msgstr "인스턴스 관리자를 로드하지 못했습니다."
 
 #: apps/console/src/routes/org/OrgOverview.tsx
-msgid "Failed to load organization stats. Please try again."
-msgstr "조직 통계를 불러오지 못했습니다. 다시 시도하세요."
+msgid "Failed to load organization stats. Reload the page to try again."
+msgstr "조직 통계를 불러오지 못했습니다. 페이지를 새로고침한 후 다시 시도하세요."
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Failed to load organizations."
@@ -4990,16 +4994,16 @@ msgid "Failed to load platform settings."
 msgstr "플랫폼 설정을 불러오지 못했습니다."
 
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
-msgid "Failed to load platform stats. Please try again."
-msgstr "플랫폼 통계를 불러오지 못했습니다. 다시 시도하세요."
+msgid "Failed to load platform stats. Reload the page to try again."
+msgstr "플랫폼 통계를 불러오지 못했습니다. 페이지를 새로고침한 후 다시 시도하세요."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "프로젝트를 로드하지 못했습니다."
 
 #: apps/console/src/routes/platform/PlatformQuotas.tsx
-msgid "Failed to load quota settings. Please try again."
-msgstr "할당량 설정을 불러오지 못했습니다. 다시 시도하세요."
+msgid "Failed to load quota settings. Reload the page to try again."
+msgstr "할당량 설정을 불러오지 못했습니다. 페이지를 새로고침한 후 다시 시도하세요."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load role permission mappings."
@@ -5010,8 +5014,8 @@ msgid "Failed to load roles."
 msgstr "역할을 로드하지 못했습니다."
 
 #: apps/console/src/routes/org/OrgScim.tsx
-msgid "Failed to load SCIM directories. Please try again."
-msgstr "SCIM 디렉터리를 불러오지 못했습니다. 다시 시도하세요."
+msgid "Failed to load SCIM directories. Reload the page to try again."
+msgstr "SCIM 디렉터리를 불러오지 못했습니다. 페이지를 새로고침한 후 다시 시도하세요."
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Failed to load SCIM targets."
@@ -5026,8 +5030,8 @@ msgid "Failed to load status incidents."
 msgstr "상태 사건을 로드하지 못했습니다."
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
-msgid "Failed to load usage overview. Please try again."
-msgstr "사용량 개요를 불러오지 못했습니다. 다시 시도하세요."
+msgid "Failed to load usage overview. Reload the page to try again."
+msgstr "사용량 개요를 불러오지 못했습니다. 페이지를 새로고침한 후 다시 시도하세요."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
@@ -5054,8 +5058,8 @@ msgid "Failed to search users."
 msgstr "사용자를 검색하지 못했습니다."
 
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-msgid "Failed to search users. Please try again."
-msgstr "사용자 검색에 실패했습니다. 다시 시도하세요."
+msgid "Failed to search users. Run the search again."
+msgstr "사용자 검색에 실패했습니다. 검색을 다시 실행하세요."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
@@ -7635,8 +7639,8 @@ msgid "No organization selected."
 msgstr "선택된 조직이 없습니다."
 
 #: apps/console/src/routes/org/OrgOverview.tsx
-msgid "No organization selected. Please select an organization to view the overview."
-msgstr "개요를 보려면 조직을 선택하세요."
+msgid "No organization selected. Choose one from the organization switcher to see its overview."
+msgstr "선택된 조직이 없습니다. 조직 전환 메뉴에서 조직을 선택하면 개요를 볼 수 있습니다."
 
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "No organizations"
@@ -9004,17 +9008,13 @@ msgstr "플랫폼 설정"
 msgid "Platform users | Console | XID"
 msgstr "플랫폼 사용자 | 콘솔 | XID"
 
-#: packages/i18n/src/messages.ts
-msgid "Please complete the CAPTCHA verification."
-msgstr "CAPTCHA 인증을 완료하세요."
-
-#: packages/i18n/src/messages.ts
-msgid "Please wait before polling again."
-msgstr "다시 조회하기 전에 기다려 주세요."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Plugin setup"
 msgstr "플러그인 설정"
+
+#: packages/i18n/src/messages.ts
+msgid "Polling too often. Wait for the polling interval before the next request."
+msgstr "폴링이 너무 잦습니다. 폴링 간격이 지난 후 다음 요청을 보내세요."
 
 #: apps/site/src/lib/home-surface.ts
 msgid "POST /token"
@@ -12686,7 +12686,7 @@ msgid "the number ending in {last}"
 msgstr "끝자리가 {last}인 번호"
 
 #: packages/i18n/src/messages.ts
-msgid "The one-time code has expired. Please request a new one."
+msgid "The one-time code has expired. Request a new one."
 msgstr "일회용 코드가 만료되었습니다. 새 코드를 요청하세요."
 
 #: packages/i18n/src/messages.ts
@@ -12878,7 +12878,7 @@ msgid "The service is currently unavailable."
 msgstr "서비스를 현재 사용할 수 없습니다."
 
 #: packages/i18n/src/messages.ts
-msgid "The service is temporarily unavailable. Please try again later."
+msgid "The service is temporarily unavailable. Try again later."
 msgstr "서비스를 일시적으로 사용할 수 없습니다. 나중에 다시 시도하세요."
 
 #: packages/i18n/src/messages.ts
@@ -13102,11 +13102,11 @@ msgid "This link has expired or was already used"
 msgstr "이 링크는 만료되었거나 이미 사용되었습니다"
 
 #: packages/i18n/src/messages.ts
-msgid "This link has expired. Please request a new one."
+msgid "This link has expired. Request a new one."
 msgstr "이 링크는 만료되었습니다. 새 링크를 요청하세요."
 
 #: packages/i18n/src/messages.ts
-msgid "This link is invalid. Please request a new one."
+msgid "This link is invalid. Request a new one."
 msgstr "이 링크는 유효하지 않습니다. 새 링크를 요청하세요."
 
 #: apps/console/src/routes/console/RequireActiveOrganization.tsx
@@ -13114,7 +13114,7 @@ msgid "This link opens another organization. Switching the console to it."
 msgstr "이 링크는 다른 조직을 엽니다. 콘솔을 해당 조직으로 전환하는 중입니다."
 
 #: packages/i18n/src/messages.ts
-msgid "This magic link has expired. Please request a new one."
+msgid "This magic link has expired. Request a new one."
 msgstr "이 매직 링크는 만료되었습니다. 새 링크를 요청하세요."
 
 #: packages/i18n/src/messages.ts
@@ -13186,7 +13186,7 @@ msgid "This password appeared in a data breach"
 msgstr "이 비밀번호는 데이터 유출에서 발견되었습니다"
 
 #: packages/i18n/src/messages.ts
-msgid "This password has appeared in a data breach. Please choose a different password."
+msgid "This password has appeared in a data breach. Choose a different password."
 msgstr "이 비밀번호는 데이터 유출에 노출된 적이 있습니다. 다른 비밀번호를 선택하세요."
 
 #: apps/server/src/routes/account/PasswordSection.tsx
@@ -13194,7 +13194,7 @@ msgid "This password has appeared in a known data breach, so change it."
 msgstr "이 비밀번호는 알려진 데이터 유출에 포함되어 있으니 변경하세요."
 
 #: packages/i18n/src/messages.ts
-msgid "This password has been used recently. Please choose a different password."
+msgid "This password has been used recently. Choose a different password."
 msgstr "최근에 사용한 비밀번호입니다. 다른 비밀번호를 선택하세요."
 
 #: apps/console/src/routes/users/UserActions.tsx
@@ -13373,13 +13373,13 @@ msgstr "시도 횟수가 너무 많습니다. 몇 분 후 다시 시도하거나
 msgid "Too many requests"
 msgstr "요청이 너무 많습니다"
 
-#: packages/i18n/src/messages.ts
-msgid "Too many requests. Please wait and try again."
-msgstr "요청이 너무 많습니다. 기다린 후 다시 시도하세요."
-
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 msgid "Too many requests. Wait a minute, then try again."
 msgstr "요청이 너무 많습니다. 1분 후 다시 시도하세요."
+
+#: packages/i18n/src/messages.ts
+msgid "Too many requests. Wait a moment and try again."
+msgstr "요청이 너무 많습니다. 잠시 기다린 후 다시 시도하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers"
@@ -14076,7 +14076,7 @@ msgid "Validation boundary"
 msgstr "검증 경계"
 
 #: packages/i18n/src/messages.ts
-msgid "Validation failed. Please check your input."
+msgid "Validation failed. Check your input."
 msgstr "검증에 실패했습니다. 입력을 확인하세요."
 
 #: apps/console/src/routes/org/OrgDomains.tsx
@@ -15212,7 +15212,7 @@ msgid "Your account has been suspended. Contact support for assistance."
 msgstr "계정이 정지되었습니다. 도움이 필요하면 지원팀에 문의하세요."
 
 #: packages/i18n/src/messages.ts
-msgid "Your account has been temporarily locked. Please try again later."
+msgid "Your account has been temporarily locked. Try again later."
 msgstr "계정이 일시적으로 잠겼습니다. 나중에 다시 시도하세요."
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
@@ -15328,7 +15328,7 @@ msgid "Your profile, sign-in methods, devices, organizations and app permissions
 msgstr "프로필, 로그인 방법, 기기, 조직, 앱 권한을 하나의 JSON 파일로 제공합니다. 비밀번호와 패스키 키는 포함되지 않습니다."
 
 #: packages/i18n/src/messages.ts
-msgid "Your session has expired. Please sign in again."
+msgid "Your session has expired. Sign in again."
 msgstr "세션이 만료되었습니다. 다시 로그인하세요."
 
 #: apps/server/src/routes/sign-in/sign-in-messages.ts

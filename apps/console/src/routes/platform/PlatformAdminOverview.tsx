@@ -108,7 +108,7 @@ export default function PlatformAdminOverview(): ReactNode {
       {isError ? (
         <ConsolePageNotice>
           <Alert tone="error">
-            <Trans>Failed to load platform stats. Please try again.</Trans>
+            <Trans>Failed to load platform stats. Reload the page to try again.</Trans>
           </Alert>
         </ConsolePageNotice>
       ) : null}

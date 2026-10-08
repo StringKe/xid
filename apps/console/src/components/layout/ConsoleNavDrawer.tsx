@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { AuthUser } from '@xid-kit/web-ui/session'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { leading, text } from '@xid-kit/web-ui/styles/scale.stylex'
+import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Drawer, DrawerClose, Icon } from '@xid-kit/web-ui/ui'
 import { AccountMenu, DOCS_URL, LanguageMenu } from './ConsoleTopBar'
 import { ScopeSwitcher } from './ScopeSwitcher'
@@ -83,7 +83,7 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-muted'],
     boxShadow: `inset 0 0 0 1px ${tokens['--xid-border-strong']}`,
     fontSize: text.xs,
-    fontWeight: 600,
+    fontWeight: weight.medium,
     color: tokens['--xid-fg'],
   },
   identity: {

@@ -9,7 +9,7 @@ import type { OrganizationMembershipRole } from '@xid-kit/types'
 import { useRoleLabel } from '@xid-kit/web-ui/enum-labels'
 import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { text } from '@xid-kit/web-ui/styles/scale.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Alert, Badge, Button, Dialog, Field, Select, Textarea } from '@xid-kit/web-ui/ui'
 import type { BadgeTone } from '@xid-kit/web-ui/ui'
 import type { BulkInvitationResult } from './member-api'
@@ -50,10 +50,10 @@ const styles = stylex.create({
     paddingBlock: '0.625rem',
     paddingInline: '0.75rem',
     fontSize: text.sm,
-    fontWeight: 600,
+    fontWeight: weight.display,
   },
   panelCount: {
-    fontWeight: 400,
+    fontWeight: weight.regular,
     color: tokens['--xid-muted-foreground'],
     fontVariantNumeric: 'tabular-nums',
   },

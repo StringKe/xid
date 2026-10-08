@@ -786,8 +786,8 @@ msgid "A platform administrator manages this setting for your organization. You 
 msgstr "Diese Einstellung wird für Ihre Organisation von einem Plattformadministrator verwaltet. Sie können sie ansehen, aber nicht ändern."
 
 #: packages/i18n/src/messages.ts
-msgid "A possible authenticator clone was detected. Please contact support."
-msgstr "Ein möglicher Klon des Authenticators wurde erkannt. Bitte kontaktieren Sie den Support."
+msgid "A possible authenticator clone was detected. Contact support."
+msgstr "Ein möglicher Klon des Authenticators wurde erkannt. Wenden Sie sich an den Support."
 
 #: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "A project holds applications that share one set of roles and permissions."
@@ -1495,8 +1495,8 @@ msgid "An instance manager"
 msgstr "Ein Instanzmanager"
 
 #: packages/i18n/src/messages.ts
-msgid "An internal error occurred. Please try again."
-msgstr "Ein interner Fehler ist aufgetreten. Bitte versuchen Sie es erneut."
+msgid "An internal error occurred. Try again."
+msgstr "Ein interner Fehler ist aufgetreten. Versuchen Sie es erneut."
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
@@ -1511,8 +1511,8 @@ msgid "An OrgUnit is a department or team inside one Organization. It never chan
 msgstr "Eine OrgUnit ist eine Abteilung oder ein Team innerhalb einer Organisation. Der TenantContext, der Aussteller, die Tokenansprüche oder das einstufige SubOrg-Limit werden nie geändert."
 
 #: packages/i18n/src/messages.ts
-msgid "An unexpected server error occurred. Please try again."
-msgstr "Ein unerwarteter Serverfehler ist aufgetreten. Bitte versuchen Sie es erneut."
+msgid "An unexpected server error occurred. Try again."
+msgstr "Ein unerwarteter Serverfehler ist aufgetreten. Versuchen Sie es erneut."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "and"
@@ -2362,8 +2362,8 @@ msgid "Capabilities"
 msgstr "Funktionen"
 
 #: packages/i18n/src/messages.ts
-msgid "CAPTCHA verification failed. Please try again."
-msgstr "CAPTCHA-Verifizierung fehlgeschlagen. Bitte versuchen Sie es erneut."
+msgid "CAPTCHA verification failed. Try again."
+msgstr "CAPTCHA-Verifizierung fehlgeschlagen. Versuchen Sie es erneut."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Certificate status:"
@@ -2702,6 +2702,10 @@ msgstr "Befehlsmenü"
 #: apps/site/src/lib/home-surface.ts
 msgid "Complete edition"
 msgstr "Gesamtausgabe"
+
+#: packages/i18n/src/messages.ts
+msgid "Complete the CAPTCHA verification to continue."
+msgstr "Schließen Sie die CAPTCHA-Verifizierung ab, um fortzufahren."
 
 #: apps/console/src/nav.tsx
 msgid "Compliance"
@@ -4926,8 +4930,8 @@ msgid "Failed to load announcements."
 msgstr "Ankündigungen konnten nicht geladen werden."
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-msgid "Failed to load audit events. Please try again."
-msgstr "Audit-Ereignisse konnten nicht geladen werden. Bitte versuchen Sie es erneut."
+msgid "Failed to load audit events. Reload the page to try again."
+msgstr "Audit-Ereignisse konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Failed to load authentication policy."
@@ -4942,8 +4946,8 @@ msgid "Failed to load compliance documents."
 msgstr "Compliance-Dokumente konnten nicht geladen werden."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-msgid "Failed to load custom hostnames. Please try again."
-msgstr "Benutzerdefinierte Hostnamen konnten nicht geladen werden. Bitte versuchen Sie es erneut."
+msgid "Failed to load custom hostnames. Reload the page to try again."
+msgstr "Benutzerdefinierte Hostnamen konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen."
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Failed to load dead letters."
@@ -4962,16 +4966,16 @@ msgid "Failed to load delivery channels."
 msgstr "Zustellkanäle konnten nicht geladen werden."
 
 #: apps/console/src/routes/org/OrgSso.tsx
-msgid "Failed to load inbound SSO connections. Please try again."
-msgstr "Inbound SSO-Verbindungen konnten nicht geladen werden. Bitte versuchen Sie es erneut."
+msgid "Failed to load inbound SSO connections. Reload the page to try again."
+msgstr "Eingehende SSO-Verbindungen konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen."
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to load instance managers."
 msgstr "Instanzmanager konnten nicht geladen werden."
 
 #: apps/console/src/routes/org/OrgOverview.tsx
-msgid "Failed to load organization stats. Please try again."
-msgstr "Organisationsstatistiken konnten nicht geladen werden. Bitte versuchen Sie es erneut."
+msgid "Failed to load organization stats. Reload the page to try again."
+msgstr "Organisationsstatistiken konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen."
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Failed to load organizations."
@@ -4990,16 +4994,16 @@ msgid "Failed to load platform settings."
 msgstr "Plattformeinstellungen konnten nicht geladen werden."
 
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
-msgid "Failed to load platform stats. Please try again."
-msgstr "Plattformstatistiken konnten nicht geladen werden. Bitte versuchen Sie es erneut."
+msgid "Failed to load platform stats. Reload the page to try again."
+msgstr "Plattformstatistiken konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "Projekte konnten nicht geladen werden."
 
 #: apps/console/src/routes/platform/PlatformQuotas.tsx
-msgid "Failed to load quota settings. Please try again."
-msgstr "Kontingenteinstellungen konnten nicht geladen werden. Bitte versuchen Sie es erneut."
+msgid "Failed to load quota settings. Reload the page to try again."
+msgstr "Kontingenteinstellungen konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load role permission mappings."
@@ -5010,8 +5014,8 @@ msgid "Failed to load roles."
 msgstr "Rollen konnten nicht geladen werden."
 
 #: apps/console/src/routes/org/OrgScim.tsx
-msgid "Failed to load SCIM directories. Please try again."
-msgstr "SCIM-Verzeichnisse konnten nicht geladen werden. Bitte versuchen Sie es erneut."
+msgid "Failed to load SCIM directories. Reload the page to try again."
+msgstr "SCIM-Verzeichnisse konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen."
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Failed to load SCIM targets."
@@ -5026,8 +5030,8 @@ msgid "Failed to load status incidents."
 msgstr "Statusvorfälle konnten nicht geladen werden."
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
-msgid "Failed to load usage overview. Please try again."
-msgstr "Die Nutzungsübersicht konnte nicht geladen werden. Bitte versuchen Sie es erneut."
+msgid "Failed to load usage overview. Reload the page to try again."
+msgstr "Die Nutzungsübersicht konnte nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
@@ -5054,8 +5058,8 @@ msgid "Failed to search users."
 msgstr "Suche nach Benutzern fehlgeschlagen."
 
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-msgid "Failed to search users. Please try again."
-msgstr "Benutzersuche fehlgeschlagen. Bitte versuchen Sie es erneut."
+msgid "Failed to search users. Run the search again."
+msgstr "Benutzersuche fehlgeschlagen. Führen Sie die Suche erneut aus."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
@@ -7635,8 +7639,8 @@ msgid "No organization selected."
 msgstr "Keine Organisation ausgewählt."
 
 #: apps/console/src/routes/org/OrgOverview.tsx
-msgid "No organization selected. Please select an organization to view the overview."
-msgstr "Keine Organisation ausgewählt. Bitte wählen Sie eine Organisation, um die Übersicht anzuzeigen."
+msgid "No organization selected. Choose one from the organization switcher to see its overview."
+msgstr "Keine Organisation ausgewählt. Wählen Sie im Organisationswechsler eine Organisation aus, um ihre Übersicht zu sehen."
 
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "No organizations"
@@ -9004,17 +9008,13 @@ msgstr "Plattform-Einrichtung"
 msgid "Platform users | Console | XID"
 msgstr "Plattformbenutzer | Konsole | XID"
 
-#: packages/i18n/src/messages.ts
-msgid "Please complete the CAPTCHA verification."
-msgstr "Bitte schließen Sie die CAPTCHA-Verifizierung ab."
-
-#: packages/i18n/src/messages.ts
-msgid "Please wait before polling again."
-msgstr "Bitte warten Sie, bevor Sie erneut abfragen."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Plugin setup"
 msgstr "Plugin-Einrichtung"
+
+#: packages/i18n/src/messages.ts
+msgid "Polling too often. Wait for the polling interval before the next request."
+msgstr "Zu häufige Abfragen. Warten Sie das Abfrageintervall ab, bevor Sie die nächste Anfrage senden."
 
 #: apps/site/src/lib/home-surface.ts
 msgid "POST /token"
@@ -12686,8 +12686,8 @@ msgid "the number ending in {last}"
 msgstr "die Nummer mit der Endung {last}"
 
 #: packages/i18n/src/messages.ts
-msgid "The one-time code has expired. Please request a new one."
-msgstr "Der Einmalcode ist abgelaufen. Bitte fordern Sie einen neuen an."
+msgid "The one-time code has expired. Request a new one."
+msgstr "Der Einmalcode ist abgelaufen. Fordern Sie einen neuen an."
 
 #: packages/i18n/src/messages.ts
 msgid "The one-time code is incorrect."
@@ -12878,8 +12878,8 @@ msgid "The service is currently unavailable."
 msgstr "Der Dienst ist derzeit nicht verfügbar."
 
 #: packages/i18n/src/messages.ts
-msgid "The service is temporarily unavailable. Please try again later."
-msgstr "Der Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut."
+msgid "The service is temporarily unavailable. Try again later."
+msgstr "Der Dienst ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut."
 
 #: packages/i18n/src/messages.ts
 msgid "The session could not be found."
@@ -13102,20 +13102,20 @@ msgid "This link has expired or was already used"
 msgstr "Dieser Link ist abgelaufen oder wurde bereits verwendet"
 
 #: packages/i18n/src/messages.ts
-msgid "This link has expired. Please request a new one."
-msgstr "Dieser Link ist abgelaufen. Bitte fordern Sie einen neuen an."
+msgid "This link has expired. Request a new one."
+msgstr "Dieser Link ist abgelaufen. Fordern Sie einen neuen an."
 
 #: packages/i18n/src/messages.ts
-msgid "This link is invalid. Please request a new one."
-msgstr "Dieser Link ist ungültig. Bitte fordern Sie einen neuen an."
+msgid "This link is invalid. Request a new one."
+msgstr "Dieser Link ist ungültig. Fordern Sie einen neuen an."
 
 #: apps/console/src/routes/console/RequireActiveOrganization.tsx
 msgid "This link opens another organization. Switching the console to it."
 msgstr "Dieser Link öffnet eine andere Organisation. Die Konsole wird dorthin umgeschaltet."
 
 #: packages/i18n/src/messages.ts
-msgid "This magic link has expired. Please request a new one."
-msgstr "Dieser magische Link ist abgelaufen. Bitte fordern Sie einen neuen an."
+msgid "This magic link has expired. Request a new one."
+msgstr "Dieser magische Link ist abgelaufen. Fordern Sie einen neuen an."
 
 #: packages/i18n/src/messages.ts
 msgid "This magic link is invalid."
@@ -13186,16 +13186,16 @@ msgid "This password appeared in a data breach"
 msgstr "Dieses Passwort ist in einem Datenleck aufgetaucht"
 
 #: packages/i18n/src/messages.ts
-msgid "This password has appeared in a data breach. Please choose a different password."
-msgstr "Dieses Passwort ist in einem Datenleck aufgetaucht. Bitte wählen Sie ein anderes Passwort."
+msgid "This password has appeared in a data breach. Choose a different password."
+msgstr "Dieses Passwort ist in einem Datenleck aufgetaucht. Wählen Sie ein anderes Passwort."
 
 #: apps/server/src/routes/account/PasswordSection.tsx
 msgid "This password has appeared in a known data breach, so change it."
 msgstr "Dieses Passwort ist in einem bekannten Datenleck aufgetaucht, ändern Sie es daher."
 
 #: packages/i18n/src/messages.ts
-msgid "This password has been used recently. Please choose a different password."
-msgstr "Dieses Passwort wurde kürzlich verwendet. Bitte wählen Sie ein anderes Passwort."
+msgid "This password has been used recently. Choose a different password."
+msgstr "Dieses Passwort wurde kürzlich verwendet. Wählen Sie ein anderes Passwort."
 
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "This removes the authenticator app, text message codes and backup codes. Passkeys stay. {name} is signed out everywhere and sets up two-step verification again at the next sign-in if the organization requires it."
@@ -13373,13 +13373,13 @@ msgstr "Zu viele Versuche. Warten Sie ein paar Minuten und versuchen Sie es dann
 msgid "Too many requests"
 msgstr "Zu viele Anfragen"
 
-#: packages/i18n/src/messages.ts
-msgid "Too many requests. Please wait and try again."
-msgstr "Zu viele Anfragen. Bitte warten Sie und versuchen Sie es erneut."
-
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 msgid "Too many requests. Wait a minute, then try again."
 msgstr "Zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es dann erneut."
+
+#: packages/i18n/src/messages.ts
+msgid "Too many requests. Wait a moment and try again."
+msgstr "Zu viele Anfragen. Warten Sie einen Moment und versuchen Sie es erneut."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers"
@@ -14076,8 +14076,8 @@ msgid "Validation boundary"
 msgstr "Validierungsgrenze"
 
 #: packages/i18n/src/messages.ts
-msgid "Validation failed. Please check your input."
-msgstr "Validierung fehlgeschlagen. Bitte prüfen Sie Ihre Eingabe."
+msgid "Validation failed. Check your input."
+msgstr "Validierung fehlgeschlagen. Prüfen Sie Ihre Eingabe."
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -15212,8 +15212,8 @@ msgid "Your account has been suspended. Contact support for assistance."
 msgstr "Ihr Konto wurde deaktiviert. Wenden Sie sich für Hilfe an den Support."
 
 #: packages/i18n/src/messages.ts
-msgid "Your account has been temporarily locked. Please try again later."
-msgstr "Ihr Konto wurde vorübergehend gesperrt. Bitte versuchen Sie es später erneut."
+msgid "Your account has been temporarily locked. Try again later."
+msgstr "Ihr Konto wurde vorübergehend gesperrt. Versuchen Sie es später erneut."
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "Your account is already scheduled for deletion. You can cancel it on Data & privacy."
@@ -15328,8 +15328,8 @@ msgid "Your profile, sign-in methods, devices, organizations and app permissions
 msgstr "Ihr Profil, Ihre Anmeldemethoden, Geräte, Organisationen und App-Berechtigungen als eine JSON-Datei. Passwörter und Passkey-Schlüssel sind nie enthalten."
 
 #: packages/i18n/src/messages.ts
-msgid "Your session has expired. Please sign in again."
-msgstr "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+msgid "Your session has expired. Sign in again."
+msgstr "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an."
 
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
 msgid "Your sign-in took too long and expired. Start again."

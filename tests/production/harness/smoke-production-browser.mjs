@@ -61,7 +61,7 @@ const repoRoot = process.cwd()
 
 const forbiddenText = [
   'No organization selected',
-  'No organization selected. Please select an organization to view the overview.',
+  'Choose one from the organization switcher to see its overview.',
   'class="e=>n',
   'e=>n(',
 ]

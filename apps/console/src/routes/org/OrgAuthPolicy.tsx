@@ -9,6 +9,7 @@ import {
   ConsolePageSection,
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
@@ -102,8 +103,8 @@ const styles = stylex.create({
   },
   methodName: {
     margin: '0 0 0.5rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
+    fontSize: text.base,
+    fontWeight: weight.display,
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
     display: 'flex',
@@ -115,14 +116,14 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.5rem',
     paddingBlock: '0.3125rem',
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
     cursor: 'pointer',
   },
   readinessNote: {
     margin: '0 0 0.5rem',
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     lineHeight: 1.4,
     fontFamily: tokens['--xid-font'],
   },

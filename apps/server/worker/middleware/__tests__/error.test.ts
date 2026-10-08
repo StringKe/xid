@@ -236,7 +236,7 @@ describe('errorHandler', () => {
     expect(res.status).toBe(500)
     expect((await res.json()) as { code: string; message: string }).toEqual({
       code: 'server_error',
-      message: 'An unexpected server error occurred. Please try again.',
+      message: 'An unexpected server error occurred. Try again.',
     })
   })
 })

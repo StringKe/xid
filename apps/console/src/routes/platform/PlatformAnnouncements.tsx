@@ -24,6 +24,7 @@ import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import type { PlatformAnnouncement } from '@xid-kit/types'
 import { PlatformOrganizationPicker } from '../../components/PlatformOrganizationPicker'
@@ -77,13 +78,13 @@ const styles = stylex.create({
   rowTitle: {
     margin: 0,
     color: tokens['--xid-fg'],
-    fontSize: '0.9375rem',
-    fontWeight: 620,
+    fontSize: text.base,
+    fontWeight: weight.display,
   },
   body: {
     margin: '0.375rem 0 0',
     color: tokens['--xid-muted-foreground'],
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     lineHeight: 1.55,
     whiteSpace: 'pre-wrap',
   },
@@ -97,7 +98,7 @@ const styles = stylex.create({
   time: {
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.75rem',
+    fontSize: text.xs,
   },
   rowActions: {
     display: 'flex',
