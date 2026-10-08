@@ -30,6 +30,11 @@ vi.mock('../../components/LanguageSwitcher', () => ({
   LanguageSwitcher: () => <span>Language</span>,
 }))
 
+vi.mock('@xid-kit/web-ui/ThemeSwitcher', () => ({
+  ThemeSwitcher: () => <span>Theme</span>,
+  useThemeMenuGroup: () => ({ key: 'theme', label: 'Theme', items: [] }),
+}))
+
 vi.mock('./PendingDeletionBanner', () => ({
   PendingDeletionBanner: () => null,
 }))

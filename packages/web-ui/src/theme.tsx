@@ -10,6 +10,7 @@ import { deriveAccentPalette, type ColorScheme } from './brand-color'
 import { hasCustomBranding, type OrgBranding } from '@xid-kit/types'
 import {
   THEME_COLOR,
+  THEME_STORAGE_KEY,
   persistThemeMode,
   readThemeMode,
   resolveThemeScheme,
@@ -114,6 +115,14 @@ export function ThemeProvider({
     const onChange = (event: MediaQueryListEvent): void => setSystemDark(event.matches)
     media.addEventListener('change', onChange)
     return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent): void => {
+      if (event.key === null || event.key === THEME_STORAGE_KEY) setModeState(readThemeMode())
+    }
+    globalThis.addEventListener?.('storage', onStorage)
+    return () => globalThis.removeEventListener?.('storage', onStorage)
   }, [])
 
   const setMode = useCallback((next: ThemeMode): void => {

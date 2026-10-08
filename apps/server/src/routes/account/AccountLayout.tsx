@@ -1,11 +1,12 @@
-// 账户门户外壳:≥48rem 左侧导航(租户、身份、5 个入口),工作区顶栏放控制台入口、语言与退出;
-// <48rem 顶部一行租户与账户菜单,下方横向分段导航(AccountSegmentedNav)。
+// 账户门户外壳:≥48rem 左侧导航(租户、身份、5 个入口),工作区顶栏放控制台入口、主题、语言与退出;
+// <48rem 顶部一行租户与账户菜单(含主题),下方横向分段导航(AccountSegmentedNav)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { CONSOLE_EXACT_PATH } from '@xid-kit/types'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
+import { ThemeSwitcher, useThemeMenuGroup } from '@xid-kit/web-ui/ThemeSwitcher'
 import { leading, size, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Link, useLocation } from '@xid-kit/web-ui/tanstack-router'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
@@ -298,6 +299,7 @@ function AccountMenu(): ReactNode {
   const { user, signOut } = useAuth()
   const identity = useIdentity()
   const showConsoleLink = useConsoleLink()
+  const themeGroup = useThemeMenuGroup()
   if (!user || !identity) return null
   return (
     <Dropdown
@@ -310,7 +312,13 @@ function AccountMenu(): ReactNode {
         ...(showConsoleLink
           ? [{ key: 'console', label: <Trans>Open console</Trans>, href: CONSOLE_EXACT_PATH }]
           : []),
-        { key: 'sign-out', label: <Trans>Sign out</Trans>, onSelect: () => void signOut() },
+        { ...themeGroup, separatorBefore: showConsoleLink },
+        {
+          key: 'sign-out',
+          label: <Trans>Sign out</Trans>,
+          separatorBefore: true,
+          onSelect: () => void signOut(),
+        },
       ]}
     />
   )
@@ -359,6 +367,7 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
               </a>
             ) : null}
             <div {...stylex.props(styles.topbarActions)}>
+              <ThemeSwitcher />
               <LanguageSwitcher />
               {canSignOut ? (
                 <Button variant="ghost" onClick={() => void signOut()} aria-label={t`Sign out`}>

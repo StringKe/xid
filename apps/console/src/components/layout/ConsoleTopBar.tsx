@@ -7,7 +7,8 @@ import * as stylex from '@stylexjs/stylex'
 import type { AuthUser } from '@xid-kit/web-ui/session'
 import { LOCALE_LABELS, SUPPORTED_LOCALES } from '@xid-kit/web-ui/locale'
 import { useLocale } from '@xid-kit/web-ui/locale-context'
-import { Dropdown, Icon } from '@xid-kit/web-ui/ui'
+import { useThemeMenuGroup } from '@xid-kit/web-ui/ThemeSwitcher'
+import { Dropdown, Icon, type DropdownEntry } from '@xid-kit/web-ui/ui'
 import { trackLocaleChange } from '../../lib/google-analytics-funnel'
 import { ScopeSwitcher } from './ScopeSwitcher'
 import { initials } from './nav-model'
@@ -70,12 +71,15 @@ export function AccountMenu({
   side?: 'top' | 'bottom'
 }): ReactNode {
   const { t } = useLingui()
-  const items = onEndImpersonation
+  const themeGroup = useThemeMenuGroup()
+  const items: DropdownEntry[] = onEndImpersonation
     ? [
+        themeGroup,
         {
           key: 'end-impersonation',
           label: <Trans>End impersonation</Trans>,
-          icon: 'sign-out' as const,
+          icon: 'sign-out',
+          separatorBefore: true,
           onSelect: () => onEndImpersonation(),
         },
       ]
@@ -83,13 +87,15 @@ export function AccountMenu({
         {
           key: 'account',
           label: <Trans>Account settings</Trans>,
-          icon: 'user-circle' as const,
+          icon: 'user-circle',
           href: '/account',
         },
+        { ...themeGroup, separatorBefore: true },
         {
           key: 'sign-out',
           label: <Trans>Sign out</Trans>,
-          icon: 'sign-out' as const,
+          icon: 'sign-out',
+          separatorBefore: true,
           onSelect: () => onSignOut(),
         },
       ]

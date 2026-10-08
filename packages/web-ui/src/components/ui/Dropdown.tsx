@@ -23,10 +23,20 @@ export type DropdownItem = {
   separatorBefore?: boolean
 }
 
+// 带标题的条目组(Menu.Group + GroupLabel),读屏把组名与条目一起读出。
+export type DropdownGroup = {
+  key: string
+  label: ReactNode
+  items: readonly DropdownItem[]
+  separatorBefore?: boolean
+}
+
+export type DropdownEntry = DropdownItem | DropdownGroup
+
 export type DropdownProps = {
   // ReactNode 或 render prop(open 供触发器换 caret 方向等);外层恒为 button,获 aria 与焦点。
   trigger: ReactNode | ((state: { open: boolean }) => ReactNode)
-  items: readonly DropdownItem[]
+  items: readonly DropdownEntry[]
   header?: ReactNode
   align?: 'start' | 'end'
   side?: 'bottom' | 'top'
@@ -166,8 +176,8 @@ export function Dropdown({
             className={mergeClassNames(surface.className, 'xid-motion-pop')}
           >
             {header ? <div {...stylex.props(popupStyles.header)}>{header}</div> : null}
-            {items.map((item) => (
-              <DropdownEntry key={item.key} item={item} />
+            {items.map((entry) => (
+              <DropdownEntryView key={entry.key} entry={entry} />
             ))}
           </Menu.Popup>
         </Menu.Positioner>
@@ -176,11 +186,20 @@ export function Dropdown({
   )
 }
 
-function DropdownEntry({ item }: { item: DropdownItem }): ReactNode {
+function DropdownEntryView({ entry }: { entry: DropdownEntry }): ReactNode {
   return (
     <>
-      {item.separatorBefore ? <Menu.Separator {...stylex.props(popupStyles.separator)} /> : null}
-      <DropdownMenuItem item={item} />
+      {entry.separatorBefore ? <Menu.Separator {...stylex.props(popupStyles.separator)} /> : null}
+      {'items' in entry ? (
+        <Menu.Group>
+          <Menu.GroupLabel {...stylex.props(popupStyles.groupLabel)}>{entry.label}</Menu.GroupLabel>
+          {entry.items.map((item) => (
+            <DropdownMenuItem key={item.key} item={item} />
+          ))}
+        </Menu.Group>
+      ) : (
+        <DropdownMenuItem item={entry} />
+      )}
     </>
   )
 }
