@@ -1,9 +1,9 @@
-// Console 外壳的共享样式:侧栏 248px(≥64rem 常驻)、56px 顶栏、导航项 28px、分组标签 24px。
+// Console 外壳的共享样式:侧栏 248px(≥64rem 常驻)、56px 顶栏、导航项 32px(粗指针 44px)、分组标签 24px。
 // 窄于 64rem 时侧栏收进抽屉;<48rem 顶栏改为「作用域 + 当前分区 + 搜索 + Menu」。
 
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
+import { leading, size, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 
 export const shell = stylex.create({
   root: {
@@ -120,7 +120,7 @@ export const nav = stylex.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '0.5rem',
-    minHeight: { default: '1.75rem', '@media (pointer: coarse)': '2.75rem' },
+    minHeight: { default: size.rowCompact, '@media (pointer: coarse)': size.touch },
     paddingInline: '0.5rem',
     borderRadius: tokens['--xid-radius-sm'],
     color: { default: tokens['--xid-muted-foreground'], ':hover': tokens['--xid-fg'] },

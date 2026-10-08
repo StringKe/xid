@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { CONSOLE_EXACT_PATH } from '@xid-kit/types'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
-import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
+import { leading, size, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Link, useLocation } from '@xid-kit/web-ui/tanstack-router'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
 import { Avatar, Button, Dropdown, Icon } from '../../components/ui'
@@ -137,7 +137,7 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     gap: '0.625rem',
-    minHeight: { default: '2.25rem', '@media (pointer: coarse)': '2.75rem' },
+    minHeight: { default: size.rowCompact, '@media (pointer: coarse)': size.touch },
     paddingInline: '0.625rem',
     borderRadius: tokens['--xid-radius'],
     color: { default: tokens['--xid-muted-foreground'], ':hover': tokens['--xid-fg'] },

@@ -46,7 +46,7 @@ const hasActive = Boolean(indexIsCurrent) || hasActiveDescendant(items);
 const isOpen = Boolean(hasActive || collapsed === false || collapsed === undefined);
 
 const rowClass = cn(
-  "group/expander flex min-h-[2rem] items-center rounded-lg px-3 py-1 text-[0.8125rem] no-underline transition-colors duration-150 focus-visible:outline-offset-[-2px]",
+  "group/expander flex min-h-[2rem] pointer-coarse:min-h-[2.75rem] items-center rounded-lg px-3 py-1 text-[0.8125rem] no-underline transition-colors duration-150 focus-visible:outline-offset-[-2px]",
   "hover:bg-accent hover:text-foreground",
   hasActive ? "font-semibold text-foreground" : "font-medium text-muted-foreground",
 );
@@ -78,7 +78,7 @@ const caretClass =
         target={indexIsExternal ? "_blank" : undefined}
         rel={indexIsExternal ? "noopener" : undefined}
         class={cn(
-          "flex flex-1 min-w-0 items-center min-h-[2rem] px-3 py-1 rounded-l-lg focus-visible:outline-offset-[-2px]",
+          "flex flex-1 min-w-0 items-center min-h-[2rem] pointer-coarse:min-h-[2.75rem] px-3 py-1 rounded-l-lg focus-visible:outline-offset-[-2px]",
         )}
       >
         <span class="flex items-center gap-2 flex-1 min-w-0">
@@ -95,7 +95,7 @@ const caretClass =
       <CollapsibleTrigger
         class={cn(
           // w-auto 覆盖 Trigger 默认 w-full，否则会与 label 的 flex-1 抢宽。
-          "w-auto flex items-center shrink-0 min-h-[2rem] px-1.5 py-1 rounded-r-lg",
+          "w-auto flex items-center shrink-0 min-h-[2rem] pointer-coarse:min-h-[2.75rem] pointer-coarse:min-w-[2.75rem] justify-center px-1.5 py-1 rounded-r-lg",
           "hover:bg-accent hover:text-foreground focus-visible:outline-offset-[-2px]",
           // disclosure 只改 trigger/content 的 data-nb-state，不改外层行；group/expander 必须在 trigger 上，否则图标会匹配到外层过期 state。
           "group/expander",
