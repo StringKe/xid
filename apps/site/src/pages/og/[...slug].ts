@@ -16,9 +16,9 @@ const pages = Object.fromEntries(
 
 export const { getStaticPaths, GET } = await OGImageRoute({
   pages,
-  getImageOptions: (_path, page) => ({
+  getImageOptions: (path, page) => ({
     title: page.title,
     description: page.description,
-    ...ogCardConfig,
+    ...ogCardConfig(path),
   }),
 })
