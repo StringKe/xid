@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { ApiClient } from '../api'
 import { motion, springSnappy } from '../motion'
+import { text, weight } from '../styles/scale.stylex'
 import { tokens } from '../styles/tokens.stylex'
 import { Alert, Button } from '../components/ui'
 
@@ -36,15 +37,15 @@ const styles = stylex.create({
   },
   heading: {
     margin: 0,
-    fontSize: '1.125rem',
-    fontWeight: 650,
+    fontSize: text.lg,
+    fontWeight: weight.display,
     lineHeight: 1.2,
     textWrap: 'balance',
   },
   description: {
     margin: 0,
     color: tokens['--xid-muted-foreground'],
-    fontSize: '0.875rem',
+    fontSize: text.base,
     lineHeight: 1.55,
     textWrap: 'pretty',
   },

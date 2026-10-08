@@ -116,13 +116,13 @@ export const page = stylex.create({
   },
   actionTitle: {
     margin: '0 0 0.25rem',
-    fontSize: '0.9375rem',
-    fontWeight: 600,
+    fontSize: text.base,
+    fontWeight: weight.display,
     color: tokens['--xid-fg'],
   },
   actionText: {
     margin: 0,
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     lineHeight: 1.5,
     color: tokens['--xid-muted-foreground'],
   },
@@ -175,7 +175,7 @@ export const consoleShell = stylex.create({
   },
   displayTitle: {
     margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.5rem)',
+    fontSize: `clamp(${text.xl}, 1.05rem + 1.5vw, ${text.xxl})`,
     fontWeight: weight.display,
     lineHeight: 1.1,
     letterSpacing: tokens['--xid-tracking-heading'],
@@ -209,7 +209,7 @@ export const consoleShell = stylex.create({
     borderColor: tokens['--xid-border'],
     backgroundColor: tokens['--xid-bg'],
     color: tokens['--xid-fg'],
-    fontSize: '0.9375rem',
+    fontSize: { default: text.base, '@media (pointer: coarse)': text.md },
     fontFamily: tokens['--xid-font'],
   },
   lead: {
@@ -217,7 +217,7 @@ export const consoleShell = stylex.create({
     margin: '0.5rem 0 0',
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.875rem',
+    fontSize: text.base,
     lineHeight: 1.6,
   },
   headerRow: {
@@ -280,7 +280,7 @@ export const consoleShell = stylex.create({
     maxWidth: '48rem',
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     lineHeight: 1.55,
   },
   // 5/7 双列:左 meta 右 controls,宽屏带 inline-start hairline。
@@ -354,16 +354,16 @@ export const consoleShell = stylex.create({
     minHeight: '1.75rem',
     paddingBlock: 0,
     paddingInline: '0.625rem',
-    fontSize: '0.75rem',
+    fontSize: text.xs,
   },
   mono: {
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     wordBreak: 'break-all',
   },
   muted: {
     color: tokens['--xid-muted-foreground'],
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
   },
   selectorSummary: {
     margin: 0,
@@ -408,7 +408,7 @@ export const consoleShell = stylex.create({
     backgroundColor: tokens['--xid-muted'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     lineHeight: 1.5,
   },
 })

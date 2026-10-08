@@ -4,6 +4,7 @@
 import { cloneElement, isValidElement, useId } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { text, weight } from '../../styles/scale.stylex'
 import { tokens } from '../../styles/tokens.stylex'
 
 export type SectionProps = {
@@ -45,8 +46,8 @@ const styles = stylex.create({
   headLabel: {
     margin: 0,
     fontFamily: tokens['--xid-font'],
-    fontSize: '1rem',
-    fontWeight: 560,
+    fontSize: text.md,
+    fontWeight: weight.display,
     lineHeight: '1.375rem',
     color: tokens['--xid-fg'],
   },
@@ -114,8 +115,8 @@ const styles = stylex.create({
     gap: '0.5rem',
   },
   label: {
-    fontSize: '0.8125rem',
-    fontWeight: 550,
+    fontSize: text.sm,
+    fontWeight: weight.medium,
     lineHeight: 1.4,
     color: tokens['--xid-fg'],
   },
@@ -146,7 +147,7 @@ const styles = stylex.create({
   },
   hint: {
     margin: 0,
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     lineHeight: 1.5,
     color: tokens['--xid-muted-foreground'],
   },

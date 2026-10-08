@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { leading, text, weight } from '../../styles/scale.stylex'
 import { tokens } from '../../styles/tokens.stylex'
 
 export type PageHeaderProps = {
@@ -26,9 +27,9 @@ const styles = stylex.create({
   },
   title: {
     margin: 0,
-    fontSize: '1.75rem',
-    fontWeight: 560,
-    lineHeight: '2.125rem',
+    fontSize: text.xl,
+    fontWeight: weight.display,
+    lineHeight: leading.xl,
     letterSpacing: tokens['--xid-tracking-heading'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
@@ -36,7 +37,7 @@ const styles = stylex.create({
   },
   lead: {
     margin: 0,
-    fontSize: '0.875rem',
+    fontSize: text.base,
     lineHeight: 1.55,
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font'],

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { text, weight } from '../../styles/scale.stylex'
 import { tokens } from '../../styles/tokens.stylex'
 
 export type MetricBarChartItem = {
@@ -28,8 +29,8 @@ const styles = stylex.create({
   title: {
     margin: 0,
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.75rem',
-    fontWeight: 500,
+    fontSize: text.xs,
+    fontWeight: weight.medium,
     letterSpacing: tokens['--xid-tracking-small'],
     color: tokens['--xid-muted-foreground'],
   },
@@ -49,12 +50,12 @@ const styles = stylex.create({
     minHeight: '1.5rem',
   },
   label: {
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     color: tokens['--xid-muted-foreground'],
   },
   value: {
-    fontSize: '0.8125rem',
-    fontWeight: 550,
+    fontSize: text.sm,
+    fontWeight: weight.medium,
     fontVariantNumeric: 'tabular-nums',
     color: tokens['--xid-fg'],
     textAlign: 'right',

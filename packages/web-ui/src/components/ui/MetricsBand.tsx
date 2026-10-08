@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { text, weight } from '../../styles/scale.stylex'
 import { tokens } from '../../styles/tokens.stylex'
 
 export type MetricsBandItem = {
@@ -78,8 +79,8 @@ const styles = stylex.create({
   metricLabel: {
     margin: 0,
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.75rem',
-    fontWeight: 500,
+    fontSize: text.xs,
+    fontWeight: weight.medium,
     letterSpacing: tokens['--xid-tracking-small'],
     color: tokens['--xid-muted-foreground'],
   },
@@ -91,12 +92,12 @@ const styles = stylex.create({
     letterSpacing: '-0.02em',
   },
   metricValueLg: {
-    fontSize: 'clamp(2rem, 1.1rem + 1.25vw, 2.875rem)',
-    fontWeight: 450,
+    fontSize: `clamp(${text.xl}, 1.1rem + 1.25vw, ${text.xxl})`,
+    fontWeight: weight.medium,
   },
   metricValueMd: {
-    fontSize: 'clamp(1.375rem, 0.95rem + 0.65vw, 1.875rem)',
-    fontWeight: 500,
+    fontSize: `clamp(${text.lg}, 0.95rem + 0.65vw, ${text.xl})`,
+    fontWeight: weight.medium,
   },
   valueGood: {
     color: tokens['--xid-success'],
@@ -154,13 +155,13 @@ const styles = stylex.create({
     borderTopColor: tokens['--xid-border'],
   },
   sideTerm: {
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     color: tokens['--xid-muted-foreground'],
   },
   sideValue: {
     margin: 0,
-    fontSize: '0.875rem',
-    fontWeight: 550,
+    fontSize: text.base,
+    fontWeight: weight.medium,
     fontVariantNumeric: 'tabular-nums',
     color: tokens['--xid-fg'],
   },

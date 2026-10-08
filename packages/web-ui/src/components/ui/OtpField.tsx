@@ -88,7 +88,7 @@ const styles = stylex.create({
     padding: 0,
     borderWidth: 0,
     opacity: 0,
-    fontSize: '16px',
+    fontSize: text.md,
     cursor: 'text',
   },
 })

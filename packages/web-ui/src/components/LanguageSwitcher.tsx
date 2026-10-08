@@ -3,6 +3,7 @@ import type { ChangeEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type SupportedLocale } from '../locale'
 import { useLocale } from '../locale-context'
+import { text, weight } from '../styles/scale.stylex'
 import { tokens } from '../styles/tokens.stylex'
 
 const styles = stylex.create({
@@ -12,14 +13,14 @@ const styles = stylex.create({
     gap: '0.5rem',
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
   },
   label: {
-    fontSize: '0.8125rem',
+    fontSize: text.sm,
     whiteSpace: 'nowrap',
   },
   error: {
-    fontSize: '0.75rem',
+    fontSize: text.xs,
     color: tokens['--xid-danger'],
   },
   select: {
@@ -35,8 +36,8 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-bg'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.8125rem',
-    fontWeight: 600,
+    fontSize: text.sm,
+    fontWeight: weight.medium,
     paddingBlock: 0,
     paddingInline: '0.625rem',
     outline: {
