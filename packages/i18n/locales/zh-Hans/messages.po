@@ -271,6 +271,10 @@ msgstr "{count} / {limit} 个通行密钥"
 msgid "{count} passkeys"
 msgstr "{count} 个通行密钥"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "{count} platform guides. Not yet published to a package registry."
+msgstr "{count} 个平台指南。尚未发布到包管理仓库。"
+
 #: apps/console/src/routes/users/UserDetail.tsx
 msgid "{created} by {source}"
 msgstr "{created}，来源：{source}"
@@ -680,10 +684,6 @@ msgstr "10 秒"
 msgid "10s timeout default"
 msgstr "默认 10 秒超时"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "3 Workers"
-msgstr "3 个 Workers"
-
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "30 days after you asked on {asked}. On {deletionDate} we remove your name, email and sign-in methods."
 msgstr "你在 {asked} 提出申请，30 天后执行。{deletionDate} 我们会删除你的姓名、邮箱和登录方式。"
@@ -760,6 +760,10 @@ msgstr "需要数字签名。"
 #: apps/console/src/routes/users/tabs/SessionsTab.tsx
 msgid "a guest session"
 msgstr "访客会话"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "A monthly active user is a person who signs in at least once in a calendar month (UTC). Each person counts once per month across your organization and all of its sub-organizations, however often they sign in. Guest sessions don't count. Your console overview shows the number as Monthly active users."
+msgstr "月活跃用户是指在一个自然月（UTC）内至少登录一次的人。无论登录多少次，每个人在你的组织及其所有子组织中每月只计一次。访客会话不计入。控制台概览中这个数字显示为「月活跃用户」。"
 
 #: apps/console/src/routes/users/tabs/SessionsTab.tsx
 msgid "a one-time code"
@@ -881,6 +885,10 @@ msgstr "访问"
 msgid "Access request lifecycle"
 msgstr "访问请求生命周期"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Access token"
+msgstr "访问令牌"
+
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Access token lifetime in minutes"
 msgstr "访问令牌有效期（分钟）"
@@ -922,10 +930,18 @@ msgstr "账户"
 msgid "Account deletion"
 msgstr "账户删除"
 
+#: apps/site/src/lib/product-shots.ts
+msgid "Account devices page where a user sees and signs out their sessions"
+msgstr "账户设备页面，用户可以在这里查看并退出自己的会话"
+
 #: apps/console/src/components/layout/ConsoleTopBar.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Account menu"
 msgstr "账户菜单"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Account page, eight interface languages"
+msgstr "账户页面，8 种界面语言"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Account security and profile management"
@@ -1498,6 +1514,10 @@ msgstr "实例管理员"
 msgid "An internal error occurred. Try again."
 msgstr "发生内部错误。再试一次。"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "An organization for your company, and one for each of your customers"
+msgstr "为你的公司建一个组织，再为每个客户各建一个"
+
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
 msgstr "组织拥有自己的成员、登录规则和应用。你将成为所有者，创建后即可邀请他人。"
@@ -1612,10 +1632,6 @@ msgid "api_key."
 msgstr "api_key."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "APIs and operations"
-msgstr "API 与运维"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "App Router server helpers"
 msgstr "App Router 服务端辅助工具"
 
@@ -1715,6 +1731,10 @@ msgstr "批准登录请求 | XID"
 msgid "Apps"
 msgstr "应用"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Apps and OIDC"
+msgstr "应用与 OIDC"
+
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Apps that you allowed to use your {appName} account. Apps that sign you in without asking aren't listed."
 msgstr "你允许使用 {appName} 账户的应用。无需询问即可让你登录的应用不会列出。"
@@ -1726,6 +1746,10 @@ msgstr "归档"
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Archived"
 msgstr "已存档"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Are there usage limits on XID Cloud?"
+msgstr "XID Cloud 有用量上限吗？"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "as const object"
@@ -1909,10 +1933,6 @@ msgstr "authenticateRequest"
 msgid "Authentication"
 msgstr "认证"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Authentication and account"
-msgstr "认证及账号"
-
 #: packages/i18n/src/messages.ts
 msgid "Authentication is required."
 msgstr "需要认证。"
@@ -1944,6 +1964,10 @@ msgstr "认证器验证码"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization"
 msgstr "授权"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Authorization code flow: verified locally with protocol clients. SDKs are not yet published to npm."
+msgstr "授权码流程：已在本地用协议客户端验证。SDK 尚未发布到 npm。"
 
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Authorization code with PKCE"
@@ -2037,6 +2061,10 @@ msgstr "返回控制台"
 msgid "Back to sign in"
 msgstr "返回登录"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Back to top"
+msgstr "回到顶部"
+
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Back-channel logout URL"
 msgstr "后端通道登出 URL"
@@ -2121,6 +2149,10 @@ msgstr "1 到 1440 分钟。"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Billing"
 msgstr "计费"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Billing never signs anyone out or turns off a feature you use."
+msgstr "计费不会让任何人退出登录，也不会关闭你在用的功能。"
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Billing status"
@@ -2217,10 +2249,6 @@ msgid "Browser default"
 msgstr "浏览器默认"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack."
-msgstr "浏览器、服务端、Web 框架、移动端和桌面端 SDK，用于在整个技术栈中集成应用。"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "BrowserInterface adapter backed by expo-web-browser"
 msgstr "由 expo-web-browser 支持的 BrowserInterface 适配器"
 
@@ -2231,10 +2259,6 @@ msgstr "使用自定义 reqwest 客户端构建客户端（适用于测试）。
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Build client with default reqwest HTTP client."
 msgstr "使用默认 reqwest HTTP 客户端构建客户端。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Build identity at the edge, without giving up control"
-msgstr "在边缘建立身份，而不放弃控制权"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Build OIDC end_session URL for RP-initiated logout"
@@ -2284,6 +2308,10 @@ msgstr "用客户端凭据以自身身份调用 API，没有用户登录。"
 #: apps/server/src/routes/account/privacy-shared.tsx
 msgid "Can confirm who you are"
 msgstr "可以确认你的身份"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Can I move from XID Cloud to self-hosting?"
+msgstr "可以从 XID Cloud 迁到自托管吗？"
 
 #: apps/server/src/routes/account/privacy-shared.tsx
 msgid "Can see {see}"
@@ -2406,6 +2434,10 @@ msgstr "更改你的角色"
 msgid "Changed {changed}"
 msgstr "{changed} 修改"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Changelog"
+msgstr "更新日志"
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Changing how you sign in needs a fresh check. Once you verify, you won't be asked again for 5 minutes."
 msgstr "更改登录方式需要重新验证身份。验证后 5 分钟内不会再次询问。"
@@ -2484,9 +2516,17 @@ msgstr "选择一个组织继续进入控制台。"
 msgid "Choose another way to verify"
 msgstr "选择其他验证方式"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Choose Start free at the top of this page. Sign up and name your organization; XID creates it and opens the Console."
+msgstr "点击本页顶部的「免费开始」。注册并为你的组织命名；XID 会创建组织并打开控制台。"
+
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 msgid "Choose your second step"
 msgstr "选择你的第二步验证方式"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Choosing hosted shouldn't lock you in."
+msgstr "选择托管服务不应该把你锁死。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Chromium-based embedded authorization window"
@@ -2643,14 +2683,19 @@ msgid "Close menu"
 msgstr "关闭菜单"
 
 #: apps/site/src/lib/site-shell-messages.ts
-msgid "Close sidebar"
-msgstr "关闭侧边栏"
+msgid "Close navigation"
+msgstr "关闭导航"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Cloud and self‑hosted are one product."
+msgstr "云端和自托管是同一个产品。"
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Cloudflare is still waiting for DNS verification."
 msgstr "Cloudflare 仍在等待 DNS 验证。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Cloudflare Workers"
 msgstr "Cloudflare Workers"
 
@@ -2675,6 +2720,10 @@ msgstr "授权码换取会失败"
 msgid "Code from your authenticator app"
 msgstr "认证器应用中的验证码"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Codebase for Cloud and self-hosted"
+msgstr "云端和自托管共用的代码库"
+
 #: apps/server/src/routes/activate/index.tsx
 msgid "Codes expire after 10 minutes and work only once. Get a new code on your device, then enter it here."
 msgstr "代码 10 分钟后过期，且只能使用一次。请在设备上获取新代码，然后在这里输入。"
@@ -2698,10 +2747,6 @@ msgstr "组合逻辑运算符和比较运算符。"
 #: packages/web-ui/src/components/ui/CommandMenu.tsx
 msgid "Command menu"
 msgstr "命令菜单"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Complete edition"
-msgstr "完整版"
 
 #: packages/i18n/src/messages.ts
 msgid "Complete the CAPTCHA verification to continue."
@@ -2888,16 +2933,16 @@ msgid "Connect {name}"
 msgstr "连接 {name}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Connect an application to XID with OIDC discovery and Hosted Auth."
-msgstr "通过 OIDC Discovery 与 Hosted Auth 将应用接入 XID。"
+msgid "Connect a customer's SAML or OIDC identity provider and route its domains."
+msgstr "接入客户的 SAML 或 OIDC 身份提供方，并按其域名路由登录。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Connect enterprise identity providers using SAML 2.0."
 msgstr "使用 SAML 2.0 连接企业身份提供商。"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Connect inbound SAML and OIDC, downstream SaaS SSO, SCIM, directory sync, and domain discovery behind explicit policy boundaries."
-msgstr "在明确的策略边界内连接入站 SAML 和 OIDC、下游 SaaS SSO、SCIM、目录同步和域名发现。"
+msgid "Connect your app"
+msgstr "接入你的应用"
 
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "Connected accounts"
@@ -2922,10 +2967,6 @@ msgstr "连接"
 #: apps/console/src/routes/applications/AppsTable.tsx
 msgid "Consent screen"
 msgstr "授权同意页"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Console"
-msgstr "Console 控制台"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "Console is read-only"
@@ -2970,7 +3011,6 @@ msgstr "继续"
 #: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 #: apps/server/src/routes/sign-in/IdentifierStep.tsx
-#: apps/site/src/lib/home-surface.ts
 #: packages/i18n/src/messages.ts
 msgid "Continue"
 msgstr "继续"
@@ -3051,10 +3091,6 @@ msgstr "使用 Microsoft 继续"
 msgid "Continuing"
 msgstr "正在继续"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Contributing"
-msgstr "贡献指南"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Control components"
 msgstr "控制组件"
@@ -3076,7 +3112,6 @@ msgstr "将 JwtKey（JWK、JWKS 或 CryptoKey）转换为用于验证的 VerifyK
 #: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
-#: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copied"
 msgstr "已复制"
@@ -3109,10 +3144,6 @@ msgstr "复制失败"
 msgid "Copy key"
 msgstr "复制密钥"
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Copy page"
-msgstr "复制页面"
-
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 msgid "Copy the {appName} secret"
 msgstr "复制 {appName} 的密钥"
@@ -3120,14 +3151,6 @@ msgstr "复制 {appName} 的密钥"
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 msgid "Copy the new {appName} secret"
 msgstr "复制 {appName} 的新密钥"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Copy to clipboard"
-msgstr "复制到剪贴板"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Core"
-msgstr "Core 核心"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Core API"
@@ -3141,6 +3164,10 @@ msgstr "Core 绑定 Email Service 和 Analytics Engine，并通过指向 Site �
 msgid "Core endpoints"
 msgstr "核心端点"
 
+#: apps/site/src/lib/docs-evidence.ts
+msgid "Core paths: verified in production on xid.dev. Other endpoints: verified locally."
+msgstr "核心路径：已在 xid.dev 生产环境验证。其他端点：已在本地验证。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Core uses D1 for tenant-scoped relational data, KV only for read-heavy caches, and R2 for private objects. Strongly consistent state never belongs in KV."
 msgstr "Core 使用 D1 存储 tenant-scoped relational data，KV 仅用于 read-heavy caches，R2 用于 private objects。strongly consistent state 绝不属于 KV。"
@@ -3148,10 +3175,6 @@ msgstr "Core 使用 D1 存储 tenant-scoped relational data，KV 仅用于 read-
 #: packages/web-ui/src/components/RequireAuth.tsx
 msgid "Could not check your session"
 msgstr "无法检查你的会话"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Could not copy"
-msgstr "无法复制"
 
 #. placeholder {0}: LOCALE_LABELS[failedLocale]
 #: packages/web-ui/src/components/LanguageSwitcher.tsx
@@ -3566,6 +3589,10 @@ msgstr "日活跃用户"
 msgid "Danger zone"
 msgstr "危险操作"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Dark"
+msgstr "深色"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Dart / Flutter SDK for iOS, Android, and desktop using flutter_web_auth_2, PKCE S256 authorization code flow, and flutter_secure_storage token persistence."
 msgstr "适用于 iOS、Android 和桌面端的 Dart / Flutter SDK，使用 flutter_web_auth_2、PKCE S256 授权码流程和 flutter_secure_storage 进行 token 持久化。"
@@ -3608,6 +3635,10 @@ msgstr "声明事件、其对外影响以及开始时间。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Decode JWT payload claims for expiry scheduling only; does not verify the signature"
 msgstr "仅用于过期调度的 JWT payload claims 解码；不验证签名"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Decoded payload"
+msgstr "解码后的 payload"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deep link callback"
@@ -3846,6 +3877,10 @@ msgstr "向你的 HTTPS 端点投递带签名的事件通知。Webhook 由租户
 msgid "Deliveries are signed with HMAC-SHA256. The signing secret is shown once on creation; store it immediately."
 msgstr "投递使用 HMAC-SHA256 签名。签名密钥仅在创建时显示一次，请立即保存。"
 
+#: apps/site/src/lib/docs-evidence.ts
+msgid "Delivery and signature verification: verified locally."
+msgstr "投递和签名验证：已在本地验证。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Delivery attempts use exponential backoff and end in dead status. Queue-level exhaustion is persisted as an encrypted dead-letter record for Instance Manager inspection and replay."
 msgstr "投递使用指数退避重试，最终进入 dead 状态。队列重试耗尽后，原始消息会作为加密死信记录持久化，供 Instance Manager 检查和重放。"
@@ -3909,6 +3944,10 @@ msgid "Depends on the <0>jwt</0> gem (ES256/RS256 support). Ruby 3.1+ required."
 msgstr "依赖 <0>jwt</0> gem（支持 ES256/RS256）。需要 Ruby 3.1+。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Deploy the same three Workers to your own Cloudflare account."
+msgstr "把同样的三个 Worker 部署到你自己的 Cloudflare 账号。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deploy three Workers: Nimbus Site owns the apex documentation and www redirect, Console owns /console, and Core owns Hosted Auth, protocols, APIs, jobs, and identity state. Site and Console bind only ASSETS."
 msgstr "部署 3 个 Workers：Nimbus Site 负责 apex 文档站和 www redirect，Console 负责 /console，Core 负责 Hosted Auth、protocols、APIs、jobs 和 identity state。Site 与 Console 仅绑定 ASSETS。"
 
@@ -3947,10 +3986,6 @@ msgstr "设计承诺"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Desktop Linux with xdg-open (xdg-utils) for system browser launch and a running D-Bus session with gnome-keyring or kwallet for Secret Service storage"
 msgstr "桌面 Linux 使用 xdg-open（xdg-utils）启动系统浏览器，并需要运行中的 D-Bus 会话及 gnome-keyring 或 kwallet 用于 Secret Service 存储"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Desktop SDKs"
-msgstr "桌面端 SDK"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 #: apps/console/src/routes/applications/ApplicationDetail.tsx
@@ -4043,6 +4078,10 @@ msgstr "目录同步（SCIM）"
 msgid "Directory sync | Console | XID"
 msgstr "目录同步 | 控制台 | XID"
 
+#: apps/site/src/lib/product-shots.ts
+msgid "Directory sync in the XID console with an active Okta SCIM directory, its user and group counts and last sync"
+msgstr "XID 控制台中的目录同步，显示一个启用中的 Okta SCIM 目录及其用户数、组数和上次同步时间"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Directory token rotation keeps the previous token valid for a short grace window."
 msgstr "目录令牌轮换会让旧令牌在短暂宽限期内继续有效。"
@@ -4093,10 +4132,6 @@ msgstr "可判别的 XidClient constructor options：same-origin 接受 apiUrl�
 msgid "Dismiss"
 msgstr "关闭"
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Dismiss banner"
-msgstr "关闭横幅"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
@@ -4111,21 +4146,27 @@ msgstr "显示时机"
 msgid "DNS TXT record"
 msgstr "DNS TXT 记录"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Do I need to pay for SSO, SCIM or MFA?"
+msgstr "SSO、SCIM 或 MFA 需要付费吗？"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Do you have SOC 2 or ISO 27001?"
+msgstr "有 SOC 2 或 ISO 27001 认证吗？"
+
 #: packages/i18n/src/messages.ts
 msgid "Do you want to sign out of this account?"
 msgstr "要登出此账号吗？"
 
 #: apps/console/src/components/layout/ConsoleTopBar.tsx
+#: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/site-shell-messages.ts
 msgid "Docs"
 msgstr "文档"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Document type"
 msgstr "文件类型"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Documentation"
-msgstr "文档"
 
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "Does {app} show this exact code?"
@@ -4223,6 +4264,10 @@ msgstr "除 GitHub 外，每个已启用的提供商都需要同时配置 issuer
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "每个成员可以有一个主要组织单元和其他展示位置。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Each organization has its own SAML or OIDC connection, SCIM directory, verified domains and MFA policy. When IT deactivates someone, XID ends their sessions."
+msgstr "每个组织都有自己的 SAML 或 OIDC 连接、SCIM 目录、已验证域名和 MFA 策略。IT 停用某人时，XID 会结束其会话。"
+
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Each organization has one inbound connection. Delete it before adding another."
 msgstr "每个组织只能有一个入站连接。添加新连接前请先删除现有连接。"
@@ -4294,8 +4339,8 @@ msgid "Edit SCIM target"
 msgstr "编辑 SCIM 目标"
 
 #: apps/site/src/lib/site-shell-messages.ts
-msgid "Edit this page"
-msgstr "编辑此页面"
+msgid "Edit this page on GitHub"
+msgstr "在 GitHub 上编辑此页"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Eight source Queues move email, WhatsApp, SMS, audit, webhook, metering, outbound SCIM, and privacy work off authentication paths."
@@ -4346,9 +4391,17 @@ msgstr "邮箱地址"
 msgid "Email addresses"
 msgstr "邮箱地址"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Email code and magic link"
+msgstr "邮箱验证码和魔法链接"
+
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 msgid "Email codes and magic links follow the sign-in policy of each organization and are not listed here."
 msgstr "邮箱验证码和魔法链接遵循各组织的登录策略，不在此列出。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Email link and code sign-in: verified in production on xid.dev. Other sign-in methods and the account page: verified locally."
+msgstr "邮箱链接和验证码登录：已在 xid.dev 生产环境验证。其他登录方式和账户页面：已在本地验证。"
 
 #: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 msgid "Email me a link"
@@ -4451,6 +4504,10 @@ msgstr "端点 URL"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Endpoints"
 msgstr "端点"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Endpoints, grants, token claims, PAR and DPoP."
+msgstr "端点、授权方式、令牌声明、PAR 与 DPoP。"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Ends at"
@@ -4596,6 +4653,10 @@ msgstr "输入密码"
 msgid "Enter your work email. We'll send you to your company's sign-in page."
 msgstr "输入你的工作邮箱。我们会把你带到公司的登录页面。"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Enterprise and developers"
+msgstr "企业与开发者"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Enterprise attestation policy for passkey registration. Direct mode requires hardware attestation chains verified against configured trusted roots."
 msgstr "通行密钥注册的企业证明策略。直接模式要求根据已配置受信任根验证硬件证明链。"
@@ -4607,6 +4668,10 @@ msgstr "通行密钥注册的企业证明策略。直接模式要求根据已配
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Enterprise SSO"
 msgstr "企业 SSO"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Enterprise SSO docs"
+msgstr "企业 SSO 文档"
 
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 msgid "enterprise SSO sign-in"
@@ -4700,6 +4765,18 @@ msgstr "你用此账户登录的所有应用，包括 {appNames}。"
 msgid "Every app you sign in to with this account."
 msgstr "你用此账户登录的所有应用。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Every customer gets an organization with both."
+msgstr "每个客户都有一个组织，两样都有。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Every customer's SSO setup lands in your support queue."
+msgstr "每个客户的 SSO 配置都落到你的支持队列里。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Every feature"
+msgstr "所有功能"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Every organization on this instance, with lifecycle status."
 msgstr "此实例上的所有组织及其生命周期状态。"
@@ -4740,13 +4817,17 @@ msgstr "所有可以登录 {orgName} 的人，包括访客和尚未加入任何�
 msgid "Everything an admin can do, plus giving and removing the owner role."
 msgstr "拥有管理员的全部权限，并可授予和移除所有者角色。"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Evidence and support"
-msgstr "证据与支持"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Everything is included in both"
+msgstr "两者都包含全部功能"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
 msgstr "证据记录"
+
+#: apps/site/src/lib/docs-evidence.ts
+msgid "Evidence matrix row"
+msgstr "证据矩阵中的对应行"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "example.com"
@@ -4830,10 +4911,6 @@ msgstr "过期时间"
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Expires on"
 msgstr "过期日期"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Explore XID"
-msgstr "探索 XID"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Expo"
@@ -5081,17 +5158,13 @@ msgstr "FastAPI 集成"
 msgid "Fastest"
 msgstr "最快"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Federation and provisioning"
-msgstr "联合与预配"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Feature"
+msgstr "功能"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Field"
 msgstr "字段"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Filter"
-msgstr "筛选"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Filter audit events"
@@ -5104,10 +5177,6 @@ msgstr "按起始日期过滤事件"
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Filter events to date"
 msgstr "按截止日期过滤事件"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Filter navigation"
-msgstr "筛选导航"
 
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 msgid "Filter organizations by name or slug"
@@ -5167,10 +5236,6 @@ msgstr "内部应用"
 msgid "First-party app: skip the consent screen"
 msgstr "第一方应用：跳过授权同意页"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
-msgstr "第一方 Hosted Auth、Console 与 Management API 路径在 xid.dev 上已有 production 证据。企业 IdP、下游 SaaS、社交 OAuth 以及 SMS 或 WhatsApp 相关声明，在对应真实 L4 行出现之前仍非 production-supported。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Flutter"
 msgstr "Flutter"
@@ -5192,10 +5257,6 @@ msgstr "用于此设备上的 {0}。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "For a developer app on another origin, configure <0>mode: 'oidc'</0> with issuer, clientId, and an exact redirectUri. Use same-origin mode only when the application routes Core auth endpoints on its exact origin. XID has no publishable-key credential."
 msgstr "对于位于其他 origin 的开发者应用，请使用 issuer、clientId 和精确的 redirectUri 配置 <0>mode: 'oidc'</0>。仅当应用在其自身精确 origin 上路由 Core auth endpoints 时才使用 same-origin mode。XID 不存在 publishable-key credential。"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "For humans"
-msgstr "供人阅读"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Force inbound enterprise SSO"
@@ -5233,6 +5294,18 @@ msgstr "框架集成功能（<0>axum</0>、<1>actix-web</1>）已在计划中，
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Framework-agnostic reactive store; subscribe with useSyncExternalStore in framework bindings"
 msgstr "与框架无关的响应式 store；在框架绑定中使用 useSyncExternalStore 订阅"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Free today"
+msgstr "目前免费"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Free today. No plans or tiers."
+msgstr "目前免费。没有套餐，也没有等级。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Free, MIT licensed"
+msgstr "免费，MIT 许可"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -5299,22 +5372,6 @@ msgstr "通用 OIDC 基线已在本地可用。在生产支持声明之前，仍
 msgid "Generic SCIM"
 msgstr "通用 SCIM"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "GET /.well-known/openid-configuration"
-msgstr "GET /.well-known/openid-configuration"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "GET /authorize"
-msgstr "GET /authorize"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "GET /jwks"
-msgstr "GET /jwks"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "GET /userinfo"
-msgstr "GET /userinfo"
-
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Get a code by text message"
 msgstr "通过短信获取验证码"
@@ -5323,17 +5380,11 @@ msgstr "通过短信获取验证码"
 msgid "Get a sign-in link"
 msgstr "获取登录链接"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Get started"
-msgstr "开始使用"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/site-shell-messages.ts
 msgid "Getting started"
 msgstr "开始使用"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
 msgid "GitHub"
 msgstr "GitHub"
 
@@ -5592,10 +5643,6 @@ msgid "Hooks"
 msgstr "Hooks"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Hosted Auth"
-msgstr "托管认证"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Hosted Auth only displays enabled providers that have credentials and organization policy permission."
 msgstr "Hosted Auth 只显示已启用、已有凭据且组织策略允许的提供商。"
 
@@ -5603,17 +5650,17 @@ msgstr "Hosted Auth 只显示已启用、已有凭据且组织策略允许的提
 msgid "Hosted Auth sign-in flow helpers"
 msgstr "Hosted Auth 登录流程辅助工具"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
-msgstr "Hosted Auth、通行密钥、密码、魔法链接、社交登录、MFA、恢复、授权同意和账户自助服务。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Hosted Auth, protocols, APIs, data, and asynchronous work"
-msgstr "Hosted Auth、协议、API、数据和异步任务"
-
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hosted flow"
 msgstr "托管流程"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Hosted pages and organizations"
+msgstr "托管页面和组织"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Hosted pages on your organization's subdomain of xid.dev"
+msgstr "托管页面位于你的组织在 xid.dev 下的子域名"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Hosted redirect, app link callback, and secure storage adapter."
@@ -5623,9 +5670,25 @@ msgstr "Hosted 重定向、app link callback 和安全存储适配器。"
 msgid "Hosted redirect, deep link callback, PKCE S256, and secure storage adapter contract."
 msgstr "Hosted 重定向、deep link callback、PKCE S256 和安全存储适配器契约。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Hosted sign-in"
+msgstr "托管登录"
+
 #: apps/site/src/lib/home-surface.ts
-msgid "Hosted sign-in, passkeys, password, MFA, session management, consent, and account self-service share one tenant-aware Core."
-msgstr "Hosted Sign-in、通行密钥、密码、MFA、会话管理、同意和账号自助服务共享同一个 tenant-aware Core。"
+msgid "Hosted sign-in docs"
+msgstr "托管登录文档"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Hosted sign-in page"
+msgstr "托管登录页面"
+
+#: apps/site/src/lib/product-shots.ts
+msgid "Hosted sign-in page for Northwind Logistics, continuing to the Fleet Planner app"
+msgstr "Northwind Logistics 的托管登录页面，登录后继续前往 Fleet Planner 应用"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Hosted sign-in, OIDC, SSO and SCIM per organization, one console."
+msgstr "托管登录、OIDC，以及按组织配置的 SSO 和 SCIM，一个控制台。"
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Hostname ownership"
@@ -5642,6 +5705,10 @@ msgstr "主机名状态："
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "How the app authenticates"
 msgstr "应用的认证方式"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "How usage is counted"
+msgstr "用量怎么计算"
 
 #: apps/server/src/routes/account/SecurityPage.tsx
 msgid "How you sign in to {appName}, and what keeps someone else from doing it."
@@ -5727,10 +5794,6 @@ msgstr "https://oauth2.googleapis.com/token"
 msgid "https://openidconnect.googleapis.com/v1/userinfo"
 msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "https://xid.dev/sign-in"
-msgstr "https://xid.dev/sign-in"
-
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 msgid "I saved the secret somewhere safe"
 msgstr "我已把密钥保存在安全的地方"
@@ -5756,14 +5819,6 @@ msgstr "标识符模式"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Identifier policy"
 msgstr "标识符策略"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Identity infrastructure for Cloudflare"
-msgstr "Cloudflare 的身份基础架构"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Identity protocols"
-msgstr "身份协议"
 
 #: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 msgid "Identity provider"
@@ -5820,6 +5875,10 @@ msgstr "如果此地址有账户，新链接已在发送途中。请打开最新
 msgid "If using a custom URI scheme redirect rather than the WebView2 embedded window, forward the protocol activation URI to <0>HandleRedirectAsync</0>:"
 msgstr "如果使用自定义 URI scheme 重定向而非 WebView2 嵌入窗口，请将协议激活 URI 转发给 <0>HandleRedirectAsync</0>："
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "If XID Cloud starts charging"
+msgstr "如果 XID Cloud 开始收费"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "If you approve, {app} gets"
 msgstr "如果批准，{app} 将获得"
@@ -5870,6 +5929,7 @@ msgid "Impersonation session"
 msgstr "身份模拟会话"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/pricing-surface.ts
 msgid "Implemented"
 msgstr "已实现"
 
@@ -5909,6 +5969,14 @@ msgstr "在应用中添加账户，并将摄像头对准此二维码。"
 msgid "In the app, add an account and point your camera at the code. It will appear as {issuerName} ({accountName})."
 msgstr "在应用中添加账户，并将摄像头对准此二维码。它会显示为 {issuerName}（{accountName}）。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "In the Console, open Applications and create an application. Register the exact redirect URI of your app and copy its client ID."
+msgstr "在控制台中打开「应用」并创建一个应用。登记你的应用的精确重定向 URI，并复制它的客户端 ID。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "In XID's Cloudflare account, on D1, KV, R2 and Durable Objects. Choosing a data region isn't available."
+msgstr "在 XID 的 Cloudflare 账户中，存放于 D1、KV、R2 和 Durable Objects。目前不能选择数据区域。"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "In your password manager or on a security key. Anyone who can unlock that device can sign in."
 msgstr "保存在你的密码管理器或安全密钥中。任何能解锁该设备的人都可以登录。"
@@ -5920,10 +5988,6 @@ msgstr "仅限进程内内存。进程退出时 token 丢失。适用于没有 S
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Inactive"
 msgstr "不活跃"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs."
-msgstr "入站企业 SAML 和 OIDC、SCIM 用户与组预配、Webhook、审计记录和管理 API。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -5938,9 +6002,21 @@ msgstr "入站企业 SSO | 控制台 | XID"
 msgid "Inbound enterprise SSO means XID acts as the SAML service provider or OIDC relying party for a company IdP. Downstream SaaS SSO means XID acts as the SAML or OIDC identity provider for apps such as Slack, GitHub Enterprise Cloud, Microsoft custom apps, Atlassian, Salesforce, and Zoom."
 msgstr "入站企业 SSO 指 XID 作为公司 IdP 的 SAML 服务提供商或 OIDC 依赖方。下游 SaaS SSO 指 XID 作为 Slack、GitHub Enterprise Cloud、Microsoft 自定义应用、Atlassian、Salesforce 和 Zoom 等应用的 SAML 或 OIDC 身份提供商。"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Inbound SAML and OIDC SSO, inbound SCIM 2.0, XID as identity provider"
+msgstr "入站 SAML 和 OIDC SSO、入站 SCIM 2.0、XID 作为身份提供方"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Inbound SCIM 2.0 directory sync for users and groups."
+msgstr "入站 SCIM 2.0 目录同步，覆盖用户与用户组。"
+
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Inbound SSO connections"
 msgstr "入站 SSO 连接"
+
+#: apps/site/src/lib/product-shots.ts
+msgid "Inbound SSO connections in the XID console with an active Okta SAML connection"
+msgstr "XID 控制台中的入站 SSO 连接，其中有一个启用中的 Okta SAML 连接"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Incident history"
@@ -5965,6 +6041,10 @@ msgstr "包含国家代码，例如 +1 415 555 0100。"
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Include the session ID (sid) in the logout token"
 msgstr "在登出令牌中包含会话 ID（sid）"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Included"
+msgstr "包含"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Indirect"
@@ -6026,10 +6106,6 @@ msgstr "signInPassword 的输入类型"
 msgid "Inspect failed queue metadata and deliberately replay the KEK-encrypted original message."
 msgstr "检查失败队列的元数据，并手动重放经 KEK 加密的原始消息。"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Inspect the protocol matrix"
-msgstr "检查协议矩阵"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Install"
 msgstr "安装"
@@ -6079,9 +6155,17 @@ msgstr "组织继承的实例级默认设置，可被组织级配置覆盖。"
 msgid "Integration setup"
 msgstr "集成配置"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Integration-tested"
+msgstr "集成测试"
+
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Inter, system-ui, sans-serif"
 msgstr "Inter, system-ui, sans-serif"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Interface languages"
+msgstr "界面语言"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 #: apps/site/src/lib/site-shell-messages.ts
@@ -6145,6 +6229,10 @@ msgstr "iOS"
 msgid "iOS 16+ / macOS 13+"
 msgstr "iOS 16+ / macOS 13+"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Is XID ready for production?"
+msgstr "XID 可以用于生产环境吗？"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "island client singleton"
 msgstr "island 客户端单例"
@@ -6189,6 +6277,10 @@ msgstr "应用请求 offline_access 时签发。每次使用都会轮换令牌�
 msgid "Issuer"
 msgstr "签发方"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "It bills per monthly active user, and nothing else."
+msgstr "只按月活跃用户计费，别的都不收。"
+
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "It can sync to your other devices through your password manager."
 msgstr "它可以通过密码管理器同步到你的其他设备。"
@@ -6196,6 +6288,10 @@ msgstr "它可以通过密码管理器同步到你的其他设备。"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "It can't be guessed, and look-alike sites can't use it."
 msgstr "它无法被猜到，仿冒网站也无法使用它。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "It is free today. If it ever charges, it bills only per monthly active user, and no feature is reserved for paying customers."
+msgstr "目前免费。将来如果收费，只按月活跃用户计费，也不会有任何功能只留给付费客户。"
 
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "It may have been used already. Ask your organization admin for a new one."
@@ -6212,6 +6308,10 @@ msgstr "这个密码出现在公开的泄露密码列表中，攻击者会优先
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "It's on the sign-in screen of the device you're setting up."
 msgstr "它显示在你正在设置的设备的登录界面上。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "It's the same code. You can export users with the Management API; password hashes are not exported, and passkeys need to be registered again on the new domain. There is no one-step migration tool."
+msgstr "代码是同一套。你可以用管理 API 导出用户；密码哈希不会导出，通行密钥需要在新域名上重新注册。没有一键迁移工具。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Java"
@@ -6376,6 +6476,10 @@ msgstr "关键属性"
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Key metrics"
 msgstr "关键指标"
+
+#: apps/site/src/lib/product-shots.ts
+msgid "Key metrics in the XID console overview: daily and monthly active users"
+msgstr "XID 控制台概览中的关键指标：日活跃用户和月活跃用户"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Key name"
@@ -6554,8 +6658,13 @@ msgid "Level"
 msgstr "等级"
 
 #: apps/site/src/lib/home-surface.ts
+#: apps/site/src/lib/site-shell-messages.ts
 msgid "License"
 msgstr "许可证"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Light"
+msgstr "浅色"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Like getAuth but throws a redirect response when unauthenticated"
@@ -6821,6 +6930,10 @@ msgid "Logo URL (light)"
 msgstr "浅色模式徽标网址"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Logo, colors and corner radius per organization."
+msgstr "每个组织各自的标志、颜色和圆角。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Low-level access token verification: signature, exp, nbf, iss, aud, azp"
 msgstr "底层访问 token 验证：signature、exp、nbf、iss、aud、azp"
 
@@ -6861,7 +6974,6 @@ msgid "macOS 13+"
 msgstr "macOS 13+"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
 msgid "Magic link"
 msgstr "登录链接"
 
@@ -6995,6 +7107,7 @@ msgid "Managed scope"
 msgstr "管理范围"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/pricing-surface.ts
 msgid "Management API"
 msgstr "管理 API"
 
@@ -7127,6 +7240,10 @@ msgstr "方式"
 msgid "MFA adoption"
 msgstr "MFA 采用率"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "MFA: authenticator app, SMS, backup codes, passkey"
+msgstr "MFA：认证器应用、短信、备用码、通行密钥"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Microsoft account"
 msgstr "Microsoft 账号"
@@ -7184,6 +7301,10 @@ msgstr "轻微影响"
 msgid "Missing"
 msgstr "未配置"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "MIT licensed"
+msgstr "MIT 许可"
+
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 msgid "Mobile number"
 msgstr "手机号"
@@ -7193,16 +7314,8 @@ msgid "Mobile or desktop app. Uses PKCE and may use custom-scheme redirects."
 msgstr "移动或桌面应用。使用 PKCE，可以使用自定义 scheme 的重定向。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Mobile SDKs"
-msgstr "移动端 SDK"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Model Organization, OrgUnit, project, and access approval boundaries."
 msgstr "模型组织、OrgUnit、项目和访问审批边界。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Model organizations, OrgUnits, projects, roles, grants, approval policies, and access requests without creating a separate admin tenant."
-msgstr "对组织、OrgUnit、项目、角色、授权、审批策略和访问请求建模，无需创建独立的管理租户。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Module"
@@ -7330,10 +7443,6 @@ msgstr "原生公开客户端使用带 PKCE S256 的授权码流程。不支持 
 msgid "Native SDK that compiles and passes its unit test suite on a local toolchain. A round-trip against a real production IdP still requires manual verification."
 msgstr "可在本地工具链上编译并通过单元测试套件的原生 SDK。对真实生产 IdP 的往返验证仍需人工核实。"
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Navigation"
-msgstr "导航"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Networkless JWT verification, request authentication, and webhook signature validation for edge and server runtimes."
 msgstr "适用于边缘和服务端运行时的无网络 JWT 验证、请求认证和 webhook 签名校验。"
@@ -7397,10 +7506,6 @@ msgstr "自上次允许 {app} 以来新增"
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "New to {org}?"
 msgstr "第一次使用 {org}？"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "New to XID? Create an account"
-msgstr "第一次使用 XID？创建账户"
 
 #: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/users/UsersList.tsx
@@ -7572,6 +7677,10 @@ msgstr "还没收到邮件？"
 msgid "No export yet"
 msgstr "暂无导出"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No feature is ever reserved for paying customers. There are no plans to upgrade to."
+msgstr "不会有任何功能只留给付费客户。没有可以升级的套餐。"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No group"
 msgstr "无组"
@@ -7592,6 +7701,10 @@ msgstr "尚未报告任何事件。"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "No instance managers found."
 msgstr "未找到实例管理员。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No license key, and nothing reports back to XID"
+msgstr "没有许可证密钥，也不会向 XID 回传任何数据"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No mechanism to detect when the user closes Custom Tabs without completing authorization."
@@ -7670,6 +7783,14 @@ msgstr "没有待处理邀请。"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No permissions mapped to this role."
 msgstr "没有权限映射到该角色。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No plans"
+msgstr "没有套餐"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No plans, no tiers, no paid features. If XID Cloud ever charges, it bills only for monthly active users. Self-hosted XID has the same features, with billing off unless you turn it on."
+msgstr "没有套餐，没有等级，没有付费功能。XID Cloud 将来如果收费，只按月活跃用户计费。自托管的 XID 功能完全相同，除非你开启计费，否则计费处于关闭状态。"
 
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 msgid "No platform stats available."
@@ -7777,6 +7898,10 @@ msgstr "尚未配置 webhook 端点。"
 msgid "No, it's different"
 msgstr "不，不一样"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No. There are no plans or tiers. Every feature is available on XID Cloud and when you self-host."
+msgstr "不需要。没有套餐，也没有等级。所有功能在 XID Cloud 和自托管上都可用。"
+
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Nobody has a direct {name} role yet."
 msgstr "还没有人被直接授予 {name} 的角色。"
@@ -7800,6 +7925,10 @@ msgstr "尚未添加。添加后，应用可以通过短信向你发送账户通
 #: apps/server/src/routes/account/PhoneSection.tsx
 msgid "None added. This organization doesn't send text messages yet."
 msgstr "尚未添加。此组织暂不发送短信。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "None by default. If one is set, it only stops creating new sub-organizations or SSO connections. No limit stops sign-in, sign-up, SSO or SCIM provisioning, or token refresh."
+msgstr "默认没有。如果设置了上限，它只会阻止新建子组织或 SSO 连接。任何上限都不会阻止登录、注册、SSO 或 SCIM 预配，也不会阻止令牌刷新。"
 
 #: apps/console/src/routes/users/user-columns.tsx
 msgid "None set"
@@ -7904,6 +8033,14 @@ msgstr "未验证"
 msgid "Not yet implemented"
 msgstr "尚未实现"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Not yet published to npm"
+msgstr "尚未发布到 npm"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Not yet."
+msgstr "还没有。"
+
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "Not your work account?"
 msgstr "不是你的工作账户？"
@@ -7933,6 +8070,14 @@ msgstr "没有反应？"
 #: packages/web-ui/src/components/ui/CommandMenu.tsx
 msgid "Nothing matches. Try a name, email or ID."
 msgstr "没有匹配项。试试名称、邮箱或 ID。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Nothing switches off"
+msgstr "什么都不会被关掉"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Nothing to XID. You pay Cloudflare for what your account uses, and sending email to any recipient needs the Workers Paid plan. You also need a domain whose DNS you control."
+msgstr "不用付给 XID 任何费用。你按自己账户的实际用量向 Cloudflare 付费，向任意收件人发送邮件需要 Workers Paid 计划。你还需要一个能自己管理 DNS 的域名。"
 
 #: apps/server/src/routes/consent/index.tsx
 msgid "Nothing was shared with"
@@ -8032,10 +8177,6 @@ msgid "OIDC and OAuth"
 msgstr "OIDC 和 OAuth"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions."
-msgstr "OIDC 和 OAuth 2.0、令牌签发、发现、JWKS、组织、项目、应用、角色和权限。"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OIDC authorization code"
 msgstr "OIDC 授权码"
 
@@ -8092,6 +8233,10 @@ msgstr "已启用"
 msgid "On a different computer, your browser can show a QR code to scan with your phone."
 msgstr "在其他电脑上，浏览器可以显示二维码，用手机扫描即可。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "On a self-hosted instance, use your own instance domain instead of <0>https://xid.dev</0>. <1>Self-hosting</1> covers the deployment."
+msgstr "在自托管实例上，把 <0>https://xid.dev</0> 换成你自己的实例域名。部署方法见<1>自托管</1>。"
+
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 msgid "On one device or security key"
 msgstr "绑定在单个设备或安全密钥上"
@@ -8106,12 +8251,16 @@ msgid "On this page"
 msgstr "本页内容"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "One control plane from sign-in to enterprise access"
-msgstr "从登录到企业访问的一个控制平面"
+msgid "One console for you and them. You see every organization; their admins see only theirs, with the same pages for members, SSO, branding and audit logs."
+msgstr "你和客户共用一个控制台。你能看到所有组织；他们的管理员只能看到自己的组织，成员、SSO、品牌和审计日志页面完全相同。"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "One deployment model"
-msgstr "一种部署模型"
+msgid "One identity product for your app and your customers"
+msgstr "一个身份产品，同时服务你的应用和你的客户"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "One identity product: sign-in, OIDC, organizations, enterprise SSO and a console."
+msgstr "一个身份产品：登录、OIDC、组织、企业 SSO 和控制台。"
 
 #: apps/server/src/routes/account/step-up.tsx
 msgid "One of your backup codes"
@@ -8125,13 +8274,13 @@ msgstr "{appName} 打开前的一个可选步骤。"
 msgid "One optional step before you continue."
 msgstr "继续之前的一个可选步骤。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "One organization per customer, with members, roles and its own admins."
+msgstr "每个客户一个组织，带成员、角色和自己的管理员。"
+
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "One per line. Each must match exactly; wildcards are not allowed."
 msgstr "每行一个。每个都必须精确匹配，不允许通配符。"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "One platform for identity"
-msgstr "统一身份平台"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "One secret is active at a time. XID keeps only a hash, so the secret cannot be shown again; rotating creates a new one and shows it once."
@@ -8238,13 +8387,9 @@ msgstr "打开组织"
 msgid "Open read-only session"
 msgstr "打开只读会话"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Open source identity platform"
-msgstr "开源身份平台"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Open source, inspectable, and self-hostable"
-msgstr "开源、可审查、可自托管"
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Open source"
+msgstr "开源"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
@@ -8290,6 +8435,10 @@ msgstr "打开认证器应用，输入它当前显示的 6 位验证码。"
 msgid "openAuthSession(url, redirectUri) resolving to a BrowserResult"
 msgstr "openAuthSession(url, redirectUri) 解析为 BrowserResult"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "OpenID Connect: authorization code, PAR, DPoP"
+msgstr "OpenID Connect：授权码、PAR、DPoP"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OpenID Federation exposes entity metadata and a registration boundary only. Trust-chain resolution, trust anchors, policy processing, and production interoperability are not implemented."
 msgstr "OpenID Federation 仅公开实体元数据和注册边界。信任链解析、信任锚、策略处理和生产互操作性尚未实现。"
@@ -8307,13 +8456,9 @@ msgstr "正在打开组织"
 msgid "Opens system browser, exchanges code, stores tokens"
 msgstr "打开系统浏览器，交换 code，存储 token"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "OpenSSF Best Practices badge for XID"
-msgstr "XID 的 OpenSSF 最佳实践徽章"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "OpenSSF Scorecard for XID"
-msgstr "XID 的 OpenSSF 记分卡"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Operated by XID on xid.dev."
+msgstr "由 XID 在 xid.dev 上运营。"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Operational"
@@ -8388,10 +8533,6 @@ msgstr "组织创建流程"
 msgid "Organization"
 msgstr "组织"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Organization and instance management UI"
-msgstr "组织和实例管理 UI"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organization context is not populated from stored tokens yet."
 msgstr "组织上下文尚未从存储的 token 中填充。"
@@ -8439,6 +8580,10 @@ msgstr "组织资料"
 msgid "Organization settings"
 msgstr "组织设置"
 
+#: apps/site/src/lib/product-shots.ts
+msgid "Organization switcher in the XID console listing the organizations and projects the admin manages"
+msgstr "XID 控制台中的组织切换器，列出管理员管理的组织和项目"
+
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
@@ -8462,10 +8607,6 @@ msgstr "组织 | 账户 | XID"
 msgid "Organizations | Console | XID"
 msgstr "组织 | 控制台 | XID"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Organizations and access"
-msgstr "组织和访问"
-
 #: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
 msgid "Organizations and roles"
 msgstr "组织与角色"
@@ -8478,9 +8619,17 @@ msgstr "组织可以要求邮箱标识、用户名标识或两者都要求。"
 msgid "Organizations could not be loaded"
 msgstr "无法加载组织"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Organizations docs"
+msgstr "组织文档"
+
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 msgid "Organizations you manage"
 msgstr "你管理的组织"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Organizations, SSO and Console"
+msgstr "组织、SSO 与控制台"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OrgUnit trees support a maximum depth of eight."
@@ -8547,10 +8696,6 @@ msgstr "包"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Package guides"
 msgstr "包使用指南"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Package manager"
-msgstr "包管理器"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Package name identifier '@xid-kit/backend'"
@@ -8691,7 +8836,6 @@ msgstr "请将 <0>appearance</0> 传给 <1>SignIn</1>、<2>UserProfile</2> 或 <
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
-#: apps/site/src/lib/home-surface.ts
 msgid "Passkey"
 msgstr "通行密钥"
 
@@ -8718,6 +8862,7 @@ msgstr "通行密钥验证失败。请换用其他方式或重试。"
 
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/site/src/lib/pricing-surface.ts
 msgid "Passkeys"
 msgstr "通行密钥"
 
@@ -8758,6 +8903,10 @@ msgstr "密码强度"
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Password strength meter"
 msgstr "密码强度计"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Password with breach checks, social sign-in"
+msgstr "带泄露检查的密码、社交登录"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
@@ -9016,9 +9165,9 @@ msgstr "插件配置"
 msgid "Polling too often. Wait for the polling interval before the next request."
 msgstr "轮询过于频繁。等满轮询间隔后再发下一次请求。"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "POST /token"
-msgstr "POST /token"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Pre-1.0. Core paths of hosted sign-in, the console and the Management API are verified in production on xid.dev. Everything else is verified locally."
+msgstr "1.0 之前的版本。托管登录、控制台和管理 API 的核心路径已在 xid.dev 生产环境验证，其余都在本地验证。"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Prefix"
@@ -9062,6 +9211,10 @@ msgstr "预览"
 #: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Previous"
 msgstr "上一页"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Pricing"
+msgstr "定价"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 #: apps/server/src/routes/account/EmailSection.tsx
@@ -9123,13 +9276,9 @@ msgstr "处理 App Link 或自定义 scheme callback。由 signIn 内部调用�
 msgid "Product"
 msgstr "产品"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Product and setup"
-msgstr "产品与设置"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Product, documentation, search, and agent-readable content"
-msgstr "产品、文档、搜索和 Agent 可读内容"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Production"
+msgstr "生产环境"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production and staging require KEK, PEPPER, and BOOTSTRAP_TOKEN as Workers Secrets. Never place them in variables, D1, source files, or build logs."
@@ -9147,9 +9296,9 @@ msgstr "Production 配置"
 msgid "Production evidence"
 msgstr "生产证据"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Production where proven, local where not"
-msgstr "已验证处为 production，其余为本地"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Production, core paths"
+msgstr "生产环境，核心路径"
 
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
@@ -9203,10 +9352,6 @@ msgstr "项目 ID"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project identity remains stable while its name and description change."
 msgstr "项目名称保持稳定，但名称和描述发生变化。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Project links"
-msgstr "项目链接"
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/console/ManagedProjects.tsx
@@ -9299,17 +9444,9 @@ msgstr "协议"
 msgid "Protocol requirements"
 msgstr "协议要求"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Protocol traffic"
-msgstr "协议流量"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
 msgstr "协议"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Protocols and developer experience"
-msgstr "协议和开发人员经验"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Provide separate light and dark logo URLs. Both must be public HTTPS URLs; the light logo is also shown on the consent page."
@@ -9446,14 +9583,6 @@ msgstr "公开客户端从不存储客户端密钥。"
 msgid "Public clients use Authorization Code with PKCE S256. No client secret is stored."
 msgstr "公共客户端使用带 PKCE S256 的授权码。不存储客户端密钥。"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Public content and management stay binding-free. Identity state, protocols, and policy remain in Core."
-msgstr "公开内容和管理界面保持 binding-free。身份状态、协议和策略保留在 Core 中。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Public locales"
-msgstr "公开语言"
-
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 msgid "public metadata"
 msgstr "公开元数据"
@@ -9534,6 +9663,10 @@ msgstr "用于将此账户添加到认证器应用的二维码"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Query"
 msgstr "查询"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Questions"
+msgstr "常见问题"
 
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Quick actions"
@@ -9676,10 +9809,6 @@ msgstr "配置信赖方前先读取签发方元数据。"
 msgid "Read organization audit events with cursor pagination."
 msgstr "使用游标分页读取组织审计事件。"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Read the documentation"
-msgstr "阅读文档"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Read the organization unit tree."
 msgstr "阅读组织单位树。"
@@ -9780,6 +9909,10 @@ msgstr "重定向 URI 已保存"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirect users to the unified Hosted Auth flow."
 msgstr "将用户重定向到统一 Hosted Auth 流程。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Redirect users to XID for sign-in, sign-up, MFA and consent."
+msgstr "把用户跳转到 XID 完成登录、注册、多因素认证和授权同意。"
 
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "Redirecting"
@@ -10651,9 +10784,13 @@ msgstr "Ruby"
 msgid "Ruby server SDK for networkless JWT verification, Rack/Rails request authentication, and webhook signature validation."
 msgstr "Ruby 服务端 SDK，提供 networkless JWT 验证、Rack/Rails 请求认证和 webhook 签名校验。"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Run it in your own Cloudflare account."
+msgstr "在你自己的 Cloudflare 账户里运行。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
-msgstr "在自己的 Cloudflare 账户中，以单租户或多租户模式运行同一套 MIT 许可代码。自托管包含全部功能，不设许可证检查或独立版本。"
+msgid "Run XID"
+msgstr "运行 XID"
 
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Runs in the browser. Uses PKCE, no secret."
@@ -10662,10 +10799,6 @@ msgstr "在浏览器中运行。使用 PKCE，没有密钥。"
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Runs on your servers and keeps a client secret."
 msgstr "在你的服务器上运行，并保管客户端密钥。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Runtime"
-msgstr "运行时"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Runtime or language"
@@ -10707,9 +10840,17 @@ msgstr "SaaS"
 msgid "Salesforce"
 msgstr "Salesforce"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Same on XID Cloud and self-hosted. Status from the public evidence matrix."
+msgstr "XID Cloud 和自托管完全相同。状态取自公开的证据矩阵。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Same-organization behavior"
 msgstr "同一组织行为"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "SAML"
+msgstr "SAML"
 
 #: apps/console/src/nav.tsx
 msgid "SAML apps"
@@ -10726,10 +10867,6 @@ msgstr "SAML 是 provider-ready：本地和 fake-IdP 证据覆盖当前 Worker �
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SAML Single Logout is implemented and verified locally at L1/L2 for inbound and outbound SAML. The Slack profile is excluded because Slack does not support SLO; real IdP and downstream SaaS L4 evidence remains UNKNOWN."
 msgstr "SAML Single Logout 已针对入站和出站 SAML 在本地通过 L1/L2 实现并验证。由于 Slack 不支持 SLO，因此不包含 Slack profile；真实 IdP 和下游 SaaS 的 L4 证据仍为 UNKNOWN。"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SAML SSO"
-msgstr "SAML 单点登录"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "saml_certificate_renewed"
@@ -10835,12 +10972,12 @@ msgid "Schedule the deletion"
 msgstr "安排删除"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SCIM 2.0 endpoint contract for provisioning users and groups into XID."
-msgstr "用于向 XID 预配用户与组的 SCIM 2.0 端点契约。"
+msgid "SCIM"
+msgstr "SCIM"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SCIM API reference"
-msgstr "SCIM API 参考"
+msgid "SCIM 2.0 endpoint contract for provisioning users and groups into XID."
+msgstr "用于向 XID 预配用户与组的 SCIM 2.0 端点契约。"
 
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "SCIM base URL"
@@ -10900,10 +11037,7 @@ msgid "Scopes"
 msgstr "作用域"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SDK overview"
-msgstr "SDK 概览"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/pricing-surface.ts
 msgid "SDKs"
 msgstr "开发套件"
 
@@ -10911,7 +11045,6 @@ msgstr "开发套件"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-#: apps/site/src/lib/site-shell-messages.ts
 msgid "Search"
 msgstr "搜索"
 
@@ -10933,7 +11066,7 @@ msgid "Search by name or slug"
 msgstr "按名称或标识搜索"
 
 #: apps/site/src/lib/site-shell-messages.ts
-msgid "Search documentation"
+msgid "Search docs"
 msgstr "搜索文档"
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
@@ -11018,7 +11151,7 @@ msgstr "SecureStore 密钥命名空间"
 #: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/SecurityPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
+#: apps/site/src/lib/site-shell-messages.ts
 msgid "Security"
 msgstr "安全"
 
@@ -11045,6 +11178,10 @@ msgstr "安全指标"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "See"
 msgstr "查看"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "See pricing"
+msgstr "查看定价"
 
 #: apps/server/src/components/hosted/scope-copy.ts
 msgid "See your email address"
@@ -11134,10 +11271,26 @@ msgstr "Selector xid-sign-out-button；输入 sessionId、redirectUrl、ariaLabe
 msgid "self sign-up"
 msgstr "自助注册"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
+msgid "Self-host XID"
+msgstr "自托管 XID"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Self-hosted"
+msgstr "自托管"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Self-hosted XID has the same features as XID Cloud. Billing is off by default and turns on only when <0>STRIPE_SECRET_KEY</0>, <1>STRIPE_WEBHOOK_SECRET</1> and <2>STRIPE_METER_EVENT_NAME</2> are all set. <3>Pricing</3> explains how usage is counted."
+msgstr "自托管的 XID 与 XID Cloud 功能相同。计费默认关闭，只有 <0>STRIPE_SECRET_KEY</0>、<1>STRIPE_WEBHOOK_SECRET</1> 和 <2>STRIPE_METER_EVENT_NAME</2> 全部设置后才会开启。用量的计算方式见<3>定价</3>。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Self-hosting"
 msgstr "自托管"
+
+#: apps/site/src/lib/home-surface.ts
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Self-hosting guide"
+msgstr "自托管指南"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Self-service path"
@@ -11235,10 +11388,6 @@ msgstr "服务端 hook"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server middleware (JWT auth)"
 msgstr "服务端 middleware（JWT 认证）"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Server SDKs"
-msgstr "服务端 SDK"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server-side auth in .astro pages"
@@ -11453,10 +11602,6 @@ msgstr "共享给其他组织"
 msgid "Shibboleth"
 msgstr "Shibboleth"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Ship OIDC and OAuth flows, Management APIs, webhooks, framework SDKs, localized docs, and networkless token verification from one repository."
-msgstr "在同一仓库中提供 OIDC 和 OAuth 流程、Management API、Webhook、框架 SDK、本地化文档和无网络令牌验证。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Short-lived JWT cache and scheduled refresh (advanced use and testing)"
 msgstr "短期 JWT 缓存和定时刷新（高级用法和测试）"
@@ -11465,13 +11610,13 @@ msgstr "短期 JWT 缓存和定时刷新（高级用法和测试）"
 msgid "Show"
 msgstr "显示"
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Show {count} more path segments"
-msgstr "再显示 {count} 个路径段"
-
 #: packages/web-ui/src/components/ui/OneTimeSecret.tsx
 msgid "Show {subject}"
 msgstr "显示{subject}"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Show all features"
+msgstr "显示全部功能"
 
 #: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Show deleted"
@@ -11528,7 +11673,6 @@ msgstr "登录"
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sign in"
 msgstr "登录"
@@ -11649,10 +11793,6 @@ msgstr "请登出，然后用其他方式登录，或请管理员重置两步验
 msgid "sdk.signUp"
 msgstr "创建账户"
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Sign up"
-msgstr "注册"
-
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Sign up | XID"
 msgstr "注册 | XID"
@@ -11661,6 +11801,18 @@ msgstr "注册 | XID"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signUpForm"
 msgstr "创建账户表单"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Sign up on XID Cloud, create an app and verify its tokens."
+msgstr "在 XID Cloud 注册，创建应用并验证它的令牌。"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Sign up, create an app, connect it with OIDC"
+msgstr "注册、创建应用、用 OIDC 接入"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Sign-in"
+msgstr "登录"
 
 #: apps/console/src/nav.tsx
 msgid "Sign-in & MFA"
@@ -11673,6 +11825,10 @@ msgstr "此实例的登录活动、组织和使用情况。"
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Sign-in address"
 msgstr "登录地址"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Sign-in and accounts"
+msgstr "登录与账户"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Sign-in and registration flow options — whether new accounts can be created, email verification requirements, and SSO enforcement."
@@ -11753,6 +11909,10 @@ msgstr "签名"
 msgid "Signature verification"
 msgstr "签名验证"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Signed events for users, organizations and memberships."
+msgstr "用户、组织和成员关系的签名事件。"
+
 #: apps/server/src/routes/account/DevicesPage.tsx
 #: apps/server/src/routes/magic-link/index.tsx
 msgid "Signed in"
@@ -11799,6 +11959,10 @@ msgstr "{when} 使用 {method} 登录。"
 msgid "Signed JWT with a registered key (private_key_jwt)"
 msgstr "使用已注册密钥签名的 JWT（private_key_jwt）"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Signed webhooks, hash-chained audit log"
+msgstr "签名的 Webhooks、哈希链审计日志"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
 msgstr "signIn(options?) 运行完整重定向流程；handleRedirect(url) 处理 deep-link callback；signInState 报告 idle、pending、complete、cancelled 或 error 状态"
@@ -11834,10 +11998,6 @@ msgstr "仅支持单账户——存储层使用固定密钥。"
 #: apps/console/src/routes/applications/app-format.ts
 msgid "Single-page app"
 msgstr "单页应用"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Site"
-msgstr "Site 站点"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Site navigation"
@@ -11915,9 +12075,17 @@ msgstr "社交登录提供商 | 控制台 | XID"
 msgid "Social providers saved."
 msgstr "社交登录提供商已保存。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Social providers such as Google and Microsoft, configured per organization."
+msgstr "Google、Microsoft 等社交登录，按组织配置。"
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Social sign-in providers available on this organization's Hosted UI."
 msgstr "此组织 Hosted UI 上可用的社交登录提供商。"
+
+#: apps/site/src/lib/docs-evidence.ts
+msgid "Social sign-in with Apple, Google, Microsoft and GitHub: verified locally against test providers."
+msgstr "Apple、Google、Microsoft 和 GitHub 社交登录：已在本地用测试提供方验证。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Soft-deleted roles and permissions remain visible across refreshes and can be restored to this project."
@@ -12031,9 +12199,30 @@ msgstr "标准 <0>net/http</0> middleware。成功时将 <1>*Claims</1> 注入 c
 msgid "Start by reading <0>/.well-known/openid-configuration</0> from the instance domain. The discovery document gives your app the authorization, token, userinfo, logout, and JWKS endpoints for that issuer."
 msgstr "先从实例域名读取 <0>/.well-known/openid-configuration</0>。发现文档会为你的应用提供该签发方的授权、令牌、用户信息、登出和 JWKS 端点。"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Start free"
+msgstr "免费开始"
+
+#: apps/site/src/lib/home-surface.ts
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Start free on XID Cloud"
+msgstr "在 XID Cloud 上免费开始"
+
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Start impersonation session?"
 msgstr "开始身份模拟会话？"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Start on XID Cloud"
+msgstr "从 XID Cloud 开始"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Start on XID Cloud in a few steps, or run XID in your own Cloudflare account."
+msgstr "几步即可在 XID Cloud 上开始，也可以在你自己的 Cloudflare 账号中运行 XID。"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Start with XID Cloud"
+msgstr "从 XID Cloud 开始"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Started at"
@@ -12061,9 +12250,18 @@ msgstr "状态变更监听器 callback 类型"
 #: apps/console/src/routes/users/user-columns.tsx
 #: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/pricing-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Status"
 msgstr "状态"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Status comes from the public evidence matrix in the repository. Only rows marked Production are verified on xid.dev. Self-hosted deployments also get the instance console for every organization on the deployment."
+msgstr "状态取自代码仓库中公开的证据矩阵。只有标为「生产环境」的行在 xid.dev 上验证过。自托管部署还会获得实例控制台，可以管理部署上的所有组织。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Status from the public evidence matrix"
+msgstr "状态取自公开的证据矩阵"
 
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
@@ -12175,6 +12373,10 @@ msgstr "用于 header 缺失、签名无效、重放或负载无效的结构化�
 msgid "Structured error returned when token verification fails (expected failure; not thrown)"
 msgstr "token 验证失败时返回的结构化错误（预期失败；不抛出异常）"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Sub-organizations, members, roles, branding, domain verification"
+msgstr "子组织、成员、角色、品牌、域名验证"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Subclass"
 msgstr "子类"
@@ -12212,13 +12414,16 @@ msgid "Success"
 msgstr "成功"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
 msgid "Support"
 msgstr "支持"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Support levels"
 msgstr "支持等级"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Support status"
+msgstr "支持状态"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Supported SCIM resource types."
@@ -12307,6 +12512,10 @@ msgstr "切换"
 msgid "Switch organization"
 msgstr "切换组织"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Switch organizations in one console"
+msgstr "在一个控制台里切换组织"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.switchSession"
@@ -12315,6 +12524,10 @@ msgstr "切换会话"
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Switching organization"
 msgstr "正在切换组织"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Switching organizations in the console: verified in production on xid.dev."
+msgstr "在控制台中切换组织：已在 xid.dev 生产环境验证。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Symbol"
@@ -12341,6 +12554,10 @@ msgstr "同步执行。验证 svix HMAC-SHA256 + 5 分钟重放窗口。失败�
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "system"
 msgstr "系统"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "System"
+msgstr "跟随系统"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "System browser authorization session and callback receipt"
@@ -12673,10 +12890,6 @@ msgstr "MFA 验证码不正确。"
 msgid "The middleware strips any client-supplied auth tokens and re-injects only the verified result."
 msgstr "middleware 会剥离客户端提供的任何认证 token，并重新注入已验证的结果。"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "The MIT-licensed repository includes the complete feature set. Security posture and project governance remain visible through OpenSSF and the public source."
-msgstr "采用 MIT 许可证的仓库包含完整功能集。安全态势和项目治理通过 OpenSSF 和公开源代码保持透明。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The nearest active manager in the OrgUnit ancestor chain is the first access-request approver candidate."
 msgstr "OrgUnit 祖先链中最近的活动管理者是第一个访问请求批准者候选者。"
@@ -12739,10 +12952,6 @@ msgstr "轮换后，之前的密钥已失效。"
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "The previous token keeps working until {expiresAt}. Update your identity provider before then."
 msgstr "之前的 token 在 {expiresAt} 前仍然有效。请在此之前更新你的身份提供商。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "The product surface"
-msgstr "产品能力"
 
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
@@ -12860,6 +13069,10 @@ msgstr "SDK 没有 DPoP sender binding，会拒绝 offline_access，并在 acces
 msgid "The SDK rejects offline_access until DPoP is implemented; unexpected refresh_token response fields are not persisted."
 msgstr "在实现 DPoP 之前，SDK 会拒绝 offline_access；不会持久化意外返回的 refresh_token response fields。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The SDKs are not yet published to npm. Until they are, any OIDC library works with the endpoints below."
+msgstr "SDK 尚未发布到 npm。在发布之前，任何 OIDC 库都可以配合下面的端点使用。"
+
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
 msgid "The security check didn't finish. Reload the page and try again."
@@ -12932,6 +13145,18 @@ msgstr "用户提交访问请求。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The XID Worker keeps an opaque refresh credential in an <0>HttpOnly</0> cookie. It is not a JWT, and the SDK never reads it from JavaScript or stores it in <1>localStorage</1>."
 msgstr "XID Worker 在 <0>HttpOnly</0> cookie 中保留不透明的刷新凭据。它不是 JWT，SDK 永远不会从 JavaScript 读取它或将其存储在 <1>localStorage</1> 中。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Their admins can do it themselves."
+msgstr "他们的管理员可以自己完成。"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Theme"
+msgstr "主题"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Theme: {mode}"
+msgstr "主题：{mode}"
 
 #: apps/server/src/routes/mfa/index.tsx
 msgid "These are the methods on your account that {org} accepts."
@@ -13030,10 +13255,6 @@ msgstr "此设备请求已处理。"
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "This device will be able to"
 msgstr "此设备将可以"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "This documentation version is no longer maintained"
-msgstr "此文档版本已停止维护"
 
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 msgid "This email address already belongs to another account. Sign out of the guest account, then sign in with that email."
@@ -13252,10 +13473,6 @@ msgstr "通常需要几分钟。导出完成后 48 小时内可下载。"
 #: apps/server/src/routes/not-found/ErrorPage.tsx
 msgid "This wasn't caused by anything you did. Try again in a moment."
 msgstr "这不是你造成的。请稍后重试。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Three focused Workers. One identity platform."
-msgstr "三个职责清晰的 Workers，一个身份平台。"
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
 msgid "Through the Management API on {date}"
@@ -13659,7 +13876,6 @@ msgstr "已更新"
 
 #: apps/console/src/routes/applications/AppsTable.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
-#: apps/site/src/lib/site-shell-messages.ts
 msgid "Updated"
 msgstr "已更新"
 
@@ -13699,6 +13915,10 @@ msgstr "按量计费"
 #: apps/console/src/routes/platform/UsageBillingSection.tsx
 msgid "Usage is billed by metered MAU. Open the Customer Portal to view invoices and payment methods."
 msgstr "按计量的 MAU 计费。打开客户门户可查看发票和支付方式。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Usage only"
+msgstr "只按用量"
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Usage overview"
@@ -13806,6 +14026,10 @@ msgstr "使用你设置两步验证时保存的代码之一。每个代码只能
 msgid "Use only numbers. Spaces and dashes are fine."
 msgstr "只能输入数字。可以包含空格和短横线。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Use our SDKs or any OIDC library. Access tokens are signed JWTs that carry the organization, and your backend verifies them without a network call."
+msgstr "使用我们的 SDK 或任何 OIDC 库。访问令牌是带有组织信息的签名 JWT，你的后端无需网络请求即可验证。"
+
 #: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
 #: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 msgid "Use passkey"
@@ -13827,10 +14051,6 @@ msgstr "使用单点登录"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use the <0>svix-id</0> header to deduplicate deliveries on your end. Retries carry the same <1>svix-id</1> as the original attempt."
 msgstr "使用 <0>svix-id</0> 请求头在接收端去重。重试的投递与原始尝试携带相同的 <1>svix-id</1>。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Use the complete platform or adopt the protocol, UI, and SDK layers that fit your architecture."
-msgstr "使用完整的平台或采用适合您的架构的协议、UI 和 SDK 层。"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Use the email address of the account you are signed in with."
@@ -14020,6 +14240,10 @@ msgid "Users who are already signed in stay signed in until their access token e
 msgstr "已登录的用户在访问令牌过期前保持登录。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Users, organizations and connections over REST with secret keys."
+msgstr "用密钥通过 REST 管理用户、组织和连接。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Uses <0>firebase/php-jwt</0> for ES256/RS256 verification. HS256 and <1>none</1> alg are rejected."
 msgstr "使用 <0>firebase/php-jwt</0> 进行 ES256/RS256 验证。HS256 和 <1>none</1> 算法会被拒绝。"
 
@@ -14038,6 +14262,10 @@ msgstr "仅使用公开 JWKS。从不加载实例签名私钥。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "utilities"
 msgstr "工具函数"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "v{version}, pre-1.0"
+msgstr "v{version}，1.0 之前的版本"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Valid client status values: loading, ready, degraded, error"
@@ -14134,6 +14362,14 @@ msgstr "验证通过 @xid-kit/crypto 使用 Web Crypto 完成。"
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Verified"
 msgstr "已验证"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Verified end to end, local"
+msgstr "端到端验证，本地"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Verified locally against test identity providers. Not yet verified with a live Okta or Entra ID tenant."
+msgstr "已在本地用测试身份提供方验证。尚未在真实的 Okta 或 Entra ID 租户上验证。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verified message metadata and a typed type/data payload envelope"
@@ -14298,18 +14534,6 @@ msgstr "非常弱"
 #: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
 msgid "Via project grant"
 msgstr "通过项目授权"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "View as Markdown"
-msgstr "以 Markdown 格式查看"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "View source on GitHub"
-msgstr "在 GitHub 上查看源代码"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "View the current documentation"
-msgstr "查看当前文档"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Vue"
@@ -14564,10 +14788,6 @@ msgid "Web application"
 msgstr "Web 应用"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Web SDKs"
-msgstr "Web 端 SDK"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Web-standard runtimes (Cloudflare Workers, Node.js, Bun, Deno) share @xid-kit/backend via Web Crypto. Other languages get native SDKs. All do networkless JWT verification, request authentication, and webhook verification."
 msgstr "Web 标准运行时(Cloudflare Workers、Node.js、Bun、Deno)经 Web Crypto 共用 @xid-kit/backend;其他语言使用各自原生 SDK。全部做 networkless JWT 验证、请求认证和 webhook 验证。"
 
@@ -14621,6 +14841,10 @@ msgstr "WebView2 运行时（常青版——随 Microsoft Edge 预装）"
 msgid "WebView2 Runtime must be present. WebAuthenticationBroker support as a fallback is planned but not yet implemented."
 msgstr "必须安装 WebView2 运行时。WebAuthenticationBroker 作为回退方案已在计划中，但尚未实现。"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "What does self-hosting cost?"
+msgstr "自托管要花多少钱？"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "What stays"
 msgstr "保留的内容"
@@ -14632,10 +14856,6 @@ msgstr "你登录的应用和你的团队成员能看到的关于你的信息。
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "What they are"
 msgstr "这是什么"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "What XID includes"
-msgstr "XID 包含的能力"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "What you'll lose"
@@ -14685,6 +14905,10 @@ msgstr "当 D-Bus Secret Service 守护进程不可用时，传入 InMemoryStora
 msgid "When the browser adapter cannot capture the redirect itself, register the redirect URI scheme in your app manifest and forward the deep link to <0>handleRedirect(url)</0>. It validates and consumes the OAuth state, verifier, and nonce, exchanges the code, verifies the ID token, and stores the native session."
 msgstr "当 browser adapter 无法自行捕获 redirect 时，请在 app manifest 中注册 redirect URI scheme，并将 deep link 转发给 <0>handleRedirect(url)</0>。它会验证并消费 OAuth state、verifier 和 nonce，交换 code，验证 ID token，并存储原生会话。"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Where is my data on XID Cloud?"
+msgstr "我在 XID Cloud 上的数据存在哪里？"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Where they're saved"
 msgstr "保存在哪里"
@@ -14709,6 +14933,10 @@ msgstr "为什么使用"
 msgid "Wildcards are not allowed. Add each subdomain as its own URL."
 msgstr "不允许通配符。请把每个子域名单独添加为一个 URL。"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Will XID Cloud start charging?"
+msgstr "XID Cloud 会开始收费吗？"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Windows"
 msgstr "Windows"
@@ -14729,6 +14957,10 @@ msgstr "仅在委托给您的用户的项目或项目授权范围内工作。这
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Works only on {0}"
 msgstr "仅在 {0} 上可用"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Wrap your app in <0>XidProvider</0> with the issuer <1>https://xid.dev</1> and your client ID, then verify access tokens on your backend with <2>authenticateRequest</2>."
+msgstr "用 <0>XidProvider</0> 包裹你的应用，填入 issuer <1>https://xid.dev</1> 和客户端 ID，然后在后端用 <2>authenticateRequest</2> 验证访问令牌。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Wrap your app with <0>XidProvider</0>. It creates an <1>XidClient</1>, calls <2>client.load()</2> on mount to fetch the current session, and tears down via <3>onCleanup</3>."
@@ -14755,16 +14987,32 @@ msgid "XID as SAML or OIDC IdP"
 msgstr "XID 作为 SAML 或 OIDC IdP"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID as service provider and as identity provider."
+msgstr "XID 作为服务提供方，也作为身份提供方。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID behavior"
 msgstr "XID 行为"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "XID Cloud"
+msgstr "XID Cloud"
+
 #: apps/site/src/lib/home-surface.ts
-msgid "XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs into one MIT-licensed platform running on Cloudflare Workers."
-msgstr "XID 将 Hosted Auth、OIDC、组织、企业联合、目录同步和 SDKs 整合到一个运行于 Cloudflare Workers 的 MIT 许可证平台中。"
+msgid "XID Cloud is free today. If it ever charges, it bills only per monthly active user, never by plan. Self-hosted, billing is off unless you turn it on."
+msgstr "XID Cloud 目前免费。将来如果收费，只按月活跃用户计费，不按套餐计费。自托管时，除非你开启计费，否则计费处于关闭状态。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "XID Cloud is free."
+msgstr "XID Cloud 免费。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
-msgstr "XID 将 Hosted Auth、通行密钥、OIDC 与 OAuth、组织、企业联合身份、SCIM 和 SDK 整合为一个面向 Cloudflare 构建的身份平台。"
+msgid "XID Cloud runs at <0>https://xid.dev</0> and is free. You need an organization, an application and a few lines of code."
+msgstr "XID Cloud 运行在 <0>https://xid.dev</0>，免费使用。你需要一个组织、一个应用和几行代码。"
+
+#: apps/site/src/lib/product-shots.ts
+msgid "XID console users list for Northwind Logistics, with sign-in methods and organizations per user"
+msgstr "Northwind Logistics 的 XID 控制台用户列表，显示每个用户的登录方式和所属组织"
 
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 msgid "XID creates a new secret and shows it once. The current secret stops working right away, so sign-ins to {name} fail until you deploy the new one."
@@ -14794,21 +15042,29 @@ msgstr "XID 为外部 IdP 公开入站 SCIM Service Provider 端点。下游 Saa
 msgid "XID exposes organization-scoped SCIM 2.0 APIs under <0>/scim/v2/organizations/{organization_id}</0>. User and group resources are addressed with the organization ID in the path."
 msgstr "XID 在 <0>/scim/v2/organizations/{organization_id}</0> 下公开组织范围的 SCIM 2.0 API。用户和组资源通过路径中的组织 ID 定位。"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console."
-msgstr "XID 通过一个身份核心处理登录、授权、组织成员关系、企业连接和用户生命周期。应用使用基于标准的端点，团队则通过统一 Console 管理实例和每个组织。"
+#: apps/site/src/lib/home-surface.ts
+msgid "XID hosts them in your brand."
+msgstr "XID 用你的品牌托管这些页面。"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID Identity Platform"
-msgstr "XID 身份平台"
+#: apps/site/src/lib/home-surface.ts
+msgid "XID is a standard OpenID Connect provider."
+msgstr "XID 是标准的 OpenID Connect 提供方。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID is an identity provider. The instance domain is the OIDC issuer, API base URL, Hosted Auth base URL, and console base URL. Organizations provide policy, branding, membership, and resource isolation."
 msgstr "XID 是身份提供方。实例域名是 OIDC 签发方、API 基础 URL、Hosted Auth 基础 URL 和控制台基础 URL。组织提供策略、品牌、成员关系和资源隔离。"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification."
-msgstr "XID 处于 pre-1.0 阶段，尚未达到生产就绪。文档明确区分本地实现证据与真实提供商和 SaaS 验证。"
+#: apps/site/src/lib/home-surface.ts
+msgid "XID is one identity product for your app and your customers: hosted sign-in and accounts, OpenID Connect for your apps, organizations with enterprise SSO and SCIM, and one console. Free on XID Cloud, MIT licensed to self-host."
+msgstr "XID 是一个身份产品，同时服务你的应用和你的客户：托管登录和账户、面向应用的 OpenID Connect、带企业 SSO 和 SCIM 的组织，以及一个控制台。在 XID Cloud 上免费，以 MIT 许可自托管。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "XID is one product for all of it."
+msgstr "XID 用一个产品搞定这一切。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "XID is pre-1.0. Hosted sign-in, the console and the Management API core paths are verified in production on xid.dev. Enterprise identity providers, social sign-in and SMS are verified locally only."
+msgstr "XID 还处于 1.0 之前。托管登录、控制台和管理 API 的核心路径已在 xid.dev 生产环境验证。企业身份提供方、社交登录和短信只在本地验证过。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID issuer URI"
@@ -14837,10 +15093,6 @@ msgstr "XID 支持 SCIM 过滤语法，包含 <0>and</0>、<1>or</1>、<2>not</2
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "XID will delete the Cloudflare custom hostname before marking it deleted locally. Remove the traffic CNAME after this succeeds."
 msgstr "XID 将删除 Cloudflare 自定义主机名，然后再将其标记为本地删除。成功后删除流量 CNAME。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "XID, an edge-native identity platform on Cloudflare Workers, featured on Product Hunt"
-msgstr "XID 是 Cloudflare Workers 上的边缘原生身份平台，在 Product Hunt 上得到推荐"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XidAuthService"
@@ -14997,6 +15249,10 @@ msgstr "你没有完成 {provider} 的连接。你的账户没有任何变化。
 msgid "You do not have permission to perform this action."
 msgstr "你没有权限执行此操作。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "You don't want to build sign‑in and account pages."
+msgstr "你不想自己做登录和账户页面。"
+
 #: packages/i18n/src/messages.ts
 msgid "You have reached the maximum number of passkeys. Remove one before adding another."
 msgstr "通行密钥数量已达上限。请先移除一个再添加。"
@@ -15029,6 +15285,10 @@ msgstr "你将失去对你用此账户使用的应用的访问权限。我们会
 #: packages/i18n/src/messages.ts
 msgid "You must set up multi-factor authentication before continuing."
 msgstr "继续前必须设置多因素认证。"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "You pay Cloudflare for what your account uses"
+msgstr "你按账户的实际用量向 Cloudflare 付费"
 
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 msgid "You reached the limit of 50 invitations an hour. Try again later."
@@ -15185,7 +15445,6 @@ msgstr "你已达到 {limit} 个通行密钥的上限"
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
-#: apps/site/src/lib/home-surface.ts
 msgid "you@example.com"
 msgstr "you@example.com"
 
@@ -15231,6 +15490,14 @@ msgstr "你的账户将于 {deletionDate} 删除。在此之前，你可以登�
 msgid "Your admin turned this on for everyone. Setup takes about two minutes, then you'll go straight back."
 msgstr "管理员为所有人开启了此要求。设置大约需要两分钟，完成后会直接返回。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Your app redirects to XID and gets the user back with tokens. Afterward, people manage their sessions, devices and data on their own account page."
+msgstr "你的应用跳转到 XID，再带着令牌把用户接回来。之后，用户在自己的账户页面管理会话、设备和数据。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Your auth vendor shouldn't be in every service."
+msgstr "你的认证服务商不该出现在每个服务里。"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "your authenticator app"
 msgstr "你的认证器应用"
@@ -15239,9 +15506,17 @@ msgstr "你的认证器应用"
 msgid "Your authenticator app is your last two-step method. Text message codes and backup codes stop working too, because they can't be used on their own."
 msgstr "认证器应用是你最后一种两步验证方式。短信验证码和备用码也会失效，因为它们不能单独使用。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Your biggest deal is waiting on SSO and SCIM."
+msgstr "你最大的那单生意在等 SSO 和 SCIM。"
+
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Your current sign-in method keeps working. You can remove the passkey any time in your account."
 msgstr "你当前的登录方式仍然可用。你可以随时在账户中移除通行密钥。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Your customers need sign-in, SSO and admins."
+msgstr "你的客户需要登录、SSO 和管理员。"
 
 #: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
 msgid "Your device will ask for your face, fingerprint or screen lock. The passkey stays on this device or in your password manager."

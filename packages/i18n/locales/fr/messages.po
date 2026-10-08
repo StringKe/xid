@@ -271,6 +271,10 @@ msgstr "{count} clés d'accès sur {limit}"
 msgid "{count} passkeys"
 msgstr "{count} clés d'accès"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "{count} platform guides. Not yet published to a package registry."
+msgstr "{count} guides de plateforme. Pas encore publiés sur un registre de paquets."
+
 #: apps/console/src/routes/users/UserDetail.tsx
 msgid "{created} by {source}"
 msgstr "{created} via {source}"
@@ -680,10 +684,6 @@ msgstr "10 secondes"
 msgid "10s timeout default"
 msgstr "Délai d'attente par défaut de 10s"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "3 Workers"
-msgstr "3 services Worker"
-
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "30 days after you asked on {asked}. On {deletionDate} we remove your name, email and sign-in methods."
 msgstr "30 jours après votre demande du {asked}. Le {deletionDate}, nous supprimerons votre nom, votre e-mail et vos moyens de connexion."
@@ -760,6 +760,10 @@ msgstr "Une signature numérique est requise."
 #: apps/console/src/routes/users/tabs/SessionsTab.tsx
 msgid "a guest session"
 msgstr "une session invité"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "A monthly active user is a person who signs in at least once in a calendar month (UTC). Each person counts once per month across your organization and all of its sub-organizations, however often they sign in. Guest sessions don't count. Your console overview shows the number as Monthly active users."
+msgstr "Un utilisateur actif mensuel est une personne qui se connecte au moins une fois au cours d'un mois civil (UTC). Chaque personne compte une fois par mois pour votre organisation et toutes ses sous-organisations, quel que soit le nombre de connexions. Les sessions invité ne comptent pas. La vue d'ensemble de la console affiche ce nombre sous Utilisateurs actifs mensuels."
 
 #: apps/console/src/routes/users/tabs/SessionsTab.tsx
 msgid "a one-time code"
@@ -881,6 +885,10 @@ msgstr "Accès"
 msgid "Access request lifecycle"
 msgstr "Cycle de vie des demandes d'accès"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Access token"
+msgstr "Jeton d'accès"
+
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Access token lifetime in minutes"
 msgstr "Durée de vie du jeton d'accès en minutes"
@@ -922,10 +930,18 @@ msgstr "Compte"
 msgid "Account deletion"
 msgstr "Suppression de compte"
 
+#: apps/site/src/lib/product-shots.ts
+msgid "Account devices page where a user sees and signs out their sessions"
+msgstr "Page Appareils du compte, où l'utilisateur voit ses sessions et les déconnecte"
+
 #: apps/console/src/components/layout/ConsoleTopBar.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Account menu"
 msgstr "Menu du compte"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Account page, eight interface languages"
+msgstr "Page de compte, huit langues d'interface"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Account security and profile management"
@@ -1498,6 +1514,10 @@ msgstr "Un gestionnaire d'instance"
 msgid "An internal error occurred. Try again."
 msgstr "Une erreur interne s'est produite. Réessayez."
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "An organization for your company, and one for each of your customers"
+msgstr "Une organisation pour votre entreprise, et une pour chacun de vos clients"
+
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
 msgstr "Une organisation a ses propres membres, règles de connexion et applications. Vous en serez le propriétaire et pourrez inviter d'autres personnes juste après."
@@ -1612,10 +1632,6 @@ msgid "api_key."
 msgstr "api_key."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "APIs and operations"
-msgstr "API et exploitation"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "App Router server helpers"
 msgstr "Assistants serveur App Router"
 
@@ -1715,6 +1731,10 @@ msgstr "Approuver la demande de connexion | | XID"
 msgid "Apps"
 msgstr "Applications"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Apps and OIDC"
+msgstr "Applications et OIDC"
+
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Apps that you allowed to use your {appName} account. Apps that sign you in without asking aren't listed."
 msgstr "Applications que vous avez autorisées à utiliser votre compte {appName}. Les applications qui vous connectent sans demander ne sont pas listées."
@@ -1726,6 +1746,10 @@ msgstr "Archiver"
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Archived"
 msgstr "Archivé"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Are there usage limits on XID Cloud?"
+msgstr "XID Cloud a-t-il des limites d'utilisation ?"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "as const object"
@@ -1909,10 +1933,6 @@ msgstr "authenticateRequest"
 msgid "Authentication"
 msgstr "Authentification"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Authentication and account"
-msgstr "Authentification et compte"
-
 #: packages/i18n/src/messages.ts
 msgid "Authentication is required."
 msgstr "L'authentification est requise."
@@ -1944,6 +1964,10 @@ msgstr "Code d'authentification"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization"
 msgstr "Autorisation"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Authorization code flow: verified locally with protocol clients. SDKs are not yet published to npm."
+msgstr "Flux du code d'autorisation : vérifié en local avec des clients du protocole. Les SDK ne sont pas encore publiés sur npm."
 
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Authorization code with PKCE"
@@ -2037,6 +2061,10 @@ msgstr "Retour à la console"
 msgid "Back to sign in"
 msgstr "Retour à la connexion"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Back to top"
+msgstr "Retour en haut"
+
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Back-channel logout URL"
 msgstr "URL de déconnexion back-channel"
@@ -2121,6 +2149,10 @@ msgstr "Entre 1 et 1440 minutes."
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Billing"
 msgstr "Facturation"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Billing never signs anyone out or turns off a feature you use."
+msgstr "La facturation ne déconnecte jamais personne et ne désactive aucune fonctionnalité que vous utilisez."
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Billing status"
@@ -2217,10 +2249,6 @@ msgid "Browser default"
 msgstr "Valeur par défaut du navigateur"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack."
-msgstr "Des SDK pour navigateur, serveur, frameworks web, mobile et poste de travail permettent d'intégrer les applications sur l'ensemble de la pile."
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "BrowserInterface adapter backed by expo-web-browser"
 msgstr "Adaptateur BrowserInterface reposant sur expo-web-browser"
 
@@ -2231,10 +2259,6 @@ msgstr "Construire le client avec un client reqwest personnalisé (utile pour le
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Build client with default reqwest HTTP client."
 msgstr "Construire le client avec le client HTTP reqwest par défaut."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Build identity at the edge, without giving up control"
-msgstr "Construisez votre identité à la périphérie, sans renoncer au contrôle"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Build OIDC end_session URL for RP-initiated logout"
@@ -2284,6 +2308,10 @@ msgstr "Appelle les API en son propre nom avec les identifiants client. Aucune c
 #: apps/server/src/routes/account/privacy-shared.tsx
 msgid "Can confirm who you are"
 msgstr "Peut confirmer votre identité"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Can I move from XID Cloud to self-hosting?"
+msgstr "Puis-je passer de XID Cloud à l'auto-hébergement ?"
 
 #: apps/server/src/routes/account/privacy-shared.tsx
 msgid "Can see {see}"
@@ -2406,6 +2434,10 @@ msgstr "Modifier votre rôle"
 msgid "Changed {changed}"
 msgstr "Modifié {changed}"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Changelog"
+msgstr "Journal des modifications"
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Changing how you sign in needs a fresh check. Once you verify, you won't be asked again for 5 minutes."
 msgstr "Changer de mode de connexion nécessite une nouvelle vérification. Une fois vérifié, vous ne serez plus sollicité pendant 5 minutes."
@@ -2484,9 +2516,17 @@ msgstr "Choisissez une organisation pour continuer dans la console."
 msgid "Choose another way to verify"
 msgstr "Choisir une autre méthode de vérification"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Choose Start free at the top of this page. Sign up and name your organization; XID creates it and opens the Console."
+msgstr "Choisissez Commencer gratuitement en haut de cette page. Inscrivez-vous et nommez votre organisation ; XID la crée et ouvre la console."
+
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 msgid "Choose your second step"
 msgstr "Choisissez votre deuxième étape"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Choosing hosted shouldn't lock you in."
+msgstr "Choisir l'offre hébergée ne devrait pas vous enfermer."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Chromium-based embedded authorization window"
@@ -2643,14 +2683,19 @@ msgid "Close menu"
 msgstr "Fermer le menu"
 
 #: apps/site/src/lib/site-shell-messages.ts
-msgid "Close sidebar"
-msgstr "Fermer la barre latérale"
+msgid "Close navigation"
+msgstr "Fermer la navigation"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Cloud and self‑hosted are one product."
+msgstr "Le cloud et l'auto-hébergement sont un seul produit."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Cloudflare is still waiting for DNS verification."
 msgstr "Cloudflare attend toujours la vérification de DNS."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Cloudflare Workers"
 msgstr "Cloudflare Workers"
 
@@ -2675,6 +2720,10 @@ msgstr "L'échange de code échoue"
 msgid "Code from your authenticator app"
 msgstr "Code de votre application d'authentification"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Codebase for Cloud and self-hosted"
+msgstr "Base de code pour le cloud et l'auto-hébergement"
+
 #: apps/server/src/routes/activate/index.tsx
 msgid "Codes expire after 10 minutes and work only once. Get a new code on your device, then enter it here."
 msgstr "Les codes expirent au bout de 10 minutes et ne fonctionnent qu'une fois. Obtenez un nouveau code sur votre appareil, puis saisissez-le ici."
@@ -2698,10 +2747,6 @@ msgstr "Combiner les opérateurs logiques et de comparaison."
 #: packages/web-ui/src/components/ui/CommandMenu.tsx
 msgid "Command menu"
 msgstr "Menu de commandes"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Complete edition"
-msgstr "Édition complète"
 
 #: packages/i18n/src/messages.ts
 msgid "Complete the CAPTCHA verification to continue."
@@ -2888,16 +2933,16 @@ msgid "Connect {name}"
 msgstr "Connecter {name}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Connect an application to XID with OIDC discovery and Hosted Auth."
-msgstr "Connectez une application à XID avec la découverte OIDC et Hosted Auth."
+msgid "Connect a customer's SAML or OIDC identity provider and route its domains."
+msgstr "Connecter le fournisseur d'identité SAML ou OIDC d'un client et router ses domaines."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Connect enterprise identity providers using SAML 2.0."
 msgstr "Connectez des fournisseurs d’identité entreprise avec SAML 2.0."
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Connect inbound SAML and OIDC, downstream SaaS SSO, SCIM, directory sync, and domain discovery behind explicit policy boundaries."
-msgstr "Connectez SAML et OIDC entrants, SaaS SSO en aval, SCIM, synchronisation d'annuaire et découverte de domaine derrière des limites de stratégie explicites."
+msgid "Connect your app"
+msgstr "Connecter votre application"
 
 #: apps/server/src/routes/account/ConnectedAccountsSection.tsx
 msgid "Connected accounts"
@@ -2922,10 +2967,6 @@ msgstr "Connexions"
 #: apps/console/src/routes/applications/AppsTable.tsx
 msgid "Consent screen"
 msgstr "Écran de consentement"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Console"
-msgstr "Console de gestion"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "Console is read-only"
@@ -2970,7 +3011,6 @@ msgstr "Continuer"
 #: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 #: apps/server/src/routes/sign-in/IdentifierStep.tsx
-#: apps/site/src/lib/home-surface.ts
 #: packages/i18n/src/messages.ts
 msgid "Continue"
 msgstr "Continuer"
@@ -3051,10 +3091,6 @@ msgstr "Continuer avec Microsoft"
 msgid "Continuing"
 msgstr "Poursuite en cours"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Contributing"
-msgstr "Contribution"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Control components"
 msgstr "Composants de contrôle"
@@ -3076,7 +3112,6 @@ msgstr "Convertit JwtKey (JWK, JWKS ou CryptoKey) en VerifyKeySet pour la vérif
 #: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: apps/server/src/routes/account/BackupCodesDialog.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
-#: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copied"
 msgstr "Copié"
@@ -3109,10 +3144,6 @@ msgstr "Échec de la copie"
 msgid "Copy key"
 msgstr "Copier la clé"
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Copy page"
-msgstr "Copier la page"
-
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 msgid "Copy the {appName} secret"
 msgstr "Copier le secret de {appName}"
@@ -3120,14 +3151,6 @@ msgstr "Copier le secret de {appName}"
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 msgid "Copy the new {appName} secret"
 msgstr "Copier le nouveau secret de {appName}"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Copy to clipboard"
-msgstr "Copier dans le presse-papiers"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Core"
-msgstr "Noyau"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Core API"
@@ -3141,6 +3164,10 @@ msgstr "Core se lie à Email Service et Analytics Engine, ainsi qu'à des Servic
 msgid "Core endpoints"
 msgstr "Points de terminaison principaux"
 
+#: apps/site/src/lib/docs-evidence.ts
+msgid "Core paths: verified in production on xid.dev. Other endpoints: verified locally."
+msgstr "Parcours principaux : vérifiés en production sur xid.dev. Autres points de terminaison : vérifiés en local."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Core uses D1 for tenant-scoped relational data, KV only for read-heavy caches, and R2 for private objects. Strongly consistent state never belongs in KV."
 msgstr "Core utilise D1 pour les données relationnelles limitées au tenant, KV uniquement pour les caches à forte lecture et R2 pour les objets privés. Un état fortement cohérent ne doit jamais être stocké dans KV."
@@ -3148,10 +3175,6 @@ msgstr "Core utilise D1 pour les données relationnelles limitées au tenant, KV
 #: packages/web-ui/src/components/RequireAuth.tsx
 msgid "Could not check your session"
 msgstr "Impossible de vérifier votre session"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Could not copy"
-msgstr "Échec de la copie"
 
 #. placeholder {0}: LOCALE_LABELS[failedLocale]
 #: packages/web-ui/src/components/LanguageSwitcher.tsx
@@ -3566,6 +3589,10 @@ msgstr "Utilisateurs actifs quotidiens"
 msgid "Danger zone"
 msgstr "Zone de danger"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Dark"
+msgstr "Sombre"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Dart / Flutter SDK for iOS, Android, and desktop using flutter_web_auth_2, PKCE S256 authorization code flow, and flutter_secure_storage token persistence."
 msgstr "SDK Dart / Flutter pour iOS, Android et bureau utilisantflutter_web_auth_2, le flux de code d'autorisation PKCE S256 et lapersistance des jetons via flutter_secure_storage."
@@ -3608,6 +3635,10 @@ msgstr "Déclarez l'incident, son impact public et son heure de début."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Decode JWT payload claims for expiry scheduling only; does not verify the signature"
 msgstr "Décode les revendications du payload JWT uniquement pour la planification d'expiration ; ne vérifie pas la signature"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Decoded payload"
+msgstr "Charge utile décodée"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deep link callback"
@@ -3846,6 +3877,10 @@ msgstr "Envoyez des notifications d'événements signées à vos points de termi
 msgid "Deliveries are signed with HMAC-SHA256. The signing secret is shown once on creation; store it immediately."
 msgstr "Les livraisons sont signées avec HMAC-SHA256. Le secret de signature n'est affiché qu'une seule fois à la création ; stockez-le immédiatement."
 
+#: apps/site/src/lib/docs-evidence.ts
+msgid "Delivery and signature verification: verified locally."
+msgstr "Livraison et vérification de signature : vérifiées en local."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Delivery attempts use exponential backoff and end in dead status. Queue-level exhaustion is persisted as an encrypted dead-letter record for Instance Manager inspection and replay."
 msgstr "Les tentatives de livraison utilisent un backoff exponentiel et se terminent avec le statut dead. Lorsque la file est épuisée, le message d'origine est conservé sous forme chiffrée afin qu'un Instance Manager puisse l'inspecter et le renvoyer."
@@ -3909,6 +3944,10 @@ msgid "Depends on the <0>jwt</0> gem (ES256/RS256 support). Ruby 3.1+ required."
 msgstr "Dépend du gem <0>jwt</0> (support ES256/RS256). Ruby 3.1+ requis."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Deploy the same three Workers to your own Cloudflare account."
+msgstr "Déployer les trois mêmes Workers sur votre propre compte Cloudflare."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deploy three Workers: Nimbus Site owns the apex documentation and www redirect, Console owns /console, and Core owns Hosted Auth, protocols, APIs, jobs, and identity state. Site and Console bind only ASSETS."
 msgstr "Déployez trois Workers: Nimbus Site gère la documentation à l'apex et la redirection www, Console gère /console, et Core gère Hosted Auth, les protocoles, les API, les tâches et l'état d'identité. Site et Console ne déclarent que le binding ASSETS."
 
@@ -3947,10 +3986,6 @@ msgstr "Engagement de conception"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Desktop Linux with xdg-open (xdg-utils) for system browser launch and a running D-Bus session with gnome-keyring or kwallet for Secret Service storage"
 msgstr "Linux bureau avec xdg-open (xdg-utils) pour lancer le navigateur systèmeet une session D-Bus active avec gnome-keyring ou kwallet pour le stockageSecret Service"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Desktop SDKs"
-msgstr "SDK pour poste de travail"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 #: apps/console/src/routes/applications/ApplicationDetail.tsx
@@ -4043,6 +4078,10 @@ msgstr "Synchronisation d'annuaire (SCIM)"
 msgid "Directory sync | Console | XID"
 msgstr "Synchronisation d’annuaire | Console | XID"
 
+#: apps/site/src/lib/product-shots.ts
+msgid "Directory sync in the XID console with an active Okta SCIM directory, its user and group counts and last sync"
+msgstr "Synchronisation d'annuaire dans la console XID, avec un annuaire SCIM Okta actif, ses nombres d'utilisateurs et de groupes et sa dernière synchronisation"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Directory token rotation keeps the previous token valid for a short grace window."
 msgstr "La rotation du jeton d'annuaire garde l'ancien jeton valide pendant une courte période de grâce."
@@ -4093,10 +4132,6 @@ msgstr "Options discriminées du constructeur XidClient: same-origin accepte api
 msgid "Dismiss"
 msgstr "Ignorer"
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Dismiss banner"
-msgstr "Fermer la bannière"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
@@ -4111,21 +4146,27 @@ msgstr "Affiché lorsque"
 msgid "DNS TXT record"
 msgstr "Enregistrement DNS TXT"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Do I need to pay for SSO, SCIM or MFA?"
+msgstr "Dois-je payer pour le SSO, SCIM ou la MFA ?"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Do you have SOC 2 or ISO 27001?"
+msgstr "Avez-vous SOC 2 ou ISO 27001 ?"
+
 #: packages/i18n/src/messages.ts
 msgid "Do you want to sign out of this account?"
 msgstr "Voulez-vous vous déconnecter de ce compte ?"
 
 #: apps/console/src/components/layout/ConsoleTopBar.tsx
+#: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/site-shell-messages.ts
 msgid "Docs"
 msgstr "Docs"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Document type"
 msgstr "Type de document"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Documentation"
-msgstr "Documentation"
 
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "Does {app} show this exact code?"
@@ -4223,6 +4264,10 @@ msgstr "Chaque fournisseur activé autre que GitHub a besoin d'un issuer et d'un
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "Chaque membre peut avoir une OrgUnit principale et des emplacements supplémentaires."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Each organization has its own SAML or OIDC connection, SCIM directory, verified domains and MFA policy. When IT deactivates someone, XID ends their sessions."
+msgstr "Chaque organisation a sa propre connexion SAML ou OIDC, son annuaire SCIM, ses domaines vérifiés et sa politique MFA. Quand l'IT désactive quelqu'un, XID met fin à ses sessions."
+
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Each organization has one inbound connection. Delete it before adding another."
 msgstr "Chaque organisation a une seule connexion entrante. Supprimez-la avant d'en ajouter une autre."
@@ -4294,8 +4339,8 @@ msgid "Edit SCIM target"
 msgstr "Modifier la cible SCIM"
 
 #: apps/site/src/lib/site-shell-messages.ts
-msgid "Edit this page"
-msgstr "Modifier cette page"
+msgid "Edit this page on GitHub"
+msgstr "Modifier cette page sur GitHub"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Eight source Queues move email, WhatsApp, SMS, audit, webhook, metering, outbound SCIM, and privacy work off authentication paths."
@@ -4346,9 +4391,17 @@ msgstr "Adresse e-mail"
 msgid "Email addresses"
 msgstr "Adresses e-mail"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Email code and magic link"
+msgstr "Code par e-mail et lien magique"
+
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 msgid "Email codes and magic links follow the sign-in policy of each organization and are not listed here."
 msgstr "Les codes par e-mail et les liens magiques suivent la politique de connexion de chaque organisation et ne sont pas listés ici."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Email link and code sign-in: verified in production on xid.dev. Other sign-in methods and the account page: verified locally."
+msgstr "Connexion par lien et code e-mail : vérifiée en production sur xid.dev. Autres méthodes de connexion et page de compte : vérifiées en local."
 
 #: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 msgid "Email me a link"
@@ -4451,6 +4504,10 @@ msgstr "URL du point de terminaison"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Endpoints"
 msgstr "Points de terminaison"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Endpoints, grants, token claims, PAR and DPoP."
+msgstr "Points de terminaison, types d'autorisation, claims de jeton, PAR et DPoP."
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Ends at"
@@ -4596,6 +4653,10 @@ msgstr "Saisissez votre mot de passe"
 msgid "Enter your work email. We'll send you to your company's sign-in page."
 msgstr "Saisissez votre adresse e-mail professionnelle. Nous vous redirigerons vers la page de connexion de votre entreprise."
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Enterprise and developers"
+msgstr "Entreprise et développeurs"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Enterprise attestation policy for passkey registration. Direct mode requires hardware attestation chains verified against configured trusted roots."
 msgstr "Politique d'attestation entreprise pour l'enregistrement des clés d'accès. Le mode direct exige des chaînes d'attestation matérielle vérifiées contre les racines de confiance configurées."
@@ -4607,6 +4668,10 @@ msgstr "Politique d'attestation entreprise pour l'enregistrement des clés d'acc
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Enterprise SSO"
 msgstr "SSO d'entreprise"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Enterprise SSO docs"
+msgstr "Documentation SSO d'entreprise"
 
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 msgid "enterprise SSO sign-in"
@@ -4700,6 +4765,18 @@ msgstr "Toutes les applications auxquelles vous vous connectez avec ce compte, d
 msgid "Every app you sign in to with this account."
 msgstr "Toutes les applications auxquelles vous vous connectez avec ce compte."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Every customer gets an organization with both."
+msgstr "Chaque client reçoit une organisation qui offre les deux."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Every customer's SSO setup lands in your support queue."
+msgstr "La configuration SSO de chaque client finit dans votre file de support."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Every feature"
+msgstr "Toutes les fonctionnalités"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "Every organization on this instance, with lifecycle status."
 msgstr "Toutes les organisations de cette instance, avec leur état de cycle de vie."
@@ -4740,13 +4817,17 @@ msgstr "Toutes les personnes pouvant se connecter à {orgName}, y compris les in
 msgid "Everything an admin can do, plus giving and removing the owner role."
 msgstr "Tout ce que peut faire un administrateur, plus attribuer et retirer le rôle de propriétaire."
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Evidence and support"
-msgstr "Preuves et support"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Everything is included in both"
+msgstr "Tout est inclus dans les deux"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
 msgstr "Registre des preuves"
+
+#: apps/site/src/lib/docs-evidence.ts
+msgid "Evidence matrix row"
+msgstr "Ligne de la matrice des preuves"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "example.com"
@@ -4830,10 +4911,6 @@ msgstr "Expire"
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Expires on"
 msgstr "Expire le"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Explore XID"
-msgstr "Explorer XID"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Expo"
@@ -5081,17 +5158,13 @@ msgstr "Intégration FastAPI"
 msgid "Fastest"
 msgstr "Le plus rapide"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Federation and provisioning"
-msgstr "Fédération et approvisionnement"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Feature"
+msgstr "Fonctionnalité"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Field"
 msgstr "Champ"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Filter"
-msgstr "Filtrer"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Filter audit events"
@@ -5104,10 +5177,6 @@ msgstr "Filtrer les événements depuis la date"
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Filter events to date"
 msgstr "Filtrer les événements jusqu'à la date"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Filter navigation"
-msgstr "Filtrer la navigation"
 
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 msgid "Filter organizations by name or slug"
@@ -5167,10 +5236,6 @@ msgstr "Interne"
 msgid "First-party app: skip the consent screen"
 msgstr "Application interne : ignorer l'écran de consentement"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
-msgstr "Les chemins first-party Hosted Auth, Console et Management API ont des preuves production sur xid.dev. Les affirmations IdP d'entreprise, SaaS aval, OAuth social et SMS ou WhatsApp restent non production-supported tant qu'il n'existe pas de ligne L4 réelle pour ce chemin."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Flutter"
 msgstr "Flutter"
@@ -5192,10 +5257,6 @@ msgstr "Pour {0} sur cet appareil."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "For a developer app on another origin, configure <0>mode: 'oidc'</0> with issuer, clientId, and an exact redirectUri. Use same-origin mode only when the application routes Core auth endpoints on its exact origin. XID has no publishable-key credential."
 msgstr "Pour une application de développeur sur une autre origine, configurez <0>mode: 'oidc'</0> avec issuer, clientId et un redirectUri exact. Utilisez le mode same-origin uniquement lorsque l'application route les points de terminaison d'authentification Core sur son origine exacte. XID ne possède aucun identifiant publishable-key."
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "For humans"
-msgstr "Pour les humains"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Force inbound enterprise SSO"
@@ -5233,6 +5294,18 @@ msgstr "Les fonctionnalités d'intégration de framework (<0>axum</0>,<1>actix-w
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Framework-agnostic reactive store; subscribe with useSyncExternalStore in framework bindings"
 msgstr "Store réactif indépendant du framework ; s'abonner avec useSyncExternalStore dans les liaisons framework"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Free today"
+msgstr "Gratuit aujourd'hui"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Free today. No plans or tiers."
+msgstr "Gratuit aujourd'hui. Ni formules ni niveaux."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Free, MIT licensed"
+msgstr "Gratuit, sous licence MIT"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -5299,22 +5372,6 @@ msgstr "Une base OIDC générique est disponible localement. Des modèles d'appl
 msgid "Generic SCIM"
 msgstr "SCIM générique"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "GET /.well-known/openid-configuration"
-msgstr "GET /.well-known/openid-configuration"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "GET /authorize"
-msgstr "GET /authorize"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "GET /jwks"
-msgstr "GET /jwks"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "GET /userinfo"
-msgstr "GET /userinfo"
-
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Get a code by text message"
 msgstr "Recevoir un code par SMS"
@@ -5323,17 +5380,11 @@ msgstr "Recevoir un code par SMS"
 msgid "Get a sign-in link"
 msgstr "Recevoir un lien de connexion"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Get started"
-msgstr "Commencer"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/site-shell-messages.ts
 msgid "Getting started"
 msgstr "Premiers pas"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
 msgid "GitHub"
 msgstr "GitHub"
 
@@ -5592,10 +5643,6 @@ msgid "Hooks"
 msgstr "Hooks"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Hosted Auth"
-msgstr "Authentification hébergée"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Hosted Auth only displays enabled providers that have credentials and organization policy permission."
 msgstr "Hosted Auth n'affiche que les fournisseurs activés qui disposent d'identifiants et de l'autorisation de la politique de l'organisation."
 
@@ -5603,17 +5650,17 @@ msgstr "Hosted Auth n'affiche que les fournisseurs activés qui disposent d'iden
 msgid "Hosted Auth sign-in flow helpers"
 msgstr "Assistants du flux de connexion Hosted Auth"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
-msgstr "Hosted Auth, clés d'accès, mots de passe, liens magiques, connexion sociale, MFA, récupération, consentement et gestion autonome du compte."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Hosted Auth, protocols, APIs, data, and asynchronous work"
-msgstr "Hosted Auth, protocoles, API, données et tâches asynchrones"
-
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hosted flow"
 msgstr "Flux d'authentification hébergée"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Hosted pages and organizations"
+msgstr "Pages hébergées et organisations"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Hosted pages on your organization's subdomain of xid.dev"
+msgstr "Pages hébergées sur le sous-domaine xid.dev de votre organisation"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Hosted redirect, app link callback, and secure storage adapter."
@@ -5623,9 +5670,25 @@ msgstr "Redirection hébergée, callback d'app link et adaptateur de stockagesé
 msgid "Hosted redirect, deep link callback, PKCE S256, and secure storage adapter contract."
 msgstr "Contrat de redirection hébergée, de callback de lien profond, de PKCE S256 et d'adaptateur de stockage sécurisé."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Hosted sign-in"
+msgstr "Connexion hébergée"
+
 #: apps/site/src/lib/home-surface.ts
-msgid "Hosted sign-in, passkeys, password, MFA, session management, consent, and account self-service share one tenant-aware Core."
-msgstr "Hosted Sign-in, passkeys, mot de passe, MFA, gestion des sessions, consentement et libre-service du compte partagent un Core conscient du tenant."
+msgid "Hosted sign-in docs"
+msgstr "Documentation de la connexion hébergée"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Hosted sign-in page"
+msgstr "Page de connexion hébergée"
+
+#: apps/site/src/lib/product-shots.ts
+msgid "Hosted sign-in page for Northwind Logistics, continuing to the Fleet Planner app"
+msgstr "Page de connexion hébergée de Northwind Logistics, qui mène à l'application Fleet Planner"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Hosted sign-in, OIDC, SSO and SCIM per organization, one console."
+msgstr "Connexion hébergée, OIDC, SSO et SCIM par organisation, une seule console."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Hostname ownership"
@@ -5642,6 +5705,10 @@ msgstr "Statut du nom d'hôte :"
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "How the app authenticates"
 msgstr "Mode d'authentification de l'application"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "How usage is counted"
+msgstr "Comment l'utilisation est comptée"
 
 #: apps/server/src/routes/account/SecurityPage.tsx
 msgid "How you sign in to {appName}, and what keeps someone else from doing it."
@@ -5727,10 +5794,6 @@ msgstr "https://oauth2.googleapis.com/token"
 msgid "https://openidconnect.googleapis.com/v1/userinfo"
 msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "https://xid.dev/sign-in"
-msgstr "https://xid.dev/sign-in"
-
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 msgid "I saved the secret somewhere safe"
 msgstr "J'ai enregistré le secret en lieu sûr"
@@ -5756,14 +5819,6 @@ msgstr "Mode d'identifiant"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Identifier policy"
 msgstr "Politique d'identifiants"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Identity infrastructure for Cloudflare"
-msgstr "Infrastructure d'identité pour Cloudflare"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Identity protocols"
-msgstr "Protocoles d'identité"
 
 #: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 msgid "Identity provider"
@@ -5820,6 +5875,10 @@ msgstr "Si cette adresse a un compte, un nouveau lien est en route. Ouvrez l'e-m
 msgid "If using a custom URI scheme redirect rather than the WebView2 embedded window, forward the protocol activation URI to <0>HandleRedirectAsync</0>:"
 msgstr "Si vous utilisez une redirection de schéma URI personnalisé plutôt que lafenêtre WebView2 intégrée, transmettez l'URI d'activation du protocole à<0>HandleRedirectAsync</0> :"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "If XID Cloud starts charging"
+msgstr "Si XID Cloud devient payant"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "If you approve, {app} gets"
 msgstr "Si vous approuvez, {app} obtient"
@@ -5870,6 +5929,7 @@ msgid "Impersonation session"
 msgstr "Session en tant qu'autre utilisateur"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/pricing-surface.ts
 msgid "Implemented"
 msgstr "Implémenté"
 
@@ -5909,6 +5969,14 @@ msgstr "Dans l'application, ajoutez un compte et pointez l'appareil photo vers l
 msgid "In the app, add an account and point your camera at the code. It will appear as {issuerName} ({accountName})."
 msgstr "Dans l'application, ajoutez un compte et pointez l'appareil photo vers le code. Il apparaîtra sous le nom {issuerName} ({accountName})."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "In the Console, open Applications and create an application. Register the exact redirect URI of your app and copy its client ID."
+msgstr "Dans la console, ouvrez Applications et créez une application. Enregistrez l'URI de redirection exacte de votre application et copiez son ID client."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "In XID's Cloudflare account, on D1, KV, R2 and Durable Objects. Choosing a data region isn't available."
+msgstr "Dans le compte Cloudflare de XID, sur D1, KV, R2 et Durable Objects. Le choix d'une région de données n'est pas disponible."
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "In your password manager or on a security key. Anyone who can unlock that device can sign in."
 msgstr "Dans votre gestionnaire de mots de passe ou sur une clé de sécurité. Toute personne capable de déverrouiller cet appareil peut se connecter."
@@ -5920,10 +5988,6 @@ msgstr "Mémoire en cours de processus uniquement. Les jetons sont perdus à la 
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Inactive"
 msgstr "Inactif"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs."
-msgstr "SAML et OIDC d'entreprise entrants, provisionnement SCIM des utilisateurs et groupes, webhooks, journaux d'audit et API de gestion."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -5938,9 +6002,21 @@ msgstr "SSO entreprise entrant | Console | XID"
 msgid "Inbound enterprise SSO means XID acts as the SAML service provider or OIDC relying party for a company IdP. Downstream SaaS SSO means XID acts as the SAML or OIDC identity provider for apps such as Slack, GitHub Enterprise Cloud, Microsoft custom apps, Atlassian, Salesforce, and Zoom."
 msgstr "Le SSO d'entreprise entrant signifie que XID agit comme fournisseur de services SAML ou comme relying party OIDC pour l'IdP d'une entreprise. Le SSO SaaS en aval signifie que XID agit comme fournisseur d'identité SAML ou OIDC pour des applications telles que Slack, GitHub Enterprise Cloud, les applications Microsoft personnalisées, Atlassian, Salesforce et Zoom."
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Inbound SAML and OIDC SSO, inbound SCIM 2.0, XID as identity provider"
+msgstr "SSO SAML et OIDC entrant, SCIM 2.0 entrant, XID comme fournisseur d'identité"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Inbound SCIM 2.0 directory sync for users and groups."
+msgstr "Synchronisation d'annuaire SCIM 2.0 entrante pour les utilisateurs et les groupes."
+
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Inbound SSO connections"
 msgstr "Connexions SSO inbound"
+
+#: apps/site/src/lib/product-shots.ts
+msgid "Inbound SSO connections in the XID console with an active Okta SAML connection"
+msgstr "Connexions SSO entrantes dans la console XID, avec une connexion SAML Okta active"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Incident history"
@@ -5965,6 +6041,10 @@ msgstr "Indiquez l'indicatif du pays, par exemple +33 1 23 45 67 89."
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Include the session ID (sid) in the logout token"
 msgstr "Inclure l'ID de session (sid) dans le jeton de déconnexion"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Included"
+msgstr "Inclus"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Indirect"
@@ -6026,10 +6106,6 @@ msgstr "Entrée pour signInPassword"
 msgid "Inspect failed queue metadata and deliberately replay the KEK-encrypted original message."
 msgstr "Inspectez les métadonnées de la file d'attente ayant échoué et relisez délibérément le message original chiffré avec KEK."
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Inspect the protocol matrix"
-msgstr "Inspecter la matrice du protocole"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Install"
 msgstr "Installer"
@@ -6079,9 +6155,17 @@ msgstr "Valeurs par défaut à l'échelle de l'instance héritées par les organ
 msgid "Integration setup"
 msgstr "Configuration de l'intégration"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Integration-tested"
+msgstr "Testé en intégration"
+
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Inter, system-ui, sans-serif"
 msgstr "Inter, system-ui, sans-serif"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Interface languages"
+msgstr "Langues d'interface"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 #: apps/site/src/lib/site-shell-messages.ts
@@ -6145,6 +6229,10 @@ msgstr "iOS"
 msgid "iOS 16+ / macOS 13+"
 msgstr "iOS 16+ / macOS 13+"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Is XID ready for production?"
+msgstr "XID est-il prêt pour la production ?"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "island client singleton"
 msgstr "singleton client island"
@@ -6189,6 +6277,10 @@ msgstr "Émis lorsque l'application demande offline_access. Chaque utilisation r
 msgid "Issuer"
 msgstr "Émetteur"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "It bills per monthly active user, and nothing else."
+msgstr "Il facture par utilisateur actif mensuel, et rien d'autre."
+
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "It can sync to your other devices through your password manager."
 msgstr "Elle peut se synchroniser sur vos autres appareils via votre gestionnaire de mots de passe."
@@ -6196,6 +6288,10 @@ msgstr "Elle peut se synchroniser sur vos autres appareils via votre gestionnair
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "It can't be guessed, and look-alike sites can't use it."
 msgstr "Elle ne peut pas être devinée, et les sites imitateurs ne peuvent pas l'utiliser."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "It is free today. If it ever charges, it bills only per monthly active user, and no feature is reserved for paying customers."
+msgstr "C'est gratuit aujourd'hui. S'il devient payant, il facturera uniquement par utilisateur actif mensuel, et aucune fonctionnalité ne sera réservée aux clients payants."
 
 #: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "It may have been used already. Ask your organization admin for a new one."
@@ -6212,6 +6308,10 @@ msgstr "Il figure sur une liste publique de mots de passe divulgués, donc les a
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "It's on the sign-in screen of the device you're setting up."
 msgstr "Il s'affiche sur l'écran de connexion de l'appareil que vous configurez."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "It's the same code. You can export users with the Management API; password hashes are not exported, and passkeys need to be registered again on the new domain. There is no one-step migration tool."
+msgstr "C'est le même code. Vous pouvez exporter les utilisateurs avec l'API de gestion ; les hachages de mots de passe ne sont pas exportés, et les clés d'accès doivent être réenregistrées sur le nouveau domaine. Il n'existe pas d'outil de migration en une étape."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Java"
@@ -6376,6 +6476,10 @@ msgstr "Attributs clés"
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Key metrics"
 msgstr "Métriques clés"
+
+#: apps/site/src/lib/product-shots.ts
+msgid "Key metrics in the XID console overview: daily and monthly active users"
+msgstr "Indicateurs clés dans la vue d'ensemble de la console XID : utilisateurs actifs quotidiens et mensuels"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Key name"
@@ -6554,8 +6658,13 @@ msgid "Level"
 msgstr "Niveau"
 
 #: apps/site/src/lib/home-surface.ts
+#: apps/site/src/lib/site-shell-messages.ts
 msgid "License"
 msgstr "Licence"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Light"
+msgstr "Clair"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Like getAuth but throws a redirect response when unauthenticated"
@@ -6821,6 +6930,10 @@ msgid "Logo URL (light)"
 msgstr "URL du logo (clair)"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Logo, colors and corner radius per organization."
+msgstr "Logo, couleurs et arrondi des angles par organisation."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Low-level access token verification: signature, exp, nbf, iss, aud, azp"
 msgstr "Vérification bas niveau du token d'accès : signature, exp, nbf, iss, aud, azp"
 
@@ -6861,7 +6974,6 @@ msgid "macOS 13+"
 msgstr "macOS 13+"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
 msgid "Magic link"
 msgstr "Lien magique"
 
@@ -6995,6 +7107,7 @@ msgid "Managed scope"
 msgstr "Périmètre géré"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/pricing-surface.ts
 msgid "Management API"
 msgstr "API de gestion"
 
@@ -7127,6 +7240,10 @@ msgstr "Méthodes"
 msgid "MFA adoption"
 msgstr "Adoption MFA"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "MFA: authenticator app, SMS, backup codes, passkey"
+msgstr "MFA : application d'authentification, SMS, codes de secours, clé d'accès"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Microsoft account"
 msgstr "Compte Microsoft"
@@ -7184,6 +7301,10 @@ msgstr "Impact mineur"
 msgid "Missing"
 msgstr "Manquant"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "MIT licensed"
+msgstr "Sous licence MIT"
+
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 msgid "Mobile number"
 msgstr "Numéro de mobile"
@@ -7193,16 +7314,8 @@ msgid "Mobile or desktop app. Uses PKCE and may use custom-scheme redirects."
 msgstr "Application mobile ou de bureau. Utilise PKCE et peut utiliser des redirections avec un schéma personnalisé."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Mobile SDKs"
-msgstr "SDK mobiles"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Model Organization, OrgUnit, project, and access approval boundaries."
 msgstr "Modèle d’organisation, d’unité organisationnelle, de projet et de limites d’approbation d’accès."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Model organizations, OrgUnits, projects, roles, grants, approval policies, and access requests without creating a separate admin tenant."
-msgstr "Modélisez des organisations, des OrgUnits, des projets, des rôles, des octrois, des politiques d'approbation et des demandes d'accès sans créer de locataire administrateur distinct."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Module"
@@ -7330,10 +7443,6 @@ msgstr "Les clients publics natifs utilisent le code d'autorisation avec PKCE S2
 msgid "Native SDK that compiles and passes its unit test suite on a local toolchain. A round-trip against a real production IdP still requires manual verification."
 msgstr "SDK natif qui compile et passe sa suite de tests unitaires sur une chaîned'outils locale. Un aller-retour contre un vrai IdP de productionnécessite encore une vérification manuelle."
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Navigation"
-msgstr "Navigation"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Networkless JWT verification, request authentication, and webhook signature validation for edge and server runtimes."
 msgstr "Vérification JWT sans réseau, authentification de requête et validation de signature de webhook pour les runtimes edge et serveur."
@@ -7397,10 +7506,6 @@ msgstr "Nouveau depuis votre dernière autorisation de {app}"
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "New to {org}?"
 msgstr "Nouveau sur {org} ?"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "New to XID? Create an account"
-msgstr "Nouveau sur XID ? Créez un compte"
 
 #: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/users/UsersList.tsx
@@ -7572,6 +7677,10 @@ msgstr "Toujours pas d'e-mail ?"
 msgid "No export yet"
 msgstr "Pas encore d'export"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No feature is ever reserved for paying customers. There are no plans to upgrade to."
+msgstr "Aucune fonctionnalité n'est jamais réservée aux clients payants. Il n'y a pas de formule vers laquelle passer."
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No group"
 msgstr "Aucun groupe"
@@ -7592,6 +7701,10 @@ msgstr "Aucun incident n'a été signalé."
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "No instance managers found."
 msgstr "Aucun gestionnaire d'instance trouvé."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No license key, and nothing reports back to XID"
+msgstr "Pas de clé de licence, et rien n'est renvoyé à XID"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No mechanism to detect when the user closes Custom Tabs without completing authorization."
@@ -7670,6 +7783,14 @@ msgstr "Aucune invitation en attente."
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No permissions mapped to this role."
 msgstr "Aucune autorisation mappée à ce rôle."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No plans"
+msgstr "Aucune formule"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No plans, no tiers, no paid features. If XID Cloud ever charges, it bills only for monthly active users. Self-hosted XID has the same features, with billing off unless you turn it on."
+msgstr "Ni formules, ni niveaux, ni fonctionnalités payantes. Si XID Cloud devient payant, il facturera uniquement les utilisateurs actifs mensuels. XID auto-hébergé offre les mêmes fonctionnalités, avec la facturation désactivée sauf si vous l'activez."
 
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 msgid "No platform stats available."
@@ -7777,6 +7898,10 @@ msgstr "Aucun point de terminaison webhook configuré."
 msgid "No, it's different"
 msgstr "Non, il est différent"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "No. There are no plans or tiers. Every feature is available on XID Cloud and when you self-host."
+msgstr "Non. Il n'y a ni formules ni niveaux. Toutes les fonctionnalités sont disponibles sur XID Cloud et en auto-hébergement."
+
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Nobody has a direct {name} role yet."
 msgstr "Personne n'a encore de rôle direct dans {name}."
@@ -7800,6 +7925,10 @@ msgstr "Aucun numéro. Une fois ajouté, les applications pourront vous envoyer 
 #: apps/server/src/routes/account/PhoneSection.tsx
 msgid "None added. This organization doesn't send text messages yet."
 msgstr "Aucun numéro. Cette organisation n'envoie pas encore de SMS."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "None by default. If one is set, it only stops creating new sub-organizations or SSO connections. No limit stops sign-in, sign-up, SSO or SCIM provisioning, or token refresh."
+msgstr "Aucune par défaut. Si une limite est définie, elle empêche seulement de créer de nouvelles sous-organisations ou connexions SSO. Aucune limite ne bloque la connexion, l'inscription, le SSO, le provisionnement SCIM ou le renouvellement des jetons."
 
 #: apps/console/src/routes/users/user-columns.tsx
 msgid "None set"
@@ -7904,6 +8033,14 @@ msgstr "Non vérifié"
 msgid "Not yet implemented"
 msgstr "Pas encore implémenté"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Not yet published to npm"
+msgstr "Pas encore publié sur npm"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Not yet."
+msgstr "Pas encore."
+
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "Not your work account?"
 msgstr "Ce n'est pas votre compte professionnel ?"
@@ -7933,6 +8070,14 @@ msgstr "Rien ne se passe ?"
 #: packages/web-ui/src/components/ui/CommandMenu.tsx
 msgid "Nothing matches. Try a name, email or ID."
 msgstr "Aucun résultat. Essayez un nom, une adresse e-mail ou un ID."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Nothing switches off"
+msgstr "Rien ne se désactive"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Nothing to XID. You pay Cloudflare for what your account uses, and sending email to any recipient needs the Workers Paid plan. You also need a domain whose DNS you control."
+msgstr "Rien pour XID. Vous payez à Cloudflare ce que votre compte utilise, et l'envoi d'e-mails à n'importe quel destinataire nécessite le forfait Workers Paid. Il vous faut aussi un domaine dont vous gérez le DNS."
 
 #: apps/server/src/routes/consent/index.tsx
 msgid "Nothing was shared with"
@@ -8032,10 +8177,6 @@ msgid "OIDC and OAuth"
 msgstr "OIDC et OAuth"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions."
-msgstr "OIDC et OAuth 2.0, émission de jetons, découverte, JWKS, organisations, projets, applications, rôles et autorisations."
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OIDC authorization code"
 msgstr "Code d'autorisation OIDC"
 
@@ -8092,6 +8233,10 @@ msgstr "Activé"
 msgid "On a different computer, your browser can show a QR code to scan with your phone."
 msgstr "Sur un autre ordinateur, votre navigateur peut afficher un QR code à scanner avec votre téléphone."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "On a self-hosted instance, use your own instance domain instead of <0>https://xid.dev</0>. <1>Self-hosting</1> covers the deployment."
+msgstr "Sur une instance auto-hébergée, utilisez votre propre domaine d'instance au lieu de <0>https://xid.dev</0>. <1>Auto-hébergement</1> décrit le déploiement."
+
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 msgid "On one device or security key"
 msgstr "Sur un seul appareil ou une clé de sécurité"
@@ -8106,12 +8251,16 @@ msgid "On this page"
 msgstr "Sur cette page"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "One control plane from sign-in to enterprise access"
-msgstr "Un plan de contrôle depuis la connexion jusqu'à l'accès à l'entreprise"
+msgid "One console for you and them. You see every organization; their admins see only theirs, with the same pages for members, SSO, branding and audit logs."
+msgstr "Une seule console pour vous et pour eux. Vous voyez toutes les organisations ; leurs administrateurs ne voient que la leur, avec les mêmes pages pour les membres, le SSO, la marque et les journaux d'audit."
 
 #: apps/site/src/lib/home-surface.ts
-msgid "One deployment model"
-msgstr "Un modèle de déploiement"
+msgid "One identity product for your app and your customers"
+msgstr "Un seul produit d'identité pour votre application et vos clients"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "One identity product: sign-in, OIDC, organizations, enterprise SSO and a console."
+msgstr "Un seul produit d'identité : connexion, OIDC, organisations, SSO d'entreprise et une console."
 
 #: apps/server/src/routes/account/step-up.tsx
 msgid "One of your backup codes"
@@ -8125,13 +8274,13 @@ msgstr "Une étape facultative avant l'ouverture de {appName}."
 msgid "One optional step before you continue."
 msgstr "Une étape facultative avant de continuer."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "One organization per customer, with members, roles and its own admins."
+msgstr "Une organisation par client, avec ses membres, ses rôles et ses propres administrateurs."
+
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "One per line. Each must match exactly; wildcards are not allowed."
 msgstr "Une par ligne. Chacune doit correspondre exactement ; les caractères génériques ne sont pas autorisés."
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "One platform for identity"
-msgstr "Une plateforme unique pour l'identité"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "One secret is active at a time. XID keeps only a hash, so the secret cannot be shown again; rotating creates a new one and shows it once."
@@ -8238,13 +8387,9 @@ msgstr "Ouvrir l'organisation"
 msgid "Open read-only session"
 msgstr "Ouvrir une session en lecture seule"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Open source identity platform"
-msgstr "Plateforme d'identité open source"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Open source, inspectable, and self-hostable"
-msgstr "Open source, inspectable et auto-hébergable"
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Open source"
+msgstr "Projet open source"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
@@ -8290,6 +8435,10 @@ msgstr "Ouvrez votre application d'authentification et saisissez le code à 6 ch
 msgid "openAuthSession(url, redirectUri) resolving to a BrowserResult"
 msgstr "openAuthSession(url, redirectUri) se résolvant en un BrowserResult"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "OpenID Connect: authorization code, PAR, DPoP"
+msgstr "OpenID Connect : code d'autorisation, PAR, DPoP"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OpenID Federation exposes entity metadata and a registration boundary only. Trust-chain resolution, trust anchors, policy processing, and production interoperability are not implemented."
 msgstr "OpenID Federation expose uniquement les métadonnées d’entité et une limite d’enregistrement. La résolution de la chaîne de confiance, les ancres de confiance, le traitement des politiques et l'interopérabilité de la production ne sont pas mis en œuvre."
@@ -8307,13 +8456,9 @@ msgstr "Ouverture de l'organisation"
 msgid "Opens system browser, exchanges code, stores tokens"
 msgstr "Ouvre le navigateur système, échange le code, stocke les jetons"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "OpenSSF Best Practices badge for XID"
-msgstr "Badge des meilleures pratiques OpenSSF pour XID"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "OpenSSF Scorecard for XID"
-msgstr "Tableau de bord OpenSSF pour XID"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Operated by XID on xid.dev."
+msgstr "Exploité par XID sur xid.dev."
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Operational"
@@ -8388,10 +8533,6 @@ msgstr "Flux de création d'organisation"
 msgid "Organization"
 msgstr "Organisation"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Organization and instance management UI"
-msgstr "Interface utilisateur de gestion des organisations et des instances"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organization context is not populated from stored tokens yet."
 msgstr "Le contexte d'organisation n'est pas encore alimenté depuis les jetonsstockés."
@@ -8439,6 +8580,10 @@ msgstr "Profil de l'organisation"
 msgid "Organization settings"
 msgstr "Paramètres de l'organisation"
 
+#: apps/site/src/lib/product-shots.ts
+msgid "Organization switcher in the XID console listing the organizations and projects the admin manages"
+msgstr "Sélecteur d'organisation dans la console XID, listant les organisations et projets gérés par l'administrateur"
+
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
@@ -8462,10 +8607,6 @@ msgstr "Organisations | Compte | XID"
 msgid "Organizations | Console | XID"
 msgstr "Organisations | Console | XID"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Organizations and access"
-msgstr "Organisations et accès"
-
 #: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
 msgid "Organizations and roles"
 msgstr "Organisations et rôles"
@@ -8478,9 +8619,17 @@ msgstr "Les organisations peuvent exiger des identifiants e-mail, des identifian
 msgid "Organizations could not be loaded"
 msgstr "Impossible de charger les organisations"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Organizations docs"
+msgstr "Documentation des organisations"
+
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 msgid "Organizations you manage"
 msgstr "Organisations que vous gérez"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Organizations, SSO and Console"
+msgstr "Organisations, SSO et console"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OrgUnit trees support a maximum depth of eight."
@@ -8547,10 +8696,6 @@ msgstr "Package"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Package guides"
 msgstr "Guides des packages"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Package manager"
-msgstr "Gestionnaire de paquets"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Package name identifier '@xid-kit/backend'"
@@ -8691,7 +8836,6 @@ msgstr "Transmettez <0>appearance</0> aux composants UI préconstruits tels que 
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
-#: apps/site/src/lib/home-surface.ts
 msgid "Passkey"
 msgstr "clé d'accès"
 
@@ -8718,6 +8862,7 @@ msgstr "Échec de la vérification de la clé d’accès. Essayez une autre mét
 
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/site/src/lib/pricing-surface.ts
 msgid "Passkeys"
 msgstr "clés d'accès"
 
@@ -8758,6 +8903,10 @@ msgstr "Robustesse du mot de passe"
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Password strength meter"
 msgstr "Indicateur de robustesse du mot de passe"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Password with breach checks, social sign-in"
+msgstr "Mot de passe avec vérification des fuites, connexion sociale"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
@@ -9016,9 +9165,9 @@ msgstr "Configuration du plugin"
 msgid "Polling too often. Wait for the polling interval before the next request."
 msgstr "Interrogations trop fréquentes. Attendez l'intervalle d'interrogation avant la requête suivante."
 
-#: apps/site/src/lib/home-surface.ts
-msgid "POST /token"
-msgstr "POST /token"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Pre-1.0. Core paths of hosted sign-in, the console and the Management API are verified in production on xid.dev. Everything else is verified locally."
+msgstr "Version antérieure à 1.0. Les parcours principaux de la connexion hébergée, de la console et de l'API de gestion sont vérifiés en production sur xid.dev. Tout le reste est vérifié en local."
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Prefix"
@@ -9062,6 +9211,10 @@ msgstr "Aperçu"
 #: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Previous"
 msgstr "Précédent"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Pricing"
+msgstr "Tarifs"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 #: apps/server/src/routes/account/EmailSection.tsx
@@ -9123,13 +9276,9 @@ msgstr "Traiter un callback App Link ou de schéma personnalisé. Appelé en int
 msgid "Product"
 msgstr "Produit"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Product and setup"
-msgstr "Produit et configuration"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Product, documentation, search, and agent-readable content"
-msgstr "Produit, documentation, recherche et contenu lisible par l'agent"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Production"
+msgstr "Production"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production and staging require KEK, PEPPER, and BOOTSTRAP_TOKEN as Workers Secrets. Never place them in variables, D1, source files, or build logs."
@@ -9147,9 +9296,9 @@ msgstr "Configuration de production"
 msgid "Production evidence"
 msgstr "Preuve de production"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Production where proven, local where not"
-msgstr "Production là où c'est prouvé, local ailleurs"
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Production, core paths"
+msgstr "Production, parcours principaux"
 
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
@@ -9203,10 +9352,6 @@ msgstr "ID du projet"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project identity remains stable while its name and description change."
 msgstr "L'identité du projet reste stable tandis que son nom et sa description changent."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Project links"
-msgstr "Liens du projet"
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/console/ManagedProjects.tsx
@@ -9299,17 +9444,9 @@ msgstr "Protocole"
 msgid "Protocol requirements"
 msgstr "Exigences de protocole"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Protocol traffic"
-msgstr "Trafic protocolaire"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
 msgstr "Protocoles"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Protocols and developer experience"
-msgstr "Protocoles et expérience des développeurs"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Provide separate light and dark logo URLs. Both must be public HTTPS URLs; the light logo is also shown on the consent page."
@@ -9446,14 +9583,6 @@ msgstr "Les clients publics ne stockent jamais de secrets client."
 msgid "Public clients use Authorization Code with PKCE S256. No client secret is stored."
 msgstr "Les clients publics utilisent Authorization Code avec PKCE S256. Aucunsecret client n'est stocké."
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Public content and management stay binding-free. Identity state, protocols, and policy remain in Core."
-msgstr "Le contenu public et la gestion restent sans bindings. L'état d'identité, les protocoles et les politiques restent dans Core."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Public locales"
-msgstr "Langues publiques"
-
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 msgid "public metadata"
 msgstr "métadonnées publiques"
@@ -9534,6 +9663,10 @@ msgstr "QR code pour ajouter ce compte à votre application d'authentification"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Query"
 msgstr "Requête"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Questions"
+msgstr "Questions"
 
 #: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Quick actions"
@@ -9676,10 +9809,6 @@ msgstr "Lire les métadonnées de l'émetteur avant de configurer une relying pa
 msgid "Read organization audit events with cursor pagination."
 msgstr "Consulter les événements d'audit de l'organisation avec une pagination par curseur."
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Read the documentation"
-msgstr "Lire la documentation"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Read the organization unit tree."
 msgstr "Lisez l’arborescence des unités d’organisation."
@@ -9780,6 +9909,10 @@ msgstr "URI de redirection enregistrées"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirect users to the unified Hosted Auth flow."
 msgstr "Rediriger les utilisateurs vers le flux unifié d'authentification hébergée."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Redirect users to XID for sign-in, sign-up, MFA and consent."
+msgstr "Rediriger les utilisateurs vers XID pour la connexion, l'inscription, la MFA et le consentement."
 
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
 msgid "Redirecting"
@@ -10651,9 +10784,13 @@ msgstr "Ruby"
 msgid "Ruby server SDK for networkless JWT verification, Rack/Rails request authentication, and webhook signature validation."
 msgstr "SDK serveur Ruby pour la vérification JWT sans réseau, l'authentificationdes requêtes Rack/Rails et la validation des signatures webhook."
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Run it in your own Cloudflare account."
+msgstr "Exécutez-le dans votre propre compte Cloudflare."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
-msgstr "Exécutez la même base de code sous licence MIT en mode mono-tenant ou multi-tenant dans votre compte Cloudflare. L'auto-hébergement inclut toutes les fonctionnalités, sans vérification de licence ni édition séparée."
+msgid "Run XID"
+msgstr "Exécuter XID"
 
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Runs in the browser. Uses PKCE, no secret."
@@ -10662,10 +10799,6 @@ msgstr "S'exécute dans le navigateur. Utilise PKCE, sans secret."
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Runs on your servers and keeps a client secret."
 msgstr "S'exécute sur vos serveurs et conserve un secret client."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Runtime"
-msgstr "Durée d'exécution"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Runtime or language"
@@ -10707,9 +10840,17 @@ msgstr "SaaS"
 msgid "Salesforce"
 msgstr "Salesforce"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Same on XID Cloud and self-hosted. Status from the public evidence matrix."
+msgstr "Identique sur XID Cloud et en auto-hébergement. Statut issu de la matrice publique des preuves."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Same-organization behavior"
 msgstr "Comportement dans la même organisation"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "SAML"
+msgstr "SAML"
 
 #: apps/console/src/nav.tsx
 msgid "SAML apps"
@@ -10726,10 +10867,6 @@ msgstr "SAML est provider-ready : les preuves locales et fake-IdP couvrent les r
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SAML Single Logout is implemented and verified locally at L1/L2 for inbound and outbound SAML. The Slack profile is excluded because Slack does not support SLO; real IdP and downstream SaaS L4 evidence remains UNKNOWN."
 msgstr "SAML Single Logout est implémenté et vérifié localement aux niveaux L1/L2 pour le SAML entrant et sortant. Le profil Slack est exclu car Slack ne prend pas en charge SLO; les preuves L4 avec des IdP réels et des SaaS en aval restent UNKNOWN."
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SAML SSO"
-msgstr "SAML SSO"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "saml_certificate_renewed"
@@ -10835,12 +10972,12 @@ msgid "Schedule the deletion"
 msgstr "Planifier la suppression"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SCIM 2.0 endpoint contract for provisioning users and groups into XID."
-msgstr "Contrat de point de terminaison SCIM 2.0 pour provisionner des utilisateurs et des groupes dans XID."
+msgid "SCIM"
+msgstr "SCIM"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SCIM API reference"
-msgstr "Référence de l'API SCIM"
+msgid "SCIM 2.0 endpoint contract for provisioning users and groups into XID."
+msgstr "Contrat de point de terminaison SCIM 2.0 pour provisionner des utilisateurs et des groupes dans XID."
 
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "SCIM base URL"
@@ -10900,10 +11037,7 @@ msgid "Scopes"
 msgstr "Portées"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SDK overview"
-msgstr "Vue d'ensemble des SDK"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/pricing-surface.ts
 msgid "SDKs"
 msgstr "SDK"
 
@@ -10911,7 +11045,6 @@ msgstr "SDK"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-#: apps/site/src/lib/site-shell-messages.ts
 msgid "Search"
 msgstr "Rechercher"
 
@@ -10933,7 +11066,7 @@ msgid "Search by name or slug"
 msgstr "Rechercher par nom ou slug"
 
 #: apps/site/src/lib/site-shell-messages.ts
-msgid "Search documentation"
+msgid "Search docs"
 msgstr "Rechercher dans la documentation"
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
@@ -11018,7 +11151,7 @@ msgstr "Espace de nommage des clés SecureStore"
 #: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/SecurityPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
+#: apps/site/src/lib/site-shell-messages.ts
 msgid "Security"
 msgstr "Sécurité"
 
@@ -11045,6 +11178,10 @@ msgstr "Taux de sécurité"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "See"
 msgstr "Voir"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "See pricing"
+msgstr "Voir les tarifs"
 
 #: apps/server/src/components/hosted/scope-copy.ts
 msgid "See your email address"
@@ -11134,10 +11271,26 @@ msgstr "Sélecteur xid-sign-out-button ; entrées sessionId, redirectUrl, ariaLa
 msgid "self sign-up"
 msgstr "inscription autonome"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
+msgid "Self-host XID"
+msgstr "Auto-héberger XID"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Self-hosted"
+msgstr "Auto-hébergé"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Self-hosted XID has the same features as XID Cloud. Billing is off by default and turns on only when <0>STRIPE_SECRET_KEY</0>, <1>STRIPE_WEBHOOK_SECRET</1> and <2>STRIPE_METER_EVENT_NAME</2> are all set. <3>Pricing</3> explains how usage is counted."
+msgstr "XID auto-hébergé offre les mêmes fonctionnalités que XID Cloud. La facturation est désactivée par défaut et ne s'active que lorsque <0>STRIPE_SECRET_KEY</0>, <1>STRIPE_WEBHOOK_SECRET</1> et <2>STRIPE_METER_EVENT_NAME</2> sont tous définis. <3>Tarifs</3> explique comment l'utilisation est comptée."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Self-hosting"
 msgstr "Auto-hébergement"
+
+#: apps/site/src/lib/home-surface.ts
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Self-hosting guide"
+msgstr "Guide d'auto-hébergement"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Self-service path"
@@ -11235,10 +11388,6 @@ msgstr "hook serveur"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server middleware (JWT auth)"
 msgstr "Middleware serveur (authentification JWT)"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Server SDKs"
-msgstr "SDK serveur"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server-side auth in .astro pages"
@@ -11453,10 +11602,6 @@ msgstr "Partagé avec d'autres organisations"
 msgid "Shibboleth"
 msgstr "Shibboleth"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Ship OIDC and OAuth flows, Management APIs, webhooks, framework SDKs, localized docs, and networkless token verification from one repository."
-msgstr "Expédiez des flux OIDC et OAuth, des API de gestion, des webhooks, des SDK de framework, des documents localisés et une vérification de jetons sans réseau à partir d'un seul référentiel."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Short-lived JWT cache and scheduled refresh (advanced use and testing)"
 msgstr "Cache JWT de courte durée et rafraîchissement planifié (usage avancé et tests)"
@@ -11465,13 +11610,13 @@ msgstr "Cache JWT de courte durée et rafraîchissement planifié (usage avancé
 msgid "Show"
 msgstr "Afficher"
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Show {count} more path segments"
-msgstr "Afficher {count} segments de chemin supplémentaires"
-
 #: packages/web-ui/src/components/ui/OneTimeSecret.tsx
 msgid "Show {subject}"
 msgstr "Afficher {subject}"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Show all features"
+msgstr "Afficher toutes les fonctionnalités"
 
 #: apps/console/src/routes/projects/ProjectsList.tsx
 msgid "Show deleted"
@@ -11528,7 +11673,6 @@ msgstr "Se connecter"
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sign in"
 msgstr "Se connecter"
@@ -11649,10 +11793,6 @@ msgstr "Déconnectez-vous, puis connectez-vous autrement ou demandez à votre ad
 msgid "sdk.signUp"
 msgstr "S'inscrire"
 
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "Sign up"
-msgstr "S'inscrire"
-
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Sign up | XID"
 msgstr "Inscription | | XID"
@@ -11661,6 +11801,18 @@ msgstr "Inscription | | XID"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signUpForm"
 msgstr "Formulaire d'inscription"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Sign up on XID Cloud, create an app and verify its tokens."
+msgstr "Inscrivez-vous sur XID Cloud, créez une application et vérifiez ses jetons."
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Sign up, create an app, connect it with OIDC"
+msgstr "Inscrivez-vous, créez une application, connectez-la avec OIDC"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Sign-in"
+msgstr "Connexion"
 
 #: apps/console/src/nav.tsx
 msgid "Sign-in & MFA"
@@ -11673,6 +11825,10 @@ msgstr "Activité de connexion, organisations et utilisation sur cette instance.
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Sign-in address"
 msgstr "Adresse de connexion"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Sign-in and accounts"
+msgstr "Connexion et comptes"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Sign-in and registration flow options — whether new accounts can be created, email verification requirements, and SSO enforcement."
@@ -11753,6 +11909,10 @@ msgstr "Signature"
 msgid "Signature verification"
 msgstr "Vérification de signature"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Signed events for users, organizations and memberships."
+msgstr "Événements signés pour les utilisateurs, les organisations et les adhésions."
+
 #: apps/server/src/routes/account/DevicesPage.tsx
 #: apps/server/src/routes/magic-link/index.tsx
 msgid "Signed in"
@@ -11799,6 +11959,10 @@ msgstr "Connecté avec {method} le {when}."
 msgid "Signed JWT with a registered key (private_key_jwt)"
 msgstr "JWT signé avec une clé enregistrée (private_key_jwt)"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Signed webhooks, hash-chained audit log"
+msgstr "Webhooks signés, journal d'audit chaîné par hachage"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
 msgstr "signIn(options?) exécute le flux de redirection complet ;handleRedirect(url) traite un callback deeplink ; signInState rapporteidle, pending, complete, cancelled ou error"
@@ -11834,10 +11998,6 @@ msgstr "Compte unique uniquement — la couche de stockage utilise des clés fix
 #: apps/console/src/routes/applications/app-format.ts
 msgid "Single-page app"
 msgstr "Application monopage"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Site"
-msgstr "Site web"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Site navigation"
@@ -11915,9 +12075,17 @@ msgstr "Fournisseurs sociaux | Console | XID"
 msgid "Social providers saved."
 msgstr "Fournisseurs sociaux enregistrés."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Social providers such as Google and Microsoft, configured per organization."
+msgstr "Fournisseurs sociaux comme Google et Microsoft, configurés par organisation."
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Social sign-in providers available on this organization's Hosted UI."
 msgstr "Fournisseurs de connexion sociale disponibles sur la Hosted UI de cette organisation."
+
+#: apps/site/src/lib/docs-evidence.ts
+msgid "Social sign-in with Apple, Google, Microsoft and GitHub: verified locally against test providers."
+msgstr "Connexion sociale avec Apple, Google, Microsoft et GitHub : vérifiée en local avec des fournisseurs de test."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Soft-deleted roles and permissions remain visible across refreshes and can be restored to this project."
@@ -12031,9 +12199,30 @@ msgstr "Middleware <0>net/http</0> standard. Injecte <1>*Claims</1> dans leconte
 msgid "Start by reading <0>/.well-known/openid-configuration</0> from the instance domain. The discovery document gives your app the authorization, token, userinfo, logout, and JWKS endpoints for that issuer."
 msgstr "Commencez par lire <0>/.well-known/openid-configuration</0> depuis le domaine de l'instance. Le document de découverte donne à votre application les points de terminaison d'autorisation, de jeton, d'informations utilisateur, de déconnexion et JWKS pour cet émetteur."
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Start free"
+msgstr "Commencer gratuitement"
+
+#: apps/site/src/lib/home-surface.ts
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Start free on XID Cloud"
+msgstr "Commencer gratuitement sur XID Cloud"
+
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Start impersonation session?"
 msgstr "Démarrer une session en tant qu'autre utilisateur ?"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Start on XID Cloud"
+msgstr "Commencer sur XID Cloud"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Start on XID Cloud in a few steps, or run XID in your own Cloudflare account."
+msgstr "Démarrez sur XID Cloud en quelques étapes, ou exécutez XID dans votre propre compte Cloudflare."
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Start with XID Cloud"
+msgstr "Commencer avec XID Cloud"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Started at"
@@ -12061,9 +12250,18 @@ msgstr "Type de callback de listener de changement d'état"
 #: apps/console/src/routes/users/user-columns.tsx
 #: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/pricing-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Status"
 msgstr "Statut"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Status comes from the public evidence matrix in the repository. Only rows marked Production are verified on xid.dev. Self-hosted deployments also get the instance console for every organization on the deployment."
+msgstr "Le statut provient de la matrice publique des preuves dans le dépôt. Seules les lignes marquées Production sont vérifiées sur xid.dev. Les déploiements auto-hébergés disposent aussi de la console d'instance pour toutes les organisations du déploiement."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Status from the public evidence matrix"
+msgstr "Statut issu de la matrice publique des preuves"
 
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
@@ -12175,6 +12373,10 @@ msgstr "Erreur structurée pour les en-têtes manquants, les signatures non vali
 msgid "Structured error returned when token verification fails (expected failure; not thrown)"
 msgstr "Erreur structurée retournée lorsque la vérification du token échoue (échec attendu ; non levée)"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Sub-organizations, members, roles, branding, domain verification"
+msgstr "Sous-organisations, membres, rôles, marque, vérification de domaine"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Subclass"
 msgstr "Sous-classe"
@@ -12212,13 +12414,16 @@ msgid "Success"
 msgstr "Succès"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-#: apps/site/src/lib/home-surface.ts
 msgid "Support"
 msgstr "Assistance"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Support levels"
 msgstr "Niveaux de prise en charge"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Support status"
+msgstr "État de la prise en charge"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Supported SCIM resource types."
@@ -12307,6 +12512,10 @@ msgstr "Basculer"
 msgid "Switch organization"
 msgstr "Changer d'organisation"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Switch organizations in one console"
+msgstr "Changer d'organisation dans une seule console"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.switchSession"
@@ -12315,6 +12524,10 @@ msgstr "Changer de session"
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Switching organization"
 msgstr "Changement d'organisation"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Switching organizations in the console: verified in production on xid.dev."
+msgstr "Changement d'organisation dans la console : vérifié en production sur xid.dev."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Symbol"
@@ -12341,6 +12554,10 @@ msgstr "Synchrone. Valide le HMAC-SHA256 svix + fenêtre de relecture de 5 minut
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "system"
 msgstr "système"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "System"
+msgstr "Système"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "System browser authorization session and callback receipt"
@@ -12673,10 +12890,6 @@ msgstr "Le code MFA est incorrect."
 msgid "The middleware strips any client-supplied auth tokens and re-injects only the verified result."
 msgstr "Le middleware supprime tout jeton d'authentification fourni par le clientet ne réinjecte que le résultat vérifié."
 
-#: apps/site/src/lib/home-surface.ts
-msgid "The MIT-licensed repository includes the complete feature set. Security posture and project governance remain visible through OpenSSF and the public source."
-msgstr "Le dépôt sous licence MIT inclut toutes les fonctionnalités. La posture de sécurité et la gouvernance du projet restent visibles via OpenSSF et le code source public."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The nearest active manager in the OrgUnit ancestor chain is the first access-request approver candidate."
 msgstr "Le responsable actif le plus proche dans la chaîne d'ancêtres de l'OrgUnit est le premier candidat approbateur de demande d'accès."
@@ -12739,10 +12952,6 @@ msgstr "L'ancien secret a cessé de fonctionner lors du renouvellement."
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "The previous token keeps working until {expiresAt}. Update your identity provider before then."
 msgstr "L'ancien jeton reste valide jusqu'au {expiresAt}. Mettez à jour votre fournisseur d'identité avant cette date."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "The product surface"
-msgstr "La surface du produit"
 
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
@@ -12860,6 +13069,10 @@ msgstr "Le SDK ne possède aucune liaison d'expéditeur DPoP, rejette offline_ac
 msgid "The SDK rejects offline_access until DPoP is implemented; unexpected refresh_token response fields are not persisted."
 msgstr "Le SDK rejette offline_access tant que DPoP n'est pas implémenté; les champs de réponse refresh_token inattendus ne sont pas persistés."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The SDKs are not yet published to npm. Until they are, any OIDC library works with the endpoints below."
+msgstr "Les SDK ne sont pas encore publiés sur npm. En attendant, n'importe quelle bibliothèque OIDC fonctionne avec les points de terminaison ci-dessous."
+
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
 msgid "The security check didn't finish. Reload the page and try again."
@@ -12932,6 +13145,18 @@ msgstr "L'utilisateur soumet une demande d'accès."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The XID Worker keeps an opaque refresh credential in an <0>HttpOnly</0> cookie. It is not a JWT, and the SDK never reads it from JavaScript or stores it in <1>localStorage</1>."
 msgstr "Le XID Worker conserve des informations d'identification d'actualisation opaques dans un cookie <0>HttpOnly</0>. Il ne s'agit pas d'un JWT et le SDK ne le lit jamais à partir de JavaScript ni ne le stocke dans <1>localStorage</1>."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Their admins can do it themselves."
+msgstr "Leurs administrateurs peuvent le faire eux-mêmes."
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Theme"
+msgstr "Thème"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Theme: {mode}"
+msgstr "Thème : {mode}"
 
 #: apps/server/src/routes/mfa/index.tsx
 msgid "These are the methods on your account that {org} accepts."
@@ -13030,10 +13255,6 @@ msgstr "Cette demande d'appareil a déjà reçu une réponse."
 #: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "This device will be able to"
 msgstr "Cet appareil pourra"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "This documentation version is no longer maintained"
-msgstr "Cette version de la documentation n'est plus maintenue"
 
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 msgid "This email address already belongs to another account. Sign out of the guest account, then sign in with that email."
@@ -13252,10 +13473,6 @@ msgstr "Cela prend généralement quelques minutes. Le téléchargement reste di
 #: apps/server/src/routes/not-found/ErrorPage.tsx
 msgid "This wasn't caused by anything you did. Try again in a moment."
 msgstr "Vous n'y êtes pour rien. Réessayez dans un instant."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Three focused Workers. One identity platform."
-msgstr "Trois Workers spécialisés. Une plateforme d'identité."
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
 msgid "Through the Management API on {date}"
@@ -13659,7 +13876,6 @@ msgstr "mis à jour"
 
 #: apps/console/src/routes/applications/AppsTable.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
-#: apps/site/src/lib/site-shell-messages.ts
 msgid "Updated"
 msgstr "Mis à jour"
 
@@ -13699,6 +13915,10 @@ msgstr "Facturation à l'usage"
 #: apps/console/src/routes/platform/UsageBillingSection.tsx
 msgid "Usage is billed by metered MAU. Open the Customer Portal to view invoices and payment methods."
 msgstr "L'utilisation est facturée selon les MAU mesurés. Ouvrez le Customer Portal pour consulter les factures et les moyens de paiement."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Usage only"
+msgstr "Utilisation uniquement"
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Usage overview"
@@ -13806,6 +14026,10 @@ msgstr "Utilisez l'un des codes enregistrés lors de la configuration de la vali
 msgid "Use only numbers. Spaces and dashes are fine."
 msgstr "Uniquement des chiffres. Les espaces et les tirets sont acceptés."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Use our SDKs or any OIDC library. Access tokens are signed JWTs that carry the organization, and your backend verifies them without a network call."
+msgstr "Utilisez nos SDK ou n'importe quelle bibliothèque OIDC. Les jetons d'accès sont des JWT signés qui portent l'organisation, et votre backend les vérifie sans appel réseau."
+
 #: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
 #: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 msgid "Use passkey"
@@ -13827,10 +14051,6 @@ msgstr "Utiliser l'authentification unique"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use the <0>svix-id</0> header to deduplicate deliveries on your end. Retries carry the same <1>svix-id</1> as the original attempt."
 msgstr "Utilisez l'en-tête <0>svix-id</0> pour dédupliquer les livraisons de votre côté. Les relances portent le même <1>svix-id</1> que la tentative d'origine."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "Use the complete platform or adopt the protocol, UI, and SDK layers that fit your architecture."
-msgstr "Utilisez la plateforme complète ou adoptez les couches de protocole, d’interface utilisateur et de SDK adaptées à votre architecture."
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Use the email address of the account you are signed in with."
@@ -14020,6 +14240,10 @@ msgid "Users who are already signed in stay signed in until their access token e
 msgstr "Les utilisateurs déjà connectés le restent jusqu'à l'expiration de leur jeton d'accès."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Users, organizations and connections over REST with secret keys."
+msgstr "Utilisateurs, organisations et connexions via REST avec des clés secrètes."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Uses <0>firebase/php-jwt</0> for ES256/RS256 verification. HS256 and <1>none</1> alg are rejected."
 msgstr "Utilise <0>firebase/php-jwt</0> pour la vérification ES256/RS256. Lesalgorithmes HS256 et <1>none</1> sont rejetés."
 
@@ -14038,6 +14262,10 @@ msgstr "Utilise uniquement le JWKS public. Ne charge jamais les clés privées d
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "utilities"
 msgstr "utilitaires"
+
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "v{version}, pre-1.0"
+msgstr "v{version}, avant la 1.0"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Valid client status values: loading, ready, degraded, error"
@@ -14134,6 +14362,14 @@ msgstr "La vérification utilise Web Crypto via @xid-kit/crypto."
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Verified"
 msgstr "Vérifié"
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Verified end to end, local"
+msgstr "Vérifié de bout en bout, en local"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Verified locally against test identity providers. Not yet verified with a live Okta or Entra ID tenant."
+msgstr "Vérifié en local avec des fournisseurs d'identité de test. Pas encore vérifié avec un vrai tenant Okta ou Entra ID."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verified message metadata and a typed type/data payload envelope"
@@ -14298,18 +14534,6 @@ msgstr "Très faible"
 #: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
 msgid "Via project grant"
 msgstr "Via un octroi de projet"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "View as Markdown"
-msgstr "Afficher en Markdown"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "View source on GitHub"
-msgstr "Afficher la source sur GitHub"
-
-#: apps/site/src/lib/site-shell-messages.ts
-msgid "View the current documentation"
-msgstr "Voir la documentation actuelle"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Vue"
@@ -14564,10 +14788,6 @@ msgid "Web application"
 msgstr "Application web"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Web SDKs"
-msgstr "SDK web"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Web-standard runtimes (Cloudflare Workers, Node.js, Bun, Deno) share @xid-kit/backend via Web Crypto. Other languages get native SDKs. All do networkless JWT verification, request authentication, and webhook verification."
 msgstr "Les runtimes standard du web (Cloudflare Workers, Node.js, Bun, Deno) partagent @xid-kit/backend via Web Crypto. Les autres langages disposent de SDK natifs. Tous assurent la vérification JWT sans réseau, l'authentification des requêtes et la vérification des webhooks."
 
@@ -14621,6 +14841,10 @@ msgstr "WebView2 Runtime (Evergreen — préinstallé avec Microsoft Edge)"
 msgid "WebView2 Runtime must be present. WebAuthenticationBroker support as a fallback is planned but not yet implemented."
 msgstr "WebView2 Runtime doit être présent. La prise en charge deWebAuthenticationBroker comme solution de repli est prévue mais pas encoreimplémentée."
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "What does self-hosting cost?"
+msgstr "Combien coûte l'auto-hébergement ?"
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "What stays"
 msgstr "Ce qui reste"
@@ -14632,10 +14856,6 @@ msgstr "Ce que les applications auxquelles vous vous connectez et vos coéquipie
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "What they are"
 msgstr "De quoi s'agit-il"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "What XID includes"
-msgstr "Ce que XID inclut"
 
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "What you'll lose"
@@ -14685,6 +14905,10 @@ msgstr "Quand aucun démon D-Bus Secret Service n'est disponible, passezInMemory
 msgid "When the browser adapter cannot capture the redirect itself, register the redirect URI scheme in your app manifest and forward the deep link to <0>handleRedirect(url)</0>. It validates and consumes the OAuth state, verifier, and nonce, exchanges the code, verifies the ID token, and stores the native session."
 msgstr "Lorsque l'adaptateur de navigateur ne peut pas capturer lui-même la redirection, enregistrez le schéma URI de redirection dans le manifeste de votre application et transférez le deep link à <0>handleRedirect(url)</0>. Il valide et consomme l'état OAuth, le vérificateur et le nonce, échange le code, vérifie le jeton d'identité et stocke la session native."
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Where is my data on XID Cloud?"
+msgstr "Où sont mes données sur XID Cloud ?"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Where they're saved"
 msgstr "Où elles sont enregistrées"
@@ -14709,6 +14933,10 @@ msgstr "Pourquoi les utiliser"
 msgid "Wildcards are not allowed. Add each subdomain as its own URL."
 msgstr "Les caractères génériques ne sont pas autorisés. Ajoutez chaque sous-domaine comme une URL distincte."
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Will XID Cloud start charging?"
+msgstr "XID Cloud deviendra-t-il payant ?"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Windows"
 msgstr "Windows"
@@ -14729,6 +14957,10 @@ msgstr "Travaillez uniquement dans les portées de projet ou d'octroi de projet 
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Works only on {0}"
 msgstr "Fonctionne uniquement sur {0}"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Wrap your app in <0>XidProvider</0> with the issuer <1>https://xid.dev</1> and your client ID, then verify access tokens on your backend with <2>authenticateRequest</2>."
+msgstr "Enveloppez votre application dans <0>XidProvider</0> avec l'issuer <1>https://xid.dev</1> et votre ID client, puis vérifiez les jetons d'accès côté backend avec <2>authenticateRequest</2>."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Wrap your app with <0>XidProvider</0>. It creates an <1>XidClient</1>, calls <2>client.load()</2> on mount to fetch the current session, and tears down via <3>onCleanup</3>."
@@ -14755,16 +14987,32 @@ msgid "XID as SAML or OIDC IdP"
 msgstr "XID en tant qu'IdP SAML ou OIDC"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID as service provider and as identity provider."
+msgstr "XID comme fournisseur de services et comme fournisseur d'identité."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID behavior"
 msgstr "Comportement de XID"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "XID Cloud"
+msgstr "XID Cloud"
+
 #: apps/site/src/lib/home-surface.ts
-msgid "XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs into one MIT-licensed platform running on Cloudflare Workers."
-msgstr "XID réunit Hosted Auth, OIDC, organisations, fédération entreprise, synchronisation d'annuaire et SDKs dans une plateforme sous licence MIT sur Cloudflare Workers."
+msgid "XID Cloud is free today. If it ever charges, it bills only per monthly active user, never by plan. Self-hosted, billing is off unless you turn it on."
+msgstr "XID Cloud est gratuit aujourd'hui. S'il devient payant, il facturera uniquement par utilisateur actif mensuel, jamais par formule. En auto-hébergement, la facturation est désactivée sauf si vous l'activez."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "XID Cloud is free."
+msgstr "XID Cloud est gratuit."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
-msgstr "XID réunit Hosted Auth, les clés d'accès, OIDC et OAuth, les organisations, la fédération d'entreprise, SCIM et les SDK dans une plateforme d'identité conçue pour Cloudflare."
+msgid "XID Cloud runs at <0>https://xid.dev</0> and is free. You need an organization, an application and a few lines of code."
+msgstr "XID Cloud fonctionne sur <0>https://xid.dev</0> et est gratuit. Il vous faut une organisation, une application et quelques lignes de code."
+
+#: apps/site/src/lib/product-shots.ts
+msgid "XID console users list for Northwind Logistics, with sign-in methods and organizations per user"
+msgstr "Liste des utilisateurs de Northwind Logistics dans la console XID, avec les méthodes de connexion et les organisations de chacun"
 
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 msgid "XID creates a new secret and shows it once. The current secret stops working right away, so sign-ins to {name} fail until you deploy the new one."
@@ -14794,21 +15042,29 @@ msgstr "XID expose des endpoints entrants de fournisseur de services SCIM pour l
 msgid "XID exposes organization-scoped SCIM 2.0 APIs under <0>/scim/v2/organizations/{organization_id}</0>. User and group resources are addressed with the organization ID in the path."
 msgstr "XID expose des API SCIM 2.0 limitées à l'organisation sous <0>/scim/v2/organizations/{organization_id}</0>. Les ressources utilisateur et groupe sont adressées avec l'ID d'organisation dans le chemin."
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console."
-msgstr "XID gère la connexion, l'autorisation, l'appartenance aux organisations, les connexions d'entreprise et le cycle de vie des utilisateurs depuis un seul noyau d'identité. Les applications utilisent des points de terminaison basés sur les standards, tandis que les équipes administrent l'instance et chaque organisation depuis une Console unique."
+#: apps/site/src/lib/home-surface.ts
+msgid "XID hosts them in your brand."
+msgstr "XID les héberge à vos couleurs."
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID Identity Platform"
-msgstr "Plateforme d'identité XID"
+#: apps/site/src/lib/home-surface.ts
+msgid "XID is a standard OpenID Connect provider."
+msgstr "XID est un fournisseur OpenID Connect standard."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID is an identity provider. The instance domain is the OIDC issuer, API base URL, Hosted Auth base URL, and console base URL. Organizations provide policy, branding, membership, and resource isolation."
 msgstr "XID est un fournisseur d'identité. Le domaine de l'instance est l'émetteur OIDC, l'URL de base API, l'URL de base de l'authentification hébergée et l'URL de base de la console. Les organisations fournissent la politique, la marque, les appartenances et l'isolation des ressources."
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification."
-msgstr "XID est en version pre-1.0 et n'est pas prêt pour la production. La documentation distingue les preuves d'implémentation locale de la vérification avec de vrais fournisseurs et services SaaS."
+#: apps/site/src/lib/home-surface.ts
+msgid "XID is one identity product for your app and your customers: hosted sign-in and accounts, OpenID Connect for your apps, organizations with enterprise SSO and SCIM, and one console. Free on XID Cloud, MIT licensed to self-host."
+msgstr "XID est un seul produit d'identité pour votre application et vos clients : connexion et comptes hébergés, OpenID Connect pour vos applications, organisations avec SSO d'entreprise et SCIM, et une seule console. Gratuit sur XID Cloud, sous licence MIT pour l'auto-hébergement."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "XID is one product for all of it."
+msgstr "XID est un seul produit pour tout cela."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "XID is pre-1.0. Hosted sign-in, the console and the Management API core paths are verified in production on xid.dev. Enterprise identity providers, social sign-in and SMS are verified locally only."
+msgstr "XID est en version antérieure à 1.0. Les parcours principaux de la connexion hébergée, de la console et de l'API de gestion sont vérifiés en production sur xid.dev. Les fournisseurs d'identité d'entreprise, la connexion sociale et les SMS ne sont vérifiés qu'en local."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID issuer URI"
@@ -14837,10 +15093,6 @@ msgstr "XID prend en charge la grammaire de filtre SCIM avec <0>and</0>, <1>or</
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "XID will delete the Cloudflare custom hostname before marking it deleted locally. Remove the traffic CNAME after this succeeds."
 msgstr "XID supprimera le nom d'hôte personnalisé Cloudflare avant de le marquer comme supprimé localement. Retirez ensuite le CNAME de trafic."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "XID, an edge-native identity platform on Cloudflare Workers, featured on Product Hunt"
-msgstr "XID, une plateforme d'identité native en périphérie sur Cloudflare Workers, présentée sur Product Hunt"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XidAuthService"
@@ -14997,6 +15249,10 @@ msgstr "Vous n'avez pas terminé la connexion de {provider}. Rien n'a changé su
 msgid "You do not have permission to perform this action."
 msgstr "Vous n'avez pas l'autorisation d'effectuer cette action."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "You don't want to build sign‑in and account pages."
+msgstr "Vous ne voulez pas construire les pages de connexion et de compte."
+
 #: packages/i18n/src/messages.ts
 msgid "You have reached the maximum number of passkeys. Remove one before adding another."
 msgstr "Vous avez atteint le nombre maximal de clés d'accès. Supprimez-en une avant d'en ajouter une autre."
@@ -15029,6 +15285,10 @@ msgstr "Vous perdez l'accès aux applications que vous utilisez avec ce compte. 
 #: packages/i18n/src/messages.ts
 msgid "You must set up multi-factor authentication before continuing."
 msgstr "Vous devez configurer l'authentification multifacteur avant de continuer."
+
+#: apps/site/src/lib/pricing-surface.ts
+msgid "You pay Cloudflare for what your account uses"
+msgstr "Vous payez à Cloudflare ce que votre compte utilise"
 
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 msgid "You reached the limit of 50 invitations an hour. Try again later."
@@ -15185,7 +15445,6 @@ msgstr "Vous avez atteint la limite de {limit} clés d'accès"
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
-#: apps/site/src/lib/home-surface.ts
 msgid "you@example.com"
 msgstr "you@example.com"
 
@@ -15231,6 +15490,14 @@ msgstr "Votre compte sera supprimé le {deletionDate}. Jusque-là, vous pouvez v
 msgid "Your admin turned this on for everyone. Setup takes about two minutes, then you'll go straight back."
 msgstr "Votre administrateur l'a activé pour tout le monde. La configuration prend environ deux minutes, puis vous reviendrez directement."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Your app redirects to XID and gets the user back with tokens. Afterward, people manage their sessions, devices and data on their own account page."
+msgstr "Votre application redirige vers XID et récupère l'utilisateur avec des jetons. Ensuite, chacun gère ses sessions, ses appareils et ses données sur sa propre page de compte."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Your auth vendor shouldn't be in every service."
+msgstr "Votre fournisseur d'authentification ne devrait pas être dans chaque service."
+
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 msgid "your authenticator app"
 msgstr "votre application d'authentification"
@@ -15239,9 +15506,17 @@ msgstr "votre application d'authentification"
 msgid "Your authenticator app is your last two-step method. Text message codes and backup codes stop working too, because they can't be used on their own."
 msgstr "Votre application d'authentification est votre dernier moyen de validation en deux étapes. Les codes par SMS et les codes de secours cessent aussi de fonctionner, car ils ne peuvent pas être utilisés seuls."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Your biggest deal is waiting on SSO and SCIM."
+msgstr "Votre plus gros contrat attend le SSO et SCIM."
+
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Your current sign-in method keeps working. You can remove the passkey any time in your account."
 msgstr "Votre méthode de connexion actuelle continue de fonctionner. Vous pouvez supprimer la clé d'accès à tout moment dans votre compte."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Your customers need sign-in, SSO and admins."
+msgstr "Vos clients ont besoin de connexion, de SSO et d'administrateurs."
 
 #: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
 msgid "Your device will ask for your face, fingerprint or screen lock. The passkey stays on this device or in your password manager."
