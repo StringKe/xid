@@ -1,0 +1,192 @@
+/*
+ * 无 StyleX 的面(Nimbus Site 与文档)用的同一组 --xid-* 值。
+ * 颜色、圆角、阴影、字体与 tokens.stylex.ts 同名;刻度来自 scale.stylex.ts,命名为 --xid-<组>-<键 kebab>。
+ * 深色:显式 data-theme="dark",或未选浅色时跟随系统。tokens.test.ts 逐项比对,两边不得漂移。
+ */
+
+:root {
+  --xid-primary: #161616;
+  --xid-primary-foreground: #ffffff;
+  --xid-bg: #ffffff;
+  --xid-surface: #ffffff;
+  --xid-sidebar: #f6f6f6;
+  --xid-muted: #eeeeee;
+  --xid-fg: #161616;
+  --xid-muted-foreground: #5c5c5c;
+  --xid-faint-foreground: #6b6b6b;
+  --xid-border: #e6e6e6;
+  --xid-border-strong: #8c8c8c;
+
+  --xid-accent: #2e5fa3;
+  --xid-accent-strong: #244c84;
+  --xid-accent-wash: #eaf0f8;
+  --xid-accent-foreground: #ffffff;
+
+  --xid-danger: #b42318;
+  --xid-danger-foreground: #ffffff;
+  --xid-danger-bg: #fdeeec;
+  --xid-warning: #9a5b00;
+  --xid-warning-foreground: #ffffff;
+  --xid-warning-bg: #fdf3e3;
+  --xid-success: #1e7a46;
+  --xid-success-foreground: #ffffff;
+  --xid-success-bg: #eaf6ef;
+  --xid-info: #2e5fa3;
+  --xid-info-foreground: #ffffff;
+  --xid-info-bg: #eaf0f8;
+
+  --xid-code: #141414;
+  --xid-code-foreground: #e6e6e6;
+  --xid-scrim: rgb(0 0 0 / 0.4);
+
+  --xid-radius-sm: 0.25rem;
+  --xid-radius: 0.375rem;
+  --xid-radius-lg: 0.625rem;
+  --xid-radius-full: 999px;
+
+  --xid-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.06);
+  --xid-shadow-md: 0 8px 24px rgb(0 0 0 / 0.08);
+  --xid-shadow-lg: 0 16px 40px rgb(0 0 0 / 0.16);
+
+  --xid-font:
+    'Geist Variable', 'PingFang SC', 'Hiragino Sans', 'Noto Sans SC', 'Noto Sans CJK SC',
+    'Microsoft YaHei', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
+  --xid-font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --xid-tracking-display: -0.025em;
+  --xid-tracking-heading: -0.015em;
+  --xid-tracking-title: -0.01em;
+  --xid-tracking-small: 0.01em;
+
+  --xid-text-xs: 0.75rem;
+  --xid-text-sm: 0.8125rem;
+  --xid-text-base: 0.875rem;
+  --xid-text-md: 1rem;
+  --xid-text-lg: 1.25rem;
+  --xid-text-xl: 1.75rem;
+  --xid-text-xxl: 2.5rem;
+  --xid-text-xxxl: 3.5rem;
+  --xid-text-hero: clamp(2.5rem, 1.6rem + 2.6vw, 3.5rem);
+
+  --xid-leading-xs: 1rem;
+  --xid-leading-sm: 1.125rem;
+  --xid-leading-base: 1.25rem;
+  --xid-leading-md: 1.5rem;
+  --xid-leading-lg: 1.625rem;
+  --xid-leading-xl: 2.125rem;
+  --xid-leading-xxl: 2.75rem;
+  --xid-leading-xxxl: 3.75rem;
+  --xid-leading-hero: 1.05;
+  --xid-leading-body: 1.55;
+
+  --xid-weight-regular: 400;
+  --xid-weight-medium: 500;
+  --xid-weight-display: 560;
+
+  --xid-space-s1: 0.25rem;
+  --xid-space-s2: 0.5rem;
+  --xid-space-s3: 0.75rem;
+  --xid-space-s4: 1rem;
+  --xid-space-s5: 1.25rem;
+  --xid-space-s6: 1.5rem;
+  --xid-space-s8: 2rem;
+  --xid-space-s10: 2.5rem;
+  --xid-space-s12: 3rem;
+  --xid-space-s16: 4rem;
+  --xid-space-s24: 6rem;
+  --xid-space-s32: 8rem;
+
+  --xid-size-control: 2.25rem;
+  --xid-size-touch: 2.75rem;
+  --xid-size-row-compact: 2rem;
+  --xid-size-row-default: 2.5rem;
+  --xid-size-row-comfortable: 3rem;
+  --xid-size-form-width: 25rem;
+  --xid-size-prose-width: 40rem;
+  --xid-size-page-width: 70rem;
+  --xid-size-docs-width: 43.5rem;
+  --xid-size-docs-width-wide: 52rem;
+}
+
+:root[data-theme='dark'] {
+  --xid-primary: #ededed;
+  --xid-primary-foreground: #141414;
+  --xid-bg: #181818;
+  --xid-surface: #181818;
+  --xid-sidebar: #111111;
+  --xid-muted: #262626;
+  --xid-fg: #ededed;
+  --xid-muted-foreground: #a8a8a8;
+  --xid-faint-foreground: #8c8c8c;
+  --xid-border: #2a2a2a;
+  --xid-border-strong: #6e6e6e;
+
+  --xid-accent: #7fa6de;
+  --xid-accent-strong: #a3c0e8;
+  --xid-accent-wash: #18202b;
+  --xid-accent-foreground: #0d1726;
+
+  --xid-danger: #f07a6e;
+  --xid-danger-foreground: #141414;
+  --xid-danger-bg: #311a18;
+  --xid-warning: #e2a64f;
+  --xid-warning-foreground: #141414;
+  --xid-warning-bg: #2e2210;
+  --xid-success: #5fc48a;
+  --xid-success-foreground: #141414;
+  --xid-success-bg: #15281d;
+  --xid-info: #7fa6de;
+  --xid-info-foreground: #0d1726;
+  --xid-info-bg: #18202b;
+
+  --xid-code: #0c0c0c;
+  --xid-code-foreground: #e6e6e6;
+  --xid-scrim: rgb(0 0 0 / 0.6);
+
+  --xid-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --xid-shadow-md: 0 8px 24px rgb(0 0 0 / 0.45);
+  --xid-shadow-lg: 0 16px 40px rgb(0 0 0 / 0.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --xid-primary: #ededed;
+    --xid-primary-foreground: #141414;
+    --xid-bg: #181818;
+    --xid-surface: #181818;
+    --xid-sidebar: #111111;
+    --xid-muted: #262626;
+    --xid-fg: #ededed;
+    --xid-muted-foreground: #a8a8a8;
+    --xid-faint-foreground: #8c8c8c;
+    --xid-border: #2a2a2a;
+    --xid-border-strong: #6e6e6e;
+
+    --xid-accent: #7fa6de;
+    --xid-accent-strong: #a3c0e8;
+    --xid-accent-wash: #18202b;
+    --xid-accent-foreground: #0d1726;
+
+    --xid-danger: #f07a6e;
+    --xid-danger-foreground: #141414;
+    --xid-danger-bg: #311a18;
+    --xid-warning: #e2a64f;
+    --xid-warning-foreground: #141414;
+    --xid-warning-bg: #2e2210;
+    --xid-success: #5fc48a;
+    --xid-success-foreground: #141414;
+    --xid-success-bg: #15281d;
+    --xid-info: #7fa6de;
+    --xid-info-foreground: #0d1726;
+    --xid-info-bg: #18202b;
+
+    --xid-code: #0c0c0c;
+    --xid-code-foreground: #e6e6e6;
+    --xid-scrim: rgb(0 0 0 / 0.6);
+
+    --xid-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --xid-shadow-md: 0 8px 24px rgb(0 0 0 / 0.45);
+    --xid-shadow-lg: 0 16px 40px rgb(0 0 0 / 0.55);
+  }
+}
