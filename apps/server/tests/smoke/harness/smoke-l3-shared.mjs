@@ -1,22 +1,16 @@
 #!/usr/bin/env node
 
 import { argon2id } from '@noble/hashes/argon2.js'
-import { spawn } from 'node:child_process'
-import { parseD1Json } from './d1-json.mjs'
+import { d1, migrateLocalD1 } from './local-d1.mjs'
 import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
+
+export { d1 }
 
 export const DEFAULT_BASE_URL = 'http://localhost:5173'
 export const DEFAULT_PASSWORD = 'LocalL3Protocol123!'
-export const PACKAGE_MANAGER = process.env.XID_L3_PACKAGE_MANAGER ?? 'corepack'
-export const PACKAGE_MANAGER_ARGS = ['pnpm']
 export const baseUrl = trimTrailingSlashes(process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL)
 export const adminEmail = (process.env.XID_L3_ADMIN_EMAIL ?? 'admin@localhost.test').toLowerCase()
 export const adminPassword = process.env.XID_L3_ADMIN_PASSWORD ?? DEFAULT_PASSWORD
-export const smokePersistPath = process.env.XID_SMOKE_PERSIST_PATH
-
-if (smokePersistPath === undefined || smokePersistPath.length === 0) {
-  throw new Error('XID_SMOKE_PERSIST_PATH missing')
-}
 
 const ARGON2_MEMORY_KB = 65536
 const ARGON2_ITERATIONS = 3
@@ -58,69 +52,9 @@ export function parseDevVars() {
   return { KEK, PEPPER }
 }
 
-async function run(command, args, name) {
-  const result = await new Promise((resolve) => {
-    const child = spawn(command, args, {
-      cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk
-    })
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk
-    })
-    child.on('close', (code) => resolve({ code, stdout, stderr }))
-  })
-  if (result.code !== 0) throw new Error(`${name} failed: ${result.stderr || result.stdout}`)
-  return result.stdout
-}
-
 export async function applyLocalMigrations() {
-  await run(
-    PACKAGE_MANAGER,
-    [
-      ...PACKAGE_MANAGER_ARGS,
-      'exec',
-      'wrangler',
-      'd1',
-      'migrations',
-      'apply',
-      'DB',
-      '--local',
-      '--persist-to',
-      smokePersistPath,
-    ],
-    'apply local D1 migrations',
-  )
+  await migrateLocalD1()
   printResult('PASS', 'local D1 migrations')
-}
-
-export async function d1(command, name) {
-  const stdout = await run(
-    PACKAGE_MANAGER,
-    [
-      ...PACKAGE_MANAGER_ARGS,
-      'exec',
-      'wrangler',
-      'd1',
-      'execute',
-      'DB',
-      '--local',
-      '--persist-to',
-      smokePersistPath,
-      '--command',
-      command,
-      '--json',
-    ],
-    name,
-  )
-  const parsed = parseD1Json(stdout, name)
-  const first = parsed[0]
-  if (!first?.success) throw new Error(`${name} failed: ${stdout}`)
-  return first.results ?? []
 }
 
 function decodePepper(raw) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { argon2id } from '@noble/hashes/argon2.js'
-import { parseD1Json } from './d1-json.mjs'
+import { d1 } from './local-d1.mjs'
 import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
 
 const DEFAULT_BASE_URL = 'http://localhost:5173'
@@ -9,11 +9,6 @@ const DEFAULT_PASSWORD = 'LocalL2Platform123!'
 const baseUrl = trimTrailingSlashes(process.env.XID_L2_BASE_URL ?? DEFAULT_BASE_URL)
 const adminEmail = (process.env.XID_L2_ADMIN_EMAIL ?? 'admin@localhost.test').toLowerCase()
 const adminPassword = process.env.XID_L2_ADMIN_PASSWORD ?? DEFAULT_PASSWORD
-const smokePersistPath = process.env.XID_SMOKE_PERSIST_PATH
-
-if (smokePersistPath === undefined || smokePersistPath.length === 0) {
-  throw new Error('XID_SMOKE_PERSIST_PATH missing')
-}
 
 const ARGON2_MEMORY_KB = 65536
 const ARGON2_ITERATIONS = 3
@@ -137,42 +132,6 @@ function parseDevVars() {
   if (!KEK || !PEPPER)
     throw new Error('XID smoke KEK and PEPPER must be provided through the process environment')
   return { KEK, PEPPER }
-}
-
-async function d1(command, name) {
-  const { spawn } = await import('node:child_process')
-  const args = [
-    'exec',
-    'wrangler',
-    'd1',
-    'execute',
-    'DB',
-    '--local',
-    '--persist-to',
-    smokePersistPath,
-    '--command',
-    command,
-    '--json',
-  ]
-  const result = await new Promise((resolve) => {
-    const child = spawn('pnpm', args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk
-    })
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk
-    })
-    child.on('close', (code) => resolve({ code, stdout, stderr }))
-  })
-  if (result.code !== 0) {
-    throw new Error(`${name} failed: ${result.stderr || result.stdout}`)
-  }
-  const parsed = parseD1Json(result.stdout, name)
-  const first = parsed[0]
-  if (!first?.success) throw new Error(`${name} failed: ${result.stdout}`)
-  return first.results ?? []
 }
 
 function sqlString(value) {

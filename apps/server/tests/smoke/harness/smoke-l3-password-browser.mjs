@@ -12,7 +12,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 import { setNodeDependencies } from 'xml-core'
 import { Application, Parse, SignedXml, Stringify } from 'xmldsigjs'
 import xpath from 'xpath'
-import { parseD1Json } from './d1-json.mjs'
+import { d1 } from './local-d1.mjs'
 import { closeChromeAndRemoveProfile } from './chrome-cleanup.mjs'
 import { createSamlPostPayload, SAML_POST_PAGE } from './saml-post-form.mjs'
 import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
@@ -25,11 +25,6 @@ const CHROME_PATH =
 const baseUrl = trimTrailingSlashes(process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL)
 const adminEmail = (process.env.XID_L3_ADMIN_EMAIL ?? 'admin@localhost.test').toLowerCase()
 const adminPassword = process.env.XID_L3_ADMIN_PASSWORD ?? DEFAULT_PASSWORD
-const smokePersistPath = process.env.XID_SMOKE_PERSIST_PATH
-
-if (smokePersistPath === undefined || smokePersistPath.length === 0) {
-  throw new Error('XID_SMOKE_PERSIST_PATH missing')
-}
 const socialProvider = 'localoidc'
 const SIGN_IN_PATH = '/sign-in?continue=%2Fconsole&locale=en'
 const socialEmail = (
@@ -347,50 +342,6 @@ function parseDevVars() {
     )
   }
   return { KEK, PEPPER, SOCIAL_CLIENT_SECRET }
-}
-
-async function run(command, args, name) {
-  const result = await new Promise((resolve) => {
-    const child = spawn(command, args, {
-      cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk
-    })
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk
-    })
-    child.on('close', (code) => resolve({ code, stdout, stderr }))
-  })
-  if (result.code !== 0) throw new Error(`${name} failed: ${result.stderr || result.stdout}`)
-  return result.stdout
-}
-
-async function d1(command, name) {
-  const stdout = await run(
-    'pnpm',
-    [
-      'exec',
-      'wrangler',
-      'd1',
-      'execute',
-      'DB',
-      '--local',
-      '--persist-to',
-      smokePersistPath,
-      '--command',
-      command,
-      '--json',
-    ],
-    name,
-  )
-  const parsed = parseD1Json(stdout, name)
-  const first = parsed[0]
-  if (!first?.success) throw new Error(`${name} failed: ${stdout}`)
-  return first.results ?? []
 }
 
 function sqlString(value) {
