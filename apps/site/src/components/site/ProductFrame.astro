@@ -1,0 +1,169 @@
+---
+// design-language 3.17 / 5.4：真实截图 1:1 CSS 像素，浅深两张跟随 data-theme；窄屏换真实窄屏截图，不缩小桌面图。
+import { cn } from "@/lib/cn";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import {
+  PRODUCT_SHOT_SCALE,
+  productShot,
+  type ProductShot,
+  type ProductShotFrame,
+  type ProductShotTheme,
+} from "@/lib/product-shots";
+import type { SiteLocale } from "@/lib/site-locale";
+
+interface Props {
+  frame: ProductShotFrame;
+  viewport: number;
+  /** 窄屏（<64rem）使用的截图视口宽度；不填时窄屏沿用宽屏截图并裁切。 */
+  narrowViewport?: number;
+  locale: SiteLocale;
+  /** 顶条只写真实主机名；窄屏截图不带顶条。 */
+  host?: string;
+  /** 裁切后可见的截图高度（CSS px），不填则显示整张。 */
+  height?: number;
+  narrowHeight?: number;
+  elevated?: boolean;
+  class?: string;
+}
+
+const {
+  frame,
+  viewport,
+  narrowViewport,
+  locale,
+  host,
+  height,
+  narrowHeight,
+  elevated = false,
+  class: className,
+} = Astro.props;
+
+const themes: readonly ProductShotTheme[] = ["light", "dark"];
+const pick = (size: number, theme: ProductShotTheme): ProductShot =>
+  productShot(frame, { viewport: size, theme, locale });
+const shots = themes.map((theme) => ({
+  theme,
+  wide: pick(viewport, theme),
+  narrow: narrowViewport === undefined ? undefined : pick(narrowViewport, theme),
+}));
+const alt = translateSiteMessage(Astro.url.pathname, shots[0].wide.alt);
+const cssSize = (shot: ProductShot) => ({
+  width: shot.width / PRODUCT_SHOT_SCALE,
+  height: shot.height / PRODUCT_SHOT_SCALE,
+});
+const narrowShot = shots[0].narrow;
+const style = [
+  narrowShot === undefined ? undefined : `--frame-narrow-width: ${cssSize(narrowShot).width + 2}px`,
+  height === undefined ? undefined : `--frame-viewport-height: ${height}px`,
+  narrowHeight === undefined ? undefined : `--frame-viewport-height-narrow: ${narrowHeight}px`,
+]
+  .filter(Boolean)
+  .join("; ");
+---
+
+<figure
+  class={cn("product-frame", elevated && "product-frame-elevated", narrowViewport !== undefined && "has-narrow", className)}
+  style={style || undefined}
+>
+  {host && (
+    <div class="product-frame-host" aria-hidden="true">
+      <span>{host}</span>
+    </div>
+  )}
+  <div class="product-frame-viewport">
+    {shots.map(({ theme, wide, narrow }) => (
+      <picture class={`product-shot product-shot-${theme}`}>
+        {narrow && (
+          <source
+            media="(max-width: 63.99rem)"
+            srcset={`${narrow.src.src} ${PRODUCT_SHOT_SCALE}x`}
+            width={cssSize(narrow).width}
+            height={cssSize(narrow).height}
+          />
+        )}
+        <img
+          src={wide.src.src}
+          srcset={`${wide.src.src} ${PRODUCT_SHOT_SCALE}x`}
+          width={cssSize(wide).width}
+          height={cssSize(wide).height}
+          alt={alt}
+          loading={theme === "dark" ? "lazy" : undefined}
+          decoding="async"
+        />
+      </picture>
+    ))}
+  </div>
+</figure>
+
+<style>
+  .product-frame {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid var(--xid-border);
+    border-radius: var(--xid-radius-lg);
+    background: var(--xid-surface);
+  }
+
+  .product-frame-elevated {
+    box-shadow: var(--xid-shadow-md);
+  }
+
+  .product-frame-host {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    height: 2rem;
+    padding-inline: var(--xid-space-s3);
+    border-bottom: 1px solid var(--xid-border);
+    color: var(--xid-muted-foreground);
+    font-family: var(--xid-font-mono);
+    font-size: var(--xid-text-xs);
+    line-height: var(--xid-leading-xs);
+    white-space: nowrap;
+  }
+
+  .product-frame-viewport {
+    height: var(--frame-viewport-height, auto);
+    overflow: hidden;
+  }
+
+  .product-shot {
+    display: block;
+  }
+
+  .product-shot img {
+    display: block;
+    max-width: none;
+    height: auto;
+  }
+
+  .product-shot-dark {
+    display: none;
+  }
+
+  :global(:root[data-theme='dark']) .product-shot-light {
+    display: none;
+  }
+
+  :global(:root[data-theme='dark']) .product-shot-dark {
+    display: block;
+  }
+
+  @media (max-width: 63.99rem) {
+    .has-narrow {
+      width: 100%;
+      max-width: var(--frame-narrow-width);
+    }
+
+    .has-narrow .product-frame-host {
+      display: none;
+    }
+
+    .has-narrow .product-frame-viewport {
+      height: var(--frame-viewport-height-narrow, auto);
+    }
+  }
+</style>

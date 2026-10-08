@@ -1,8 +1,13 @@
 ---
+import "../styles/site-sections.css";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Header from "./Header.astro";
+import SiteFooter from "./SiteFooter.astro";
+import SiteHeader from "./SiteHeader.astro";
+import ProductFrame from "./site/ProductFrame.astro";
+import SectionHeader from "./site/SectionHeader.astro";
+import { LinkButton } from "./ui/link-button";
 import { getHomeSurface } from "../lib/home-surface";
-import { localizeSitePath, type SiteLocale } from "../lib/site-locale";
+import { hostedAuthHref, localizeSitePath, type SiteLocale } from "../lib/site-locale";
 
 interface Props {
   locale: SiteLocale;
@@ -10,6 +15,7 @@ interface Props {
 
 const { locale } = Astro.props;
 const surface = getHomeSurface(locale);
+const { text } = surface;
 const structuredData = JSON.stringify({
   "@context": "https://schema.org",
   "@graph": [
@@ -38,9 +44,30 @@ const head = [
     content: structuredData,
   },
 ];
-const gettingStartedHref = localizeSitePath("/getting-started", locale);
-const docsHref = localizeSitePath("/docs", locale);
-const evidenceHref = localizeSitePath("/oidc-oauth", locale);
+const startFreeHref = hostedAuthHref("sign-up", locale);
+const docs = (slug: string) => localizeSitePath(`/${slug}`, locale);
+const selfHostingHref = docs("self-hosting");
+const pricingHref = localizeSitePath("/pricing", locale);
+const serverExample = [
+  "import { authenticateRequest } from '@xid-kit/backend'",
+  "",
+  "const state = await authenticateRequest(request, {",
+  "  jwtKey: env.XID_JWKS_PUBLIC_KEY,",
+  "  issuer: 'https://xid.dev',",
+  "})",
+  "if (!state.isSignedIn) return new Response('Unauthorized', { status: 401 })",
+].join("\n");
+// 解码后的 access token 示例：typ=at+jwt，必带 tenant_id（oidc-oauth 规则）。
+const accessTokenClaims = [
+  ["typ", "at+jwt"],
+  ["alg", "ES256"],
+  ["iss", "https://xid.dev"],
+  ["aud", "app_01JD3FLEETPLNR"],
+  ["azp", "app_01JD3FLEETPLNR"],
+  ["scope", "openid profile email organization"],
+  ["exp", "1791397800"],
+] as const;
+const tenantClaim = { value: "org_01J8NWLOGISTX", organization: "Northwind Logistics" };
 ---
 
 <BaseLayout
@@ -51,744 +78,603 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
   head={head}
 >
   <div class="min-h-screen">
-    <Header showMobileMenu={false} />
+    <SiteHeader />
     <main id="main-content" data-pagefind-body>
-      <section class="home-shell home-hero" aria-labelledby="home-title">
-        <div class="hero-copy">
-          <p class="home-eyebrow">{surface.eyebrow}</p>
-          <h1 id="home-title">{surface.title}</h1>
-          <p class="home-lead">{surface.description}</p>
-          <div class="home-actions">
-            <a class="home-action home-action-primary" href={gettingStartedHref}>{surface.getStarted}</a>
-            <a class="home-action home-action-secondary" href={docsHref}>{surface.readDocs}</a>
+      <section class="home-hero" aria-labelledby="home-title" data-home-section="hero">
+        <div class="site-section-inner home-hero-inner">
+          <div class="home-hero-copy">
+            <h1 id="home-title" class="home-hero-title">
+              <span class="home-hero-question">{text.heroQuestion}</span>
+              <span>{text.heroAnswer}</span>
+            </h1>
+            <p class="home-hero-lead">{text.heroLead}</p>
+            <div class="home-hero-actions">
+              <div class="home-actions">
+                <LinkButton href={startFreeHref} size="lg">{text.startFreeOnCloud}</LinkButton>
+                <LinkButton href={selfHostingHref} variant="secondary" size="lg">{text.selfHost}</LinkButton>
+              </div>
+              <p class="home-hero-note">{text.heroNote}</p>
+            </div>
           </div>
-          <dl class="hero-facts">
-            {surface.proofs.map((proof) => (
+          <div class="home-hero-visual">
+            <ProductFrame
+              frame="consoleUsers"
+              viewport={1440}
+              locale={locale}
+              host="northwind.xid.dev/console/users"
+              height={398}
+              class="home-hero-console"
+            />
+            <ProductFrame
+              frame="hostedSignIn"
+              viewport={350}
+              narrowViewport={356}
+              locale={locale}
+              elevated
+              class="home-hero-signin"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="site-section" aria-labelledby="home-sign-in" data-home-section="sign-in">
+        <div class="site-section-inner home-section-body">
+          <SectionHeader
+            id="home-sign-in"
+            question={text.signInQuestion}
+            answer={text.signInAnswer}
+            lead={text.signInLead}
+            link={{ href: docs("hosted-auth"), label: text.signInLink }}
+          />
+          <div class="home-figure">
+            <ProductFrame
+              frame="accountDevices"
+              viewport={1150}
+              narrowViewport={356}
+              locale={locale}
+              host="northwind.xid.dev/account/devices"
+              height={498}
+              narrowHeight={479}
+            />
+            <p class="site-evidence">{text.signInEvidence}</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-section home-oidc" aria-labelledby="home-oidc" data-home-section="oidc">
+        <div class="site-section-inner home-section-body">
+          <SectionHeader
+            id="home-oidc"
+            question={text.oidcQuestion}
+            answer={text.oidcAnswer}
+            lead={text.oidcLead}
+            link={{ href: docs("getting-started"), label: text.oidcLink }}
+          />
+          <div class="home-figure">
+            <div class="code-with-result">
+              <figure class="home-code">
+                <figcaption>
+                  <span>server.ts</span>
+                  <span>ts</span>
+                </figcaption>
+                <pre><code>{serverExample}</code></pre>
+              </figure>
+              <div class="token-claims">
+                <div class="token-claims-header">
+                  <h3>{text.accessToken}</h3>
+                  <span>{text.decodedPayload}</span>
+                </div>
+                <dl>
+                  {accessTokenClaims.map(([name, value]) => (
+                    <div>
+                      <dt>{name}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                  <div class="token-claim-tenant">
+                    <dt>tenant_id</dt>
+                    <dd>
+                      <span>{tenantClaim.value}</span>
+                      <span class="token-claim-note">{tenantClaim.organization}</span>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+            <p class="site-evidence">{text.oidcEvidence}</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-section" aria-labelledby="home-sso" data-home-section="sso">
+        <div class="site-section-inner home-section-body">
+          <SectionHeader
+            id="home-sso"
+            question={text.ssoQuestion}
+            answer={text.ssoAnswer}
+            lead={text.ssoLead}
+            link={{ href: docs("enterprise-sso"), label: text.ssoLink }}
+          />
+          <div class="home-figure">
+            <div class="home-stack">
+              <ProductFrame
+                frame="enterpriseSso"
+                viewport={842}
+                locale={locale}
+                host="northwind.xid.dev/console/enterprise-sso"
+                height={314}
+                class="home-stack-back"
+              />
+              <ProductFrame
+                frame="directorySync"
+                viewport={694}
+                narrowViewport={356}
+                locale={locale}
+                host="northwind.xid.dev/console/directory-sync"
+                height={249}
+                narrowHeight={538}
+                class="home-stack-front"
+              />
+            </div>
+            <p class="site-evidence">{text.ssoEvidence}</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-section" aria-labelledby="home-console" data-home-section="console">
+        <div class="site-section-inner home-console">
+          <SectionHeader
+            id="home-console"
+            question={text.consoleQuestion}
+            answer={text.consoleAnswer}
+            lead={text.consoleLead}
+            link={{ href: docs("organizations"), label: text.consoleLink }}
+            layout="stack"
+            class="home-console-header"
+          />
+          <ProductFrame
+            frame="scopeSwitcher"
+            viewport={1320}
+            narrowViewport={356}
+            locale={locale}
+            host="northwind.xid.dev/console"
+            height={440}
+            narrowHeight={392}
+            class="home-console-frame"
+          />
+          <p class="site-evidence home-console-evidence">{text.consoleEvidence}</p>
+        </div>
+      </section>
+
+      <section class="home-cloud" aria-labelledby="home-cloud" data-home-section="cloud">
+        <div class="site-section-inner home-section-body">
+          <SectionHeader id="home-cloud" question={text.cloudQuestion} answer={text.cloudAnswer} lead={text.cloudLead} />
+          <dl class="fact-strip">
+            {surface.facts.map((fact) => (
               <div>
-                <dt>{proof.label}</dt>
-                <dd>{proof.value}</dd>
+                <dt>{fact.label}</dt>
+                <dd>{fact.value}</dd>
               </div>
             ))}
           </dl>
-        </div>
-
-        <div class="hero-visual" aria-hidden="true">
-          <div class="demo-frame">
-            <div class="demo-frame-bar">
-              <span>{surface.demoUrl}</span>
-            </div>
-            <div class="demo-frame-body">
-              <div class="demo-auth">
-                <div class="demo-card">
-                  <span class="demo-wordmark">XID</span>
-                  <p class="demo-title">{surface.demoSignInTitle}</p>
-                  <div class="demo-tabs">
-                    <span class="demo-tab demo-tab-active">{surface.demoTabPasskey}</span>
-                    <span class="demo-tab">{surface.demoTabMagicLink}</span>
-                  </div>
-                  <input
-                    class="demo-field"
-                    type="email"
-                    placeholder={surface.demoEmailPlaceholder}
-                    disabled
-                    tabindex="-1"
-                  />
-                  <span class="demo-button">{surface.demoContinue}</span>
-                  <p class="demo-foot">{surface.demoCreateAccount}</p>
-                </div>
-              </div>
-              <div class="demo-log">
-                <p class="demo-log-label">{surface.demoLogLabel}</p>
-                <ul class="demo-log-list">
-                  <li>
-                    <span class="demo-log-status demo-log-redirect">302</span><code>{surface.demoLogAuthorize}</code>
-                  </li>
-                  <li>
-                    <span class="demo-log-status">200</span><code>{surface.demoLogDiscovery}</code>
-                  </li>
-                  <li>
-                    <span class="demo-log-status">200</span><code>{surface.demoLogToken}</code>
-                  </li>
-                  <li>
-                    <span class="demo-log-status">200</span><code>{surface.demoLogJwks}</code>
-                  </li>
-                  <li>
-                    <span class="demo-log-status">200</span><code>{surface.demoLogUserinfo}</code>
-                  </li>
-                </ul>
-              </div>
-            </div>
+          <div class="home-actions home-cloud-actions">
+            <LinkButton href={startFreeHref} size="lg">{text.startFreeOnCloud}</LinkButton>
+            <LinkButton href={selfHostingHref} variant="secondary" size="lg">{text.selfHostingGuide}</LinkButton>
+            <a class="text-link home-cloud-pricing" href={pricingHref}>{text.seePricing}</a>
           </div>
         </div>
       </section>
-
-      <section class="home-shell capability-section" aria-labelledby="capabilities-title">
-        <header>
-          <p class="home-eyebrow">{surface.capabilitiesEyebrow}</p>
-          <h2 id="capabilities-title">{surface.capabilitiesTitle}</h2>
-          <p>{surface.capabilitiesDescription}</p>
-        </header>
-        <div class="capability-list">
-          {surface.features.map((feature, index) => (
-            <a href={feature.href}>
-              <div class="capability-row">
-                <span aria-hidden="true">0{index + 1}</span>
-                <strong>{feature.title}</strong>
-                <svg
-                  class="capability-arrow"
-                  viewBox="0 0 16 16"
-                  width="14"
-                  height="14"
-                  aria-hidden="true"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M2.5 8h11M9.5 3.5 14 8l-4.5 4.5" />
-                </svg>
-              </div>
-              <p>{feature.description}</p>
-            </a>
-          ))}
-        </div>
-      </section>
-
-      <section class="home-shell architecture-section" aria-labelledby="architecture-title">
-        <header>
-          <p class="home-eyebrow">{surface.architectureEyebrow}</p>
-          <h2 id="architecture-title">{surface.architectureTitle}</h2>
-          <p>{surface.architectureDescription}</p>
-        </header>
-        <dl class="architecture-list" data-smoke-architecture>
-          {surface.architecture.map((item, index) => (
-            <div>
-              <dt><span aria-hidden="true">0{index + 1}</span>{item.label}</dt>
-              <dd>{item.description}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      <section class="home-shell evidence-section" aria-labelledby="evidence-title">
-        <div>
-          <p class="home-eyebrow">{surface.evidenceEyebrow}</p>
-          <h2 id="evidence-title">{surface.evidenceTitle}</h2>
-        </div>
-        <div>
-          <p>{surface.evidenceDescription}</p>
-          <a href={evidenceHref}>{surface.inspectEvidence}</a>
-        </div>
-      </section>
-
-      <section class="home-shell open-source-section" aria-labelledby="open-source-title">
-        <div class="open-source-copy">
-          <h2 id="open-source-title">{surface.openSourceTitle}</h2>
-          <p>{surface.openSourceDescription}</p>
-          <a href="https://github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">
-            {surface.viewSource}
-          </a>
-        </div>
-        <div class="project-badges">
-          <a href="https://www.producthunt.com/products/xid?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-xid" target="_blank" rel="noopener noreferrer">
-            <img alt={surface.productHuntAlt} width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1217874&amp;theme=light&amp;t=1786263008879" />
-          </a>
-          <a href="https://securityscorecards.dev/viewer/?uri=github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">
-            <img class="badge-compact" alt={surface.scorecardAlt} width="142" height="20" loading="lazy" src="https://api.securityscorecards.dev/projects/github.com/StringKe/xid/badge" />
-          </a>
-          <a href="https://www.bestpractices.dev/projects/13783" target="_blank" rel="noopener noreferrer">
-            <img class="badge-compact" alt={surface.bestPracticesAlt} width="120" height="20" loading="lazy" src="https://www.bestpractices.dev/projects/13783/badge" />
-          </a>
-        </div>
-      </section>
     </main>
-
-    <footer class="home-footer home-shell">
-      <span>XID</span>
-      <nav aria-label={surface.footerNavLabel}>
-        <a href={docsHref}>{surface.readDocs}</a>
-        <a href="https://github.com/StringKe/xid/blob/main/SUPPORT.md" target="_blank" rel="noopener noreferrer">{surface.footerSupport}</a>
-        <a href="https://github.com/StringKe/xid/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">{surface.footerSecurity}</a>
-        <a href="https://github.com/StringKe/xid/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">{surface.footerContributing}</a>
-        <a href="https://github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">{surface.footerGitHub}</a>
-      </nav>
-    </footer>
+    <SiteFooter />
   </div>
 </BaseLayout>
 
 <style>
-  .home-shell {
-    width: min(100% - 2rem, 76rem);
-    margin-inline: auto;
-  }
-
   .home-hero {
-    display: grid;
-    grid-template-columns: minmax(18rem, 0.82fr) minmax(34rem, 1.18fr);
-    align-items: center;
-    gap: clamp(2.5rem, 6vw, 5.5rem);
-    padding-block: clamp(4rem, 9vw, 7.5rem);
+    overflow-x: clip;
+    padding-top: clamp(3rem, 5vw, 4.5rem);
+    padding-bottom: clamp(4rem, 8vw, 7rem);
+    border-bottom: 1px solid var(--xid-border);
   }
 
-  .hero-copy {
+  .home-hero-inner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s8);
+  }
+
+  .home-hero-copy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s5);
     min-width: 0;
   }
 
-  .home-eyebrow {
-    margin: 0 0 1rem;
-    color: var(--nb-muted-foreground);
-    font-family: var(--nb-font-mono);
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    line-height: 1.5;
-    text-transform: uppercase;
-  }
-
-  .home-hero h1 {
-    max-width: 39rem;
+  .home-hero-title {
+    display: flex;
+    flex-direction: column;
+    max-width: 42.5rem;
     margin: 0;
-    font-size: clamp(2.75rem, 5.2vw, 4.5rem);
-    font-weight: 620;
-    letter-spacing: -0.038em;
-    line-height: 1;
+    font-size: var(--xid-text-hero);
+    font-weight: var(--xid-weight-display);
+    line-height: var(--xid-leading-hero);
+    letter-spacing: var(--xid-tracking-display);
     text-wrap: balance;
   }
 
-  .home-lead {
-    max-width: 36rem;
-    margin: 1.5rem 0 0;
-    color: var(--nb-muted-foreground);
-    font-size: clamp(1.05rem, 2vw, 1.25rem);
-    line-height: 1.7;
-    text-wrap: pretty;
+  .home-hero-question {
+    color: var(--xid-muted-foreground);
+  }
+
+  .home-hero-lead {
+    max-width: 25rem;
+    margin: 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-lg);
+    line-height: 1.5;
+  }
+
+  .home-hero-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s4);
+    padding-top: var(--xid-space-s1);
   }
 
   .home-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-top: 2rem;
+    flex-direction: column;
+    gap: var(--xid-space-s3);
   }
 
-  .home-action {
-    display: inline-flex;
-    min-height: 2.75rem;
-    align-items: center;
-    justify-content: center;
-    padding: 0.65rem 1rem;
-    border: 1px solid var(--nb-border-strong);
-    border-radius: var(--nb-radius-md);
-    font-size: 0.875rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  .home-hero-note {
+    margin: 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-sm);
+    line-height: var(--xid-leading-sm);
   }
 
-  .home-action-primary {
-    border-color: var(--nb-brand);
-    background: var(--nb-brand);
-    color: var(--nb-brand-foreground);
-    box-shadow: var(--nb-shadow-sm);
+  .home-hero-visual :global(.home-hero-console) {
+    display: none;
   }
 
-  .home-action-primary:hover {
-    border-color: var(--nb-brand-hover);
-    background: var(--nb-brand-hover);
+  .home-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1.75rem, 3.4vw, 3rem);
   }
 
-  .home-action-secondary {
-    color: var(--nb-foreground);
-  }
-
-  .home-action-secondary:hover {
-    background: var(--nb-accent);
-  }
-
-  .hero-visual {
+  .home-figure {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s3);
     min-width: 0;
   }
 
-  .demo-frame {
-    width: 100%;
-    border: 1px solid var(--nb-border-strong);
-    border-radius: var(--nb-radius-lg);
-    background: var(--nb-card);
+  .home-oidc {
+    background: var(--xid-sidebar);
+  }
+
+  :global(:root[data-theme='dark']) .home-oidc {
+    background: var(--xid-bg);
+  }
+
+  .code-with-result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s4);
+  }
+
+  .home-code {
+    min-width: 0;
+    margin: 0;
     overflow: hidden;
-    text-align: left;
+    border-radius: var(--xid-radius);
+    background: var(--xid-code);
+    color: var(--xid-code-foreground);
   }
 
-  .demo-frame-bar {
+  .home-code figcaption {
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 0.625rem 1rem;
-    border-bottom: 1px solid var(--nb-border);
-    color: var(--nb-muted-foreground);
-    font-family: var(--nb-font-mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.02em;
+    justify-content: space-between;
+    height: 2rem;
+    padding-inline: 0.875rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--xid-code-foreground) 10%, transparent);
+    font-family: var(--xid-font-mono);
+    font-size: var(--xid-text-xs);
+    line-height: var(--xid-leading-xs);
   }
 
-  .demo-frame-body {
-    display: grid;
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  .home-code figcaption span:first-child {
+    color: color-mix(in srgb, var(--xid-code-foreground) 70%, transparent);
   }
 
-  .demo-auth {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: clamp(1.75rem, 4vw, 2.75rem) 1.5rem;
-    background: var(--nb-background);
+  .home-code figcaption span:last-child {
+    color: color-mix(in srgb, var(--xid-code-foreground) 50%, transparent);
   }
 
-  .demo-log {
+  .home-code pre {
+    margin: 0;
+    padding: var(--xid-space-s4) 0.875rem var(--xid-space-s5);
+    overflow-x: auto;
+    font-family: var(--xid-font-mono);
+    font-size: var(--xid-text-sm);
+    line-height: 1.375rem;
+    tab-size: 2;
+  }
+
+  .token-claims {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 0.9rem;
-    padding: clamp(1.25rem, 3vw, 1.75rem);
-    background: var(--nb-code-surface);
-    color: var(--nb-code-foreground);
-    font-family: var(--nb-font-mono);
+    padding: var(--xid-space-s1) 0.875rem var(--xid-space-s2);
+    border: 1px solid var(--xid-border);
+    border-radius: var(--xid-radius);
+    background: var(--xid-surface);
   }
 
-  .demo-log-label {
-    margin: 0;
-    font-size: 0.66rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    opacity: 0.6;
-  }
-
-  .demo-log-list {
+  .token-claims-header {
     display: flex;
-    flex-direction: column;
-    gap: 0.7rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .demo-log-list li {
-    display: flex;
-    align-items: baseline;
-    gap: 0.6rem;
-    font-size: 0.72rem;
-    line-height: 1.6;
-  }
-
-  .demo-log-list code {
-    overflow-wrap: anywhere;
-  }
-
-  .demo-log-status {
-    flex-shrink: 0;
-    padding: 0.05rem 0.4rem;
-    border: 1px solid color-mix(in oklch, var(--nb-success) 45%, transparent);
-    border-radius: var(--nb-radius-sm);
-    color: var(--nb-success);
-    font-size: 0.66rem;
-    font-weight: 600;
-  }
-
-  .demo-log-redirect {
-    border-color: color-mix(in oklch, var(--nb-info) 45%, transparent);
-    color: var(--nb-info);
-  }
-
-  .demo-card {
-    width: min(100%, 20rem);
-    padding: 1.75rem;
-    border: 1px solid var(--nb-border);
-    border-radius: var(--nb-radius-lg);
-    background: var(--nb-card);
-    box-shadow: var(--nb-shadow-sm);
-  }
-
-  .demo-wordmark {
-    display: block;
-    font-size: 0.85rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-  }
-
-  .demo-title {
-    margin: 1rem 0 1.1rem;
-    font-size: 1.2rem;
-    font-weight: 640;
-    letter-spacing: -0.015em;
-  }
-
-  .demo-tabs {
-    display: flex;
-    gap: 0.2rem;
-    padding: 0.22rem;
-    border-radius: var(--nb-radius-md);
-    background: var(--nb-muted);
-  }
-
-  .demo-tab {
-    flex: 1;
-    padding: 0.4rem 0.5rem;
-    border-radius: var(--nb-radius-sm);
-    color: var(--nb-muted-foreground);
-    font-size: 0.82rem;
-    text-align: center;
-  }
-
-  .demo-tab-active {
-    background: var(--nb-card);
-    color: var(--nb-foreground);
-    font-weight: 600;
-    box-shadow: var(--nb-shadow-sm);
-  }
-
-  .demo-field {
-    display: block;
-    width: 100%;
-    margin-top: 1rem;
-    padding: 0.6rem 0.8rem;
-    border: 1px solid var(--nb-border-strong);
-    border-radius: var(--nb-radius-sm);
-    background: var(--nb-background);
-    color: var(--nb-foreground);
-    font-family: inherit;
-    font-size: 0.9rem;
-    box-sizing: border-box;
-  }
-
-  .demo-field::placeholder {
-    color: var(--nb-muted-foreground);
-  }
-
-  .demo-field:disabled {
-    opacity: 1;
-  }
-
-  .demo-button {
-    display: block;
-    margin-top: 0.8rem;
-    padding: 0.65rem;
-    border-radius: var(--nb-radius-sm);
-    background: var(--nb-brand);
-    color: var(--nb-brand-foreground);
-    font-size: 0.9rem;
-    font-weight: 600;
-    text-align: center;
-  }
-
-  .demo-foot {
-    margin: 1.1rem 0 0;
-    color: var(--nb-muted-foreground);
-    font-size: 0.78rem;
-    text-align: center;
-  }
-
-  .hero-facts {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0;
-    margin: 2.5rem 0 0;
-    padding: 0;
-    border-top: 1px solid var(--nb-border-strong);
-  }
-
-  .hero-facts > div {
-    display: flex;
-    flex-direction: column-reverse;
-    gap: 0.3rem;
-    min-width: 0;
-    padding-block: 0.875rem;
-    padding-right: 1rem;
-    border-bottom: 1px solid var(--nb-border);
-  }
-
-  .hero-facts dt {
-    color: var(--nb-muted-foreground);
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
-  .hero-facts dd {
-    margin: 0;
-    font-family: var(--nb-font-mono);
-    font-size: 0.8125rem;
-    font-weight: 550;
-    color: var(--nb-foreground);
-    overflow-wrap: anywhere;
-  }
-
-  .capability-section,
-  .architecture-section {
-    display: grid;
-    grid-template-columns: minmax(15rem, 0.75fr) minmax(0, 1.5fr);
-    gap: clamp(3rem, 8vw, 8rem);
-    padding-block: clamp(3.5rem, 8vw, 6.5rem);
-  }
-
-  .capability-section header,
-  .architecture-section header {
-    align-self: start;
-    position: sticky;
-    top: 6rem;
-  }
-
-  .capability-section h2,
-  .architecture-section h2,
-  .evidence-section h2,
-  .open-source-section h2 {
-    margin: 0;
-    font-size: clamp(2rem, 4.5vw, 3.4rem);
-    font-weight: 610;
-    letter-spacing: -0.038em;
-    line-height: 1.05;
-    text-wrap: balance;
-  }
-
-  .capability-section header > p:last-child,
-  .architecture-section header > p:last-child,
-  .open-source-copy > p {
-    margin: 1.25rem 0 0;
-    color: var(--nb-muted-foreground);
-    line-height: 1.7;
-  }
-
-  .capability-list {
-    border-top: 1px solid var(--nb-border-strong);
-  }
-
-  .capability-list a {
-    display: block;
-    padding-block: 1.4rem;
-    border-bottom: 1px solid var(--nb-border);
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .capability-row {
-    display: grid;
-    grid-template-columns: 2rem minmax(0, 1fr) auto;
-    gap: 1rem;
     align-items: center;
-  }
-
-  .capability-row span {
-    color: var(--nb-muted-foreground);
-    font-family: var(--nb-font-mono);
-    font-size: 0.7rem;
-  }
-
-  .capability-row strong {
-    font-size: 0.95rem;
-    transition: color 150ms ease;
-  }
-
-  .capability-arrow {
-    color: var(--nb-muted-foreground);
-    transition: transform 150ms ease, color 150ms ease;
-  }
-
-  .capability-list a:hover strong {
-    color: var(--nb-brand);
-  }
-
-  .capability-list a:hover .capability-arrow {
-    color: var(--nb-brand);
-    transform: translateX(2px);
-  }
-
-  .capability-list p {
-    margin: 0.4rem 0 0;
-    padding-left: 3rem;
-    padding-right: 2rem;
-    color: var(--nb-muted-foreground);
-    font-size: 0.9rem;
-    line-height: 1.65;
-  }
-
-  .architecture-list {
-    margin: 0;
-    border-top: 1px solid var(--nb-border-strong);
-  }
-
-  .architecture-list > div {
-    padding-block: 1.4rem;
-    border-bottom: 1px solid var(--nb-border);
-  }
-
-  .architecture-list dt {
-    display: flex;
-    gap: 1rem;
-    align-items: baseline;
-    font-size: 0.95rem;
-    font-weight: 620;
-  }
-
-  .architecture-list dt span {
-    min-width: 2rem;
-    color: var(--nb-muted-foreground);
-    font-family: var(--nb-font-mono);
-    font-size: 0.7rem;
-  }
-
-  .architecture-list dd {
-    margin: 0.4rem 0 0;
-    padding-left: 3rem;
-    color: var(--nb-muted-foreground);
-    font-size: 0.9rem;
-    line-height: 1.65;
-  }
-
-  .evidence-section {
-    display: grid;
-    grid-template-columns: 0.9fr 1.1fr;
-    gap: clamp(2rem, 6vw, 5rem);
-    margin-block: clamp(3.5rem, 8vw, 6.5rem);
-    padding-block: clamp(2rem, 4vw, 3.5rem);
-    border-block: 1px solid var(--nb-border-strong);
-  }
-
-  .evidence-section > div:last-child {
-    align-self: end;
-  }
-
-  .evidence-section p {
-    margin: 0 0 1.5rem;
-    color: var(--nb-muted-foreground);
-    line-height: 1.75;
-  }
-
-  .evidence-section a {
-    color: var(--nb-foreground);
-    font-size: 0.875rem;
-    font-weight: 650;
-    text-underline-offset: 0.3rem;
-  }
-
-  .open-source-section {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-    padding-block: clamp(3.5rem, 8vw, 6.5rem);
-  }
-
-  .open-source-copy {
-    max-width: 42rem;
-  }
-
-  .open-source-copy > a {
-    display: inline-block;
-    margin-top: 1.5rem;
-    color: var(--nb-foreground);
-    font-size: 0.875rem;
-    font-weight: 650;
-    text-underline-offset: 0.3rem;
-  }
-
-  .project-badges {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 1.25rem;
-  }
-
-  .project-badges a {
-    display: inline-flex;
-  }
-
-  .project-badges img {
-    display: block;
-    width: auto;
+    justify-content: space-between;
     height: 2.5rem;
   }
 
-  .project-badges img.badge-compact {
-    height: 1.4rem;
+  .token-claims-header h3 {
+    margin: 0;
+    font-size: var(--xid-text-base);
+    font-weight: var(--xid-weight-display);
+    line-height: var(--xid-leading-sm);
   }
 
-  .home-footer {
+  .token-claims-header span {
+    color: var(--xid-faint-foreground);
+    font-size: var(--xid-text-xs);
+    line-height: var(--xid-leading-xs);
+  }
+
+  .token-claims dl {
+    margin: 0;
+  }
+
+  .token-claims dl > div {
     display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding-block: 1.5rem 2.5rem;
-    border-top: 1px solid var(--nb-border-strong);
-    color: var(--nb-muted-foreground);
-    font-size: 0.78rem;
+    align-items: center;
+    min-height: 2rem;
+    border-top: 1px solid var(--xid-border);
   }
 
-  .home-footer nav {
+  .token-claims dt {
+    flex: 0 0 6rem;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-xs);
+    line-height: var(--xid-leading-xs);
+  }
+
+  .token-claims dd {
+    min-width: 0;
+    margin: 0;
+    font-family: var(--xid-font-mono);
+    font-size: var(--xid-text-sm);
+    line-height: var(--xid-leading-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .token-claims .token-claim-tenant {
+    padding: var(--xid-space-s2);
+    border-radius: var(--xid-radius-sm);
+    background: var(--xid-muted);
+  }
+
+  .token-claim-tenant dt {
+    flex-basis: 5.5rem;
+  }
+
+  .token-claim-tenant dd {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem 1.25rem;
+    gap: 0.125rem var(--xid-space-s2);
   }
 
-  .home-footer a {
-    color: inherit;
-    text-decoration: none;
+  .token-claim-note {
+    color: var(--xid-muted-foreground);
+    font-family: var(--xid-font);
+    font-size: var(--xid-text-xs);
   }
 
-  .home-footer a:hover {
-    color: var(--nb-foreground);
+  .home-stack :global(.home-stack-back) {
+    display: none;
   }
 
-  @media (max-width: 60rem) {
-    .home-hero,
-    .capability-section,
-    .architecture-section,
-    .evidence-section {
-      grid-template-columns: 1fr;
-    }
-
-    .hero-visual {
-      width: 100%;
-      max-width: 56rem;
-    }
-
-    .capability-section header,
-    .architecture-section header {
-      position: static;
-    }
-
-    .demo-frame-body {
-      grid-template-columns: 1fr;
-    }
-
-    .demo-log {
-      display: none;
-    }
-
+  .home-console {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s5);
   }
 
-  @media (max-width: 38rem) {
-    .home-shell {
-      width: min(100% - 1.5rem, 76rem);
+  .home-console :global(.home-console-frame) {
+    margin-top: var(--xid-space-s2);
+  }
+
+  .home-cloud {
+    padding-top: clamp(4rem, 8vw, 7rem);
+    padding-bottom: clamp(5rem, 9vw, 8rem);
+  }
+
+  .fact-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+    border-top: 1px solid var(--xid-border);
+  }
+
+  .fact-strip > div {
+    display: flex;
+    flex-direction: column-reverse;
+    justify-content: flex-end;
+    gap: var(--xid-space-s1);
+    min-width: 0;
+    padding: var(--xid-space-s4) var(--xid-space-s4) var(--xid-space-s4) 0;
+    border-bottom: 1px solid var(--xid-border);
+  }
+
+  .fact-strip > div:nth-child(even) {
+    padding-left: var(--xid-space-s4);
+    border-left: 1px solid var(--xid-border);
+  }
+
+  .fact-strip dt {
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-xs);
+    line-height: var(--xid-leading-xs);
+  }
+
+  .fact-strip dd {
+    margin: 0;
+    font-size: var(--xid-text-xl);
+    font-weight: var(--xid-weight-medium);
+    line-height: var(--xid-leading-xl);
+    letter-spacing: var(--xid-tracking-heading);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .home-cloud-pricing {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+  }
+
+  @media (min-width: 48rem) {
+    .home-actions {
+      flex-direction: row;
+      align-items: center;
     }
 
-    .home-hero h1 {
-      font-size: clamp(2.5rem, 13vw, 3.75rem);
+    .home-cloud-pricing {
+      min-height: 0;
+      margin-left: var(--xid-space-s3);
     }
 
-    .capability-row {
-      grid-template-columns: 1.5rem minmax(0, 1fr) auto;
-      gap: 0.75rem;
+    .fact-strip {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
-    .capability-list p {
-      padding-left: 2.25rem;
-      padding-right: 0;
+    .fact-strip > div {
+      gap: 0.375rem;
+      padding: var(--xid-space-s6);
+      border-bottom: 0;
+      border-left: 1px solid var(--xid-border);
     }
 
-    .architecture-list dd {
-      padding-left: 2.25rem;
+    .fact-strip > div:first-child {
+      padding-left: 0;
+      border-left: 0;
     }
 
-    .home-footer {
-      flex-direction: column;
+    .fact-strip {
+      border-bottom: 1px solid var(--xid-border);
+    }
+
+    .fact-strip dd {
+      font-size: var(--xid-text-xxl);
+      line-height: var(--xid-leading-xxl);
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .home-hero-inner {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 27rem;
+      align-items: center;
+      gap: var(--xid-space-s10);
+    }
+
+    .home-hero-copy {
+      gap: var(--xid-space-s6);
+    }
+
+    .home-hero-visual {
+      position: relative;
+      height: 34.25rem;
+    }
+
+    .home-hero-visual :global(.home-hero-console) {
+      display: flex;
+      position: absolute;
+      top: 0;
+      left: 6rem;
+      width: 39rem;
+      border-right: 0;
+      border-radius: var(--xid-radius-lg) 0 0 var(--xid-radius-lg);
+    }
+
+    .home-hero-visual :global(.home-hero-signin) {
+      position: absolute;
+      top: 6.5rem;
+      left: -1rem;
+      width: 22rem;
+    }
+
+    .code-with-result {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+
+    .home-code {
+      flex: 1 1 0;
+    }
+
+    .token-claims {
+      flex: 0 0 27.5rem;
+      padding-inline: var(--xid-space-s4);
+    }
+
+    .home-stack {
+      position: relative;
+      height: 37.9375rem;
+    }
+
+    .home-stack :global(.home-stack-back) {
+      display: flex;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: min(52.75rem, 100%);
+    }
+
+    .home-stack :global(.home-stack-front) {
+      position: absolute;
+      top: 20.25rem;
+      right: 0;
+      width: min(43.5rem, 100%);
+    }
+
+    .home-console {
+      display: grid;
+      grid-template-columns: 27.5rem minmax(0, 1fr);
+      grid-template-rows: 1fr auto auto 1fr;
+      grid-template-areas:
+        '. frame'
+        'header frame'
+        'evidence frame'
+        '. frame';
+      column-gap: var(--xid-space-s16);
+      row-gap: var(--xid-space-s6);
+    }
+
+    .home-console :global(.home-console-header) {
+      grid-area: header;
+    }
+
+    .home-console :global(.home-console-frame) {
+      grid-area: frame;
+      align-self: center;
+      margin-top: 0;
+    }
+
+    .home-console-evidence {
+      grid-area: evidence;
     }
   }
 </style>

@@ -315,9 +315,9 @@ async function assertNimbusProductLanding(page, origin) {
         document.documentElement.lang === globalThis.__xidExpectedSiteLocale &&
         document.querySelector('[data-pagefind-body]') !== null &&
         document.querySelector('#home-title') !== null &&
-        document.querySelector('[data-smoke-architecture]') !== null &&
-        document.querySelector('.capability-list') !== null &&
-        document.querySelector('#desktop-sidebar') === null &&
+        document.querySelector('[data-home-section="hero"]') !== null &&
+        document.querySelector('[data-home-section="cloud"]') !== null &&
+        document.querySelector('[data-docs-sidebar]') === null &&
         document.querySelector('astro-island[component-url*="SiteApp."]') === null &&
         hrefs.includes(globalThis.__xidExpectedDocsPathname) &&
         hrefs.includes(globalThis.__xidExpectedGettingStartedPathname) &&
@@ -355,14 +355,14 @@ async function assertNimbusDocumentation(page, origin) {
     await page.waitFor(() => {
       const language = document.querySelector('select[data-site-language-switcher]')
       const theme = document.documentElement.style.colorScheme
-      const sidebarLinks = document.querySelectorAll('#desktop-sidebar a[href]')
+      const sidebarLinks = document.querySelectorAll('[data-docs-sidebar] a[href]')
       return (
         document.documentElement.lang === globalThis.__xidExpectedSiteLocale &&
         document.querySelector('[data-pagefind-body]') !== null &&
         document.querySelector('h1') !== null &&
         document.querySelector('[data-search-trigger]') !== null &&
         document.querySelector('astro-island[component-url*="SiteApp."]') === null &&
-        sidebarLinks.length >= 40 &&
+        sidebarLinks.length >= 14 &&
         (theme === 'light' || theme === 'dark') &&
         language instanceof HTMLSelectElement &&
         language.value === globalThis.__xidExpectedSiteLocale
@@ -381,7 +381,7 @@ async function assertNimbusDocumentation(page, origin) {
     await page.assertNoHydrationMismatch(`Nimbus hub ${locale}`)
     const interaction = await page.evaluate(`(() => {
       const root = document.documentElement;
-      const button = document.querySelector('[data-nb-theme-toggle]');
+      const button = document.querySelector('button[data-theme-control]');
       if (!(button instanceof HTMLButtonElement)) return null;
       globalThis.__xidThemeBeforeInteraction = root.style.colorScheme;
       button.click();
@@ -395,7 +395,7 @@ async function assertNimbusDocumentation(page, origin) {
       return (
         (theme === 'light' || theme === 'dark') &&
         theme !== globalThis.__xidThemeBeforeInteraction &&
-        localStorage.getItem('ui-mode') === theme
+        localStorage.getItem('xid.theme') === theme
       )
     }, `Nimbus hub theme interaction ${locale}`)
     const themeAfter = await page.evaluate('document.documentElement.style.colorScheme')

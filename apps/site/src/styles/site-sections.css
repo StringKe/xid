@@ -1,0 +1,44 @@
+/* 首页、Pricing 与文档共用的节容器、正文链接和证据句（design-language 3.5、3.8、site-narrative 2.2）。 */
+
+.site-section {
+  padding-block: clamp(4rem, 8vw, 8rem);
+  border-bottom: 1px solid var(--xid-border);
+}
+
+.site-section-inner {
+  width: 100%;
+  max-width: calc(var(--site-cap) + 2 * var(--site-gutter));
+  margin-inline: auto;
+  padding-inline: var(--site-gutter);
+}
+
+.text-link {
+  color: var(--xid-accent);
+  font-size: var(--xid-text-base);
+  line-height: var(--xid-leading-base);
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, var(--xid-accent) 40%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 120ms ease-out;
+}
+
+.text-link:hover {
+  text-decoration-color: var(--xid-accent);
+}
+
+.site-evidence {
+  margin: 0;
+  color: var(--xid-muted-foreground);
+  font-size: var(--xid-text-sm);
+  line-height: var(--xid-leading-sm);
+}
+
+.site-subsection-title {
+  margin: 0;
+  color: var(--xid-fg);
+  font-size: var(--xid-text-lg);
+  font-weight: var(--xid-weight-display);
+  line-height: var(--xid-leading-lg);
+  letter-spacing: var(--xid-tracking-title);
+}

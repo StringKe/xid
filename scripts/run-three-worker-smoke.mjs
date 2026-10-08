@@ -610,7 +610,7 @@ async function runChecks(baseUrl, ports) {
     owner: 'site',
     status: 200,
     contentType: 'text/html',
-    includes: 'id="desktop-sidebar"',
+    includes: 'data-docs-sidebar',
     excludes: 'SiteApp',
   })
   await check(baseUrl, {
@@ -633,7 +633,7 @@ async function runChecks(baseUrl, ports) {
     owner: 'site',
     status: 200,
     contentType: 'text/html',
-    includes: 'SCIM API reference',
+    includes: 'SCIM 2.0 endpoint contract for provisioning users and groups into XID.',
   })
   await check(baseUrl, {
     name: 'Nimbus SCIM trailing slash redirect',

@@ -1,0 +1,13 @@
+---
+import type { GetStaticPaths } from "astro";
+import PricingPage from "@/components/PricingPage.astro";
+import { getLocalizedPricingStaticPaths } from "@/lib/pricing-surface";
+import type { SiteLocale } from "@/lib/site-locale";
+
+export const prerender = true;
+export const getStaticPaths: GetStaticPaths = () => getLocalizedPricingStaticPaths();
+
+const { locale } = Astro.props as { locale: SiteLocale };
+---
+
+<PricingPage locale={locale} />

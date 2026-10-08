@@ -70,7 +70,7 @@ describe('public docs agent surfaces', () => {
         expect(index).toContain(`https://xid.dev${item.markdownUrl}`)
       }
     }
-    expect(index.match(/\/index\.md\)/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 16)
+    expect(index.match(/\/index\.md\)/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 24)
     expect(index).toContain('https://xid.dev/status/index.md')
     expect(index).toContain('https://xid.dev/zh-hans/status/index.md')
     expect(index).toContain('https://xid.dev/en/llms.txt')
@@ -88,8 +88,10 @@ describe('public docs agent surfaces', () => {
     const englishIndex = renderPublicDocsLlmsIndex(english)
     const chineseIndex = renderPublicDocsLlmsIndex(chinese)
 
-    expect(englishIndex.match(/\/index\.md\)/g)).toHaveLength(44)
-    expect(chineseIndex.match(/\/index\.md\)/g)).toHaveLength(44)
+    expect(englishIndex.match(/\/index\.md\)/g)).toHaveLength(45)
+    expect(chineseIndex.match(/\/index\.md\)/g)).toHaveLength(45)
+    expect(englishIndex).toContain('https://xid.dev/pricing/index.md')
+    expect(chineseIndex).toContain('https://xid.dev/zh-hans/pricing/index.md')
     expect(englishIndex).toContain('https://xid.dev/status/index.md')
     expect(chineseIndex).toContain('https://xid.dev/zh-hans/status/index.md')
     expect(chineseIndex).not.toContain('https://xid.dev/status/index.md')
@@ -118,25 +120,27 @@ describe('public docs agent surfaces', () => {
     expect(chineseFull).not.toContain('<!-- xid-doc-path: /sdks/react -->')
   })
 
-  it('renders a deterministic timestamp-free 352-page root corpus', () => {
+  it('renders a deterministic timestamp-free 360-page root corpus', () => {
     const groups = completeGroups()
     const first = renderPublicDocsGlobalLlmsFull(groups)
     const second = renderPublicDocsGlobalLlmsFull([...groups].reverse())
 
     expect(second).toBe(first)
-    expect(first.match(/<!-- xid-doc-path:/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 16)
+    expect(first.match(/<!-- xid-doc-path:/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 24)
     expect(first).toContain('<!-- xid-doc-path: /status -->')
     expect(first).toContain('<!-- xid-doc-path: /zh-hans/status -->')
+    expect(first).toContain('<!-- xid-doc-path: /pricing -->')
+    expect(first).toContain('<!-- xid-doc-path: /zh-hans/pricing -->')
     expect(first).not.toMatch(/^Generated(?: at| on):/im)
     expect(first).not.toMatch(/^Build timestamp:/im)
   })
 
-  it('includes one homepage, one localized hub, 41 docs, and status in each section corpus', () => {
+  it('includes one homepage, one localized hub, 41 docs, status, and pricing in each section corpus', () => {
     const [english] = completeGroups()
     const corpus = renderPublicDocsLlmsFull(english)
 
-    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(44)
-    expect(corpus.match(/<!-- xid-doc-slug:/g)).toHaveLength(43)
+    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(45)
+    expect(corpus.match(/<!-- xid-doc-slug:/g)).toHaveLength(44)
     expect(corpus).not.toContain('https://xid.dev/zh-hans')
     expect(corpus).toContain('https://xid.dev/getting-started')
   })
@@ -150,8 +154,8 @@ describe('public docs agent surfaces', () => {
     const index = renderPublicDocsLlmsIndex(reduced)
     const corpus = renderPublicDocsLlmsFull(reduced)
 
-    expect(index.match(/\/index\.md\)/g)).toHaveLength(reduced.documents.length + 3)
-    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(reduced.documents.length + 3)
+    expect(index.match(/\/index\.md\)/g)).toHaveLength(reduced.documents.length + 4)
+    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(reduced.documents.length + 4)
     expect(index).not.toContain(english.documents[0]?.item.markdownUrl)
     expect(corpus).not.toContain(`<!-- xid-doc-slug: ${english.documents[1]?.slug} -->`)
   })

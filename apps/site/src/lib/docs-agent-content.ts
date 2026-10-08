@@ -10,6 +10,7 @@ import {
   type PublicDocsIndexedSection,
 } from './docs-registry'
 import { getHomeSurface, renderHomeCorpus } from './home-surface'
+import { getPricingSurface, renderPricingCorpus } from './pricing-surface'
 import { getStatusSurface, renderStatusCorpus } from './status-surface'
 
 function absoluteUrl(pathname: string, siteOrigin: string): string {
@@ -51,6 +52,18 @@ function publishedSectionItems(section: PublicDocsIndexedSection): readonly Publ
     slug: document.slug,
     item: document.item,
   }))
+}
+
+function standalonePageLinks(
+  locale: PublicDocsIndexedLocale['locale'],
+  siteOrigin: string,
+): readonly string[] {
+  const status = getStatusSurface(locale)
+  const pricing = getPricingSurface(locale)
+  return [
+    `- [${status.title}](${absoluteUrl(status.markdownPath, siteOrigin)})${descriptionSuffix(status.description)}`,
+    `- [${pricing.text.title}](${absoluteUrl(pricing.markdownPath, siteOrigin)})${descriptionSuffix(pricing.text.description)}`,
+  ]
 }
 
 function renderCorpusItem(corpusItem: PublicDocsCorpusItem, siteOrigin: string): readonly string[] {
@@ -100,10 +113,7 @@ export function renderPublicDocsLlmsIndex(
       `- [${document.item.title}](${absoluteUrl(document.item.markdownUrl, siteOrigin)})${descriptionSuffix(document.item.description)}`,
     )
   }
-  const status = getStatusSurface(group.locale)
-  lines.push(
-    `- [${status.title}](${absoluteUrl(status.markdownPath, siteOrigin)})${descriptionSuffix(status.description)}`,
-  )
+  lines.push(...standalonePageLinks(group.locale, siteOrigin))
 
   const sections = getPublicDocsIndexedSections(group)
   if (sections.length > 0) {
@@ -165,10 +175,7 @@ export function renderPublicDocsGlobalLlmsIndex(
         `- [${item.title}](${absoluteUrl(item.markdownUrl, siteOrigin)})${descriptionSuffix(item.description)}`,
       )
     }
-    const status = getStatusSurface(group.locale)
-    lines.push(
-      `- [${status.title}](${absoluteUrl(status.markdownPath, siteOrigin)})${descriptionSuffix(status.description)}`,
-    )
+    lines.push(...standalonePageLinks(group.locale, siteOrigin))
     lines.push('')
   }
 
@@ -253,6 +260,7 @@ export function renderPublicDocsLlmsFull(
     lines.push(...renderCorpusItem(item, siteOrigin))
   }
   lines.push(...renderStatusCorpus(group.locale, siteOrigin))
+  lines.push(...renderPricingCorpus(group.locale, siteOrigin))
 
   return `${lines.join('\n').trim()}\n`
 }
@@ -268,7 +276,7 @@ export function renderPublicDocsGlobalLlmsFull(
     '# XID: full public documentation corpus',
     '',
     `Index: ${absoluteUrl('/llms.txt', siteOrigin)}`,
-    `Published pages: ${items.length + groups.length * 2}`,
+    `Published pages: ${items.length + groups.length * 3}`,
     '',
   ]
 
@@ -286,6 +294,12 @@ export function renderPublicDocsGlobalLlmsFull(
   )
   for (const group of statusGroups) {
     lines.push(...renderStatusCorpus(group.locale, siteOrigin))
+  }
+  const pricingGroups = [...groups].sort((left, right) =>
+    getPricingSurface(left.locale).path.localeCompare(getPricingSurface(right.locale).path),
+  )
+  for (const group of pricingGroups) {
+    lines.push(...renderPricingCorpus(group.locale, siteOrigin))
   }
 
   return `${lines.join('\n').trim()}\n`

@@ -862,7 +862,7 @@ function bodyIsProductHomepage(body) {
     body.includes('XID') &&
     body.includes('data-ai-agent-directive') &&
     body.includes('data-pagefind-body') &&
-    body.includes('www.producthunt.com/products/xid') &&
+    body.includes('data-home-section="hero"') &&
     body.includes('data-search-dialog') &&
     !body.includes('data-nb-sidebar') &&
     !body.includes('Sign in to XID') &&
@@ -968,7 +968,7 @@ async function auditProductionHttpReadiness(incomplete) {
       contentType: 'text/markdown',
       valid: (body) =>
         body.startsWith('---\n') &&
-        body.includes('title: "Build identity at the edge, without giving up control"') &&
+        body.includes('title: "One identity product for your app and your customers"') &&
         !body.includes('Source: https://xid.dev/index.mdx'),
     },
   ]

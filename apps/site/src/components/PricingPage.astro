@@ -1,0 +1,674 @@
+---
+import "../styles/site-sections.css";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import ProductFrame from "@/components/site/ProductFrame.astro";
+import { Badge } from "@/components/ui/badge";
+import Icon from "@/components/ui/icon/Icon.astro";
+import { LinkButton } from "@/components/ui/link-button";
+import { getPricingSurface } from "@/lib/pricing-surface";
+import { SITE_SOURCE_MAP_URL } from "@/lib/site-links";
+import { hostedAuthHref, localizeSitePath, type SiteLocale } from "@/lib/site-locale";
+
+interface Props {
+  locale: SiteLocale;
+}
+
+const { locale } = Astro.props;
+const surface = getPricingSurface(locale);
+const { text } = surface;
+const startFreeHref = hostedAuthHref("sign-up", locale);
+const selfHostingHref = localizeSitePath("/self-hosting", locale);
+const plans = [
+  {
+    name: text.cloudName,
+    operator: text.cloudOperator,
+    price: text.cloudPrice,
+    items: [text.cloudEveryFeature, text.cloudOrganizations, text.cloudSubdomain],
+    action: { href: startFreeHref, label: text.startFreeOnCloud, variant: "primary" as const },
+  },
+  {
+    name: text.selfHostedName,
+    operator: text.selfHostedOperator,
+    price: text.selfHostedPrice,
+    items: [text.cloudEveryFeature, text.selfHostedNoLicense, text.selfHostedCloudflare],
+    action: { href: selfHostingHref, label: text.selfHostingGuide, variant: "secondary" as const },
+  },
+];
+const chargingRows = [
+  { title: text.usageOnlyTitle, body: text.usageOnlyBody },
+  { title: text.noPlansTitle, body: text.noPlansBody },
+  { title: text.nothingOffTitle, body: text.nothingOffBody },
+];
+const allRows = surface.groups.flatMap((group) => group.rows);
+const highlightRows = allRows.filter((row) => row.highlight);
+const remainingRows = allRows.filter((row) => !row.highlight);
+---
+
+<BaseLayout
+  title={text.title}
+  description={text.description}
+  markdownUrl={surface.markdownPath}
+  socialImage="/og.png"
+>
+  <div class="flex min-h-screen flex-col">
+    <SiteHeader />
+    <main id="main-content" data-pagefind-body class="flex-1">
+      <section class="pricing-title site-section-inner" aria-labelledby="pricing-title">
+        <h1 id="pricing-title">{text.title}</h1>
+        <p>{text.description}</p>
+      </section>
+
+      <section class="pricing-plans" aria-label={text.title}>
+        <div class="site-section-inner pricing-plans-grid">
+          {plans.map((plan) => (
+            <article class="pricing-plan">
+              <header>
+                <h2>{plan.name}</h2>
+                <p>{plan.operator}</p>
+              </header>
+              <p class="pricing-plan-price">{plan.price}</p>
+              <ul>
+                {plan.items.map((item) => (
+                  <li>
+                    <Icon name="check" class="pricing-check" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <LinkButton href={plan.action.href} variant={plan.action.variant} size="lg" class="pricing-plan-action">
+                {plan.action.label}
+              </LinkButton>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section class="site-section pricing-split-section" aria-labelledby="pricing-charging">
+        <div class="site-section-inner pricing-split">
+          <h2 id="pricing-charging" class="site-subsection-title">{text.chargingTitle}</h2>
+          <dl class="pricing-rows">
+            {chargingRows.map((row) => (
+              <div>
+                <dt>{row.title}</dt>
+                <dd>{row.body}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
+
+      <section class="site-section pricing-split-section" aria-labelledby="pricing-usage">
+        <div class="site-section-inner pricing-split">
+          <h2 id="pricing-usage" class="site-subsection-title">{text.usageTitle}</h2>
+          <div class="pricing-usage">
+            <p>{text.usageBody}</p>
+            <ProductFrame
+              frame="metrics"
+              viewport={766}
+              locale={locale}
+              host="northwind.xid.dev/console"
+              class="pricing-metrics"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="site-section pricing-features-section" aria-labelledby="pricing-features">
+        <div class="site-section-inner pricing-features">
+          <header class="pricing-features-header">
+            <h2 id="pricing-features" class="site-subsection-title">{text.featuresTitle}</h2>
+            <a class="pricing-features-source wide-only" href={SITE_SOURCE_MAP_URL} target="_blank" rel="noopener">
+              {text.featuresSource}
+            </a>
+            <a class="pricing-features-source narrow-only" href={SITE_SOURCE_MAP_URL} target="_blank" rel="noopener">
+              {text.featuresSourceNarrow}
+            </a>
+          </header>
+
+          <table class="capability-table wide-only">
+            <thead>
+              <tr>
+                <th scope="col" class="capability-feature-head">{text.featureColumn}</th>
+                <th scope="col" class="capability-edition-head">{text.cloudName}</th>
+                <th scope="col" class="capability-edition-head">{text.selfHostedName}</th>
+                <th scope="col" class="capability-status-head">{text.statusColumn}</th>
+              </tr>
+            </thead>
+            {surface.groups.map((group) => (
+              <tbody>
+                <tr class="capability-group">
+                  <th scope="rowgroup" colspan="4">{group.label}</th>
+                </tr>
+                {group.rows.map((row) => (
+                  <tr>
+                    <th scope="row">{row.label}</th>
+                    <td>
+                      <Icon name="check" />
+                      <span class="sr-only">{text.included}</span>
+                    </td>
+                    <td>
+                      <Icon name="check" />
+                      <span class="sr-only">{text.included}</span>
+                    </td>
+                    <td><Badge variant={row.badge}>{row.status}</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            ))}
+          </table>
+
+          <div class="capability-list narrow-only" data-pagefind-ignore>
+            <ul>
+              {highlightRows.map((row) => (
+                <li>
+                  <span>{row.label}</span>
+                  <Badge variant={row.badge}>{row.status}</Badge>
+                </li>
+              ))}
+            </ul>
+            <details>
+              <summary>{text.showAllFeatures}</summary>
+              <ul>
+                {remainingRows.map((row) => (
+                  <li>
+                    <span>{row.label}</span>
+                    <Badge variant={row.badge}>{row.status}</Badge>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+
+          <p class="site-evidence">{text.featuresNote}</p>
+        </div>
+      </section>
+
+      <section class="site-section pricing-split-section" aria-labelledby="pricing-questions">
+        <div class="site-section-inner pricing-split">
+          <h2 id="pricing-questions" class="site-subsection-title">{text.questionsTitle}</h2>
+          <div class="pricing-faq">
+            {surface.questions.map((item, index) => (
+              <details open={index < 2}>
+                <summary>
+                  <span>{item.question}</span>
+                  <Icon name="caret-down" class="pricing-faq-caret" />
+                </summary>
+                <p>{item.answer}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section class="pricing-closing">
+        <div class="site-section-inner pricing-closing-inner">
+          <p>{text.closing}</p>
+          <div class="pricing-closing-actions">
+            <LinkButton href={startFreeHref} size="lg">{text.startFreeOnCloud}</LinkButton>
+            <LinkButton href={selfHostingHref} variant="secondary" size="lg" class="wide-only-flex">
+              {text.selfHostingGuide}
+            </LinkButton>
+          </div>
+        </div>
+      </section>
+    </main>
+    <SiteFooter />
+  </div>
+</BaseLayout>
+
+<style>
+  .pricing-title {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s3);
+    padding-top: clamp(3rem, 6.5vw, 6rem);
+    padding-bottom: clamp(2rem, 3.8vw, 3.5rem);
+  }
+
+  .pricing-title h1 {
+    margin: 0;
+    font-size: var(--site-display-title);
+    font-weight: var(--xid-weight-display);
+    line-height: 1.1;
+    letter-spacing: var(--xid-tracking-heading);
+  }
+
+  .pricing-title p {
+    max-width: 40rem;
+    margin: 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-md);
+    line-height: 1.625;
+    text-wrap: pretty;
+  }
+
+  .pricing-plans {
+    padding-bottom: clamp(4rem, 6.5vw, 6rem);
+    border-bottom: 1px solid var(--xid-border);
+  }
+
+  .pricing-plans-grid {
+    display: grid;
+    gap: var(--xid-space-s3);
+  }
+
+  .pricing-plan {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s4);
+    padding: var(--xid-space-s5);
+    border: 1px solid var(--xid-border);
+    border-radius: var(--xid-radius);
+  }
+
+  .pricing-plan header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s1);
+  }
+
+  .pricing-plan h2 {
+    margin: 0;
+    font-size: var(--xid-text-md);
+    font-weight: var(--xid-weight-display);
+    line-height: var(--xid-leading-md);
+  }
+
+  .pricing-plan header p {
+    margin: 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-base);
+    line-height: var(--xid-leading-base);
+  }
+
+  .pricing-plan-price {
+    margin: 0;
+    font-size: var(--xid-text-xl);
+    font-weight: var(--xid-weight-display);
+    line-height: var(--xid-leading-xl);
+    letter-spacing: var(--xid-tracking-heading);
+  }
+
+  .pricing-plan ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .pricing-plan li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    font-size: var(--xid-text-base);
+    line-height: var(--xid-leading-base);
+  }
+
+  .pricing-plan :global(.pricing-check) {
+    margin-top: 0.125rem;
+  }
+
+  .pricing-plan :global(.pricing-plan-action) {
+    width: 100%;
+  }
+
+  .pricing-split-section {
+    padding-block: clamp(3.5rem, 5.5vw, 5rem);
+  }
+
+  .pricing-split {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s4);
+  }
+
+  .pricing-rows {
+    margin: 0;
+    border-top: 1px solid var(--xid-border);
+  }
+
+  .pricing-rows > div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s1);
+    padding-block: var(--xid-space-s4);
+    border-bottom: 1px solid var(--xid-border);
+  }
+
+  .pricing-rows dt {
+    font-size: var(--xid-text-md);
+    font-weight: var(--xid-weight-display);
+    line-height: var(--xid-leading-md);
+  }
+
+  .pricing-rows dd {
+    margin: 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-base);
+    line-height: 1.375rem;
+  }
+
+  .pricing-usage {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s6);
+    min-width: 0;
+  }
+
+  .pricing-usage p {
+    margin: 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-md);
+    line-height: 1.625;
+  }
+
+  .pricing-usage :global(.pricing-metrics) {
+    max-width: 48rem;
+  }
+
+  .pricing-features-section {
+    padding-block: clamp(3.5rem, 5.5vw, 5rem);
+  }
+
+  .pricing-features {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s6);
+  }
+
+  .pricing-features-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s1);
+  }
+
+  .pricing-features-source {
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-sm);
+    line-height: var(--xid-leading-xs);
+    text-decoration: none;
+    transition: color 120ms ease-out;
+  }
+
+  .pricing-features-source:hover {
+    color: var(--xid-fg);
+  }
+
+  .capability-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .capability-table thead th {
+    height: 2rem;
+    padding-inline: var(--xid-space-s2);
+    border-bottom: 1px solid var(--xid-border);
+    font-size: var(--xid-text-xs);
+    font-weight: var(--xid-weight-regular);
+    letter-spacing: var(--xid-tracking-small);
+    line-height: var(--xid-leading-xs);
+    text-align: left;
+    color: var(--xid-muted-foreground);
+  }
+
+  .capability-table thead .capability-feature-head {
+    padding-left: 0;
+  }
+
+  .capability-table thead .capability-edition-head {
+    width: 8.75rem;
+    color: var(--xid-fg);
+    font-weight: var(--xid-weight-medium);
+    letter-spacing: 0;
+  }
+
+  .capability-table thead .capability-status-head {
+    width: 15rem;
+  }
+
+  .capability-group th {
+    height: 2.75rem;
+    padding: 0 0 var(--xid-space-s2);
+    border-bottom: 1px solid var(--xid-border);
+    color: var(--xid-faint-foreground);
+    font-size: var(--xid-text-xs);
+    font-weight: var(--xid-weight-medium);
+    line-height: var(--xid-leading-xs);
+    text-align: left;
+    vertical-align: bottom;
+  }
+
+  .capability-table tbody tr:not(.capability-group) > * {
+    height: 2.5rem;
+    border-bottom: 1px solid var(--xid-border);
+    vertical-align: middle;
+  }
+
+  .capability-table tbody th[scope='row'] {
+    padding-right: var(--xid-space-s2);
+    font-size: var(--xid-text-base);
+    font-weight: var(--xid-weight-regular);
+    line-height: var(--xid-leading-sm);
+    text-align: left;
+  }
+
+  .capability-table tbody td {
+    padding-inline: var(--xid-space-s2);
+  }
+
+  .capability-table tbody td > :global(span) {
+    vertical-align: middle;
+  }
+
+  .capability-list ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .capability-list li {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.375rem;
+    padding-block: var(--xid-space-s3);
+    border-bottom: 1px solid var(--xid-border);
+    font-size: var(--xid-text-base);
+    line-height: var(--xid-leading-sm);
+  }
+
+  .capability-list summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    border-bottom: 1px solid var(--xid-border);
+    color: var(--xid-accent);
+    font-size: var(--xid-text-base);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .capability-list summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .capability-list details[open] summary {
+    display: none;
+  }
+
+  .pricing-faq {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-top: 1px solid var(--xid-border);
+  }
+
+  .pricing-faq details {
+    border-bottom: 1px solid var(--xid-border);
+  }
+
+  .pricing-faq summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--xid-space-s4);
+    min-height: 3.25rem;
+    padding-block: var(--xid-space-s3);
+    font-size: var(--xid-text-md);
+    font-weight: var(--xid-weight-medium);
+    line-height: var(--xid-leading-md);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .pricing-faq summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .pricing-faq :global(.pricing-faq-caret) {
+    color: var(--xid-muted-foreground);
+    transition: transform 120ms ease-out;
+  }
+
+  .pricing-faq details[open] :global(.pricing-faq-caret) {
+    transform: rotate(180deg);
+  }
+
+  .pricing-faq details p {
+    max-width: 37.5rem;
+    margin: calc(var(--xid-space-s1) * -1) 0 0;
+    padding-bottom: var(--xid-space-s4);
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-base);
+    line-height: 1.375rem;
+  }
+
+  .pricing-closing-inner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s4);
+    padding-top: clamp(3rem, 5.5vw, 5rem);
+    padding-bottom: clamp(4rem, 6.5vw, 6rem);
+  }
+
+  .pricing-closing-inner > p {
+    max-width: 40rem;
+    margin: 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-md);
+    line-height: 1.625;
+  }
+
+  .pricing-closing-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s3);
+  }
+
+  .wide-only,
+  .pricing-closing-actions :global(.wide-only-flex) {
+    display: none;
+  }
+
+  @media (max-width: 47.99rem) {
+    .pricing-usage :global(.pricing-metrics .product-frame-host) {
+      display: none;
+    }
+
+    /* 窄屏只露出 MAU 一格：截图保持 1:1，裁掉 Key metrics 标题行和左侧 DAU 一格。 */
+    .pricing-usage :global(.pricing-metrics .product-frame-viewport) {
+      height: 5.5rem;
+    }
+
+    .pricing-usage :global(.pricing-metrics img) {
+      margin: -3.75rem 0 0 -24rem;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .pricing-plans-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--xid-space-s4);
+    }
+
+    .pricing-plan {
+      gap: var(--xid-space-s6);
+      padding: var(--xid-space-s6);
+    }
+
+    .pricing-plan :global(.pricing-plan-action) {
+      width: auto;
+      align-self: flex-start;
+      margin-top: var(--xid-space-s2);
+    }
+
+    .pricing-rows > div {
+      flex-direction: row;
+      gap: var(--xid-space-s6);
+      padding-block: var(--xid-space-s5);
+    }
+
+    .pricing-rows dt {
+      flex: 0 0 11rem;
+    }
+
+    .pricing-rows dd {
+      padding-top: 0.0625rem;
+    }
+
+    .pricing-features-header {
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--xid-space-s6);
+    }
+
+    .wide-only {
+      display: revert;
+    }
+
+    .pricing-closing-actions :global(.wide-only-flex) {
+      display: inline-flex;
+    }
+
+    .narrow-only {
+      display: none;
+    }
+
+    .pricing-closing-actions {
+      flex-direction: row;
+    }
+
+    .pricing-faq summary {
+      min-height: 3.75rem;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .pricing-split {
+      flex-direction: row;
+      gap: var(--xid-space-s12);
+    }
+
+    .pricing-split > h2 {
+      flex: 0 0 21rem;
+    }
+
+    .pricing-split > :not(h2) {
+      flex: 1 1 0;
+    }
+
+    .pricing-closing-inner {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--xid-space-s12);
+    }
+  }
+</style>

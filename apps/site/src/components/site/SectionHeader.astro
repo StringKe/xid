@@ -1,0 +1,94 @@
+---
+// design-language 5.3：「问题 + 答案」两段式标题，同字号同字重，问题句用次要前景色；不加眉题和编号。
+import { cn } from "@/lib/cn";
+
+interface Props {
+  id: string;
+  question: string;
+  answer: string;
+  lead?: string;
+  link?: { href: string; label: string };
+  /** split：≥64rem 时标题在左、导语在右；stack：上下排列。 */
+  layout?: "split" | "stack";
+  class?: string;
+}
+
+const { id, question, answer, lead, link, layout = "split", class: className } = Astro.props;
+---
+
+<header class={cn("section-header", `section-header-${layout}`, className)}>
+  <h2 id={id} class="section-title">
+    <span class="section-title-question">{question}</span>
+    <span class="section-title-answer">{answer}</span>
+  </h2>
+  {(lead || link) && (
+    <div class="section-lead">
+      {lead && <p>{lead}</p>}
+      {link && <a class="text-link" href={link.href}>{link.label}</a>}
+    </div>
+  )}
+</header>
+
+<style>
+  .section-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xid-space-s5);
+    min-width: 0;
+  }
+
+  .section-title {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    font-size: var(--site-display-title);
+    font-weight: var(--xid-weight-display);
+    line-height: 1.1;
+    letter-spacing: var(--xid-tracking-heading);
+    text-wrap: balance;
+  }
+
+  .section-title-question {
+    color: var(--xid-muted-foreground);
+  }
+
+  .section-title-answer {
+    color: var(--xid-fg);
+  }
+
+  .section-lead {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--xid-space-s3);
+  }
+
+  .section-lead p {
+    max-width: 40rem;
+    margin: 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-md);
+    line-height: 1.625;
+  }
+
+  @media (min-width: 64rem) {
+    .section-header-split {
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--xid-space-s12);
+    }
+
+    .section-header-split .section-title {
+      flex: 0 1 48rem;
+    }
+
+    .section-header-split .section-lead {
+      flex: 0 0 21rem;
+    }
+
+    .section-header-stack {
+      gap: var(--xid-space-s6);
+    }
+  }
+</style>

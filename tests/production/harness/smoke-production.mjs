@@ -136,22 +136,21 @@ function canonicalAuthConfig(value) {
 }
 
 const docsHomeTextRequired = [
-  '<title>Build identity at the edge, without giving up control | XID</title>',
-  'Identity infrastructure for Cloudflare',
-  'XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs',
+  '<title>One identity product for your app and your customers | XID</title>',
+  'Your customers need sign-in, SSO and admins.',
+  'XID is one product for all of it.',
   'href="/getting-started"',
   'href="/docs"',
   'href="/hosted-auth"',
-  'href="/oidc-oauth"',
   'href="/enterprise-sso"',
   'href="/organizations"',
-  'www.producthunt.com/products/xid',
-  'securityscorecards.dev',
-  'www.bestpractices.dev/projects/13783',
+  'href="/self-hosting"',
+  'href="/pricing"',
+  'data-home-section="cloud"',
 ]
 
 const docsHomeSeoPatternRequired = [
-  /<meta\s+[^>]*name="description"[^>]*content="XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs/u,
+  /<meta\s+[^>]*name="description"[^>]*content="XID is one identity product for your app and your customers/u,
   /<link\s+[^>]*rel="canonical"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="en"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="zh-Hans"[^>]*href="https:\/\/xid\.dev\/zh-hans"[^>]*>/u,
@@ -163,7 +162,7 @@ const docsHomeSeoPatternRequired = [
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="pt-BR"[^>]*href="https:\/\/xid\.dev\/pt-br"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="x-default"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<meta\s+[^>]*property="og:type"[^>]*content="website"[^>]*>/u,
-  /<meta\s+[^>]*property="og:title"[^>]*content="Build identity at the edge, without giving up control \| XID"[^>]*>/u,
+  /<meta\s+[^>]*property="og:title"[^>]*content="One identity product for your app and your customers \| XID"[^>]*>/u,
   /<meta\s+[^>]*property="og:image"[^>]*content="https:\/\/xid\.dev\/og\.png"[^>]*>/u,
   /<meta\s+[^>]*name="twitter:card"[^>]*content="summary_large_image"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*type="text\/plain"[^>]*href="https:\/\/xid\.dev\/en\/llms\.txt"[^>]*>/u,

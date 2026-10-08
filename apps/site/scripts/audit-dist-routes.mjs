@@ -11,6 +11,7 @@ const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const GENERATED_DOCS_ROOT = path.join(SITE_ROOT, 'src/content/generated/docs')
 const SITE_SHELL_MESSAGES_FILE = path.join(SITE_ROOT, 'src/lib/site-shell-messages.ts')
 const HOME_SURFACE_MESSAGES_FILE = path.join(SITE_ROOT, 'src/lib/home-surface.ts')
+const PRICING_SURFACE_MESSAGES_FILE = path.join(SITE_ROOT, 'src/lib/pricing-surface.ts')
 const I18N_CATALOG_ROOT = path.join(REPOSITORY_ROOT, 'packages/i18n/locales')
 const DIST_ROOT = process.argv[2] ? path.resolve(process.argv[2]) : path.join(SITE_ROOT, 'dist')
 const SITE_ORIGIN = 'https://xid.dev'
@@ -328,6 +329,7 @@ async function audit() {
     agentInstructions,
     siteShellMessagesSource,
     homeSurfaceMessagesSource,
+    pricingSurfaceMessagesSource,
   ] = await Promise.all([
     readFile(path.join(SITE_ROOT, 'src/content-source/docs/documents.json'), 'utf8'),
     readFile(path.join(REPOSITORY_ROOT, 'packages/types/src/public-docs.ts'), 'utf8'),
@@ -340,14 +342,33 @@ async function audit() {
     readFile(path.join(SITE_ROOT, 'AGENT.md'), 'utf8'),
     readFile(SITE_SHELL_MESSAGES_FILE, 'utf8'),
     readFile(HOME_SURFACE_MESSAGES_FILE, 'utf8'),
+    readFile(PRICING_SURFACE_MESSAGES_FILE, 'utf8'),
   ])
   const documents = JSON.parse(documentsSource)
   const sitePackage = JSON.parse(sitePackageSource)
   const siteMessageIds = new Map([
     ...parseLinguiMessageIds(siteShellMessagesSource),
     ...parseLinguiMessageIds(homeSurfaceMessagesSource),
+    ...parseLinguiMessageIds(pricingSurfaceMessagesSource),
   ])
   const siteCatalogs = await loadSiteCatalogs(siteMessageIds)
+  const standalonePages = [
+    {
+      slug: 'status',
+      mdxBodyMatches: (body) => body.includes('<StatusSurface endpoint="/v1/public/status" />'),
+    },
+    {
+      slug: 'pricing',
+      mdxBodyMatches: (body, locale) =>
+        body.startsWith(
+          `\n# ${staticCatalogMessage(siteCatalogs, locale.locale, 'XID Cloud is free.')}\n\n${staticCatalogMessage(
+            siteCatalogs,
+            locale.locale,
+            'No plans, no tiers, no paid features. If XID Cloud ever charges, it bills only for monthly active users. Self-hosted XID has the same features, with billing off unless you turn it on.',
+          )}\n`,
+        ),
+    },
+  ]
   const registrySlugs = parsePublicDocRegistry(registrySource)
   const astDocuments = documents.documents
   const publishedDocuments = astDocuments.filter((document) => document.draft !== true)
@@ -360,8 +381,8 @@ async function audit() {
   invariant(documents.locales.length === 8, 'documents.json must contain 8 locales')
   invariant(astSlugs.length === 41, 'documents.json must contain 41 public docs')
   invariant(
-    Array.isArray(documents.hub.sections) && documents.hub.sections.length >= 3,
-    'documentation hub must contain product, capability, and quick-start sections',
+    Array.isArray(documents.hub.groups) && documents.hub.groups.length >= 4,
+    'documentation hub must group docs by the four product areas',
   )
   invariant(
     JSON.stringify(astSlugs) === JSON.stringify(registrySlugs),
@@ -416,7 +437,9 @@ async function audit() {
   for (const locale of LOCALES) {
     routeLocale.set(homeRoute(locale.segment), locale.locale)
     routeLocale.set(documentRoute(locale.segment, null), locale.locale)
-    routeLocale.set(documentRoute(locale.segment, 'status'), locale.locale)
+    for (const standalone of standalonePages) {
+      routeLocale.set(documentRoute(locale.segment, standalone.slug), locale.locale)
+    }
     for (const slug of publishedDocuments.map((document) => document.slug)) {
       routeLocale.set(documentRoute(locale.segment, slug), locale.locale)
     }
@@ -490,12 +513,12 @@ async function audit() {
     const homeTitle = staticCatalogMessage(
       siteCatalogs,
       locale.locale,
-      'Build identity at the edge, without giving up control',
+      'One identity product for your app and your customers',
     )
     const homeDescription = staticCatalogMessage(
       siteCatalogs,
       locale.locale,
-      'XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs into one MIT-licensed platform running on Cloudflare Workers.',
+      'XID is one identity product for your app and your customers: hosted sign-in and accounts, OpenID Connect for your apps, organizations with enterprise SSO and SCIM, and one console. Free on XID Cloud, MIT licensed to self-host.',
     )
     invariant(
       homeMarkdownParts.frontmatter === homeMdxParts.frontmatter,
@@ -713,80 +736,84 @@ async function audit() {
       )
     }
 
-    const statusRoute = documentRoute(locale.segment, 'status')
-    const statusMarkdownUrl = new URL(`${statusRoute}/index.md`, SITE_ORIGIN).href
-    const statusSourceUrl = new URL(`${statusRoute}/index.mdx`, SITE_ORIGIN).href
-    const statusPageUrl = new URL(statusRoute, SITE_ORIGIN).href
-    const [statusHtml, statusMarkdown, statusMdx] = await Promise.all([
-      readRequired(routeFile(statusRoute, 'index.html')),
-      readRequired(routeFile(statusRoute, 'index.md')),
-      readRequired(routeFile(statusRoute, 'index.mdx')),
-    ])
-    const statusMarkdownParts = splitFrontmatter(statusMarkdown, `${statusRoute}/index.md`)
-    const statusMdxParts = splitFrontmatter(statusMdx, `${statusRoute}/index.mdx`)
-    expectedCorpusUrls.add(statusPageUrl)
-    expectedPublishedUrls.add(statusPageUrl)
-    expectedMarkdownUrls.add(statusMarkdownUrl)
-    invariant(
-      statusHtml.includes(`lang="${locale.locale}"`),
-      `${statusRoute} does not use BCP locale ${locale.locale}`,
-    )
-    assertPublishedHtmlMetadata(statusHtml, statusRoute, locale)
-    invariant(statusHtml.includes('data-pagefind-body'), `${statusRoute} is absent from Pagefind`)
-    invariant(
-      statusHtml.includes(`type="text/markdown" href="${statusMarkdownUrl}"`),
-      `${statusRoute} does not expose its Markdown alternate`,
-    )
-    for (const alternate of LOCALES) {
-      const alternateRoute = documentRoute(alternate.segment, 'status')
-      const alternateTag = findSingleTag(
-        statusHtml,
-        'link',
-        'hreflang',
-        alternate.locale,
-        statusRoute,
+    const standaloneMarkdownUrls = []
+    for (const standalone of standalonePages) {
+      const pageRoute = documentRoute(locale.segment, standalone.slug)
+      const pageMarkdownUrl = new URL(`${pageRoute}/index.md`, SITE_ORIGIN).href
+      const pageSourceUrl = new URL(`${pageRoute}/index.mdx`, SITE_ORIGIN).href
+      const pageUrl = new URL(pageRoute, SITE_ORIGIN).href
+      const [pageHtml, pageMarkdown, pageMdx] = await Promise.all([
+        readRequired(routeFile(pageRoute, 'index.html')),
+        readRequired(routeFile(pageRoute, 'index.md')),
+        readRequired(routeFile(pageRoute, 'index.mdx')),
+      ])
+      const pageMarkdownParts = splitFrontmatter(pageMarkdown, `${pageRoute}/index.md`)
+      const pageMdxParts = splitFrontmatter(pageMdx, `${pageRoute}/index.mdx`)
+      standaloneMarkdownUrls.push({ route: pageRoute, markdownUrl: pageMarkdownUrl })
+      expectedCorpusUrls.add(pageUrl)
+      expectedPublishedUrls.add(pageUrl)
+      expectedMarkdownUrls.add(pageMarkdownUrl)
+      invariant(
+        pageHtml.includes(`lang="${locale.locale}"`),
+        `${pageRoute} does not use BCP locale ${locale.locale}`,
+      )
+      assertPublishedHtmlMetadata(pageHtml, pageRoute, locale)
+      invariant(pageHtml.includes('data-pagefind-body'), `${pageRoute} is absent from Pagefind`)
+      invariant(
+        pageHtml.includes(`type="text/markdown" href="${pageMarkdownUrl}"`),
+        `${pageRoute} does not expose its Markdown alternate`,
+      )
+      for (const alternate of LOCALES) {
+        const alternateRoute = documentRoute(alternate.segment, standalone.slug)
+        const alternateTag = findSingleTag(
+          pageHtml,
+          'link',
+          'hreflang',
+          alternate.locale,
+          pageRoute,
+        )
+        invariant(
+          attributeValue(alternateTag, 'href', pageRoute) ===
+            new URL(alternateRoute, SITE_ORIGIN).href,
+          `${pageRoute} hreflang ${alternate.locale} is incorrect`,
+        )
+      }
+      invariant(
+        pageMarkdown.trimEnd().endsWith(`Source: ${pageSourceUrl}`),
+        `${pageRoute} Markdown does not point to its MDX twin`,
       )
       invariant(
-        attributeValue(alternateTag, 'href', statusRoute) ===
-          new URL(alternateRoute, SITE_ORIGIN).href,
-        `${statusRoute} hreflang ${alternate.locale} is incorrect`,
+        pageMarkdown.includes(
+          `> Fetch the relevant documentation index at: ${new URL(sectionAgentPath(locale, 'llms.txt'), SITE_ORIGIN).href}`,
+        ),
+        `${pageRoute} Markdown does not point to its locale agent index`,
       )
-    }
-    invariant(
-      statusMarkdown.trimEnd().endsWith(`Source: ${statusSourceUrl}`),
-      `${statusRoute} Markdown does not point to its MDX twin`,
-    )
-    invariant(
-      statusMarkdown.includes(
-        `> Fetch the relevant documentation index at: ${new URL(sectionAgentPath(locale, 'llms.txt'), SITE_ORIGIN).href}`,
-      ),
-      `${statusRoute} Markdown does not point to its locale agent index`,
-    )
-    invariant(
-      statusMdx.includes(`locale: ${JSON.stringify(locale.locale)}`),
-      `${statusRoute} MDX locale metadata is incorrect`,
-    )
-    invariant(
-      statusMdxParts.body.includes('<StatusSurface endpoint="/v1/public/status" />'),
-      `${statusRoute} MDX source does not retain the status component contract`,
-    )
-    invariant(
-      !hasFrontmatterField(statusMarkdownParts.frontmatter, 'version') &&
-        !hasFrontmatterField(statusMdxParts.frontmatter, 'version'),
-      `${statusRoute} fabricates version frontmatter`,
-    )
-    for (const href of extractRelativeLinks(statusHtml)) {
-      invariant(!draftRoutes.has(href), `${statusRoute} links to unpublished draft ${href}`)
-      const linkedLocale = routeLocale.get(href)
       invariant(
-        !linkedLocale || linkedLocale === locale.locale,
-        `${statusRoute} navigation leaks locale ${linkedLocale} through ${href}`,
+        pageMdx.includes(`locale: ${JSON.stringify(locale.locale)}`),
+        `${pageRoute} MDX locale metadata is incorrect`,
       )
+      invariant(
+        standalone.mdxBodyMatches(pageMdxParts.body, locale),
+        `${pageRoute} MDX source does not retain its ${standalone.slug} contract`,
+      )
+      invariant(
+        !hasFrontmatterField(pageMarkdownParts.frontmatter, 'version') &&
+          !hasFrontmatterField(pageMdxParts.frontmatter, 'version'),
+        `${pageRoute} fabricates version frontmatter`,
+      )
+      for (const href of extractRelativeLinks(pageHtml)) {
+        invariant(!draftRoutes.has(href), `${pageRoute} links to unpublished draft ${href}`)
+        const linkedLocale = routeLocale.get(href)
+        invariant(
+          !linkedLocale || linkedLocale === locale.locale,
+          `${pageRoute} navigation leaks locale ${linkedLocale} through ${href}`,
+        )
+      }
+      localeScopedNavigationCount += 1
+      htmlCount += 1
+      markdownCount += 1
+      mdxCount += 1
     }
-    localeScopedNavigationCount += 1
-    htmlCount += 1
-    markdownCount += 1
-    mdxCount += 1
 
     const [sectionLlmsIndex, sectionLlmsFull] = await Promise.all([
       readRequired(path.join(DIST_ROOT, sectionLlmsIndexPath.slice(1))),
@@ -815,21 +842,25 @@ async function audit() {
       `${sectionLlmsFullPath} is missing ${homePath}`,
     )
     invariant(
-      countOccurrences(sectionLlmsIndex, '/index.md)') === agentPages.length + 2,
+      countOccurrences(sectionLlmsIndex, '/index.md)') ===
+        agentPages.length + 1 + standalonePages.length,
       `${sectionLlmsIndexPath} has an unexpected Markdown twin count`,
     )
     invariant(
-      countOccurrences(sectionLlmsFull, '<!-- xid-doc-path:') === agentPages.length + 2,
+      countOccurrences(sectionLlmsFull, '<!-- xid-doc-path:') ===
+        agentPages.length + 1 + standalonePages.length,
       `${sectionLlmsFullPath} has an unexpected corpus block count`,
     )
-    invariant(
-      sectionLlmsIndex.includes(statusMarkdownUrl),
-      `${sectionLlmsIndexPath} is missing ${statusRoute}`,
-    )
-    invariant(
-      sectionLlmsFull.includes(`<!-- xid-doc-path: ${statusRoute} -->`),
-      `${sectionLlmsFullPath} is missing ${statusRoute}`,
-    )
+    for (const { route, markdownUrl } of standaloneMarkdownUrls) {
+      invariant(
+        sectionLlmsIndex.includes(markdownUrl),
+        `${sectionLlmsIndexPath} is missing ${route}`,
+      )
+      invariant(
+        sectionLlmsFull.includes(`<!-- xid-doc-path: ${route} -->`),
+        `${sectionLlmsFullPath} is missing ${route}`,
+      )
+    }
     invariant(
       !/^Generated(?: at| on):/im.test(sectionLlmsFull) &&
         !/^Build timestamp:/im.test(sectionLlmsFull),
@@ -915,8 +946,9 @@ async function audit() {
     }
   }
 
-  const expectedHtmlCount = LOCALES.length * (publishedDocuments.length + 3)
-  const expectedAgentPageCount = LOCALES.length * (agentDocuments.length + 3)
+  const pagesBesideDocuments = 2 + standalonePages.length
+  const expectedHtmlCount = LOCALES.length * (publishedDocuments.length + pagesBesideDocuments)
+  const expectedAgentPageCount = LOCALES.length * (agentDocuments.length + pagesBesideDocuments)
   invariant(
     htmlCount === expectedHtmlCount,
     `expected ${expectedHtmlCount} HTML files, received ${htmlCount}`,
@@ -1066,7 +1098,7 @@ async function audit() {
     pagefindCount === expectedAgentPageCount,
     `Pagefind must index ${expectedAgentPageCount} pages, received ${pagefindCount}`,
   )
-  const expectedAgentPagesPerLocale = agentDocuments.length + 3
+  const expectedAgentPagesPerLocale = agentDocuments.length + pagesBesideDocuments
   invariant(
     Object.values(pagefind.languages).every(
       (language) => language.page_count === expectedAgentPagesPerLocale,

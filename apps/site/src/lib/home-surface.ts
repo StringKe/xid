@@ -1,226 +1,92 @@
 import { msg } from '@lingui/core/macro'
+import type { MessageDescriptor } from '@lingui/core'
 import { translateSiteMessage } from './site-i18n.ts'
-import {
-  getSiteLlmsIndexPath,
-  localizeSitePath,
-  SITE_LOCALE_ROUTE_SEGMENTS,
-} from './site-locale.ts'
+import { getSiteLlmsIndexPath, localizeSitePath, SITE_LOCALES } from './site-locale.ts'
 import type { SiteLocale } from './site-locale.ts'
 
 export const homeMessages = {
-  eyebrow: msg`Identity infrastructure for Cloudflare`,
-  title: msg`Build identity at the edge, without giving up control`,
-  description: msg`XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs into one MIT-licensed platform running on Cloudflare Workers.`,
-  getStarted: msg`Get started`,
-  readDocs: msg`Read the documentation`,
-  architectureEyebrow: msg`One deployment model`,
-  architectureTitle: msg`Three focused Workers. One identity platform.`,
-  architectureDescription: msg`Public content and management stay binding-free. Identity state, protocols, and policy remain in Core.`,
-  demoUrl: msg`https://xid.dev/sign-in`,
-  demoLogLabel: msg`Protocol traffic`,
-  demoLogAuthorize: msg`GET /authorize`,
-  demoLogDiscovery: msg`GET /.well-known/openid-configuration`,
-  demoLogToken: msg`POST /token`,
-  demoLogJwks: msg`GET /jwks`,
-  demoLogUserinfo: msg`GET /userinfo`,
-  demoSignInTitle: msg`Sign in`,
-  demoTabPasskey: msg`Passkey`,
-  demoTabMagicLink: msg`Magic link`,
-  demoEmailPlaceholder: msg`you@example.com`,
-  demoContinue: msg`Continue`,
-  demoCreateAccount: msg`New to XID? Create an account`,
-  siteLabel: msg`Site`,
-  siteDescription: msg`Product, documentation, search, and agent-readable content`,
-  consoleLabel: msg`Console`,
-  consoleDescription: msg`Organization and instance management UI`,
-  coreLabel: msg`Core`,
-  coreDescription: msg`Hosted Auth, protocols, APIs, data, and asynchronous work`,
-  licenseLabel: msg`License`,
-  runtimeLabel: msg`Runtime`,
-  threeWorkers: msg`3 Workers`,
-  localesLabel: msg`Public locales`,
-  editionLabel: msg`Self-hosting`,
-  completeEdition: msg`Complete edition`,
-  capabilitiesEyebrow: msg`The product surface`,
-  capabilitiesTitle: msg`One control plane from sign-in to enterprise access`,
-  capabilitiesDescription: msg`Use the complete platform or adopt the protocol, UI, and SDK layers that fit your architecture.`,
-  authenticationTitle: msg`Authentication and account`,
-  authenticationDescription: msg`Hosted sign-in, passkeys, password, MFA, session management, consent, and account self-service share one tenant-aware Core.`,
-  organizationsTitle: msg`Organizations and access`,
-  organizationsDescription: msg`Model organizations, OrgUnits, projects, roles, grants, approval policies, and access requests without creating a separate admin tenant.`,
-  federationTitle: msg`Federation and provisioning`,
-  federationDescription: msg`Connect inbound SAML and OIDC, downstream SaaS SSO, SCIM, directory sync, and domain discovery behind explicit policy boundaries.`,
-  developerTitle: msg`Protocols and developer experience`,
-  developerDescription: msg`Ship OIDC and OAuth flows, Management APIs, webhooks, framework SDKs, localized docs, and networkless token verification from one repository.`,
-  evidenceEyebrow: msg`Evidence and support`,
-  evidenceTitle: msg`Production where proven, local where not`,
-  evidenceDescription: msg`First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path.`,
-  inspectEvidence: msg`Inspect the protocol matrix`,
-  openSourceTitle: msg`Open source, inspectable, and self-hostable`,
-  openSourceDescription: msg`The MIT-licensed repository includes the complete feature set. Security posture and project governance remain visible through OpenSSF and the public source.`,
-  viewSource: msg`View source on GitHub`,
-  productHuntAlt: msg`XID, an edge-native identity platform on Cloudflare Workers, featured on Product Hunt`,
-  scorecardAlt: msg`OpenSSF Scorecard for XID`,
-  bestPracticesAlt: msg`OpenSSF Best Practices badge for XID`,
-  footerNavLabel: msg`Project links`,
-  footerSupport: msg`Support`,
-  footerSecurity: msg`Security`,
-  footerContributing: msg`Contributing`,
-  footerGitHub: msg`GitHub`,
-} as const
+  title: msg`One identity product for your app and your customers`,
+  description: msg`XID is one identity product for your app and your customers: hosted sign-in and accounts, OpenID Connect for your apps, organizations with enterprise SSO and SCIM, and one console. Free on XID Cloud, MIT licensed to self-host.`,
+  heroQuestion: msg`Your customers need sign-in, SSO and admins.`,
+  heroAnswer: msg`XID is one product for all of it.`,
+  heroLead: msg`Hosted sign-in, OIDC, SSO and SCIM per organization, one console.`,
+  startFreeOnCloud: msg`Start free on XID Cloud`,
+  selfHost: msg`Self-host XID`,
+  heroNote: msg`Free today. No plans or tiers.`,
+  signInQuestion: msg`You don't want to build sign‑in and account pages.`,
+  signInAnswer: msg`XID hosts them in your brand.`,
+  signInLead: msg`Your app redirects to XID and gets the user back with tokens. Afterward, people manage their sessions, devices and data on their own account page.`,
+  signInLink: msg`Hosted sign-in docs`,
+  signInEvidence: msg`Email link and code sign-in: verified in production on xid.dev. Other sign-in methods and the account page: verified locally.`,
+  oidcQuestion: msg`Your auth vendor shouldn't be in every service.`,
+  oidcAnswer: msg`XID is a standard OpenID Connect provider.`,
+  oidcLead: msg`Use our SDKs or any OIDC library. Access tokens are signed JWTs that carry the organization, and your backend verifies them without a network call.`,
+  oidcLink: msg`Connect your app`,
+  oidcEvidence: msg`Authorization code flow: verified locally with protocol clients. SDKs are not yet published to npm.`,
+  accessToken: msg`Access token`,
+  decodedPayload: msg`Decoded payload`,
+  ssoQuestion: msg`Your biggest deal is waiting on SSO and SCIM.`,
+  ssoAnswer: msg`Every customer gets an organization with both.`,
+  ssoLead: msg`Each organization has its own SAML or OIDC connection, SCIM directory, verified domains and MFA policy. When IT deactivates someone, XID ends their sessions.`,
+  ssoLink: msg`Enterprise SSO docs`,
+  ssoEvidence: msg`Verified locally against test identity providers. Not yet verified with a live Okta or Entra ID tenant.`,
+  consoleQuestion: msg`Every customer's SSO setup lands in your support queue.`,
+  consoleAnswer: msg`Their admins can do it themselves.`,
+  consoleLead: msg`One console for you and them. You see every organization; their admins see only theirs, with the same pages for members, SSO, branding and audit logs.`,
+  consoleLink: msg`Organizations docs`,
+  consoleEvidence: msg`Switching organizations in the console: verified in production on xid.dev.`,
+  cloudQuestion: msg`Choosing hosted shouldn't lock you in.`,
+  cloudAnswer: msg`Cloud and self‑hosted are one product.`,
+  cloudLead: msg`XID Cloud is free today. If it ever charges, it bills only per monthly active user, never by plan. Self-hosted, billing is off unless you turn it on.`,
+  factLicense: msg`License`,
+  factCodebase: msg`Codebase for Cloud and self-hosted`,
+  factWorkers: msg`Cloudflare Workers`,
+  factLanguages: msg`Interface languages`,
+  selfHostingGuide: msg`Self-hosting guide`,
+  seePricing: msg`See pricing`,
+} as const satisfies Record<string, MessageDescriptor>
 
-export type HomeFeature = {
-  title: string
-  description: string
-  href: string
-}
+type HomeMessageKey = keyof typeof homeMessages
+
+export type HomeFact = { value: string; label: string }
 
 export type HomeSurface = {
   locale: SiteLocale
-  routeSegment: string
   path: string
   markdownPath: string
   sourcePath: string
   llmsIndexPath: string
-  eyebrow: string
   title: string
   description: string
-  getStarted: string
-  readDocs: string
-  architectureEyebrow: string
-  architectureTitle: string
-  architectureDescription: string
-  architecture: readonly { label: string; description: string }[]
-  demoUrl: string
-  demoLogLabel: string
-  demoLogAuthorize: string
-  demoLogDiscovery: string
-  demoLogToken: string
-  demoLogJwks: string
-  demoLogUserinfo: string
-  demoSignInTitle: string
-  demoTabPasskey: string
-  demoTabMagicLink: string
-  demoEmailPlaceholder: string
-  demoContinue: string
-  demoCreateAccount: string
-  proofs: readonly { value: string; label: string }[]
-  capabilitiesEyebrow: string
-  capabilitiesTitle: string
-  capabilitiesDescription: string
-  features: readonly HomeFeature[]
-  evidenceEyebrow: string
-  evidenceTitle: string
-  evidenceDescription: string
-  inspectEvidence: string
-  openSourceTitle: string
-  openSourceDescription: string
-  viewSource: string
-  productHuntAlt: string
-  scorecardAlt: string
-  bestPracticesAlt: string
-  footerNavLabel: string
-  footerSupport: string
-  footerSecurity: string
-  footerContributing: string
-  footerGitHub: string
+  text: Readonly<Record<HomeMessageKey, string>>
+  facts: readonly HomeFact[]
 }
+
+// 事实条只放可核对的结构事实：LICENSE、一份代码、apps/{site,console,server} 三个 Worker、lingui 的语言数。
+const WORKER_COUNT = 3
+const CODEBASE_COUNT = 1
 
 export function getHomeSurface(locale: SiteLocale): HomeSurface {
   const path = localizeSitePath('/', locale)
-  const translate = (descriptor: (typeof homeMessages)[keyof typeof homeMessages]) =>
-    translateSiteMessage(path, descriptor)
+  const entries = Object.entries(homeMessages) as [HomeMessageKey, MessageDescriptor][]
+  const text = Object.fromEntries(
+    entries.map(([key, descriptor]) => [key, translateSiteMessage(path, descriptor)]),
+  ) as Record<HomeMessageKey, string>
   return {
     locale,
-    routeSegment: SITE_LOCALE_ROUTE_SEGMENTS[locale],
     path,
     markdownPath: path === '/' ? '/index.md' : `${path}/index.md`,
     sourcePath: path === '/' ? '/index.mdx' : `${path}/index.mdx`,
     llmsIndexPath: getSiteLlmsIndexPath(locale),
-    eyebrow: translate(homeMessages.eyebrow),
-    title: translate(homeMessages.title),
-    description: translate(homeMessages.description),
-    getStarted: translate(homeMessages.getStarted),
-    readDocs: translate(homeMessages.readDocs),
-    architectureEyebrow: translate(homeMessages.architectureEyebrow),
-    architectureTitle: translate(homeMessages.architectureTitle),
-    architectureDescription: translate(homeMessages.architectureDescription),
-    architecture: [
-      {
-        label: translate(homeMessages.siteLabel),
-        description: translate(homeMessages.siteDescription),
-      },
-      {
-        label: translate(homeMessages.consoleLabel),
-        description: translate(homeMessages.consoleDescription),
-      },
-      {
-        label: translate(homeMessages.coreLabel),
-        description: translate(homeMessages.coreDescription),
-      },
+    title: text.title,
+    description: text.description,
+    text,
+    facts: [
+      { value: 'MIT', label: text.factLicense },
+      { value: String(CODEBASE_COUNT), label: text.factCodebase },
+      { value: String(WORKER_COUNT), label: text.factWorkers },
+      { value: String(SITE_LOCALES.length), label: text.factLanguages },
     ],
-    demoUrl: translate(homeMessages.demoUrl),
-    demoLogLabel: translate(homeMessages.demoLogLabel),
-    demoLogAuthorize: translate(homeMessages.demoLogAuthorize),
-    demoLogDiscovery: translate(homeMessages.demoLogDiscovery),
-    demoLogToken: translate(homeMessages.demoLogToken),
-    demoLogJwks: translate(homeMessages.demoLogJwks),
-    demoLogUserinfo: translate(homeMessages.demoLogUserinfo),
-    demoSignInTitle: translate(homeMessages.demoSignInTitle),
-    demoTabPasskey: translate(homeMessages.demoTabPasskey),
-    demoTabMagicLink: translate(homeMessages.demoTabMagicLink),
-    demoEmailPlaceholder: translate(homeMessages.demoEmailPlaceholder),
-    demoContinue: translate(homeMessages.demoContinue),
-    demoCreateAccount: translate(homeMessages.demoCreateAccount),
-    proofs: [
-      { value: 'MIT', label: translate(homeMessages.licenseLabel) },
-      { value: translate(homeMessages.threeWorkers), label: translate(homeMessages.runtimeLabel) },
-      { value: '8', label: translate(homeMessages.localesLabel) },
-      {
-        value: translate(homeMessages.completeEdition),
-        label: translate(homeMessages.editionLabel),
-      },
-    ],
-    capabilitiesEyebrow: translate(homeMessages.capabilitiesEyebrow),
-    capabilitiesTitle: translate(homeMessages.capabilitiesTitle),
-    capabilitiesDescription: translate(homeMessages.capabilitiesDescription),
-    features: [
-      {
-        title: translate(homeMessages.authenticationTitle),
-        description: translate(homeMessages.authenticationDescription),
-        href: localizeSitePath('/hosted-auth', locale),
-      },
-      {
-        title: translate(homeMessages.organizationsTitle),
-        description: translate(homeMessages.organizationsDescription),
-        href: localizeSitePath('/organizations', locale),
-      },
-      {
-        title: translate(homeMessages.federationTitle),
-        description: translate(homeMessages.federationDescription),
-        href: localizeSitePath('/enterprise-sso', locale),
-      },
-      {
-        title: translate(homeMessages.developerTitle),
-        description: translate(homeMessages.developerDescription),
-        href: localizeSitePath('/oidc-oauth', locale),
-      },
-    ],
-    evidenceEyebrow: translate(homeMessages.evidenceEyebrow),
-    evidenceTitle: translate(homeMessages.evidenceTitle),
-    evidenceDescription: translate(homeMessages.evidenceDescription),
-    inspectEvidence: translate(homeMessages.inspectEvidence),
-    openSourceTitle: translate(homeMessages.openSourceTitle),
-    openSourceDescription: translate(homeMessages.openSourceDescription),
-    viewSource: translate(homeMessages.viewSource),
-    productHuntAlt: translate(homeMessages.productHuntAlt),
-    scorecardAlt: translate(homeMessages.scorecardAlt),
-    bestPracticesAlt: translate(homeMessages.bestPracticesAlt),
-    footerNavLabel: translate(homeMessages.footerNavLabel),
-    footerSupport: translate(homeMessages.footerSupport),
-    footerSecurity: translate(homeMessages.footerSecurity),
-    footerContributing: translate(homeMessages.footerContributing),
-    footerGitHub: translate(homeMessages.footerGitHub),
   }
 }
 
@@ -239,34 +105,39 @@ function frontmatter(surface: HomeSurface, siteOrigin: string): readonly string[
   ]
 }
 
+const SECTIONS: readonly (readonly [
+  HomeMessageKey,
+  HomeMessageKey,
+  HomeMessageKey,
+  HomeMessageKey?,
+])[] = [
+  ['signInQuestion', 'signInAnswer', 'signInLead', 'signInEvidence'],
+  ['oidcQuestion', 'oidcAnswer', 'oidcLead', 'oidcEvidence'],
+  ['ssoQuestion', 'ssoAnswer', 'ssoLead', 'ssoEvidence'],
+  ['consoleQuestion', 'consoleAnswer', 'consoleLead', 'consoleEvidence'],
+  ['cloudQuestion', 'cloudAnswer', 'cloudLead'],
+]
+
 function renderHomeBody(surface: HomeSurface): readonly string[] {
+  const { text } = surface
   const lines = [
     `# ${surface.title}`,
     '',
     surface.description,
     '',
-    `## ${surface.architectureTitle}`,
+    `## ${text.heroQuestion} ${text.heroAnswer}`,
     '',
-    surface.architectureDescription,
+    text.heroLead,
+    '',
+    text.heroNote,
     '',
   ]
-  for (const item of surface.architecture) {
-    lines.push(`- **${item.label}:** ${item.description}`)
+  for (const [question, answer, lead, evidence] of SECTIONS) {
+    lines.push(`## ${text[question]} ${text[answer]}`, '', text[lead], '')
+    if (evidence) lines.push(text[evidence], '')
   }
-  lines.push('', `## ${surface.capabilitiesTitle}`, '', surface.capabilitiesDescription, '')
-  for (const feature of surface.features) {
-    lines.push(`### ${feature.title}`, '', feature.description, '')
-  }
-  lines.push(
-    `## ${surface.evidenceTitle}`,
-    '',
-    surface.evidenceDescription,
-    '',
-    `## ${surface.openSourceTitle}`,
-    '',
-    surface.openSourceDescription,
-    '',
-  )
+  for (const fact of surface.facts) lines.push(`- **${fact.value}:** ${fact.label}`)
+  lines.push('')
   return lines
 }
 
@@ -307,6 +178,6 @@ export function renderHomeCorpus(
     `Markdown: ${absoluteUrl(surface.markdownPath, siteOrigin)}`,
     `Source: ${absoluteUrl(surface.sourcePath, siteOrigin)}`,
     '',
-    ...renderHomeBody(surface).slice(2),
+    ...renderHomeBody(surface).slice(4),
   ]
 }

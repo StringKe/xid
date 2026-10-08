@@ -55,6 +55,10 @@ describe('Web route ownership', () => {
     expect(SITE_EXACT_PATHS).toContain('/status/')
     expect(SITE_EXACT_PATHS).toContain('/status/index.md')
     expect(SITE_EXACT_PATHS).toContain('/status/index.mdx')
+    expect(SITE_EXACT_PATHS).toContain('/pricing')
+    expect(SITE_EXACT_PATHS).toContain('/pricing/')
+    expect(SITE_EXACT_PATHS).toContain('/pricing/index.md')
+    expect(SITE_EXACT_PATHS).toContain('/pricing/index.mdx')
     for (const path of SITE_EXACT_PATHS) {
       expectOwner(`https://xid.dev${path}`, 'site')
       expectOwner(`https://xid.dev${path}?source=contract`, 'site')
@@ -115,6 +119,9 @@ describe('Web route ownership', () => {
       expectOwner(`https://xid.dev/${routeSegment}/status`, 'site')
       expectOwner(`https://xid.dev/${routeSegment}/status/index.md`, 'site')
       expectOwner(`https://xid.dev/${routeSegment}/status/index.mdx`, 'site')
+      expectOwner(`https://xid.dev/${routeSegment}/pricing`, 'site')
+      expectOwner(`https://xid.dev/${routeSegment}/pricing/index.md`, 'site')
+      expectOwner(`https://xid.dev/${routeSegment}/pricing/index.mdx`, 'site')
     }
   })
 

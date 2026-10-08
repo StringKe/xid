@@ -111,6 +111,7 @@ export function isLocalizableSitePath(pathname: string): boolean {
     twinBase === '' ||
     twinBase === 'docs' ||
     twinBase === 'status' ||
+    twinBase === 'pricing' ||
     PUBLIC_DOC_SLUG_SET.has(twinBase)
   )
 }

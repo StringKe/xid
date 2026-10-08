@@ -6,6 +6,7 @@ import {
 } from '../lib/docs-registry'
 import { SITE_LOCALES } from '../lib/site-locale'
 import { getHomeSurface } from '../lib/home-surface'
+import { getPricingSurface } from '../lib/pricing-surface'
 import { getStatusSurface } from '../lib/status-surface'
 
 export const prerender = true
@@ -28,6 +29,7 @@ export async function GET() {
   })
   paths.push(...SITE_LOCALES.map((locale) => getHomeSurface(locale).path))
   paths.push(...SITE_LOCALES.map((locale) => getStatusSurface(locale).path))
+  paths.push(...SITE_LOCALES.map((locale) => getPricingSurface(locale).path))
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
