@@ -1,16 +1,23 @@
 // light/dark + 运行时品牌覆盖:darkTheme class 必须挂 documentElement(body 背景、portal、
 // top-layer dialog 在 React 树外,挂内层会停在 light 基线);品牌只 inline 覆盖 accent 家族与圆角。
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { darkTheme } from './styles/tokens.stylex'
 import { BRAND_LOGO_TRANSPARENT } from './brand-assets'
 import { deriveAccentPalette, type ColorScheme } from './brand-color'
 import { hasCustomBranding, type OrgBranding } from '@xid-kit/types'
+import {
+  THEME_COLOR,
+  persistThemeMode,
+  readThemeMode,
+  resolveThemeScheme,
+  type ThemeMode,
+} from './theme-preference'
 
-export const THEME_MODES = ['system', 'light', 'dark'] as const
-export type ThemeMode = (typeof THEME_MODES)[number]
+export { THEME_MODES, THEME_STORAGE_KEY } from './theme-preference'
+export type { ThemeMode } from './theme-preference'
 type ResolvedScheme = ColorScheme
 
 export type BrandConfig = {
@@ -76,15 +83,6 @@ function prefersDark(): boolean {
 
 const DARK_THEME_CLASSES = (stylex.props(darkTheme).className ?? '').split(' ').filter(Boolean)
 
-// 与 tokens --xid-bg 对应;index.html 首帧兜底用同值。
-const THEME_COLOR = { light: '#ffffff', dark: '#181818' } as const
-
-function resolveScheme(mode: ThemeMode, systemDark: boolean): ResolvedScheme {
-  if (mode === 'light') return 'light'
-  if (mode === 'dark') return 'dark'
-  return systemDark ? 'dark' : 'light'
-}
-
 type ThemeContextValue = {
   brand: BrandConfig
   mode: ThemeMode
@@ -104,10 +102,10 @@ export type ThemeProviderProps = {
 export function ThemeProvider({
   children,
   initialBrand = DEFAULT_BRAND,
-  initialMode = 'system',
+  initialMode,
 }: ThemeProviderProps): ReactNode {
   const [brand, setBrand] = useState<BrandConfig>(initialBrand)
-  const [mode, setMode] = useState<ThemeMode>(initialMode)
+  const [mode, setModeState] = useState<ThemeMode>(() => initialMode ?? readThemeMode())
   const [systemDark, setSystemDark] = useState<boolean>(prefersDark)
 
   useEffect(() => {
@@ -118,7 +116,12 @@ export function ThemeProvider({
     return () => media.removeEventListener('change', onChange)
   }, [])
 
-  const scheme = resolveScheme(mode, systemDark)
+  const setMode = useCallback((next: ThemeMode): void => {
+    persistThemeMode(next)
+    setModeState(next)
+  }, [])
+
+  const scheme = resolveThemeScheme(mode, systemDark)
   const isDark = scheme === 'dark'
 
   useEffect(() => {
@@ -140,7 +143,7 @@ export function ThemeProvider({
 
   const value = useMemo<ThemeContextValue>(
     () => ({ brand, mode, scheme, setMode, setBrand }),
-    [brand, mode, scheme],
+    [brand, mode, scheme, setMode],
   )
 
   return <ThemeContext value={value}>{children}</ThemeContext>

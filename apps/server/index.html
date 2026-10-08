@@ -19,7 +19,15 @@
     </style>
     <script>
       ;(function () {
-        var dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        var mode = null
+        try {
+          mode = localStorage.getItem('xid.theme')
+        } catch (error) {
+          // localStorage 被禁用时跟随系统。
+        }
+        var dark =
+          mode === 'dark' ||
+          (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
         var meta = document.querySelector('meta[name="theme-color"]')
         if (meta) meta.setAttribute('content', dark ? '#181818' : '#ffffff')

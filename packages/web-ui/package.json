@@ -30,6 +30,7 @@
     "./tanstack-router": "./src/tanstack-router.tsx",
     "./session": "./src/session/index.ts",
     "./theme": "./src/theme.tsx",
+    "./theme-preference": "./src/theme-preference.ts",
     "./ui": "./src/components/ui/index.ts",
     "./ui/*": "./src/components/ui/*.tsx",
     "./BrandLogo": "./src/components/BrandLogo.tsx",
