@@ -115,8 +115,4 @@ export const hosted = stylex.create({
     height: '1px',
     backgroundColor: tokens['--xid-border'],
   },
-  input: {
-    minHeight: { default: '3rem', '@media (min-width: 48rem)': size.touch },
-    fontSize: 'max(16px, 1em)',
-  },
 })

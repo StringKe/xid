@@ -82,7 +82,7 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-muted'],
     color: tokens['--xid-fg'],
     fontSize: text.xs,
-    fontWeight: 600,
+    fontWeight: weight.display,
   },
   body: {
     display: 'flex',

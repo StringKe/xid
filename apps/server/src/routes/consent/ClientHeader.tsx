@@ -33,7 +33,7 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-primary'],
     color: tokens['--xid-primary-foreground'],
     fontSize: text.sm,
-    fontWeight: 600,
+    fontWeight: weight.display,
   },
   names: {
     display: 'flex',

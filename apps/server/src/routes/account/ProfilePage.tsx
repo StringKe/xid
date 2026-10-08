@@ -67,7 +67,7 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-surface'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
-    fontSize: `max(16px, ${text.base})`,
+    fontSize: text.md,
     paddingInline: '0.75rem',
   },
 })

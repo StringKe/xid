@@ -24,8 +24,8 @@ const styles = stylex.create({
     borderRadius: tokens['--xid-radius'],
     backgroundColor: tokens['--xid-accent'],
     color: tokens['--xid-accent-foreground'],
-    fontSize: '0.9375rem',
-    fontWeight: 600,
+    fontSize: text.base,
+    fontWeight: weight.display,
   },
   tileCompact: {
     width: '1.75rem',

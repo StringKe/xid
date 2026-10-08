@@ -22,7 +22,7 @@ const styles = stylex.create({
     borderRadius: tokens['--xid-radius'],
     backgroundColor: tokens['--xid-muted'],
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: `max(16px, ${text.md})`,
+    fontSize: text.md,
     lineHeight: '1.5rem',
     letterSpacing: '0.04em',
     color: tokens['--xid-fg'],

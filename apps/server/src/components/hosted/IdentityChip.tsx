@@ -69,8 +69,8 @@ const styles = stylex.create({
     borderRadius: tokens['--xid-radius-full'],
     backgroundColor: tokens['--xid-muted'],
     color: tokens['--xid-muted-foreground'],
-    fontSize: '0.6875rem',
-    fontWeight: 600,
+    fontSize: text.xs,
+    fontWeight: weight.medium,
   },
 })
 

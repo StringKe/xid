@@ -68,7 +68,7 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-accent'],
     color: tokens['--xid-accent-foreground'],
     fontSize: text.xs,
-    fontWeight: 600,
+    fontWeight: weight.display,
     overflow: 'hidden',
   },
   tenantLogo: {

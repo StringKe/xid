@@ -33,7 +33,7 @@ const styles = stylex.create({
     height: '100%',
     opacity: 0,
     cursor: 'pointer',
-    fontSize: '16px',
+    fontSize: text.md,
   },
 })
 

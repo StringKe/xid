@@ -6,6 +6,7 @@ import { useLingui } from '@lingui/react/macro'
 import type { ChangeEvent, CSSProperties, ReactNode } from 'react'
 import { Field } from '@xid-kit/web-ui/ui/Field'
 import { Input } from '@xid-kit/web-ui/ui/Input'
+import { text } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import {
   codeFormatIssue,
@@ -18,7 +19,7 @@ const BULK_INPUT_TYPES = new Set(['insertFromPaste', 'insertReplacementText', 'i
 
 // Input 的字号与字体由共享控件样式给出,这里用 inline style 覆盖,避免两组原子类比较先后。
 const CODE_INPUT_STYLE: CSSProperties = {
-  fontSize: '1.125rem',
+  fontSize: text.lg,
   letterSpacing: '0.12em',
   fontVariantNumeric: 'tabular-nums',
   fontFamily: tokens['--xid-font-mono'],
