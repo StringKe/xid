@@ -1,0 +1,76 @@
+---
+import { cn } from "@/lib/cn";
+import { getSiteLocale, SITE_LOCALE_LABELS, SITE_LOCALES } from "@/lib/site-locale";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+import Icon from "./ui/icon/Icon.astro";
+
+interface Props {
+  appearance?: "header" | "footer";
+  class?: string;
+}
+
+const { appearance = "header", class: className } = Astro.props;
+const locale = getSiteLocale(Astro.url.pathname);
+const label = translateSiteMessage(Astro.url.pathname, siteShellMessages.language);
+---
+
+{appearance === "header" ? (
+  <label
+    class={cn(
+      "relative inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-base text-muted-foreground transition-colors duration-[120ms] ease-out hover:bg-muted hover:text-foreground focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent pointer-coarse:h-11",
+      className,
+    )}
+  >
+    <Icon name="globe" />
+    <span aria-hidden="true">{SITE_LOCALE_LABELS[locale]}</span>
+    <select
+      data-site-language-switcher
+      name="site-language"
+      aria-label={label}
+      class="absolute inset-0 cursor-pointer appearance-none opacity-0"
+    >
+      {SITE_LOCALES.map((item) => (
+        <option value={item} selected={item === locale}>{SITE_LOCALE_LABELS[item]}</option>
+      ))}
+    </select>
+  </label>
+) : (
+  <select
+    data-site-language-switcher
+    name="site-language"
+    aria-label={label}
+    class={cn(
+      "cursor-pointer appearance-none rounded-sm bg-transparent text-muted-foreground transition-colors duration-[120ms] ease-out hover:text-foreground",
+      className,
+    )}
+  >
+    {SITE_LOCALES.map((item) => (
+      <option value={item} selected={item === locale}>{SITE_LOCALE_LABELS[item]}</option>
+    ))}
+  </select>
+)}
+
+<script>
+  import { mount } from "@cloudflare/nimbus-docs/client";
+  import { isSiteLocale, localizeSitePath } from "@/lib/site-locale";
+
+  mount("[data-site-language-switcher]", (element) => {
+    if (!(element instanceof HTMLSelectElement)) return () => {};
+    const select = element;
+    const onChange = () => {
+      if (!isSiteLocale(select.value)) return;
+      const url = new URL(window.location.href);
+      url.pathname = localizeSitePath(url.pathname, select.value);
+      url.searchParams.delete("locale");
+      try {
+        localStorage.setItem("xid.locale", select.value);
+      } catch {
+        // storage 不可用时仍跳转，只是不记偏好。
+      }
+      window.location.assign(url.toString());
+    };
+    select.addEventListener("change", onChange);
+    return () => select.removeEventListener("change", onChange);
+  });
+</script>

@@ -1,28 +1,47 @@
 ---
-import { Icon } from "astro-icon/components";
+import { cn } from "@/lib/cn";
 import { translateSiteMessage } from "@/lib/site-i18n";
 import { siteShellMessages } from "@/lib/site-shell-messages";
+import { buttonVariants } from "../button/variants";
+import Icon from "../icon/Icon.astro";
 
-const search = translateSiteMessage(Astro.url.pathname, siteShellMessages.search);
-const searchDocumentation = translateSiteMessage(
-  Astro.url.pathname,
-  siteShellMessages.searchDocumentation,
-);
+interface Props {
+  appearance?: "field" | "icon";
+  class?: string;
+}
+
+const { appearance = "field", class: className } = Astro.props;
+const searchDocs = translateSiteMessage(Astro.url.pathname, siteShellMessages.searchDocs);
 ---
 
-<button
-  data-search-trigger
-  type="button"
-  class="flex items-center gap-2 rounded-md border border-border bg-card text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground p-2 sm:px-2.5 sm:py-1.5"
-  aria-label={searchDocumentation}
-  aria-keyshortcuts="Control+K"
->
-  <Icon name="ph:magnifying-glass" class="h-4 w-4" />
-  <span class="hidden md:inline">{search}</span>
-  <kbd class="hidden sm:inline-flex items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 text-[0.625rem] font-medium text-muted-foreground">
-    <span data-shortcut-key>Ctrl</span>K
-  </kbd>
-</button>
+{appearance === "field" ? (
+  <button
+    data-search-trigger
+    type="button"
+    aria-label={searchDocs}
+    aria-keyshortcuts="Control+K"
+    class={cn(
+      "flex h-9 cursor-pointer items-center justify-between gap-2 rounded-md bg-card pl-3 pr-1.5 text-base text-faint-foreground shadow-[inset_0_0_0_1px_var(--xid-border-strong)] transition-colors duration-[120ms] ease-out hover:bg-muted",
+      className,
+    )}
+  >
+    <span class="flex items-center gap-2">
+      <Icon name="search" />
+      <span>{searchDocs}</span>
+    </span>
+    <kbd class="xid-kbd" aria-hidden="true"><span data-shortcut-key>Ctrl </span>K</kbd>
+  </button>
+) : (
+  <button
+    data-search-trigger
+    type="button"
+    aria-label={searchDocs}
+    aria-keyshortcuts="Control+K"
+    class={cn(buttonVariants({ variant: "ghost", shape: "square", size: "lg" }), className)}
+  >
+    <Icon name="search" size={20} />
+  </button>
+)}
 
 <script>
   import "./search-trigger.client";

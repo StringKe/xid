@@ -1,0 +1,37 @@
+---
+import { cn } from "@/lib/cn";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1], values?: Record<string, unknown>) =>
+  translateSiteMessage(Astro.url.pathname, descriptor, values);
+const options = [
+  { value: "system", mode: siteShellMessages.themeSystem },
+  { value: "light", mode: siteShellMessages.themeLight },
+  { value: "dark", mode: siteShellMessages.themeDark },
+].map(({ value, mode }) => ({
+  value,
+  label: translate(siteShellMessages.themeOption, { mode: translate(mode) }),
+}));
+---
+
+<select
+  data-theme-control
+  name="site-theme"
+  aria-label={translate(siteShellMessages.theme)}
+  class={cn(
+    "cursor-pointer appearance-none rounded-sm bg-transparent text-muted-foreground transition-colors duration-[120ms] ease-out hover:text-foreground",
+    className,
+  )}
+>
+  {options.map((option) => <option value={option.value}>{option.label}</option>)}
+</select>
+
+<script>
+  import "./theme-toggle.client";
+</script>

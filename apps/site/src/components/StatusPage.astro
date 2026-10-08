@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
-import Header from "@/components/Header.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
 import { translateSiteMessage } from "@/lib/site-i18n";
 import { siteShellMessages } from "@/lib/site-shell-messages";
 import { getSiteLocale } from "@/lib/site-locale";
@@ -38,13 +39,13 @@ const copy = {
   markdownUrl={markdownUrl}
   socialImage="/og.png"
 >
-  <div class="min-h-screen">
-    <Header showMobileMenu={false} />
+  <div class="flex min-h-screen flex-col">
+    <SiteHeader />
     <main id="main-content" data-pagefind-body class="status-page">
       <header class="status-heading">
         <p class="status-kicker">{copy.currentPublicStatus}</p>
         <h1>{title}</h1>
-        <p>{description}</p>
+        <p class="status-lead">{description}</p>
       </header>
       <section
         id="live-status"
@@ -59,6 +60,7 @@ const copy = {
         </div>
       </section>
     </main>
+    <SiteFooter />
   </div>
 
   <script>
@@ -185,123 +187,129 @@ const copy = {
 
 <style is:global>
   .status-page {
-    width: min(100% - 2rem, 72rem);
+    flex: 1;
+    width: 100%;
+    max-width: calc(var(--site-cap) + 2 * var(--site-gutter));
     margin-inline: auto;
-    padding-block: clamp(3rem, 8vw, 7rem);
+    padding: var(--xid-space-s16) var(--site-gutter) clamp(4rem, 8vw, 8rem);
   }
   .status-heading {
     display: grid;
-    grid-template-columns: minmax(0, 8fr) minmax(14rem, 4fr);
-    column-gap: clamp(2rem, 8vw, 8rem);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 40rem);
+    column-gap: var(--xid-space-s12);
     align-items: end;
-    padding-bottom: clamp(2rem, 5vw, 4rem);
-    border-bottom: 1px solid var(--color-border);
-  }
-  .status-heading h1 {
-    grid-column: 1;
-    margin: 0;
-    font-size: clamp(2.75rem, 8vw, 6.5rem);
-    font-weight: 580;
-    line-height: 0.98;
-    letter-spacing: -0.055em;
-  }
-  .status-heading > p:last-child {
-    grid-column: 2;
-    margin: 0;
-    color: var(--color-muted-foreground);
-    line-height: 1.6;
+    padding-bottom: var(--xid-space-s8);
+    border-bottom: 1px solid var(--xid-border);
   }
   .status-kicker {
     grid-column: 1 / -1;
-    margin: 0 0 1rem;
-    color: var(--color-muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    margin: 0 0 var(--xid-space-s3);
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-xs);
+    font-weight: var(--xid-weight-medium);
+    line-height: var(--xid-leading-xs);
+  }
+  .status-heading h1 {
+    margin: 0;
+    font-size: var(--site-display-title);
+    font-weight: var(--xid-weight-display);
+    line-height: 1.1;
+    letter-spacing: var(--xid-tracking-heading);
+    text-wrap: balance;
+  }
+  .status-lead {
+    margin: 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-md);
+    line-height: 1.6;
   }
   .status-live {
-    padding-block: clamp(2rem, 5vw, 4rem);
+    padding-top: var(--xid-space-s8);
   }
   .status-summary {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    min-height: 3rem;
-    font-size: clamp(1.25rem, 2vw, 1.75rem);
+    gap: var(--xid-space-s3);
+    font-size: var(--xid-text-lg);
+    line-height: var(--xid-leading-lg);
+  }
+  .status-summary strong {
+    font-weight: var(--xid-weight-display);
   }
   .status-indicator {
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 999px;
-    background: var(--color-muted-foreground);
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: var(--xid-radius-full);
+    background: var(--xid-faint-foreground);
   }
-  .status-indicator[data-state="operational"] {
-    background: var(--color-success);
+  .status-indicator[data-state='operational'] {
+    background: var(--xid-success);
   }
-  .status-indicator[data-state="degraded"],
-  .status-indicator[data-state="partial_outage"] {
-    background: var(--color-warning);
+  .status-indicator[data-state='degraded'],
+  .status-indicator[data-state='partial_outage'] {
+    background: var(--xid-warning);
   }
-  .status-indicator[data-state="major_outage"],
-  .status-indicator[data-state="unavailable"] {
-    background: var(--color-danger);
+  .status-indicator[data-state='major_outage'],
+  .status-indicator[data-state='unavailable'] {
+    background: var(--xid-danger);
   }
-  .status-updated,
-  .status-incident-time {
-    color: var(--color-muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
+  .status-updated {
+    margin: var(--xid-space-s2) 0 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-sm);
+    font-variant-numeric: tabular-nums;
   }
   .status-section-title {
-    margin: clamp(2rem, 5vw, 4rem) 0 0;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--color-border);
-    font-size: 0.875rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    margin: var(--xid-space-s12) 0 0;
+    padding-bottom: var(--xid-space-s3);
+    border-bottom: 1px solid var(--xid-border);
+    font-size: var(--xid-text-lg);
+    font-weight: var(--xid-weight-display);
+    line-height: var(--xid-leading-lg);
+    letter-spacing: var(--xid-tracking-title);
   }
   .status-empty {
     margin: 0;
-    padding-block: 2rem;
-    color: var(--color-muted-foreground);
-  }
-  .status-incidents {
-    border-bottom: 1px solid var(--color-border);
+    padding-block: var(--xid-space-s6);
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-base);
   }
   .status-incident {
     display: grid;
     grid-template-columns: minmax(0, 7fr) minmax(16rem, 5fr);
-    column-gap: clamp(2rem, 6vw, 6rem);
-    padding-block: 1.75rem;
-    border-top: 1px solid var(--color-border);
-  }
-  .status-incident:first-child {
-    border-top: 0;
+    column-gap: var(--xid-space-s12);
+    padding-block: var(--xid-space-s6);
+    border-bottom: 1px solid var(--xid-border);
   }
   .status-incident-heading {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--xid-space-s4);
   }
   .status-incident-heading h3 {
     margin: 0;
-    font-size: 1rem;
-    font-weight: 620;
+    font-size: var(--xid-text-md);
+    font-weight: var(--xid-weight-display);
+    line-height: var(--xid-leading-md);
   }
   .status-incident-state {
-    color: var(--color-muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-xs);
+    font-weight: var(--xid-weight-medium);
+    white-space: nowrap;
   }
   .status-incident-summary {
-    margin: 0.5rem 0;
-    color: var(--color-muted-foreground);
+    margin: var(--xid-space-s2) 0;
+    color: var(--xid-muted-foreground);
+    font-size: var(--xid-text-base);
     line-height: 1.55;
+  }
+  .status-incident-time,
+  .status-updates time {
+    color: var(--xid-faint-foreground);
+    font-size: var(--xid-text-xs);
+    font-variant-numeric: tabular-nums;
   }
   .status-updates {
     grid-column: 2;
@@ -312,32 +320,27 @@ const copy = {
   }
   .status-updates li {
     display: grid;
-    grid-template-columns: 7rem 1fr;
-    column-gap: 0.75rem;
-    padding-block: 0.625rem;
-    border-bottom: 1px solid var(--color-border);
-    font-size: 0.75rem;
-  }
-  .status-updates time {
-    color: var(--color-muted-foreground);
-    font-family: var(--font-mono);
+    grid-template-columns: 8rem 1fr;
+    column-gap: var(--xid-space-s3);
+    padding-block: var(--xid-space-s3);
+    border-bottom: 1px solid var(--xid-border);
+    font-size: var(--xid-text-sm);
   }
   .status-updates strong {
-    font-weight: 620;
+    font-weight: var(--xid-weight-medium);
   }
   .status-updates p {
     grid-column: 2;
-    margin: 0.25rem 0 0;
-    color: var(--color-muted-foreground);
+    margin: var(--xid-space-s1) 0 0;
+    color: var(--xid-muted-foreground);
     line-height: 1.5;
   }
-  @media (max-width: 48rem) {
+  @media (max-width: 63.99rem) {
     .status-heading,
     .status-incident {
       grid-template-columns: 1fr;
-      row-gap: 1rem;
+      row-gap: var(--xid-space-s4);
     }
-    .status-heading > p:last-child,
     .status-updates {
       grid-column: 1;
       grid-row: auto;

@@ -1,3 +1,4 @@
+import { iconSvg } from '../lib/icon-svg'
 import { sanitizeMermaidSvg } from './sanitize-mermaid-svg'
 
 type MermaidLabels = {
@@ -85,14 +86,7 @@ function getDialog(): HTMLDialogElement {
   close.type = 'button'
   close.className = 'mermaid-dialog-close'
   close.setAttribute('aria-label', labels.close)
-  close.innerHTML = [
-    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"',
-    ' stroke="currentColor" stroke-width="2" stroke-linecap="round"',
-    ' stroke-linejoin="round" aria-hidden="true">',
-    '<line x1="18" y1="6" x2="6" y2="18"></line>',
-    '<line x1="6" y1="6" x2="18" y2="18"></line>',
-    '</svg>',
-  ].join('')
+  close.innerHTML = iconSvg('x', 16)
 
   dialog.appendChild(body)
   dialog.appendChild(close)
@@ -179,7 +173,7 @@ async function openDiagram(diagram: HTMLPreElement): Promise<void> {
 }
 
 function getFontFamily(): string {
-  const value = getComputedStyle(document.documentElement).getPropertyValue('--nb-font-sans').trim()
+  const value = getComputedStyle(document.documentElement).getPropertyValue('--xid-font').trim()
   return value || 'system-ui, sans-serif'
 }
 
@@ -195,13 +189,11 @@ export function isMermaidSupportedColor(value: string): boolean {
   )
 }
 
-function getThemeColor(name: string, fallback: string): string {
+// tokens.css 的颜色都是 hex；读不到合法值说明样式没加载，此时不渲染图表。
+function getThemeColor(name: string): string {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  return isMermaidSupportedColor(value) ? value : fallback
-}
-
-function getPageBackground(isDark: boolean): string {
-  return getThemeColor('--nb-background', isDark ? '#161616' : '#ffffff')
+  if (!isMermaidSupportedColor(value)) throw new TypeError(`unsupported theme color ${name}`)
+  return value
 }
 
 function wrapDiagram(diagram: HTMLPreElement): void {
@@ -217,16 +209,7 @@ function wrapDiagram(diagram: HTMLPreElement): void {
   expand.type = 'button'
   expand.className = 'mermaid-expand'
   expand.setAttribute('aria-label', labels.expand)
-  expand.innerHTML = [
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"',
-    ' stroke="currentColor" stroke-width="2" stroke-linecap="round"',
-    ' stroke-linejoin="round" aria-hidden="true">',
-    '<polyline points="15 3 21 3 21 9"></polyline>',
-    '<polyline points="9 21 3 21 3 15"></polyline>',
-    '<line x1="21" y1="3" x2="14" y2="10"></line>',
-    '<line x1="3" y1="21" x2="10" y2="14"></line>',
-    '</svg>',
-  ].join('')
+  expand.innerHTML = iconSvg('maximize', 16)
   expand.addEventListener('click', () => {
     void openDiagram(diagram)
   })
@@ -245,14 +228,12 @@ async function renderOnce(): Promise<void> {
     return
   }
 
-  const isDark = document.documentElement.getAttribute('data-mode') === 'dark'
-  const pageBackground = getPageBackground(isDark)
-  const accent = getThemeColor('--nb-border-strong', isDark ? '#737373' : '#a3a3a3')
-  const foreground = isDark ? '#f5f5f5' : '#262626'
-  const surface = isDark ? '#1f1f1f' : '#ffffff'
-  const muted = isDark ? '#292929' : '#f5f5f5'
-
   try {
+    const pageBackground = getThemeColor('--xid-bg')
+    const accent = getThemeColor('--xid-border-strong')
+    const foreground = getThemeColor('--xid-fg')
+    const surface = getThemeColor('--xid-surface')
+    const muted = getThemeColor('--xid-muted')
     renderer.initialize({
       startOnLoad: false,
       suppressErrorRendering: true,
@@ -332,7 +313,7 @@ const themeObserver = new MutationObserver(() => {
 
 themeObserver.observe(document.documentElement, {
   attributes: true,
-  attributeFilter: ['data-mode'],
+  attributeFilter: ['data-theme'],
 })
 
 setup()

@@ -88,34 +88,26 @@ export type DocumentAst = {
   noindex?: boolean
 }
 
-export type DocumentHubNavigationGroup = {
-  label: MessageDescriptor
-  slugs: readonly string[]
+export type DocumentHubItem = {
+  /** 顶层文章；`sdks/*` 这类子文章归在父文章的行下。 */
+  slug: string
+  summary: MessageDescriptor
 }
 
-export type DocumentHubSection =
-  | {
-      kind: 'product'
-      heading: MessageDescriptor
-      paragraphs: readonly MessageDescriptor[]
-    }
-  | {
-      kind: 'capabilities'
-      heading: MessageDescriptor
-      items: readonly MessageDescriptor[]
-    }
-  | {
-      kind: 'navigation'
-      heading: MessageDescriptor
-      groups: readonly DocumentHubNavigationGroup[]
-    }
+export type DocumentHubGroup = {
+  label: MessageDescriptor
+  items: readonly DocumentHubItem[]
+}
 
+/** 文档首页与侧栏共用的产品分组，与网站首页的分节一致。hub 始终发布，故意不暴露 draft/noindex。 */
 export type DocumentHubAst = {
-  /** 产品 hub 始终发布，故意不暴露 draft/noindex。 */
-  eyebrow: MessageDescriptor
   title: MessageDescriptor
   summary: MessageDescriptor
-  sections: readonly DocumentHubSection[]
+  groups: readonly DocumentHubGroup[]
+}
+
+export function parentDocumentSlug(slug: string): string {
+  return slug.split('/')[0] ?? slug
 }
 
 export type MessageCatalogEntry = {
@@ -275,6 +267,35 @@ function assertSection(value: unknown, label: string): asserts value is Document
   }
 }
 
+function assertHub(hub: unknown): string[] {
+  assertRecord(hub, 'document AST hub')
+  assertRichText(hub.title, 'document AST hub.title')
+  assertRichText(hub.summary, 'document AST hub.summary')
+  if (!Array.isArray(hub.groups) || hub.groups.length === 0) {
+    throw new TypeError('document AST hub.groups must be a non-empty array')
+  }
+  const itemSlugs: string[] = []
+  hub.groups.forEach((group, groupIndex) => {
+    const label = `document AST hub.groups.${groupIndex}`
+    assertRecord(group, label)
+    assertRichText(group.label, `${label}.label`)
+    if (!Array.isArray(group.items) || group.items.length === 0) {
+      throw new TypeError(`${label}.items must be a non-empty array`)
+    }
+    group.items.forEach((item, itemIndex) => {
+      const itemLabel = `${label}.items.${itemIndex}`
+      assertRecord(item, itemLabel)
+      assertString(item.slug, `${itemLabel}.slug`)
+      if (parentDocumentSlug(item.slug) !== item.slug) {
+        throw new TypeError(`${itemLabel}.slug must be a top-level document`)
+      }
+      assertRichText(item.summary, `${itemLabel}.summary`)
+      itemSlugs.push(item.slug)
+    })
+  })
+  return itemSlugs
+}
+
 export function assertDocumentAstBundle(value: unknown): asserts value is DocumentAstBundle {
   assertRecord(value, 'document AST')
   if (value.version !== DOCUMENT_AST_VERSION) {
@@ -288,64 +309,7 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
     throw new TypeError('document AST locales are invalid')
   }
 
-  assertRecord(value.hub, 'document AST hub')
-  for (const key of ['eyebrow', 'title', 'summary']) {
-    assertRichText(value.hub[key], `document AST hub.${key}`)
-  }
-  if (!Array.isArray(value.hub.sections) || value.hub.sections.length !== 3) {
-    throw new TypeError('document AST hub.sections must contain three sections')
-  }
-  const navigationSlugs: string[] = []
-  const sectionKinds = new Set<string>()
-  value.hub.sections.forEach((section, sectionIndex) => {
-    const label = `document AST hub.sections.${sectionIndex}`
-    assertRecord(section, label)
-    assertString(section.kind, `${label}.kind`)
-    if (sectionKinds.has(section.kind)) {
-      throw new TypeError(`${label}.kind is duplicated`)
-    }
-    sectionKinds.add(section.kind)
-    assertRichText(section.heading, `${label}.heading`)
-    if (section.kind === 'product') {
-      if (!Array.isArray(section.paragraphs) || section.paragraphs.length === 0) {
-        throw new TypeError(`${label}.paragraphs must be a non-empty array`)
-      }
-      section.paragraphs.forEach((paragraph, index) =>
-        assertRichText(paragraph, `${label}.paragraphs.${index}`),
-      )
-      return
-    }
-    if (section.kind === 'capabilities') {
-      if (!Array.isArray(section.items) || section.items.length === 0) {
-        throw new TypeError(`${label}.items must be a non-empty array`)
-      }
-      section.items.forEach((item, index) => assertRichText(item, `${label}.items.${index}`))
-      return
-    }
-    if (section.kind !== 'navigation') {
-      throw new TypeError(`${label}.kind is not supported`)
-    }
-    if (!Array.isArray(section.groups) || section.groups.length === 0) {
-      throw new TypeError(`${label}.groups must be a non-empty array`)
-    }
-    section.groups.forEach((group, groupIndex) => {
-      const groupLabel = `${label}.groups.${groupIndex}`
-      assertRecord(group, groupLabel)
-      assertRichText(group.label, `${groupLabel}.label`)
-      if (!Array.isArray(group.slugs) || group.slugs.length === 0) {
-        throw new TypeError(`${groupLabel}.slugs must be a non-empty array`)
-      }
-      group.slugs.forEach((slug, slugIndex) => {
-        assertString(slug, `${groupLabel}.slugs.${slugIndex}`)
-        navigationSlugs.push(slug)
-      })
-    })
-  })
-  for (const kind of ['product', 'capabilities', 'navigation']) {
-    if (!sectionKinds.has(kind)) {
-      throw new TypeError(`document AST hub.sections is missing ${kind}`)
-    }
-  }
+  const navigationSlugs = assertHub(value.hub)
 
   if (!Array.isArray(value.documents) || value.documents.length === 0) {
     throw new TypeError('document AST must contain documents')
@@ -373,12 +337,16 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
       assertSection(section, `${label}.sections.${sectionIndex}`),
     )
   })
+  const topLevelSlugs = [...slugs].filter((slug) => parentDocumentSlug(slug) === slug)
   if (
-    navigationSlugs.length !== slugs.size ||
-    new Set(navigationSlugs).size !== slugs.size ||
-    navigationSlugs.some((slug) => !slugs.has(slug))
+    navigationSlugs.length !== topLevelSlugs.length ||
+    new Set(navigationSlugs).size !== topLevelSlugs.length ||
+    navigationSlugs.some((slug) => !slugs.has(slug)) ||
+    [...slugs].some((slug) => !navigationSlugs.includes(parentDocumentSlug(slug)))
   ) {
-    throw new TypeError('document AST hub navigation must contain every document slug exactly once')
+    throw new TypeError(
+      'document AST hub groups must list every top-level document exactly once and cover every nested document through its parent',
+    )
   }
 
   if (!Array.isArray(value.messageCatalog) || value.messageCatalog.length === 0) {

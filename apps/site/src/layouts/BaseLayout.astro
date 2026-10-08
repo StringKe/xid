@@ -1,11 +1,9 @@
 ---
-import "@fontsource-variable/inter";
-import "@fontsource-variable/jetbrains-mono";
 import "../styles/globals.css";
 import "../styles/mermaid.css";
 import "../styles/prose.css";
 import { config } from "virtual:nimbus/config";
-import { getVersionStatus } from "@cloudflare/nimbus-docs";
+import { THEME_COLOR } from "@xid-kit/web-ui/theme-preference";
 import AgentDirective from "@/components/AgentDirective.astro";
 import { SearchDialog } from "@/components/ui/search";
 import NimbusHead from "@cloudflare/nimbus-docs/components/NimbusHead.astro";
@@ -38,21 +36,8 @@ const {
 
 const lang = getSiteLocale(Astro.url.pathname);
 const localeAlternates = getSiteLocaleAlternates(Astro.url.pathname);
-const skipToContent = translateSiteMessage(Astro.url.pathname, siteShellMessages.skipToContent);
-const mermaidCloseLabel = translateSiteMessage(
-  Astro.url.pathname,
-  siteShellMessages.closeDiagram,
-);
-const mermaidErrorLabel = translateSiteMessage(
-  Astro.url.pathname,
-  siteShellMessages.diagramFailed,
-);
-const mermaidExpandLabel = translateSiteMessage(
-  Astro.url.pathname,
-  siteShellMessages.expandDiagram,
-);
-const versionStatus = collection ? await getVersionStatus(collection) : null;
-const isHiddenVersion = versionStatus?.isHidden === true;
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1]) =>
+  translateSiteMessage(Astro.url.pathname, descriptor);
 // 空 alternate 抑制 NimbusHead 对显式 noindex 页的默认回填。
 const llmsIndexPath = noindex ? "" : getSiteLlmsIndexPath(lang);
 const llmsUrl = Astro.site
@@ -78,43 +63,38 @@ const customHead = [...(config.head ?? []), ...pageHead];
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content={THEME_COLOR.light} />
 
-    <script is:inline>
+    {/* 与 apps/server、apps/console 首帧脚本同一逻辑：读 xid.theme，未选择时跟随系统。 */}
+    <script is:inline define:vars={{ themeColor: THEME_COLOR }}>
       (() => {
-        const KEY = "ui-mode";
         const media = window.matchMedia("(prefers-color-scheme: dark)");
-
-        const readPref = () => {
+        const readMode = () => {
           try {
-            const v = localStorage.getItem(KEY);
-            return v === "dark" || v === "light" ? v : null;
+            const value = localStorage.getItem("xid.theme");
+            return value === "light" || value === "dark" ? value : "system";
           } catch {
-            return null;
+            return "system";
           }
         };
-
-        const resolveMode = () => readPref() ?? (media.matches ? "dark" : "light");
-
-        const applyTheme = () => {
+        const apply = () => {
+          const mode = readMode();
+          const scheme = mode === "system" ? (media.matches ? "dark" : "light") : mode;
           const root = document.documentElement;
-          const mode = resolveMode();
-          if (mode === "dark") root.setAttribute("data-mode", "dark");
-          else root.removeAttribute("data-mode");
-          root.style.colorScheme = mode;
-          document.querySelectorAll("[data-nb-theme-toggle]").forEach((b) => {
-            b.setAttribute("data-nb-state", mode);
+          root.dataset.theme = scheme;
+          root.style.colorScheme = scheme;
+          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", themeColor[scheme]);
+          document.querySelectorAll("[data-theme-control]").forEach((control) => {
+            control.setAttribute("data-scheme", scheme);
+            if (control instanceof HTMLSelectElement) control.value = mode;
           });
         };
-
-        applyTheme();
-        media.addEventListener("change", () => {
-          if (!readPref()) applyTheme();
+        apply();
+        media.addEventListener("change", apply);
+        window.addEventListener("storage", (event) => {
+          if (event.key === "xid.theme") apply();
         });
-        window.addEventListener("storage", (e) => {
-          if (e.key === KEY) applyTheme();
-        });
-
-        window.__nbApplyTheme = applyTheme;
+        window.__xidApplyTheme = apply;
       })();
     </script>
 
@@ -175,18 +155,18 @@ const customHead = [...(config.head ?? []), ...pageHead];
     />
   </head>
   <body
-    class="min-h-screen bg-background text-foreground antialiased"
-    data-mermaid-close-label={mermaidCloseLabel}
-    data-mermaid-error-label={mermaidErrorLabel}
-    data-mermaid-expand-label={mermaidExpandLabel}
+    class="min-h-screen bg-background text-foreground"
+    data-mermaid-close-label={translate(siteShellMessages.closeDiagram)}
+    data-mermaid-error-label={translate(siteShellMessages.diagramFailed)}
+    data-mermaid-expand-label={translate(siteShellMessages.expandDiagram)}
   >
     <a
       href="#main-content"
-      class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-100 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:no-underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3.5 focus:py-2 focus:text-base focus:font-medium focus:text-primary-foreground"
     >
-      {skipToContent}
+      {translate(siteShellMessages.skipToContent)}
     </a>
-    {markdownUrl && !isHiddenVersion && <AgentDirective markdownUrl={markdownUrl} llmsUrl={llmsUrl} />}
+    {markdownUrl && <AgentDirective markdownUrl={markdownUrl} llmsUrl={llmsUrl} />}
     <slot />
     {config.search !== false && <SearchDialog />}
 

@@ -1,42 +1,34 @@
 ---
+// 规格同产品 Badge：胶囊、22px 高、12px / 500，状态型带 6px 圆点。
 import { cn } from "@/lib/cn";
 import type { HTMLAttributes } from "astro/types";
 
 interface Props extends HTMLAttributes<"span"> {
   text?: string;
-  variant?: "default" | "info" | "note" | "success" | "tip" | "warning" | "caution" | "danger";
-  size?: "small" | "medium" | "large";
+  variant?: "neutral" | "info" | "success" | "warning" | "danger" | "outline";
 }
 
-const { text, variant = "default", size = "small", class: className, ...attrs } = Astro.props;
+const { text, variant = "neutral", class: className, ...attrs } = Astro.props;
 
-// note/tip/caution 别名到 info/success/warning 色板。
-const variantClass: Record<string, string> = {
-  default: "bg-accent text-muted-foreground",
-  info:    "bg-info-muted text-info",
-  note:    "bg-info-muted text-info",
-  success: "bg-success-muted text-success",
-  tip:     "bg-success-muted text-success",
-  warning: "bg-warning-muted text-warning",
-  caution: "bg-warning-muted text-warning",
-  danger:  "bg-danger-muted text-danger",
+const tones: Record<NonNullable<Props["variant"]>, { surface: string; dot?: string }> = {
+  neutral: { surface: "bg-muted text-muted-foreground" },
+  outline: { surface: "text-muted-foreground shadow-[inset_0_0_0_1px_var(--xid-border)]" },
+  info: { surface: "bg-info-bg text-accent-strong", dot: "bg-info" },
+  success: { surface: "bg-success-bg text-success", dot: "bg-success" },
+  warning: { surface: "bg-warning-bg text-warning", dot: "bg-warning" },
+  danger: { surface: "bg-danger-bg text-danger", dot: "bg-danger" },
 };
-
-const sizeClass: Record<string, string> = {
-  small:  "px-2 py-0.5 text-xs",
-  medium: "px-2.5 py-0.5 text-[0.8125rem]",
-  large:  "px-3 py-1 text-sm",
-};
+const tone = tones[variant];
 ---
 
 <span
   class={cn(
-    "inline-flex items-center rounded-full font-medium whitespace-nowrap leading-none",
-    variantClass[variant] ?? variantClass.default,
-    sizeClass[size] ?? sizeClass.small,
+    "inline-flex h-[1.375rem] items-center gap-1.5 whitespace-nowrap rounded-full px-2 text-xs font-medium",
+    tone.surface,
     className,
   )}
   {...attrs}
 >
+  {tone.dot && <span aria-hidden="true" class={cn("size-1.5 rounded-full", tone.dot)}></span>}
   {text ?? <slot />}
 </span>

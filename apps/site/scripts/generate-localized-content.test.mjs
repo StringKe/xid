@@ -106,18 +106,11 @@ function collectContentContract(bundle) {
     for (const tag of Object.values(value.tags)) tags[tag.kind] += 1
   }
 
-  for (const field of ['eyebrow', 'title', 'summary']) {
-    visitRichText(bundle.hub[field], visit)
-  }
-  for (const section of bundle.hub.sections) {
-    visitRichText(section.heading, visit)
-    if (section.kind === 'product') {
-      section.paragraphs.forEach((paragraph) => visitRichText(paragraph, visit))
-    } else if (section.kind === 'capabilities') {
-      section.items.forEach((item) => visitRichText(item, visit))
-    } else {
-      section.groups.forEach((group) => visitRichText(group.label, visit))
-    }
+  visitRichText(bundle.hub.title, visit)
+  visitRichText(bundle.hub.summary, visit)
+  for (const group of bundle.hub.groups) {
+    visitRichText(group.label, visit)
+    group.items.forEach((item) => visitRichText(item.summary, visit))
   }
   for (const document of bundle.documents) {
     visitRichText(document.title, visit)
@@ -414,12 +407,22 @@ test('localized generation writes 336 complete MDX files and is repeatable', asy
   assert.match(englishScim, /```shell/)
   assert.match(englishScim, /\/organizations\/\{organization_id\}/)
   assert.match(chineseCore, /\]\(\/zh-hans\/sdks\/react\)/)
-  assert.match(englishHub, /title: "XID Identity Platform"/)
-  assert.match(englishHub, /## One platform for identity/)
-  assert.match(englishHub, /## What XID includes/)
-  assert.match(englishHub, /## Explore XID/)
+  assert.match(englishHub, /title: "Docs"/)
+  assert.match(englishHub, /## Sign-in and accounts/)
+  assert.match(englishHub, /## Run XID/)
   assert.doesNotMatch(englishHub, /Minimum integration/)
-  assert.equal(englishHub.match(/^### /gm)?.length, 8)
+  assert.equal(englishHub.match(/^## /gm)?.length, bundle.hub.groups.length)
+  assert.equal(
+    englishHub.match(/^ {2}- \[.+\]\(\/sdks\/.+\)/gm)?.length,
+    bundle.documents.filter((document) => document.slug.startsWith('sdks/')).length,
+  )
+  assert.match(
+    englishHub,
+    new RegExp(
+      `^- \\[.+\\]\\(/sdks\\): ${bundle.documents.filter((document) => document.slug.startsWith('sdks/')).length} platform guides`,
+      'm',
+    ),
+  )
 
   for (const locale of bundle.locales) {
     const localeDirectory = locale === 'en' ? '' : locale

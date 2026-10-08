@@ -1,0 +1,148 @@
+---
+// 窄屏导航抽屉：左侧滑出，宽 min(20rem, 90vw)，原生 dialog 自带焦点约束和 Escape。
+import { cn } from "@/lib/cn";
+import type { DocsNavigation } from "@/lib/docs-navigation";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { SITE_REPOSITORY_URL } from "@/lib/site-links";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+import BrandLink from "./BrandLink.astro";
+import LanguageSwitcher from "./LanguageSwitcher.astro";
+import { buttonVariants } from "./ui/button/variants";
+import GitHubMark from "./ui/icon/GitHubMark.astro";
+import Icon from "./ui/icon/Icon.astro";
+import { LinkButton } from "./ui/link-button";
+import DocsSidebarNav from "./ui/sidebar/DocsSidebarNav.astro";
+import { ThemeSelect } from "./ui/theme-toggle";
+
+type Link = { href: string; label: string };
+
+interface Props {
+  navigation: readonly (Link & { active: boolean })[];
+  signIn: Link;
+  startFree: Link;
+  docsNavigation?: DocsNavigation;
+}
+
+const { navigation, signIn, startFree, docsNavigation } = Astro.props;
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1]) =>
+  translateSiteMessage(Astro.url.pathname, descriptor);
+const row =
+  "flex min-h-11 items-center gap-2 rounded-sm px-2 text-base no-underline transition-colors duration-[120ms] ease-out";
+---
+
+<dialog
+  data-site-drawer
+  data-state="closed"
+  aria-label={translate(siteShellMessages.siteNavigation)}
+  class="group fixed inset-0 m-0 h-full max-h-full w-full max-w-full bg-transparent p-0 backdrop:bg-transparent"
+>
+  <div
+    data-site-drawer-scrim
+    class="absolute inset-0 bg-scrim opacity-0 transition-opacity duration-[180ms] ease-out group-data-[state=open]:opacity-100"
+  ></div>
+  <div
+    class="relative flex h-full w-[min(20rem,90vw)] -translate-x-full flex-col bg-background shadow-lg transition-transform duration-[220ms] ease-standard group-data-[state=open]:translate-x-0"
+  >
+    <div class="flex h-14 shrink-0 items-center justify-between border-b border-border pl-4 pr-2">
+      <BrandLink />
+      <button
+        type="button"
+        data-site-drawer-close
+        aria-label={translate(siteShellMessages.closeNavigation)}
+        class={buttonVariants({ variant: "ghost", shape: "square", size: "lg" })}
+      >
+        <Icon name="x" size={20} />
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto overscroll-contain px-2 py-3">
+      <nav aria-label={translate(siteShellMessages.siteNavigation)} class="flex flex-col">
+        {navigation.map((item) => (
+          <a
+            href={item.href}
+            aria-current={item.active ? "page" : undefined}
+            class={cn(row, item.active ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}
+          >
+            {item.label}
+          </a>
+        ))}
+        <a href={SITE_REPOSITORY_URL} target="_blank" rel="noopener" class={cn(row, "text-muted-foreground hover:text-foreground")}>
+          <GitHubMark />
+          GitHub
+        </a>
+      </nav>
+      {docsNavigation && (
+        <div class="mt-3 border-t border-border pt-4">
+          <DocsSidebarNav navigation={docsNavigation} />
+        </div>
+      )}
+    </div>
+
+    <div class="flex shrink-0 flex-col gap-3 border-t border-border p-4">
+      <div class="grid grid-cols-2 gap-2">
+        <LinkButton href={signIn.href} variant="secondary" size="lg">{signIn.label}</LinkButton>
+        <LinkButton href={startFree.href} size="lg">{startFree.label}</LinkButton>
+      </div>
+      <div class="flex items-center gap-4 text-sm">
+        <LanguageSwitcher appearance="footer" />
+        <ThemeSelect />
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  import { lockScroll, mount, unlockScroll } from "@cloudflare/nimbus-docs/client";
+
+  const CLOSE_DURATION_MS = 220;
+
+  mount("[data-site-drawer]", (root) => {
+    const opener = document.querySelector<HTMLElement>("[data-site-drawer-open]");
+    if (!(root instanceof HTMLDialogElement) || !opener) return () => {};
+    const dialog = root;
+    const controller = new AbortController();
+    const { signal } = controller;
+    let closeTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const open = () => {
+      clearTimeout(closeTimer);
+      if (dialog.open) return;
+      dialog.showModal();
+      lockScroll();
+      requestAnimationFrame(() => requestAnimationFrame(() => (dialog.dataset.state = "open")));
+    };
+    const close = () => {
+      if (!dialog.open || dialog.dataset.state === "closing") return;
+      dialog.dataset.state = "closing";
+      closeTimer = setTimeout(() => dialog.close(), CLOSE_DURATION_MS);
+    };
+
+    opener.addEventListener("click", open, { signal });
+    dialog.querySelector("[data-site-drawer-close]")?.addEventListener("click", close, { signal });
+    dialog.querySelector("[data-site-drawer-scrim]")?.addEventListener("click", close, { signal });
+    dialog.addEventListener(
+      "cancel",
+      (event) => {
+        event.preventDefault();
+        close();
+      },
+      { signal },
+    );
+    dialog.addEventListener(
+      "close",
+      () => {
+        clearTimeout(closeTimer);
+        dialog.dataset.state = "closed";
+        unlockScroll();
+        opener.focus();
+      },
+      { signal },
+    );
+
+    return () => {
+      controller.abort();
+      clearTimeout(closeTimer);
+      if (dialog.open) unlockScroll();
+    };
+  });
+</script>

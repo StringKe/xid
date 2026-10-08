@@ -1,4 +1,3 @@
-import icon from 'astro-icon'
 import nimbus, { defineConfig as defineNimbusConfig } from '@cloudflare/nimbus-docs'
 import { tableScroll } from '@cloudflare/nimbus-docs/markdown'
 import { lingui, linguiTransformerBabelPreset } from '@lingui/vite-plugin'
@@ -36,8 +35,11 @@ export default defineConfig({
     prefetchAll: true,
     defaultStrategy: 'hover',
   },
+  // 代码块在浅色和深色主题下都是深底，只用一套深色高亮。
+  markdown: {
+    shikiConfig: { theme: 'github-dark-default' },
+  },
   integrations: [
-    icon(),
     nimbus(nimbusConfig, {
       sitemap: {
         serialize(item) {

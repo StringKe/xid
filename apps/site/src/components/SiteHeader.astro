@@ -1,0 +1,95 @@
+---
+// 规格见 design-language 3.10：56px、不透明、底部 1px；导航项 32px，当前项前景色 + 500，无底色块。
+import { config } from "virtual:nimbus/config";
+import { cn } from "@/lib/cn";
+import type { DocsNavigation } from "@/lib/docs-navigation";
+import { parsePublicDocsRoute } from "@/lib/docs-registry";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { SITE_REPOSITORY_URL } from "@/lib/site-links";
+import { getSiteLocale, hostedAuthHref, localizeSitePath, stripSiteLocale } from "@/lib/site-locale";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+import BrandLink from "./BrandLink.astro";
+import LanguageSwitcher from "./LanguageSwitcher.astro";
+import SiteDrawer from "./SiteDrawer.astro";
+import { buttonVariants } from "./ui/button/variants";
+import GitHubMark from "./ui/icon/GitHubMark.astro";
+import Icon from "./ui/icon/Icon.astro";
+import { LinkButton } from "./ui/link-button";
+import { SearchTrigger } from "./ui/search";
+import { ThemeToggle } from "./ui/theme-toggle";
+
+interface Props {
+  /** docs：全宽，中间是搜索；site：内容区限宽 72rem。 */
+  variant?: "site" | "docs";
+  docsNavigation?: DocsNavigation;
+}
+
+const { variant = "site", docsNavigation } = Astro.props;
+const pathname = Astro.url.pathname;
+const locale = getSiteLocale(pathname);
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1]) =>
+  translateSiteMessage(pathname, descriptor);
+const unlocalized = stripSiteLocale(pathname.replace(/\/$/, "") || "/");
+const isDocs = variant === "docs";
+const hasSearch = isDocs && config.search !== false;
+
+const navigation = [
+  { href: localizeSitePath("/pricing", locale), label: translate(siteShellMessages.pricing), active: unlocalized === "/pricing" },
+  { href: localizeSitePath("/docs", locale), label: translate(siteShellMessages.docs), active: parsePublicDocsRoute(pathname) !== null },
+  { href: localizeSitePath("/status", locale), label: translate(siteShellMessages.status), active: unlocalized === "/status" },
+];
+const signIn = { href: hostedAuthHref("sign-in", locale), label: translate(siteShellMessages.signIn) };
+const startFree = { href: hostedAuthHref("sign-up", locale), label: translate(siteShellMessages.startFree) };
+const navItem =
+  "inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 text-base no-underline transition-colors duration-[120ms] ease-out";
+---
+
+<header class="sticky top-0 z-30 border-b border-border bg-background">
+  <div
+    class={cn(
+      "mx-auto flex h-14 items-center justify-between gap-4",
+      isDocs ? "pl-4 pr-2 lg:px-6" : "max-w-[calc(var(--site-cap)+2*var(--site-gutter))] pl-(--site-gutter) pr-2 lg:pr-(--site-gutter)",
+    )}
+  >
+    <div class={cn("flex min-w-0 items-center", isDocs ? "gap-8" : "gap-10")}>
+      <BrandLink href={localizeSitePath("/", locale)} section={isDocs ? translate(siteShellMessages.docs) : undefined} />
+      <nav aria-label={translate(siteShellMessages.siteNavigation)} class="hidden items-center gap-1 lg:flex">
+        {navigation.map((item) => (
+          <a
+            href={item.href}
+            aria-current={item.active ? "page" : undefined}
+            class={cn(navItem, item.active ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}
+          >
+            {item.label}
+          </a>
+        ))}
+        <a href={SITE_REPOSITORY_URL} target="_blank" rel="noopener" class={cn(navItem, "text-muted-foreground hover:text-foreground")}>
+          <GitHubMark />
+          GitHub
+        </a>
+      </nav>
+    </div>
+
+    {hasSearch && <SearchTrigger class="hidden w-[min(20rem,26vw)] lg:flex" />}
+
+    <div class="flex items-center gap-2">
+      <LanguageSwitcher class="hidden lg:inline-flex" />
+      <ThemeToggle class="hidden lg:inline-flex" />
+      <LinkButton href={signIn.href} variant="ghost" class="hidden lg:inline-flex">{signIn.label}</LinkButton>
+      <LinkButton href={startFree.href} class="hidden lg:inline-flex">{startFree.label}</LinkButton>
+      {!isDocs && <LinkButton href={startFree.href} size="lg" class="lg:hidden">{startFree.label}</LinkButton>}
+      {hasSearch && <SearchTrigger appearance="icon" class="lg:hidden" />}
+      <button
+        type="button"
+        data-site-drawer-open
+        aria-label={translate(siteShellMessages.openNavigation)}
+        aria-haspopup="dialog"
+        class={cn(buttonVariants({ variant: "ghost", shape: "square", size: "lg" }), "lg:hidden")}
+      >
+        <Icon name="menu" size={20} />
+      </button>
+    </div>
+  </div>
+</header>
+
+<SiteDrawer navigation={navigation} signIn={signIn} startFree={startFree} docsNavigation={docsNavigation} />

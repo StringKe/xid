@@ -1,0 +1,49 @@
+---
+// 文档首页：分组与首页产品分节一致，每篇一行，不用卡片网格。
+import type { DocsNavigation } from "@/lib/docs-navigation";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { getSiteLocale, localizeSitePath } from "@/lib/site-locale";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+import { LinkButton } from "./ui/link-button";
+
+interface Props {
+  navigation: DocsNavigation;
+}
+
+const { navigation } = Astro.props;
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1]) =>
+  translateSiteMessage(Astro.url.pathname, descriptor);
+const startHref = localizeSitePath("/getting-started", getSiteLocale(Astro.url.pathname));
+---
+
+<header class="flex flex-col gap-3 border-b border-border pb-7 lg:pb-8">
+  <h1 class="m-0 text-xl font-display tracking-heading text-foreground">{navigation.hub.label}</h1>
+  <p class="m-0 text-md text-muted-foreground [text-wrap:pretty]">{navigation.hub.summary}</p>
+  <div class="flex items-center gap-4 pt-1 lg:pt-2">
+    <LinkButton href={startHref} class="max-lg:h-11 max-lg:w-full">{translate(siteShellMessages.docsStart)}</LinkButton>
+    <span class="hidden text-sm text-muted-foreground lg:inline">{translate(siteShellMessages.docsStartHint)}</span>
+  </div>
+</header>
+
+<div class="flex flex-col gap-9 pt-8 lg:gap-12 lg:pt-12">
+  {navigation.groups.map((group) => (
+    <section aria-labelledby={group.id} class="flex flex-col gap-2 lg:gap-3">
+      <h2 id={group.id} class="m-0 scroll-mt-20 text-lg font-display tracking-title text-foreground">{group.label}</h2>
+      <ul class="m-0 list-none border-t border-border p-0">
+        {group.links.map((link) => (
+          <li class="border-b border-border">
+            <a
+              href={link.href}
+              class="group flex flex-col gap-0.5 py-3 no-underline lg:flex-row lg:gap-6 lg:py-3.5"
+            >
+              <span class="text-base font-medium leading-[1.125rem] text-foreground transition-colors duration-[120ms] ease-out group-hover:text-accent lg:w-44 lg:shrink-0 lg:leading-[1.375rem]">
+                {link.label}
+              </span>
+              <span class="text-base text-muted-foreground lg:leading-[1.375rem]">{link.summary}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+</div>

@@ -1,336 +1,149 @@
 ---
-import { Icon } from "astro-icon/components";
+// 文档布局：248px 侧栏（同 Console）、正文列 43.5rem（≥90rem 52rem）、≥90rem 显示右侧目录。
+import "@/styles/site-sections.css";
 import BaseLayout from "./BaseLayout.astro";
-import Header from "@/components/Header.astro";
-import SiteAuthActions from "@/components/SiteAuthActions.astro";
-import { Banner } from "@/components/ui/banner";
-import { Sidebar, SidebarFilter } from "@/components/ui/sidebar";
-import { TOC, MobileTOC } from "@/components/ui/toc";
+import SiteHeader from "@/components/SiteHeader.astro";
+import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Pagination } from "@/components/ui/pagination";
-import { PageActions } from "@/components/ui/page-actions";
-import { Badge } from "@/components/ui/badge";
-import type { DocsPageProps } from "@cloudflare/nimbus-docs/types";
-import { getVersionStatus, getVersionAlternates } from "@cloudflare/nimbus-docs";
-import { getSiteLocale, localizeSitePath } from "@/lib/site-locale";
+import DocsSidebarNav from "@/components/ui/sidebar/DocsSidebarNav.astro";
+import { MobileTOC, TOC } from "@/components/ui/toc";
+import type { Breadcrumb, HeadElement, PrevNext, TOCItem } from "@cloudflare/nimbus-docs/types";
+import { cn } from "@/lib/cn";
+import type { DocsEvidence } from "@/lib/docs-evidence";
+import type { DocsNavigation } from "@/lib/docs-navigation";
+import Aside from "@/components/ui/aside/Aside.astro";
 import { translateSiteMessage } from "@/lib/site-i18n";
 import { siteShellMessages } from "@/lib/site-shell-messages";
 
-type Props = DocsPageProps & { audience?: "human" };
+type Props = {
+  title: string;
+  description?: string;
+  navigation: DocsNavigation;
+  /** 文档首页自带标题区，不渲染文章标题、面包屑、目录和翻页。 */
+  isHub?: boolean;
+  evidence?: DocsEvidence;
+  headings?: TOCItem[];
+  breadcrumbs?: Breadcrumb[];
+  prevNext?: PrevNext;
+  editUrl?: string;
+  head?: HeadElement[];
+  noindex?: boolean;
+  draft?: boolean;
+  searchable?: boolean;
+  markdownUrl?: string;
+  socialImage?: string;
+  lastUpdated?: Date;
+  collection?: string;
+  entryId?: string;
+};
 
-const { title, description, sidebar, headings, breadcrumbs, prevNext, mode = "doc", banner, head = [], searchable, noindex, markdownUrl, socialImage, lastUpdated, editUrl, draft, audience, collection, entryId } = Astro.props;
+const {
+  title,
+  description,
+  navigation,
+  isHub = false,
+  evidence,
+  headings = [],
+  breadcrumbs = [],
+  prevNext = {},
+  editUrl,
+  head = [],
+  noindex,
+  draft,
+  searchable,
+  markdownUrl,
+  socialImage,
+  lastUpdated,
+  collection,
+  entryId,
+} = Astro.props;
 
-// searchable 缺省跟 noindex：不可爬则默认也不进站内搜；可显式 searchable: true 只搜不索引。
-const effectiveSearchable = searchable ?? !noindex;
-const isCustom = mode === "custom";
-
-// frontmatter 的 sidebar/tableOfContents: false 是字面 false（不是 []），用于关掉整列 chrome。
-const showSidebar = sidebar !== false;
-
-// 版本状态驱动 Pagefind 分面、弃用横幅，以及 hidden 版本的 data-pagefind-ignore。
-const versionStatus = collection ? await getVersionStatus(collection) : null;
-const versionAlternates = collection && entryId
-  ? await getVersionAlternates(collection, entryId)
-  : null;
-const currentSiblingUrl = versionAlternates?.canonical?.url ?? null;
-const translate = (descriptor: Parameters<typeof translateSiteMessage>[1]) =>
-  translateSiteMessage(Astro.url.pathname, descriptor);
-const draftLabel = translate(siteShellMessages.draft);
-const forHumansLabel = translate(siteShellMessages.forHumans);
-const editThisPage = translate(siteShellMessages.editThisPage);
-const navigation = translate(siteShellMessages.navigation);
-const siteNavigation = translate(siteShellMessages.siteNavigation);
-const closeSidebar = translate(siteShellMessages.closeSidebar);
-const deprecatedDocumentation = translate(siteShellMessages.deprecatedDocumentation);
-const currentDocumentation = translate(siteShellMessages.currentDocumentation);
-const currentDocsUrl =
-  currentSiblingUrl ?? localizeSitePath("/", getSiteLocale(Astro.url.pathname));
-const deprecatedBanner = `${deprecatedDocumentation}. <a href="${currentDocsUrl}">${currentDocumentation}.</a>`;
-
-// Pagefind：不可搜或 hidden 版本一律 ignore（hidden 优先于 searchable=true）；否则打 body + version/status 分面。
-const pagefindAttrs: Record<string, string> = {};
-if (!effectiveSearchable || versionStatus?.isHidden) {
-  pagefindAttrs["data-pagefind-ignore"] = "";
-} else {
-  pagefindAttrs["data-pagefind-body"] = "";
-  if (versionStatus) {
-    pagefindAttrs["data-pagefind-filter"] = `version:${versionStatus.version}`;
-    if (versionStatus.isDeprecated) {
-      // 多 filter 写在同一 data-pagefind-filter 逗号列表，便于默认排除 deprecated。
-      pagefindAttrs["data-pagefind-filter"] += `, status:deprecated`;
-    }
-  }
-}
-
-const hasHeader = Astro.slots.has("header");
-const hasSidebar = Astro.slots.has("sidebar");
-const hasToc = Astro.slots.has("toc");
-const hasPageTitle = Astro.slots.has("page-title");
-const hasContentFooter = Astro.slots.has("content-footer");
-const hasPagination = Astro.slots.has("pagination");
+// searchable 缺省跟 noindex：不可爬则默认也不进站内搜。
+const pagefindAttrs = (searchable ?? !(noindex || draft))
+  ? { "data-pagefind-body": "" }
+  : { "data-pagefind-ignore": "" };
+const draftLabel = translateSiteMessage(Astro.url.pathname, siteShellMessages.draft);
 ---
 
-<BaseLayout title={title} description={description} noindex={noindex || draft} markdownUrl={markdownUrl} socialImage={socialImage} lastUpdated={lastUpdated} head={head} collection={collection} entryId={entryId}>
-  <div class="flex flex-col min-h-screen">
-    {hasHeader ? <slot name="header" /> : <Header collection={collection} entryId={entryId} />}
-
-    {isCustom ? (
-      <main id="main-content" class="flex-1">
-        <slot />
-      </main>
-    ) : (
-      <div class="flex-1 mx-auto w-full">
-        <div class="flex">
-          {showSidebar && (
-            <aside id="desktop-sidebar" data-nb-desktop-sidebar class="hidden lg:flex w-(--nb-sidebar-width) shrink-0 border-r border-border bg-background sticky top-14 h-[calc(100vh-3.5rem)] flex-col overflow-y-auto overscroll-contain relative">
-              {hasSidebar ? (
-                <slot name="sidebar" />
-              ) : (
-                <nav class="px-4 pb-12 pt-5 flex-1">
-                  <SidebarFilter />
-                  <Sidebar items={sidebar} persist />
-                </nav>
-              )}
-              <div class="pointer-events-none sticky bottom-0 h-8 bg-gradient-to-t from-base to-transparent" />
-            </aside>
-          )}
-
-          {/* 侧栏恢复：在 disclosure 模块前预写 data 属性，避免客户端导航丢折叠/滚动；无侧栏则不注入。 */}
-          {showSidebar && (
-          <script is:inline aria-hidden="true">
-          (function () {
-            try {
-              if (!matchMedia("(min-width: 64rem)").matches) return;
-              const sidebar = document.getElementById("desktop-sidebar");
-              if (!sidebar) return;
-              const content = sidebar.querySelector("[data-nb-sidebar]");
-              if (!content) return;
-
-              function setGroupOpen(group, open) {
-                group.setAttribute("data-nb-default-open", open ? "true" : "false");
-                const trigger = group.querySelector("[data-nb-collapsible-trigger]");
-                const panel = group.querySelector("[data-nb-collapsible-content]");
-                const state = open ? "open" : "closed";
-                if (trigger) {
-                  trigger.setAttribute("data-nb-state", state);
-                  trigger.setAttribute("aria-expanded", String(open));
-                }
-                if (panel) panel.setAttribute("data-nb-state", state);
-              }
-
-              const raw = sessionStorage.getItem("sidebar-state");
-              let state;
-              if (raw) {
-                state = JSON.parse(raw);
-                if (state && content.dataset.nbSidebarHash === state.hash) {
-                  const groups = content.querySelectorAll("[data-nb-sidebar-group]");
-                  for (let i = 0; i < groups.length; i++) {
-                    if (typeof state.open[i] === "boolean") {
-                      setGroupOpen(groups[i], state.open[i]);
-                    }
-                  }
-                }
-              }
-
-              // 当前页祖先组必须展开，覆盖已存折叠状态。
-              const active = sidebar.querySelector("[aria-current='page']");
-              if (active) {
-                let d = active.closest("[data-nb-sidebar-group]");
-                while (d) {
-                  setGroupOpen(d, true);
-                  d = d.parentElement && d.parentElement.closest("[data-nb-sidebar-group]");
-                }
-              }
-
-              if (raw && state && state.scroll) {
-                sidebar.scrollTop = state.scroll;
-              } else if (active) {
-                const sr = sidebar.getBoundingClientRect();
-                const ar = active.getBoundingClientRect();
-                sidebar.scrollTop += ar.top - sr.top - sr.height / 2 + ar.height / 2;
-              }
-            } catch (_) {}
-          })();
-          </script>
-          )}
-
-          <main id="main-content" class="flex-1 min-w-0">
-            <div class="mx-auto max-w-(--nb-content-max) px-4 lg:px-6 pt-6 pb-12">
-              {versionStatus?.isDeprecated && (
-                <Banner
-                  variant="caution"
-                  content={deprecatedBanner}
-                />
-              )}
-              {banner && <Banner content={banner.content} variant={banner.type} dismissible={banner.dismissible} />}
-              <Breadcrumbs items={breadcrumbs} class="pb-2" />
-              <div {...pagefindAttrs}>
-                {hasPageTitle ? (
-                  <slot name="page-title" />
-                ) : (
-                  <Fragment>
-                    <div class="flex items-center gap-3 flex-wrap mt-6">
-                      <h1 class="text-foreground mb-0 leading-tight [text-wrap:balance]" style={`font-size:var(--nb-h1-size);font-weight:var(--nb-h1-weight);letter-spacing:var(--nb-h1-tracking)`}>{title}</h1>
-                      {draft && <Badge text={draftLabel} variant="warning" size="medium" />}
-                    </div>
-                    {description && (
-                      <p class="text-[0.9375rem] sm:text-[1.0625rem] text-muted-foreground leading-relaxed mt-2 mb-2 [text-wrap:pretty]">{description}</p>
-                    )}
-                    <PageActions markdownUrl={markdownUrl} lastUpdated={lastUpdated} class={description ? undefined : "mt-3"} />
-                    {headings !== false && headings.length > 0 && (
-                      <div class="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-14 z-20 -mx-4 mt-3 border-y px-4 py-2 backdrop-blur lg:-mx-6 lg:px-6 xl:hidden">
-                        <MobileTOC headings={headings} />
-                      </div>
-                    )}
-                    {(markdownUrl || audience === "human") && (
-                      audience === "human" ? (
-                        <div class="mt-3 mb-6 flex items-center gap-3" role="none">
-                          <div class="h-px flex-1 bg-border"></div>
-                          <Badge text={forHumansLabel} variant="success" size="small" class="font-mono uppercase border border-success/15" />
-                          <div class="h-px flex-1 bg-border"></div>
-                        </div>
-                      ) : (
-                        <div class="mt-3 mb-6 h-px w-full bg-border" role="none" />
-                      )
-                    )}
-                    {!description && !markdownUrl && audience !== "human" && <div class="mb-4" />}
-                  </Fragment>
-                )}
-                <article class="docs-content max-w-none">
-                  <slot />
-                </article>
-                {hasContentFooter ? (
-                  <slot name="content-footer" />
-                ) : editUrl && (
-                  <div class="mt-8 mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <a href={editUrl} class="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors no-underline" target="_blank" rel="noopener">
-                      <Icon name="ph:pencil-simple" class="w-3.5 h-3.5" />
-                      {editThisPage}
-                    </a>
-                  </div>
-                )}
-              </div>
-              {hasPagination ? <slot name="pagination" /> : <Pagination prevNext={prevNext} />}
-            </div>
-          </main>
-
-          {headings !== false && (hasToc || headings.length > 0) && (
-            <aside data-nb-toc-scroll-host class="hidden xl:block w-(--nb-toc-width) shrink-0 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
-              <div class="pt-6 pb-8 pl-8 pr-6">
-                {hasToc ? <slot name="toc" /> : <TOC headings={headings} />}
-              </div>
-            </aside>
-          )}
-        </div>
-      </div>
-    )}
-
-  </div>
-
-  {/* 移动端导航用原生 dialog，自带 focus trap / Escape / backdrop。 */}
-    <dialog
-      data-mobile-sidebar
-      data-state="closed"
-      class="group fixed inset-0 m-0 h-full w-full max-h-full max-w-full border-0 bg-transparent p-0 [&::backdrop]:bg-transparent"
-      aria-label={siteNavigation}
+<BaseLayout
+  title={title}
+  description={description}
+  noindex={noindex || draft}
+  markdownUrl={markdownUrl}
+  socialImage={socialImage}
+  lastUpdated={lastUpdated}
+  head={head}
+  collection={collection}
+  entryId={entryId}
+>
+  <SiteHeader variant="docs" docsNavigation={navigation} />
+  <div class="flex">
+    <aside
+      data-docs-sidebar
+      class="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-(--nb-sidebar-width) shrink-0 overflow-y-auto overscroll-contain border-r border-border bg-sidebar px-3 py-5 lg:block"
     >
-      <div data-mobile-sidebar-panel class="h-full w-(--nb-sidebar-width) max-w-[85vw] -translate-x-full overflow-y-auto overscroll-contain border-r border-border bg-card transition-transform duration-250 ease-out group-data-[state=open]:translate-x-0 motion-reduce:transition-none">
-        <div class="sticky top-0 z-[1] flex items-center justify-between border-b border-border bg-card px-4 py-3">
-          <span class="font-semibold text-sm text-foreground">{navigation}</span>
-          <button data-close-sidebar class="flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors" aria-label={closeSidebar}>
-            <Icon name="ph:x" class="w-5 h-5" />
-          </button>
-        </div>
-        <SiteAuthActions mobile class="border-b border-border p-4" />
-        {showSidebar && (
-          <nav class="px-4 pb-8 pt-5">
-            {hasSidebar ? <slot name="sidebar" /> : (
-              <Fragment>
-                <SidebarFilter />
-                <Sidebar items={sidebar} />
-              </Fragment>
-            )}
-          </nav>
+      <DocsSidebarNav navigation={navigation} />
+    </aside>
+    <script is:inline>
+      (() => {
+        const sidebar = document.querySelector("[data-docs-sidebar]");
+        const current = sidebar?.querySelector("[aria-current='page']");
+        if (!sidebar || !current) return;
+        const top = current.offsetTop - sidebar.clientHeight / 2;
+        if (top > 0) sidebar.scrollTop = top;
+      })();
+    </script>
+
+    <main id="main-content" class="min-w-0 flex-1">
+      <div
+        class={cn(
+          "px-4 pb-16 lg:pb-24 lg:pl-16 lg:pr-8",
+          isHub ? "max-w-[calc(var(--xid-size-docs-width-wide)+6rem)] pt-8 lg:pt-14" : "max-w-[calc(var(--nb-content-max)+6rem)] lg:pt-12",
         )}
+      >
+        <div {...pagefindAttrs}>
+          {isHub ? (
+            <slot />
+          ) : (
+            <Fragment>
+              <Breadcrumbs
+                items={breadcrumbs}
+                class="-mx-4 border-b border-border bg-sidebar px-4 py-3 lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0"
+              />
+              <div class="mt-6 flex flex-col gap-2 lg:mt-5">
+                <div class="flex flex-wrap items-center gap-3">
+                  <h1 class="m-0 text-xl font-display tracking-heading text-foreground [text-wrap:balance]">{title}</h1>
+                  {draft && <Badge text={draftLabel} variant="warning" />}
+                </div>
+                {description && (
+                  <p class="m-0 text-md text-muted-foreground [text-wrap:pretty]">{description}</p>
+                )}
+              </div>
+              {evidence && (
+                <Aside type="note" class="mb-0 mt-5" data-docs-evidence>
+                  <p>{evidence.sentence}</p>
+                  <p class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <Badge text={evidence.status} variant={evidence.badge} class="bg-card" />
+                    <a class="text-link" href={evidence.rowHref}>{evidence.rowLabel}</a>
+                  </p>
+                </Aside>
+              )}
+              {headings.length > 0 && <MobileTOC headings={headings} class="mt-5 xl:hidden" />}
+              <article class="docs-content mt-6">
+                <slot />
+              </article>
+            </Fragment>
+          )}
+        </div>
+        {!isHub && <Pagination prevNext={prevNext} />}
       </div>
-    </dialog>
+    </main>
 
-  <script>
-    import { mount, lockScroll, unlockScroll } from "@cloudflare/nimbus-docs/client";
-
-    const CLOSE_DURATION_MS = 250;
-
-    // mount 在 page-load 重绑、before-swap 拆掉，汉堡菜单才能活过客户端导航。
-    mount("[data-mobile-sidebar]", (root) => {
-      const menuBtn = document.querySelector<HTMLElement>("[data-menu-btn]");
-      if (!(root instanceof HTMLDialogElement) || !menuBtn) return () => {};
-      const dialog = root;
-
-      const controller = new AbortController();
-      const { signal } = controller;
-      let closeTimer: ReturnType<typeof setTimeout> | undefined;
-
-      const openSidebar = () => {
-        if (closeTimer) {
-          clearTimeout(closeTimer);
-          closeTimer = undefined;
-        }
-        if (dialog.open) return;
-
-        dialog.showModal();
-        dialog.dataset.state = "closed";
-        lockScroll();
-
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            dialog.dataset.state = "open";
-          });
-        });
-
-        dialog.querySelector<HTMLElement>("[data-close-sidebar]")?.focus();
-      };
-
-      const closeSidebar = () => {
-        if (!dialog.open || dialog.dataset.state === "closing") return;
-
-        dialog.dataset.state = "closing";
-        closeTimer = setTimeout(() => {
-          dialog.close();
-        }, CLOSE_DURATION_MS);
-      };
-
-      menuBtn.addEventListener("click", openSidebar, { signal });
-
-      dialog.addEventListener("cancel", (event) => {
-        event.preventDefault();
-        closeSidebar();
-      }, { signal });
-
-      dialog.addEventListener("close", () => {
-        if (closeTimer) {
-          clearTimeout(closeTimer);
-          closeTimer = undefined;
-        }
-
-        dialog.dataset.state = "closed";
-        unlockScroll();
-        menuBtn.focus();
-      }, { signal });
-
-      dialog.querySelector("[data-close-sidebar]")
-        ?.addEventListener("click", closeSidebar, { signal });
-
-      dialog.addEventListener("click", (e) => {
-        if (e.target === dialog) closeSidebar();
-      }, { signal });
-
-      return () => {
-        controller.abort();
-        if (closeTimer) clearTimeout(closeTimer);
-        // 打开态 swap 不会触发 close，需手动 unlockScroll。
-        if (dialog.open) unlockScroll();
-      };
-    });
-  </script>
-
+    {!isHub && (
+      <aside class="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-(--nb-toc-width) shrink-0 overflow-y-auto px-6 py-14 xl:block">
+        <TOC headings={headings} editUrl={editUrl} />
+      </aside>
+    )}
+  </div>
 </BaseLayout>

@@ -1,57 +1,23 @@
 ---
-// MDX 兼容别名：minimal→ghost、md→base；样式走 button/variants。
 import { cn } from "@/lib/cn";
-import { Icon } from "astro-icon/components";
 import type { HTMLAttributes } from "astro/types";
 import {
   buttonVariants,
-  buttonIconSize,
-  type ButtonVariant,
-  type ButtonSize,
   type ButtonShape,
+  type ButtonSize,
+  type ButtonVariant,
 } from "../button/variants";
 
 interface Props extends HTMLAttributes<"a"> {
   href: string;
-  variant?: ButtonVariant | "minimal";
-  size?: ButtonSize | "md";
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   shape?: ButtonShape;
-  icon?: boolean;
 }
 
-const {
-  href,
-  variant = "primary",
-  size = "md",
-  shape = "base",
-  icon = false,
-  class: className,
-  ...attrs
-} = Astro.props;
-
-const resolvedVariant: ButtonVariant = variant === "minimal" ? "ghost" : variant;
-const resolvedSize: ButtonSize = size === "md" ? "base" : size;
+const { href, variant, size, shape, class: className, ...attrs } = Astro.props;
 ---
 
-<a
-  href={href}
-  class={cn(
-    buttonVariants({ variant: resolvedVariant, size: resolvedSize, shape }),
-    className,
-  )}
-  {...attrs}
->
+<a href={href} class={cn(buttonVariants({ variant, size, shape }), className)} {...attrs}>
   <slot />
-  {
-    icon && (
-      <Icon
-        name="ph:caret-right"
-        class={cn(
-          "transition-transform group-hover:translate-x-0.5",
-          buttonIconSize[resolvedSize],
-        )}
-        is:inline
-      />
-    )
-  }
 </a>

@@ -122,7 +122,6 @@ overrides:
   '@textlint/linter-formatter>js-yaml': 4.3.2
   '@types/node': ^26.1.2
   '@xmldom/xmldom': ^0.9.12
-  astro-icon>@iconify/tools: 5.0.12
   astro>js-yaml: 4.3.2
   brace-expansion: 5.0.12
   fast-uri: 3.1.8
@@ -401,15 +400,12 @@ importers:
       '@cloudflare/nimbus-docs':
         specifier: 'catalog:'
         version: 0.9.0(patch_hash=2c7742f9caec9cb9f64f17a02da9c5a44093ec50bc281bb66ac271b82b3d265d)(astro@7.3.6(@types/node@26.6.4)(db0@0.3.4(drizzle-orm@0.45.3(@cloudflare/workers-types@5.20261006.1)))(ioredis@5.11.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      '@fontsource-variable/inter':
-        specifier: ^5.3.0
+      '@fontsource-variable/geist':
+        specifier: 'catalog:'
         version: 5.3.0
-      '@fontsource-variable/jetbrains-mono':
-        specifier: ^5.3.0
+      '@fontsource-variable/geist-mono':
+        specifier: 'catalog:'
         version: 5.3.0
-      '@iconify-json/ph':
-        specifier: ^1.2.2
-        version: 1.2.2
       '@lingui/core':
         specifier: 'catalog:'
         version: 6.9.0(@babel/core@7.29.7)(babel-plugin-macros@3.1.0)
@@ -419,12 +415,12 @@ importers:
       '@xid-kit/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@xid-kit/web-ui':
+        specifier: workspace:*
+        version: link:../../packages/web-ui
       astro:
         specifier: 'catalog:'
         version: 7.3.6(@types/node@26.6.4)(db0@0.3.4(drizzle-orm@0.45.3(@cloudflare/workers-types@5.20261006.1)))(ioredis@5.11.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      astro-icon:
-        specifier: ^1.2.0
-        version: 1.2.0
       astro-og-canvas:
         specifier: ^0.13.2
         version: 0.13.2(astro@7.3.6(@types/node@26.6.4)(db0@0.3.4(drizzle-orm@0.45.3(@cloudflare/workers-types@5.20261006.1)))(ioredis@5.11.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
@@ -1937,9 +1933,6 @@ packages:
     resolution: {integrity: sha512-OoKoR0f76dCY666JlcbhmVTs2drYj1GUXZTYTcbUgJjh9Nv41aFfZ21bPQTERm5+L5cBDo466NltB2lplS5GBw==}
     engines: {node: '>=20.19.0'}
 
-  '@cyberalien/svg-utils@1.2.19':
-    resolution: {integrity: sha512-paDJoDu+LhuH5Ma1q0BDqBpg6d16Xk22cZZrlg/s/J9oB8KgnnpU/snaEETJu2G1pwYcWQINUz6WUqu0Wm9k6A==}
-
   '@devframes/hub@0.7.16':
     resolution: {integrity: sha512-/3k1A6ZcMudZ79nsclmKCn/nZ1AOwVsuo+OXRnrs5zxRkj6TmuK8FyBDF3Itpfsp/xJpNmmmYvQz6BbgDrsWRA==}
     peerDependencies:
@@ -2680,18 +2673,6 @@ packages:
 
   '@fontsource-variable/geist@5.3.0':
     resolution: {integrity: sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA==}
-
-  '@fontsource-variable/inter@5.3.0':
-    resolution: {integrity: sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==}
-
-  '@fontsource-variable/jetbrains-mono@5.3.0':
-    resolution: {integrity: sha512-F32xpS2NsGYoQi2ADSkKTgpJj7ozajsGgDJ8woTnqjmIB+dxDIqImjl4pXZVEExu8UFZ2ndhmX18EBS/hdz3Lw==}
-
-  '@iconify-json/ph@1.2.2':
-    resolution: {integrity: sha512-PgkEZNtqa8hBGjHXQa4pMwZa93hmfu8FUSjs/nv4oUU6yLsgv+gh9nu28Kqi8Fz9CCVu4hj1MZs9/60J57IzFw==}
-
-  '@iconify/tools@5.0.12':
-    resolution: {integrity: sha512-aFPwSFmFphUPVjNLUkgxgUPSPVgTEEjv0mE7NgvfoQBuE5TtsMrKa4HTY65cM5oXZ2a1xKQcW/RKhiOKEiAarw==}
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
@@ -5621,10 +5602,6 @@ packages:
     resolution: {integrity: sha512-LElXdjswlqjWrPpJFg1Fx4wpkOCxj1TDHlSV4PlaRxHGWko024xICaa97ZkMfs6DRKlCguiAI+rbXv5GWwXIkg==}
     hasBin: true
 
-  astro-icon@1.2.0:
-    resolution: {integrity: sha512-0848V2WZuTPhqGSqLeZimLJZ5wmamMtWYzvA2kvg8s2DrUPZ3/nrTcHJWN0eJHt62jy7uvNxgTNiUJGIr7JNxg==}
-    engines: {node: '>=22.12.0'}
-
   astro-og-canvas@0.13.2:
     resolution: {integrity: sha512-nD3KIXR2L27tJMYquxDzGuAwaR4DwK1XjvaEWMJXtcakWcHWahOyMAfOuPMET5qJaHc1wETxOeRQGq5KnPVH7w==}
     peerDependencies:
@@ -7167,9 +7144,6 @@ packages:
 
   fetchdts@0.2.0:
     resolution: {integrity: sha512-PJb4ZTGT2/wK78RmVrxZITStWabhZlKBsL52VOgq+c7clEkdHdEB+0rtzrXCbZJqeYJj+IwNWYqB5/G6vouA6A==}
-
-  fflate@0.8.3:
-    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   file-entry-cache@10.1.4:
     resolution: {integrity: sha512-5XRUFc0WTtUbjfGzEwXc42tiGxQHBmtbUG1h9L2apu4SulCGN3Hqm//9D6FAolf8MYNL7f/YlJl9vy08pj5JuA==}
@@ -8974,10 +8948,6 @@ packages:
 
   mocked-exports@0.1.1:
     resolution: {integrity: sha512-aF7yRQr/Q0O2/4pIXm6PZ5G+jAd7QS4Yu8m+WEeEHGnbo+7mE36CbLSDQiXYV8bVL3NfmdeqPJct0tUlnjVSnA==}
-
-  modern-tar@0.7.7:
-    resolution: {integrity: sha512-t9VmxaqrmANnEOBhpSDI6HD192Ge48k8vmWqQQL7hSFEqHEYwZbbsu49+aKLWZeRvFs3j1pMhXOqqF4kPlvjkQ==}
-    engines: {node: '>=18.0.0'}
 
   moo@0.5.3:
     resolution: {integrity: sha512-m2fmM2dDm7GZQsY7KK2cme8agi+AAljILjQnof7p1ZMDe6dQ4bdnSMx0cPppudoeNv5hEFQirN6u+O4fDE0IWA==}
@@ -12934,10 +12904,6 @@ snapshots:
 
   '@csstools/css-tokenizer@4.0.2': {}
 
-  '@cyberalien/svg-utils@1.2.19':
-    dependencies:
-      '@iconify/types': 2.0.0
-
   '@devframes/hub@0.7.16(devframe@0.7.16(cac@7.0.0)(srvx@1.0.5)(typescript@6.0.3))':
     dependencies:
       birpc: 4.2.0
@@ -13690,24 +13656,6 @@ snapshots:
   '@fontsource-variable/geist-mono@5.3.0': {}
 
   '@fontsource-variable/geist@5.3.0': {}
-
-  '@fontsource-variable/inter@5.3.0': {}
-
-  '@fontsource-variable/jetbrains-mono@5.3.0': {}
-
-  '@iconify-json/ph@1.2.2':
-    dependencies:
-      '@iconify/types': 2.0.0
-
-  '@iconify/tools@5.0.12':
-    dependencies:
-      '@cyberalien/svg-utils': 1.2.19
-      '@iconify/types': 2.0.0
-      '@iconify/utils': 3.1.7
-      fflate: 0.8.3
-      modern-tar: 0.7.7
-      pathe: 2.0.3
-      svgo: 4.1.0
 
   '@iconify/types@2.0.0': {}
 
@@ -16630,12 +16578,6 @@ snapshots:
 
   astring@1.9.0: {}
 
-  astro-icon@1.2.0:
-    dependencies:
-      '@iconify/tools': 5.0.12
-      '@iconify/types': 2.0.0
-      '@iconify/utils': 3.1.7
-
   astro-og-canvas@0.13.2(astro@7.3.6(@types/node@26.6.4)(db0@0.3.4(drizzle-orm@0.45.3(@cloudflare/workers-types@5.20261006.1)))(ioredis@5.11.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       astro: 7.3.6(@types/node@26.6.4)(db0@0.3.4(drizzle-orm@0.45.3(@cloudflare/workers-types@5.20261006.1)))(ioredis@5.11.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -18273,8 +18215,6 @@ snapshots:
   fetch-nodeshim@0.4.10: {}
 
   fetchdts@0.2.0: {}
-
-  fflate@0.8.3: {}
 
   file-entry-cache@10.1.4:
     dependencies:
@@ -20953,8 +20893,6 @@ snapshots:
       ufo: 1.6.4
 
   mocked-exports@0.1.1: {}
-
-  modern-tar@0.7.7: {}
 
   moo@0.5.3: {}
 

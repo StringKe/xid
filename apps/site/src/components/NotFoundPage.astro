@@ -1,6 +1,9 @@
 ---
-import Header from "./Header.astro";
+// 结构同产品 EmptyState first-use：一行标题、一行说明、一个主按钮，上下 1px 线。
 import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteFooter from "./SiteFooter.astro";
+import SiteHeader from "./SiteHeader.astro";
+import { LinkButton } from "./ui/link-button";
 import { getSiteLocale, localizeSitePath } from "@/lib/site-locale";
 import { translateSiteMessage } from "@/lib/site-i18n";
 import { siteShellMessages } from "@/lib/site-shell-messages";
@@ -24,29 +27,20 @@ const homeHref = localizeSitePath("/", getSiteLocale(pathname));
   description={pageNotFoundDescription}
   noindex
 >
-  <div class="flex flex-col min-h-screen">
-    <Header showMobileMenu={false} />
+  <div class="flex min-h-screen flex-col">
+    <SiteHeader />
     <main
       id="main-content"
       data-pagefind-ignore
-      class="flex-1 mx-auto max-w-2xl w-full px-6 py-24 text-center"
+      class="mx-auto w-full max-w-[calc(var(--site-cap)+2*var(--site-gutter))] flex-1 px-(--site-gutter) py-16 lg:py-24"
     >
-      <p class="text-sm font-medium text-muted-foreground">404</p>
-      <h1
-        class="mt-2 text-foreground leading-tight"
-        style="font-size: var(--nb-h1-size); font-weight: var(--nb-h1-weight); letter-spacing: var(--nb-h1-tracking);"
-      >
-        {pageNotFound}
-      </h1>
-      <p class="mt-2 text-[1.0625rem] text-muted-foreground leading-relaxed">
-        {pageNotFoundDescription}
-      </p>
-      <a
-        href={homeHref}
-        class="mt-8 inline-block rounded-lg border border-border px-4 py-2 font-medium text-foreground no-underline transition-colors hover:border-border-strong"
-      >
-        {backHome}
-      </a>
+      <div class="flex max-w-(--xid-size-prose-width) flex-col items-start gap-2 border-y border-border py-8">
+        <p class="m-0 text-xs font-medium text-muted-foreground tabular-nums">404</p>
+        <h1 class="m-0 text-lg font-display tracking-title text-foreground">{pageNotFound}</h1>
+        <p class="m-0 text-base text-muted-foreground">{pageNotFoundDescription}</p>
+        <LinkButton href={homeHref} class="mt-4">{backHome}</LinkButton>
+      </div>
     </main>
+    <SiteFooter />
   </div>
 </BaseLayout>

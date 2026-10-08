@@ -1,0 +1,15 @@
+---
+import type { IconName } from "@xid-kit/web-ui/icon-glyphs";
+import { cn } from "@/lib/cn";
+import { iconSvg } from "@/lib/icon-svg";
+
+interface Props {
+  name: IconName;
+  size?: 14 | 16 | 20;
+  class?: string;
+}
+
+const { name, size = 16, class: className } = Astro.props;
+---
+
+<span class={cn("inline-flex shrink-0", className)} set:html={iconSvg(name, size)} />

@@ -1,9 +1,11 @@
-import type {
-  DocumentAst,
-  DocumentBlock,
-  DocumentHubAst,
-  DocumentLocale,
-  RichText,
+import {
+  parentDocumentSlug,
+  type DocumentAst,
+  type DocumentBlock,
+  type DocumentHubAst,
+  type DocumentHubItem,
+  type DocumentLocale,
+  type RichText,
 } from './types.ts'
 import {
   localizedDocsHref,
@@ -117,45 +119,25 @@ export function renderMarkdownHub(
   documents: readonly DocumentAst[],
   options: MarkdownRenderOptions,
 ): string {
-  const documentsBySlug = new Map(documents.map((document) => [document.slug, document]))
+  const published = documents.filter((document) => document.draft !== true)
+  const link = (document: DocumentAst): string =>
+    `[${renderMarkdownInline(document.title, options)}](${localizedDocsHref(`/${document.slug}`, options.locale)})`
 
-  const renderGroup = (heading: RichText, slugs: readonly string[]): string => {
-    const rows = slugs.flatMap((slug) => {
-      const document = documentsBySlug.get(slug)
-      if (!document) {
-        throw new TypeError(`hub navigation references unknown document ${slug}`)
-      }
-      if (document.draft === true) return []
-      const title = renderMarkdownInline(document.title, options)
-      const summary = renderMarkdownInline(document.summary, options)
-      const href = localizedDocsHref(`/${document.slug}`, options.locale)
-      return [`- [${title}](${href})\n  ${summary}`]
-    })
-    return [`### ${renderMarkdownInline(heading, options)}`, ...rows].join('\n\n')
+  const renderItem = (item: DocumentHubItem): string[] => {
+    const document = published.find((candidate) => candidate.slug === item.slug)
+    if (!document) return []
+    const children = published
+      .filter((child) => child.slug !== item.slug && parentDocumentSlug(child.slug) === item.slug)
+      .map((child) => `  - ${link(child)}: ${renderMarkdownInline(child.summary, options)}`)
+    return [`- ${link(document)}: ${renderMarkdownInline(item.summary, options)}`, ...children]
   }
 
-  const renderedSections = hub.sections.map((section) => {
-    const heading = `## ${renderMarkdownInline(section.heading, options)}`
-    if (section.kind === 'product') {
-      return [
-        heading,
-        ...section.paragraphs.map((paragraph) => renderMarkdownInline(paragraph, options)),
-      ].join('\n\n')
-    }
-    if (section.kind === 'capabilities') {
-      const items = section.items
-        .map((item) => `- ${renderMarkdownInline(item, options)}`)
-        .join('\n')
-      return `${heading}\n\n${items}`
-    }
-    return [heading, ...section.groups.map((group) => renderGroup(group.label, group.slugs))].join(
-      '\n\n',
-    )
-  })
+  const renderedGroups = hub.groups.map((group) =>
+    [
+      `## ${renderMarkdownInline(group.label, options)}`,
+      group.items.flatMap(renderItem).join('\n'),
+    ].join('\n\n'),
+  )
 
-  return [
-    renderMarkdownInline(hub.eyebrow, options),
-    renderMarkdownInline(hub.summary, options),
-    ...renderedSections,
-  ].join('\n\n')
+  return [renderMarkdownInline(hub.summary, options), ...renderedGroups].join('\n\n')
 }

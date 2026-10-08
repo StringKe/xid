@@ -1,0 +1,31 @@
+---
+import { BRAND_MARK_TRANSPARENT_1X, BRAND_MARK_TRANSPARENT_2X } from "@xid-kit/web-ui/brand-assets";
+import { cn } from "@/lib/cn";
+
+interface Props {
+  href?: string;
+  /** 窄屏文档页头在标识后加一个灰色区段名（Docs）；宽屏页头已有导航，不显示。 */
+  section?: string;
+  class?: string;
+}
+
+const { href, section, class: className } = Astro.props;
+const Tag = href ? "a" : "span";
+---
+
+<Tag
+  href={href}
+  class={cn("inline-flex shrink-0 items-center gap-2 rounded-sm text-md font-display leading-5 tracking-title text-foreground no-underline", className)}
+>
+  <img
+    src={BRAND_MARK_TRANSPARENT_1X}
+    srcset={`${BRAND_MARK_TRANSPARENT_1X} 1x, ${BRAND_MARK_TRANSPARENT_2X} 2x`}
+    alt=""
+    width="20"
+    height="20"
+    decoding="async"
+    class="size-5"
+  />
+  <span>XID</span>
+  {section && <span class="font-normal text-faint-foreground lg:hidden">{section}</span>}
+</Tag>

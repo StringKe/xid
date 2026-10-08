@@ -1,53 +1,27 @@
+/* Nimbus 把 mermaid 围栏也包进代码块 figure；图表不是代码，不用深色代码底。 */
+.nb-code-figure[data-nb-lang='mermaid'] {
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+}
+
 pre.mermaid:not([data-processed]) {
+  position: relative;
   min-height: 4rem;
   max-height: 4rem;
   overflow: hidden;
+  border-radius: var(--xid-radius);
+  background: var(--xid-muted);
   color: transparent;
-  background: color-mix(in oklch, var(--nb-muted, #f3f4f6) 100%, transparent);
-  border-radius: 0.5rem;
-  position: relative;
-}
-
-pre.mermaid:not([data-processed])::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklch, var(--nb-card, #ffffff) 60%, transparent),
-    transparent
-  );
-  transform: translateX(-100%);
-  animation: nb-mermaid-shimmer 1.4s ease-in-out infinite;
-}
-
-@keyframes nb-mermaid-shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  pre.mermaid:not([data-processed])::after {
-    animation: none;
-  }
-
-  .mermaid-dialog[open],
-  .mermaid-dialog[open]::backdrop,
-  .mermaid-dialog.closing,
-  .mermaid-dialog.closing::backdrop {
-    animation: none;
-  }
 }
 
 .mermaid-container {
   position: relative;
   overflow: hidden;
-  margin: 1.5rem 0;
+  margin: var(--xid-space-s6) 0;
+  border: 1px solid var(--xid-border);
+  border-radius: var(--xid-radius);
   background: transparent;
-  border: 1px solid var(--nb-border);
-  border-radius: 0.75rem;
 }
 
 .mermaid-expand {
@@ -58,37 +32,24 @@ pre.mermaid:not([data-processed])::after {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0;
   margin: 0;
-  color: var(--nb-muted-foreground);
+  border: 0;
+  border-radius: var(--xid-radius);
+  background: var(--xid-surface);
+  box-shadow: inset 0 0 0 1px var(--xid-border-strong);
+  color: var(--xid-muted-foreground);
   cursor: pointer;
-  opacity: 0;
-  background: var(--nb-card);
-  border: 1px solid var(--nb-border);
-  border-radius: 0.375rem;
-  outline-offset: 2px;
   transition:
-    opacity 0.15s ease,
-    color 0.15s ease,
-    background 0.15s ease;
-}
-
-.mermaid-container:hover .mermaid-expand,
-.mermaid-expand:focus-visible {
-  opacity: 1;
+    color 120ms ease-out,
+    background-color 120ms ease-out;
 }
 
 .mermaid-expand:hover {
-  color: var(--nb-foreground);
-  background: var(--nb-accent);
-}
-
-@media (hover: none) {
-  .mermaid-expand {
-    opacity: 1;
-  }
+  background: var(--xid-muted);
+  color: var(--xid-fg);
 }
 
 .mermaid-dialog {
@@ -98,29 +59,21 @@ pre.mermaid:not([data-processed])::after {
   max-height: 100vh;
   padding: 0;
   overflow: hidden;
-  background: transparent;
   border: 0;
+  background: transparent;
 }
 
 @keyframes mermaid-dialog-in {
   from {
     opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
+    transform: scale(0.97);
   }
 }
 
 @keyframes mermaid-dialog-out {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
   to {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.97);
   }
 }
 
@@ -128,15 +81,9 @@ pre.mermaid:not([data-processed])::after {
   from {
     opacity: 0;
   }
-  to {
-    opacity: 1;
-  }
 }
 
 @keyframes mermaid-backdrop-out {
-  from {
-    opacity: 1;
-  }
   to {
     opacity: 0;
   }
@@ -147,35 +94,43 @@ pre.mermaid:not([data-processed])::after {
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  animation: mermaid-dialog-in 150ms ease-out;
+  animation: mermaid-dialog-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .mermaid-dialog[open]::backdrop {
-  background: rgb(0 0 0 / 80%);
-  backdrop-filter: blur(4px);
-  animation: mermaid-backdrop-in 150ms ease-out;
+  background: var(--xid-scrim);
+  animation: mermaid-backdrop-in 180ms ease-out;
 }
 
 .mermaid-dialog.closing {
-  animation: mermaid-dialog-out 150ms ease-in forwards;
+  animation: mermaid-dialog-out 180ms ease-out forwards;
 }
 
 .mermaid-dialog.closing::backdrop {
-  animation: mermaid-backdrop-out 150ms ease-in forwards;
+  animation: mermaid-backdrop-out 180ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mermaid-dialog[open],
+  .mermaid-dialog[open]::backdrop,
+  .mermaid-dialog.closing,
+  .mermaid-dialog.closing::backdrop {
+    animation: none;
+  }
 }
 
 .mermaid-dialog-body {
   width: 92vw;
   max-height: 92vh;
   overflow: auto;
-  border-radius: 0.75rem;
-  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 40%);
+  border-radius: var(--xid-radius-lg);
+  box-shadow: var(--xid-shadow-lg);
 }
 
 .mermaid-dialog-body .mermaid-container {
   margin: 0;
-  background: var(--nb-card);
-  border-radius: 0.75rem;
+  border-radius: var(--xid-radius-lg);
+  background: var(--xid-surface);
 }
 
 .mermaid-dialog-body pre.mermaid[data-processed] {
@@ -197,35 +152,35 @@ pre.mermaid:not([data-processed])::after {
   justify-content: center;
   width: 2.25rem;
   height: 2.25rem;
-  color: rgb(255 255 255 / 70%);
+  border: 0;
+  border-radius: var(--xid-radius);
+  background: var(--xid-surface);
+  box-shadow: inset 0 0 0 1px var(--xid-border-strong);
+  color: var(--xid-muted-foreground);
   cursor: pointer;
-  background: rgb(0 0 0 / 50%);
-  border: 1px solid rgb(255 255 255 / 20%);
-  border-radius: 0.5rem;
 }
 
 .mermaid-dialog-close:hover {
-  color: #ffffff;
-  background: rgb(0 0 0 / 70%);
+  background: var(--xid-muted);
+  color: var(--xid-fg);
 }
 
 pre.mermaid[data-processed]:not([data-error]) {
   display: block;
   padding: 1.5rem;
   margin: 0;
-  line-height: 0;
-  background: transparent;
   border: 0;
   border-radius: 0;
-  box-shadow: none;
+  background: transparent;
+  line-height: 0;
 }
 
 pre.mermaid[data-error] {
   padding: 1rem;
   margin: 0;
+  background: var(--xid-danger-bg);
+  color: var(--xid-danger);
   line-height: 1.5;
-  color: var(--nb-danger);
-  background: var(--nb-danger-muted);
 }
 
 pre.mermaid[data-processed] svg {
@@ -235,8 +190,4 @@ pre.mermaid[data-processed] svg {
   padding: 0;
   margin: 0 auto;
   vertical-align: top;
-}
-
-pre.mermaid[data-processed] svg :not(foreignObject *) {
-  box-shadow: none !important;
 }

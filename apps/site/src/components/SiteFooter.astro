@@ -1,0 +1,92 @@
+---
+// 规格见 design-language 5.1：1px 顶线；左侧标识与定位，右侧三列链接；底行语言、主题、版本、版权。
+import { getDocsNavigation } from "@/lib/docs-navigation";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import {
+  SITE_CHANGELOG_URL,
+  SITE_COPYRIGHT,
+  SITE_LICENSE_URL,
+  SITE_RELEASE_VERSION,
+  SITE_REPOSITORY_URL,
+  SITE_SECURITY_URL,
+  SITE_SUPPORT_STATUS_URL,
+} from "@/lib/site-links";
+import { getSiteLocale, hostedAuthHref, localizeSitePath } from "@/lib/site-locale";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+import BrandLink from "./BrandLink.astro";
+import LanguageSwitcher from "./LanguageSwitcher.astro";
+import { ThemeSelect } from "./ui/theme-toggle";
+
+const pathname = Astro.url.pathname;
+const locale = getSiteLocale(pathname);
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1], values?: Record<string, unknown>) =>
+  translateSiteMessage(pathname, descriptor, values);
+const docs = getDocsNavigation(pathname);
+const docLinks = ["getting-started", "hosted-auth", "oidc-oauth", "enterprise-sso", "self-hosting"].flatMap((slug) =>
+  docs.groups.flatMap((group) => group.links).filter((link) => link.slug === slug),
+);
+const external = { target: "_blank", rel: "noopener" };
+
+const columns = [
+  {
+    title: translate(siteShellMessages.footerProduct),
+    links: [
+      { href: localizeSitePath("/pricing", locale), label: translate(siteShellMessages.pricing) },
+      { href: localizeSitePath("/status", locale), label: translate(siteShellMessages.status) },
+      { href: hostedAuthHref("sign-in", locale), label: translate(siteShellMessages.signIn) },
+      { href: hostedAuthHref("sign-up", locale), label: translate(siteShellMessages.startFree) },
+    ],
+  },
+  {
+    title: translate(siteShellMessages.docs),
+    links: docLinks.map((link) => ({ href: link.href, label: link.label })),
+  },
+  {
+    title: translate(siteShellMessages.footerOpenSource),
+    links: [
+      { href: SITE_REPOSITORY_URL, label: "GitHub", ...external },
+      { href: SITE_LICENSE_URL, label: translate(siteShellMessages.footerLicense), ...external },
+      { href: SITE_CHANGELOG_URL, label: translate(siteShellMessages.footerChangelog), ...external },
+      { href: SITE_SUPPORT_STATUS_URL, label: translate(siteShellMessages.footerSupportStatus), ...external },
+      { href: SITE_SECURITY_URL, label: translate(siteShellMessages.footerSecurity), ...external },
+    ],
+  },
+];
+const link = "text-sm text-muted-foreground no-underline transition-colors duration-[120ms] ease-out hover:text-foreground";
+---
+
+<footer class="border-t border-border">
+  <div class="mx-auto flex max-w-[calc(var(--site-cap)+2*var(--site-gutter))] flex-col gap-8 px-(--site-gutter) pb-8 pt-10 lg:gap-12 lg:pt-12">
+    <div class="flex flex-col gap-8 lg:flex-row lg:justify-between lg:gap-16">
+      <div class="flex max-w-80 flex-col gap-3">
+        <BrandLink href={localizeSitePath("/", locale)} class="self-start" />
+        <p class="m-0 text-sm leading-5 text-muted-foreground">{translate(siteShellMessages.footerTagline)}</p>
+        <p class="m-0 text-sm leading-5 text-muted-foreground">{translate(siteShellMessages.footerMitLicensed)}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-x-4 gap-y-7 lg:flex lg:gap-16">
+        {columns.map((column) => (
+          <div class="flex flex-col gap-2.5 lg:w-35">
+            <p class="m-0 text-xs font-medium text-faint-foreground">{column.title}</p>
+            <ul class="m-0 flex list-none flex-col gap-2.5 p-0">
+              {column.links.map(({ href, label, ...attrs }) => (
+                <li><a href={href} class={link} {...attrs}>{label}</a></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div class="flex flex-col gap-2 border-t border-border pt-4 text-xs text-muted-foreground lg:flex-row lg:items-center lg:justify-between lg:pt-5">
+      <div class="flex items-center gap-4 lg:gap-5">
+        <LanguageSwitcher appearance="footer" />
+        <ThemeSelect />
+      </div>
+      <div class="flex items-center gap-4 lg:gap-5">
+        <a href={SITE_CHANGELOG_URL} target="_blank" rel="noopener" class="text-muted-foreground no-underline hover:text-foreground">
+          {translate(siteShellMessages.releaseVersion, { version: SITE_RELEASE_VERSION })}
+        </a>
+        <span>{SITE_COPYRIGHT}</span>
+      </div>
+    </div>
+  </div>
+</footer>

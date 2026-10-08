@@ -75,18 +75,18 @@ export function initSearch(config: SearchConfig): SearchInstance {
     option.id = `search-result-${resultIdCounter++}`
     option.setAttribute('role', 'option')
     option.className =
-      'rounded-lg px-2 py-2 transition-colors cursor-pointer hover:bg-accent focus-within:bg-accent data-[highlighted]:bg-accent'
+      'cursor-pointer rounded-sm px-2 py-2 transition-colors duration-[120ms] ease-out hover:bg-muted focus-within:bg-muted data-[highlighted]:bg-muted'
 
     const link = resultLink(
       result.title,
       result.url,
-      'block truncate text-sm font-medium text-foreground no-underline focus-visible:outline-none',
+      'block truncate text-base font-medium text-foreground no-underline focus-visible:outline-none',
     )
     option.appendChild(link)
 
     if (result.snippet) {
       const snippet = document.createElement('p')
-      snippet.className = 'mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground'
+      snippet.className = 'mt-1 line-clamp-2 text-sm text-muted-foreground'
       snippet.innerHTML = result.snippet
       option.appendChild(snippet)
     }
@@ -99,7 +99,7 @@ export function initSearch(config: SearchConfig): SearchInstance {
           resultLink(
             sub.title,
             sub.url,
-            'block truncate py-0.5 text-xs text-muted-foreground no-underline hover:text-foreground',
+            'block truncate py-0.5 text-sm text-muted-foreground no-underline hover:text-foreground',
           ),
         )
       }

@@ -1,211 +1,207 @@
 {
   "version": 1,
-  "locales": ["en", "zh-Hans", "ja", "ko", "fr", "de", "es", "pt-BR"],
+  "locales": [
+    "en",
+    "zh-Hans",
+    "ja",
+    "ko",
+    "fr",
+    "de",
+    "es",
+    "pt-BR"
+  ],
   "hub": {
-    "eyebrow": {
-      "kind": "message",
-      "id": "dnmh_I",
-      "message": "Open source identity platform",
-      "values": {},
-      "tags": {}
-    },
     "title": {
       "kind": "message",
-      "id": "YKzy7_",
-      "message": "XID Identity Platform",
+      "id": "TbjyhA",
+      "message": "Docs",
       "values": {},
       "tags": {}
     },
     "summary": {
       "kind": "message",
-      "id": "0yG2H_",
-      "message": "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare.",
+      "id": "_N4_jI",
+      "message": "Start on XID Cloud in a few steps, or run XID in your own Cloudflare account.",
       "values": {},
       "tags": {}
     },
-    "sections": [
+    "groups": [
       {
-        "kind": "product",
-        "heading": {
+        "label": {
           "kind": "message",
-          "id": "PXOGK4",
-          "message": "One platform for identity",
-          "values": {},
-          "tags": {}
-        },
-        "paragraphs": [
-          {
-            "kind": "message",
-            "id": "_6tvkv",
-            "message": "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console.",
-            "values": {},
-            "tags": {}
-          },
-          {
-            "kind": "message",
-            "id": "O0CZpd",
-            "message": "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition.",
-            "values": {},
-            "tags": {}
-          },
-          {
-            "kind": "message",
-            "id": "Y8BniJ",
-            "message": "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification.",
-            "values": {},
-            "tags": {}
-          }
-        ]
-      },
-      {
-        "kind": "capabilities",
-        "heading": {
-          "kind": "message",
-          "id": "zTeEBf",
-          "message": "What XID includes",
+          "id": "bVLMGZ",
+          "message": "Sign-in and accounts",
           "values": {},
           "tags": {}
         },
         "items": [
           {
-            "kind": "message",
-            "id": "r0UoH8",
-            "message": "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service.",
-            "values": {},
-            "tags": {}
+            "slug": "hosted-auth",
+            "summary": {
+              "kind": "message",
+              "id": "Ustxhx",
+              "message": "Redirect users to XID for sign-in, sign-up, MFA and consent.",
+              "values": {},
+              "tags": {}
+            }
           },
           {
-            "kind": "message",
-            "id": "cybAtK",
-            "message": "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions.",
-            "values": {},
-            "tags": {}
+            "slug": "branding",
+            "summary": {
+              "kind": "message",
+              "id": "LzG6Zv",
+              "message": "Logo, colors and corner radius per organization.",
+              "values": {},
+              "tags": {}
+            }
           },
           {
-            "kind": "message",
-            "id": "mt_ezc",
-            "message": "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs.",
-            "values": {},
-            "tags": {}
-          },
-          {
-            "kind": "message",
-            "id": "Y7NEJn",
-            "message": "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack.",
-            "values": {},
-            "tags": {}
+            "slug": "social-login",
+            "summary": {
+              "kind": "message",
+              "id": "wN2PqH",
+              "message": "Social providers such as Google and Microsoft, configured per organization.",
+              "values": {},
+              "tags": {}
+            }
           }
         ]
       },
       {
-        "kind": "navigation",
-        "heading": {
+        "label": {
           "kind": "message",
-          "id": "W7PXsZ",
-          "message": "Explore XID",
+          "id": "6C924u",
+          "message": "Apps and OIDC",
           "values": {},
           "tags": {}
         },
-        "groups": [
+        "items": [
           {
-            "label": {
+            "slug": "getting-started",
+            "summary": {
               "kind": "message",
-              "id": "QcinWR",
-              "message": "Product and setup",
+              "id": "U9fm2i",
+              "message": "Sign up on XID Cloud, create an app and verify its tokens.",
               "values": {},
               "tags": {}
-            },
-            "slugs": ["getting-started", "hosted-auth", "organizations", "branding", "self-hosting"]
+            }
           },
           {
-            "label": {
+            "slug": "oidc-oauth",
+            "summary": {
               "kind": "message",
-              "id": "v-sxhT",
-              "message": "Identity protocols",
+              "id": "XTsfRA",
+              "message": "Endpoints, grants, token claims, PAR and DPoP.",
               "values": {},
               "tags": {}
-            },
-            "slugs": ["oidc-oauth", "enterprise-sso", "social-login", "scim", "saml"]
+            }
           },
           {
-            "label": {
+            "slug": "sdks",
+            "summary": {
               "kind": "message",
-              "id": "l8t_1y",
-              "message": "APIs and operations",
-              "values": {},
+              "id": "CyZOfB",
+              "message": "{count} platform guides. Not yet published to a package registry.",
+              "values": {
+                "count": {
+                  "source": "static",
+                  "value": "28"
+                }
+              },
               "tags": {}
-            },
-            "slugs": ["management-api", "webhooks"]
+            }
           },
           {
-            "label": {
+            "slug": "management-api",
+            "summary": {
               "kind": "message",
-              "id": "aGbNxc",
-              "message": "SDK overview",
+              "id": "8jhCeZ",
+              "message": "Users, organizations and connections over REST with secret keys.",
               "values": {},
               "tags": {}
-            },
-            "slugs": ["sdks"]
+            }
           },
           {
-            "label": {
+            "slug": "webhooks",
+            "summary": {
               "kind": "message",
-              "id": "P4mdED",
-              "message": "Server SDKs",
+              "id": "523Jfq",
+              "message": "Signed events for users, organizations and memberships.",
               "values": {},
               "tags": {}
-            },
-            "slugs": [
-              "sdks/backend",
-              "sdks/go",
-              "sdks/rust",
-              "sdks/python",
-              "sdks/ruby",
-              "sdks/php",
-              "sdks/java",
-              "sdks/dotnet"
-            ]
+            }
+          }
+        ]
+      },
+      {
+        "label": {
+          "kind": "message",
+          "id": "jxfxkT",
+          "message": "Organizations, SSO and Console",
+          "values": {},
+          "tags": {}
+        },
+        "items": [
+          {
+            "slug": "organizations",
+            "summary": {
+              "kind": "message",
+              "id": "QHHuFp",
+              "message": "One organization per customer, with members, roles and its own admins.",
+              "values": {},
+              "tags": {}
+            }
           },
           {
-            "label": {
+            "slug": "enterprise-sso",
+            "summary": {
               "kind": "message",
-              "id": "u--k4W",
-              "message": "Web SDKs",
+              "id": "lSWtHs",
+              "message": "Connect a customer's SAML or OIDC identity provider and route its domains.",
               "values": {},
               "tags": {}
-            },
-            "slugs": [
-              "sdks/core",
-              "sdks/react",
-              "sdks/nextjs",
-              "sdks/vue",
-              "sdks/nuxt",
-              "sdks/svelte",
-              "sdks/solid",
-              "sdks/angular",
-              "sdks/astro",
-              "sdks/remix"
-            ]
+            }
           },
           {
-            "label": {
+            "slug": "saml",
+            "summary": {
               "kind": "message",
-              "id": "4cznMe",
-              "message": "Mobile SDKs",
+              "id": "Lqq6Ur",
+              "message": "XID as service provider and as identity provider.",
               "values": {},
               "tags": {}
-            },
-            "slugs": ["sdks/react-native", "sdks/expo", "sdks/ios", "sdks/android", "sdks/flutter"]
+            }
           },
           {
-            "label": {
+            "slug": "scim",
+            "summary": {
               "kind": "message",
-              "id": "FmLBHK",
-              "message": "Desktop SDKs",
+              "id": "VULRV0",
+              "message": "Inbound SCIM 2.0 directory sync for users and groups.",
               "values": {},
               "tags": {}
-            },
-            "slugs": ["sdks/electron", "sdks/tauri", "sdks/macos", "sdks/windows", "sdks/linux"]
+            }
+          }
+        ]
+      },
+      {
+        "label": {
+          "kind": "message",
+          "id": "bb-1HJ",
+          "message": "Run XID",
+          "values": {},
+          "tags": {}
+        },
+        "items": [
+          {
+            "slug": "self-hosting",
+            "summary": {
+              "kind": "message",
+              "id": "TVKxp2",
+              "message": "Deploy the same three Workers to your own Cloudflare account.",
+              "values": {},
+              "tags": {}
+            }
           }
         ]
       }
@@ -223,12 +219,113 @@
       },
       "summary": {
         "kind": "message",
-        "id": "6O6Qeu",
-        "message": "Connect an application to XID with OIDC discovery and Hosted Auth.",
+        "id": "U9fm2i",
+        "message": "Sign up on XID Cloud, create an app and verify its tokens.",
         "values": {},
         "tags": {}
       },
       "sections": [
+        {
+          "heading": {
+            "kind": "message",
+            "id": "l0ibvr",
+            "message": "Start on XID Cloud",
+            "values": {},
+            "tags": {}
+          },
+          "blocks": [
+            {
+              "kind": "paragraph",
+              "content": {
+                "kind": "message",
+                "id": "EeFaU3",
+                "message": "XID Cloud runs at <0>https://xid.dev</0> and is free. You need an organization, an application and a few lines of code.",
+                "values": {},
+                "tags": {
+                  "0": {
+                    "kind": "inlineCode"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "message",
+                  "id": "U1tHKS",
+                  "message": "Choose Start free at the top of this page. Sign up and name your organization; XID creates it and opens the Console.",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "1kH-6X",
+                  "message": "In the Console, open Applications and create an application. Register the exact redirect URI of your app and copy its client ID.",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "8gL2kS",
+                  "message": "Wrap your app in <0>XidProvider</0> with the issuer <1>https://xid.dev</1> and your client ID, then verify access tokens on your backend with <2>authenticateRequest</2>.",
+                  "values": {},
+                  "tags": {
+                    "0": {
+                      "kind": "inlineCode"
+                    },
+                    "1": {
+                      "kind": "inlineCode"
+                    },
+                    "2": {
+                      "kind": "inlineCode"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "code",
+              "language": "tsx",
+              "value": "import { XidProvider } from '@xid-kit/react'\n\nexport function App() {\n  return (\n    <XidProvider\n      mode=\"oidc\"\n      issuer=\"https://xid.dev\"\n      clientId=\"client_abc123\"\n      redirectUri=\"https://app.example.com/auth/callback\"\n    >\n      <Layout />\n    </XidProvider>\n  )\n}",
+              "sourcePosition": "apps/site/src/content-source/docs/documents.json:getting-started/start-on-xid-cloud/react"
+            },
+            {
+              "kind": "code",
+              "language": "ts",
+              "value": "import { authenticateRequest } from '@xid-kit/backend'\n\nconst state = await authenticateRequest(request, {\n  jwtKey: env.XID_JWKS_PUBLIC_KEY,\n  issuer: 'https://xid.dev',\n})\nif (!state.isSignedIn) return new Response('Unauthorized', { status: 401 })",
+              "sourcePosition": "apps/site/src/content-source/docs/documents.json:getting-started/start-on-xid-cloud/backend"
+            },
+            {
+              "kind": "paragraph",
+              "content": {
+                "kind": "message",
+                "id": "tOy2L9",
+                "message": "The SDKs are not yet published to npm. Until they are, any OIDC library works with the endpoints below.",
+                "values": {},
+                "tags": {}
+              }
+            },
+            {
+              "kind": "paragraph",
+              "content": {
+                "kind": "message",
+                "id": "IdoYP-",
+                "message": "On a self-hosted instance, use your own instance domain instead of <0>https://xid.dev</0>. <1>Self-hosting</1> covers the deployment.",
+                "values": {},
+                "tags": {
+                  "0": {
+                    "kind": "inlineCode"
+                  },
+                  "1": {
+                    "kind": "link",
+                    "href": "/self-hosting"
+                  }
+                }
+              }
+            }
+          ]
+        },
         {
           "heading": {
             "kind": "message",
@@ -465,8 +562,8 @@
       "slug": "hosted-auth",
       "title": {
         "kind": "message",
-        "id": "bXEQAP",
-        "message": "Hosted Auth",
+        "id": "4Haver",
+        "message": "Hosted sign-in",
         "values": {},
         "tags": {}
       },
@@ -3864,8 +3961,8 @@
       "slug": "scim",
       "title": {
         "kind": "message",
-        "id": "oNZ7GY",
-        "message": "SCIM API reference",
+        "id": "jqBA0U",
+        "message": "SCIM",
         "values": {},
         "tags": {}
       },
@@ -4825,8 +4922,8 @@
       "slug": "saml",
       "title": {
         "kind": "message",
-        "id": "YEOVrT",
-        "message": "SAML SSO",
+        "id": "-AZQnp",
+        "message": "SAML",
         "values": {},
         "tags": {}
       },
@@ -18888,6 +18985,30 @@
           },
           "blocks": [
             {
+              "kind": "paragraph",
+              "content": {
+                "kind": "message",
+                "id": "HpIfEn",
+                "message": "Self-hosted XID has the same features as XID Cloud. Billing is off by default and turns on only when <0>STRIPE_SECRET_KEY</0>, <1>STRIPE_WEBHOOK_SECRET</1> and <2>STRIPE_METER_EVENT_NAME</2> are all set. <3>Pricing</3> explains how usage is counted.",
+                "values": {},
+                "tags": {
+                  "0": {
+                    "kind": "inlineCode"
+                  },
+                  "1": {
+                    "kind": "inlineCode"
+                  },
+                  "2": {
+                    "kind": "inlineCode"
+                  },
+                  "3": {
+                    "kind": "link",
+                    "href": "/pricing"
+                  }
+                }
+              }
+            },
+            {
               "kind": "table",
               "headers": [
                 {
@@ -19561,10 +19682,6 @@
     {
       "id": "6NPTCt",
       "message": "Read, replace, patch, or deprovision one directory user."
-    },
-    {
-      "id": "6O6Qeu",
-      "message": "Connect an application to XID with OIDC discovery and Hosted Auth."
     },
     {
       "id": "6OhkP_",
@@ -21531,10 +21648,6 @@
       "message": "Package status is <0>Current package</0>. Remix loader/action auth helpers, cookie session integration, and OAuth callback handler are implemented. A real IdP round-trip on production infrastructure is still pending manual verification."
     },
     {
-      "id": "YEOVrT",
-      "message": "SAML SSO"
-    },
-    {
       "id": "YF3TCE",
       "message": "User closed Custom Tabs without completing"
     },
@@ -21821,10 +21934,6 @@
     {
       "id": "bTT1Ze",
       "message": "Provider-ready for enterprise connections. Production support requires a real IdP configuration and callback L4."
-    },
-    {
-      "id": "bXEQAP",
-      "message": "Hosted Auth"
     },
     {
       "id": "bkyFn4",
@@ -22659,10 +22768,6 @@
       "message": "JWT payload claims returned by decodeTokenClaims"
     },
     {
-      "id": "oNZ7GY",
-      "message": "SCIM API reference"
-    },
-    {
       "id": "oQ5l2j",
       "message": "EncryptedAssertion uses the configured SP decrypt key, then still requires the decrypted assertion signature to verify."
     },
@@ -23483,90 +23588,6 @@
       "message": "Create, read, update, and delete permissions."
     },
     {
-      "id": "dnmh_I",
-      "message": "Open source identity platform"
-    },
-    {
-      "id": "YKzy7_",
-      "message": "XID Identity Platform"
-    },
-    {
-      "id": "0yG2H_",
-      "message": "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
-    },
-    {
-      "id": "PXOGK4",
-      "message": "One platform for identity"
-    },
-    {
-      "id": "_6tvkv",
-      "message": "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console."
-    },
-    {
-      "id": "O0CZpd",
-      "message": "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
-    },
-    {
-      "id": "Y8BniJ",
-      "message": "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification."
-    },
-    {
-      "id": "zTeEBf",
-      "message": "What XID includes"
-    },
-    {
-      "id": "r0UoH8",
-      "message": "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
-    },
-    {
-      "id": "cybAtK",
-      "message": "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions."
-    },
-    {
-      "id": "mt_ezc",
-      "message": "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs."
-    },
-    {
-      "id": "Y7NEJn",
-      "message": "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack."
-    },
-    {
-      "id": "W7PXsZ",
-      "message": "Explore XID"
-    },
-    {
-      "id": "QcinWR",
-      "message": "Product and setup"
-    },
-    {
-      "id": "v-sxhT",
-      "message": "Identity protocols"
-    },
-    {
-      "id": "l8t_1y",
-      "message": "APIs and operations"
-    },
-    {
-      "id": "aGbNxc",
-      "message": "SDK overview"
-    },
-    {
-      "id": "P4mdED",
-      "message": "Server SDKs"
-    },
-    {
-      "id": "u--k4W",
-      "message": "Web SDKs"
-    },
-    {
-      "id": "4cznMe",
-      "message": "Mobile SDKs"
-    },
-    {
-      "id": "FmLBHK",
-      "message": "Desktop SDKs"
-    },
-    {
       "id": "Rafp8j",
       "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry."
     },
@@ -23761,23 +23782,143 @@
     {
       "id": "kSiri_",
       "message": "Resource GET responses include <0>ETag: W/\"<meta.version>\"</0> from <1>meta.version</1>. <2>If-Match</2> is optional on <3>PUT</3>, <4>PATCH</4>, and <5>DELETE</5>; when present it must match the current version, and a mismatch or a concurrent write returns <6>412</6>."
+    },
+    {
+      "id": "TbjyhA",
+      "message": "Docs"
+    },
+    {
+      "id": "_N4_jI",
+      "message": "Start on XID Cloud in a few steps, or run XID in your own Cloudflare account."
+    },
+    {
+      "id": "bVLMGZ",
+      "message": "Sign-in and accounts"
+    },
+    {
+      "id": "Ustxhx",
+      "message": "Redirect users to XID for sign-in, sign-up, MFA and consent."
+    },
+    {
+      "id": "LzG6Zv",
+      "message": "Logo, colors and corner radius per organization."
+    },
+    {
+      "id": "wN2PqH",
+      "message": "Social providers such as Google and Microsoft, configured per organization."
+    },
+    {
+      "id": "6C924u",
+      "message": "Apps and OIDC"
+    },
+    {
+      "id": "XTsfRA",
+      "message": "Endpoints, grants, token claims, PAR and DPoP."
+    },
+    {
+      "id": "CyZOfB",
+      "message": "{count} platform guides. Not yet published to a package registry."
+    },
+    {
+      "id": "8jhCeZ",
+      "message": "Users, organizations and connections over REST with secret keys."
+    },
+    {
+      "id": "523Jfq",
+      "message": "Signed events for users, organizations and memberships."
+    },
+    {
+      "id": "jxfxkT",
+      "message": "Organizations, SSO and Console"
+    },
+    {
+      "id": "QHHuFp",
+      "message": "One organization per customer, with members, roles and its own admins."
+    },
+    {
+      "id": "lSWtHs",
+      "message": "Connect a customer's SAML or OIDC identity provider and route its domains."
+    },
+    {
+      "id": "Lqq6Ur",
+      "message": "XID as service provider and as identity provider."
+    },
+    {
+      "id": "VULRV0",
+      "message": "Inbound SCIM 2.0 directory sync for users and groups."
+    },
+    {
+      "id": "bb-1HJ",
+      "message": "Run XID"
+    },
+    {
+      "id": "TVKxp2",
+      "message": "Deploy the same three Workers to your own Cloudflare account."
+    },
+    {
+      "id": "U9fm2i",
+      "message": "Sign up on XID Cloud, create an app and verify its tokens."
+    },
+    {
+      "id": "l0ibvr",
+      "message": "Start on XID Cloud"
+    },
+    {
+      "id": "EeFaU3",
+      "message": "XID Cloud runs at <0>https://xid.dev</0> and is free. You need an organization, an application and a few lines of code."
+    },
+    {
+      "id": "U1tHKS",
+      "message": "Choose Start free at the top of this page. Sign up and name your organization; XID creates it and opens the Console."
+    },
+    {
+      "id": "1kH-6X",
+      "message": "In the Console, open Applications and create an application. Register the exact redirect URI of your app and copy its client ID."
+    },
+    {
+      "id": "8gL2kS",
+      "message": "Wrap your app in <0>XidProvider</0> with the issuer <1>https://xid.dev</1> and your client ID, then verify access tokens on your backend with <2>authenticateRequest</2>."
+    },
+    {
+      "id": "tOy2L9",
+      "message": "The SDKs are not yet published to npm. Until they are, any OIDC library works with the endpoints below."
+    },
+    {
+      "id": "IdoYP-",
+      "message": "On a self-hosted instance, use your own instance domain instead of <0>https://xid.dev</0>. <1>Self-hosting</1> covers the deployment."
+    },
+    {
+      "id": "4Haver",
+      "message": "Hosted sign-in"
+    },
+    {
+      "id": "jqBA0U",
+      "message": "SCIM"
+    },
+    {
+      "id": "-AZQnp",
+      "message": "SAML"
+    },
+    {
+      "id": "HpIfEn",
+      "message": "Self-hosted XID has the same features as XID Cloud. Billing is off by default and turns on only when <0>STRIPE_SECRET_KEY</0>, <1>STRIPE_WEBHOOK_SECRET</1> and <2>STRIPE_METER_EVENT_NAME</2> are all set. <3>Pricing</3> explains how usage is counted."
     }
   ],
   "stats": {
     "documents": 41,
-    "sections": 277,
-    "paragraphs": 152,
-    "listItems": 181,
+    "sections": 278,
+    "paragraphs": 156,
+    "listItems": 184,
     "tables": 72,
     "tableRows": 487,
-    "codeBlocks": 123,
+    "codeBlocks": 125,
     "richTags": {
-      "inlineCode": 300,
+      "inlineCode": 308,
       "strong": 17,
-      "link": 15
+      "link": 17
     },
-    "staticValues": 2,
+    "staticValues": 3,
     "literalValues": 3,
-    "catalogMessages": 1168
+    "catalogMessages": 1173
   }
 }

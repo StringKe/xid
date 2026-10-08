@@ -1,54 +1,38 @@
 ---
-// 窄屏补全桌面 xl+ 右栏 TOC：原生 select + 客户端 scroll-spy 回写当前标题。
-import { Icon } from "astro-icon/components";
+// 窄屏补全宽屏右栏目录：原生 select，控件规格同产品输入框（触屏 44px、16px 字）。
 import { cn } from "@/lib/cn";
-import type { HTMLAttributes } from "astro/types";
 import type { TOCItem } from "@cloudflare/nimbus-docs/types";
 import { translateSiteMessage } from "@/lib/site-i18n";
 import { siteShellMessages } from "@/lib/site-shell-messages";
+import Icon from "../icon/Icon.astro";
 
-interface Props extends HTMLAttributes<"nav"> {
+interface Props {
   headings: TOCItem[];
+  class?: string;
 }
 
-const { headings, class: className, ...attrs } = Astro.props;
-
-const hasHeadings = headings.length > 0;
-const onThisPage = translateSiteMessage(Astro.url.pathname, siteShellMessages.onThisPage);
-const jumpToSection = translateSiteMessage(Astro.url.pathname, siteShellMessages.jumpToSection);
-const overview = translateSiteMessage(Astro.url.pathname, siteShellMessages.overview);
+const { headings, class: className } = Astro.props;
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1]) =>
+  translateSiteMessage(Astro.url.pathname, descriptor);
+const minDepth = Math.min(...headings.map((heading) => heading.depth));
 ---
 
-{
-  hasHeadings && (
-    <nav
-      data-nb-mobile-toc
-      aria-label={onThisPage}
-      class={cn("relative", className)}
-      {...attrs}
+{headings.length > 0 && (
+  <nav data-nb-mobile-toc aria-label={translate(siteShellMessages.onThisPage)} class={cn("relative", className)}>
+    <select
+      data-nb-mobile-toc-select
+      name="toc-section"
+      aria-label={translate(siteShellMessages.jumpToSection)}
+      class="h-11 w-full cursor-pointer appearance-none rounded-md bg-card pl-3 pr-10 text-md text-foreground shadow-[inset_0_0_0_1px_var(--xid-border-strong)] focus-visible:shadow-[inset_0_0_0_1px_var(--xid-accent),0_0_0_3px_var(--xid-accent-wash)] focus-visible:outline-none"
     >
-      <select
-        data-nb-mobile-toc-select
-        name="toc-section"
-        aria-label={jumpToSection}
-        class="w-full appearance-none rounded-md border border-border bg-background py-2.5 pl-3 pr-9 text-sm font-medium text-foreground transition-colors hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-      >
-        <option value="_top">{overview}</option>
-        {headings.map((heading) => (
-          <option value={heading.slug}>
-            {`${"- ".repeat(Math.max(0, heading.depth - 2))}${heading.text}`}
-          </option>
-        ))}
-      </select>
-      <Icon
-        name="ph:caret-down"
-        aria-hidden="true"
-        class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-        is:inline
-      />
-    </nav>
-  )
-}
+      <option value="_top">{translate(siteShellMessages.onThisPage)}</option>
+      {headings.map((heading) => (
+        <option value={heading.slug}>{`${"  ".repeat(Math.max(0, heading.depth - minDepth))}${heading.text}`}</option>
+      ))}
+    </select>
+    <Icon name="caret-down" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+  </nav>
+)}
 
 <script>
   import "./mobile-toc.client";

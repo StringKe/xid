@@ -1,40 +1,37 @@
 ---
-import { Icon } from "astro-icon/components";
 import { cn } from "@/lib/cn";
-import type { HTMLAttributes } from "astro/types";
 import type { PrevNext } from "@cloudflare/nimbus-docs/types";
 import { translateSiteMessage } from "@/lib/site-i18n";
 import { siteShellMessages } from "@/lib/site-shell-messages";
 
-interface Props extends HTMLAttributes<"nav"> {
+interface Props {
   prevNext: PrevNext;
+  class?: string;
 }
 
-const { prevNext, class: className, ...attrs } = Astro.props;
+const { prevNext, class: className } = Astro.props;
 const { prev, next } = prevNext;
-const pagination = translateSiteMessage(Astro.url.pathname, siteShellMessages.pagination);
-const previous = translateSiteMessage(Astro.url.pathname, siteShellMessages.previous);
-const nextLabel = translateSiteMessage(Astro.url.pathname, siteShellMessages.next);
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1]) =>
+  translateSiteMessage(Astro.url.pathname, descriptor);
+const link = "group flex flex-col gap-0.5 rounded-sm no-underline";
+const title = "text-base font-medium leading-[1.125rem] text-foreground transition-colors duration-[120ms] ease-out group-hover:text-accent";
 ---
 
 {(prev || next) && (
-  <nav aria-label={pagination} class={cn("flex items-center justify-between mt-12 pt-6 border-t border-border", className)} {...attrs}>
+  <nav
+    aria-label={translate(siteShellMessages.pagination)}
+    class={cn("mt-12 flex items-start justify-between gap-6 border-t border-border pt-5", className)}
+  >
     {prev ? (
-      <a href={prev.href} class="group flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <Icon name="ph:caret-left" class="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
-        <span>
-          <span class="block text-xs text-muted-foreground">{previous}</span>
-          <span class="font-medium text-foreground">{prev.label}</span>
-        </span>
+      <a href={prev.href} class={link}>
+        <span class="text-xs text-faint-foreground">{translate(siteShellMessages.previous)}</span>
+        <span class={title}>{prev.label}</span>
       </a>
     ) : <span />}
     {next ? (
-      <a href={next.href} class="group flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors text-right">
-        <span>
-          <span class="block text-xs text-muted-foreground">{nextLabel}</span>
-          <span class="font-medium text-foreground">{next.label}</span>
-        </span>
-        <Icon name="ph:caret-right" class="w-4 h-4 transition-transform group-hover:translate-x-0.5" is:inline />
+      <a href={next.href} class={cn(link, "items-end text-right")}>
+        <span class="text-xs text-faint-foreground">{translate(siteShellMessages.next)}</span>
+        <span class={title}>{next.label}</span>
       </a>
     ) : <span />}
   </nav>

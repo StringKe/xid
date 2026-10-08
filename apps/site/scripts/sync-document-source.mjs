@@ -65,16 +65,11 @@ function computeStats(bundle, catalogMessages) {
     literalValues: 0,
     catalogMessages,
   }
-  countRichText(bundle.hub.eyebrow, stats)
   countRichText(bundle.hub.title, stats)
   countRichText(bundle.hub.summary, stats)
-  for (const section of bundle.hub.sections) {
-    countRichText(section.heading, stats)
-    if (section.kind === 'product') section.paragraphs.forEach((item) => countRichText(item, stats))
-    if (section.kind === 'capabilities') section.items.forEach((item) => countRichText(item, stats))
-    if (section.kind === 'navigation') {
-      for (const group of section.groups) countRichText(group.label, stats)
-    }
+  for (const group of bundle.hub.groups) {
+    countRichText(group.label, stats)
+    for (const item of group.items) countRichText(item.summary, stats)
   }
 
   for (const document of bundle.documents) {

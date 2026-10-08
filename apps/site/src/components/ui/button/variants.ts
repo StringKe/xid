@@ -1,66 +1,48 @@
-// Button 与 LinkButton 共用样式源，避免两套视觉漂移。
+// Button 与 LinkButton 共用样式源，规格同产品 components/ui/Button.tsx。
 import { cn } from '@/lib/cn'
 
-export type ButtonVariant =
-  | 'primary'
-  | 'secondary'
-  | 'ghost'
-  | 'destructive'
-  | 'secondary-destructive'
-  | 'outline'
-export type ButtonSize = 'xs' | 'sm' | 'base' | 'lg'
-export type ButtonShape = 'base' | 'square' | 'circle'
+export type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'danger'
+export type ButtonSize = 'md' | 'lg'
+export type ButtonShape = 'base' | 'square'
 
-export const buttonBase =
-  'group inline-flex w-max shrink-0 items-center justify-center rounded-lg font-medium whitespace-nowrap no-underline transition-all cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
+const buttonBase =
+  'inline-flex shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-base font-medium leading-[1.125rem] no-underline transition-[background-color,color,transform] duration-[120ms] ease-out active:scale-[0.97] aria-disabled:pointer-events-none aria-disabled:opacity-55'
 
-export const buttonVariantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-brand text-brand-foreground shadow-sm hover:bg-brand-hover',
+const variantClasses: Record<ButtonVariant, string> = {
+  primary: 'bg-primary text-primary-foreground hover:bg-primary/84',
+  accent: 'bg-accent text-accent-foreground hover:bg-accent-strong',
   secondary:
-    'bg-card text-foreground ring ring-border shadow-sm hover:bg-accent hover:ring-border-strong',
-  ghost: 'bg-transparent text-foreground shadow-none hover:bg-accent',
-  destructive: 'bg-danger text-white shadow-sm hover:bg-danger/90',
-  'secondary-destructive':
-    'bg-card text-danger ring ring-border shadow-sm hover:bg-accent hover:ring-danger/40',
-  outline: 'bg-transparent text-foreground ring ring-border hover:ring-border-strong',
+    'bg-card text-foreground shadow-[inset_0_0_0_1px_var(--xid-border-strong)] hover:bg-muted',
+  ghost: 'bg-transparent text-foreground hover:bg-muted',
+  danger: 'bg-danger text-danger-foreground hover:bg-danger/90',
 }
 
-export const buttonSizeText: Record<ButtonSize, string> = {
-  xs: 'gap-1 px-2 py-1 text-xs',
-  sm: 'gap-1 px-3 py-1.5 text-xs',
-  base: 'gap-1.5 px-4 py-2 text-sm',
-  lg: 'gap-2 px-5 py-2.5 text-sm',
+const sizeClasses: Record<ButtonSize, Record<ButtonShape, string>> = {
+  md: {
+    base: 'h-9 px-3.5 pointer-coarse:h-11',
+    square: 'size-9 pointer-coarse:size-11',
+  },
+  lg: {
+    base: 'h-11 px-4',
+    square: 'size-11',
+  },
 }
 
-export const buttonSizeCompact: Record<ButtonSize, string> = {
-  xs: 'size-7',
-  sm: 'size-8',
-  base: 'size-9',
-  lg: 'size-10',
-}
-
-export const buttonIconSize: Record<ButtonSize, string> = {
-  xs: 'h-3.5 w-3.5',
-  sm: 'h-3.5 w-3.5',
-  base: 'h-4 w-4',
-  lg: 'h-[1.125rem] w-[1.125rem]',
-}
-
-export interface ButtonVariantsOptions {
+export type ButtonVariantsOptions = {
   variant?: ButtonVariant
   size?: ButtonSize
   shape?: ButtonShape
 }
 
 export function buttonVariants({
-  variant = 'secondary',
-  size = 'base',
+  variant = 'primary',
+  size = 'md',
   shape = 'base',
 }: ButtonVariantsOptions = {}): string {
-  // circle 覆盖 buttonBase 的 rounded-lg 为 full pill。
-  const dims =
-    shape === 'base'
-      ? buttonSizeText[size]
-      : cn(buttonSizeCompact[size], 'p-0', shape === 'circle' && 'rounded-full')
-  return cn(buttonBase, buttonVariantClasses[variant], dims)
+  return cn(
+    buttonBase,
+    variantClasses[variant],
+    sizeClasses[size][shape],
+    variant === 'ghost' && shape === 'base' && 'px-3',
+  )
 }
