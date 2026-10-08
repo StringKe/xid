@@ -57,17 +57,21 @@ const serverExample = [
   "})",
   "if (!state.isSignedIn) return new Response('Unauthorized', { status: 401 })",
 ].join("\n");
-// 解码后的 access token 示例：typ=at+jwt，必带 tenant_id（oidc-oauth 规则）。
+// 示例值按 buildAccessTokenClaims 与 signAccessTokenClaims 的形状书写：user_/org_ 前缀 + 21 位 base62，client_id 为 26 位 base36，exp = iat + 默认 1h。
+const exampleClientId = "examplenorthwindweb0000001";
 const accessTokenClaims = [
   ["typ", "at+jwt"],
   ["alg", "ES256"],
   ["iss", "https://xid.dev"],
-  ["aud", "app_01JD3FLEETPLNR"],
-  ["azp", "app_01JD3FLEETPLNR"],
+  ["sub", "user_ExampleUser0000000001"],
+  ["aud", exampleClientId],
+  ["azp", exampleClientId],
+  ["client_id", exampleClientId],
   ["scope", "openid profile email organization"],
+  ["iat", "1791394200"],
   ["exp", "1791397800"],
 ] as const;
-const tenantClaim = { value: "org_01J8NWLOGISTX", organization: "Northwind Logistics" };
+const tenantClaim = { value: "org_ExampleNorthwind00001", organization: "Northwind Logistics" };
 ---
 
 <BaseLayout
@@ -179,6 +183,7 @@ const tenantClaim = { value: "org_01J8NWLOGISTX", organization: "Northwind Logis
                     </dd>
                   </div>
                 </dl>
+                <p class="token-claims-note">{text.exampleTokenNote}</p>
               </div>
             </div>
             <p class="site-evidence">{text.oidcEvidence}</p>
@@ -474,6 +479,13 @@ const tenantClaim = { value: "org_01J8NWLOGISTX", organization: "Northwind Logis
     display: flex;
     flex-wrap: wrap;
     gap: 0.125rem var(--xid-space-s2);
+  }
+
+  .token-claims-note {
+    margin: var(--xid-space-s2) 0 0;
+    color: var(--xid-faint-foreground);
+    font-size: var(--xid-text-xs);
+    line-height: var(--xid-leading-xs);
   }
 
   .token-claim-note {

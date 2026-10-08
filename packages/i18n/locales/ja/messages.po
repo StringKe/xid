@@ -885,10 +885,6 @@ msgstr "アクセス"
 msgid "Access request lifecycle"
 msgstr "アクセスリクエストのライフサイクル"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Access token"
-msgstr "アクセストークン"
-
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Access token lifetime in minutes"
 msgstr "アクセストークンの有効期間（分）"
@@ -3590,6 +3586,7 @@ msgid "Danger zone"
 msgstr "危険な操作"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "Dark"
 msgstr "ダーク"
 
@@ -3637,8 +3634,8 @@ msgid "Decode JWT payload claims for expiry scheduling only; does not verify the
 msgstr "有効期限スケジューリング専用に JWT ペイロードクレームをデコードします。署名は検証しません"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Decoded payload"
-msgstr "デコードしたペイロード"
+msgid "Decoded header and payload"
+msgstr "デコードしたヘッダーとペイロード"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deep link callback"
@@ -4828,6 +4825,14 @@ msgstr "証拠台帳"
 #: apps/site/src/lib/docs-evidence.ts
 msgid "Evidence matrix row"
 msgstr "検証マトリクスの該当行"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Example access token"
+msgstr "アクセストークンの例"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Example values in the shape XID issues. This is not a real token."
+msgstr "XID が発行する形式の例の値です。実際のトークンではありません。"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "example.com"
@@ -6663,6 +6668,7 @@ msgid "License"
 msgstr "ライセンス"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "Light"
 msgstr "ライト"
 
@@ -12556,6 +12562,7 @@ msgid "system"
 msgstr "システム"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "System"
 msgstr "システム"
 
@@ -13151,6 +13158,7 @@ msgid "Their admins can do it themselves."
 msgstr "顧客の管理者が自分で設定できます。"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "Theme"
 msgstr "テーマ"
 

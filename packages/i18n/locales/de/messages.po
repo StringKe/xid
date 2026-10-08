@@ -885,10 +885,6 @@ msgstr "Zugriff"
 msgid "Access request lifecycle"
 msgstr "Lebenszyklus der Zugriffsanforderung"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Access token"
-msgstr "Access Token"
-
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Access token lifetime in minutes"
 msgstr "Gültigkeit des Zugriffstokens in Minuten"
@@ -3590,6 +3586,7 @@ msgid "Danger zone"
 msgstr "Gefahrenbereich"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "Dark"
 msgstr "Dunkel"
 
@@ -3637,8 +3634,8 @@ msgid "Decode JWT payload claims for expiry scheduling only; does not verify the
 msgstr "JWT-Payload-Claims nur für die Ablaufplanung dekodieren; verifiziert die Signatur nicht"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Decoded payload"
-msgstr "Dekodierte Nutzdaten"
+msgid "Decoded header and payload"
+msgstr "Dekodierter Header und Nutzdaten"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deep link callback"
@@ -4828,6 +4825,14 @@ msgstr "Nachweisregister"
 #: apps/site/src/lib/docs-evidence.ts
 msgid "Evidence matrix row"
 msgstr "Zeile in der Nachweismatrix"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Example access token"
+msgstr "Beispiel für ein Access Token"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Example values in the shape XID issues. This is not a real token."
+msgstr "Beispielwerte im Format, das XID ausstellt. Dies ist kein echtes Token."
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "example.com"
@@ -6663,6 +6668,7 @@ msgid "License"
 msgstr "Lizenz"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "Light"
 msgstr "Hell"
 
@@ -12556,6 +12562,7 @@ msgid "system"
 msgstr "System"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "System"
 msgstr "System"
 
@@ -13151,6 +13158,7 @@ msgid "Their admins can do it themselves."
 msgstr "Deren Administratoren erledigen das selbst."
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "Theme"
 msgstr "Design"
 

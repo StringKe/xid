@@ -885,10 +885,6 @@ msgstr "Acceso"
 msgid "Access request lifecycle"
 msgstr "Ciclo de vida de la solicitud de acceso"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Access token"
-msgstr "Token de acceso"
-
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Access token lifetime in minutes"
 msgstr "Duración del token de acceso en minutos"
@@ -3590,6 +3586,7 @@ msgid "Danger zone"
 msgstr "Zona de peligro"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "Dark"
 msgstr "Oscuro"
 
@@ -3637,8 +3634,8 @@ msgid "Decode JWT payload claims for expiry scheduling only; does not verify the
 msgstr "Decodifica las declaraciones del payload JWT solo para programación de expiración; no verifica la firma"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Decoded payload"
-msgstr "Carga útil decodificada"
+msgid "Decoded header and payload"
+msgstr "Encabezado y carga útil decodificados"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deep link callback"
@@ -4828,6 +4825,14 @@ msgstr "Registro de evidencias"
 #: apps/site/src/lib/docs-evidence.ts
 msgid "Evidence matrix row"
 msgstr "Fila de la matriz de evidencias"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Example access token"
+msgstr "Token de acceso de ejemplo"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Example values in the shape XID issues. This is not a real token."
+msgstr "Valores de ejemplo con el formato que emite XID. No es un token real."
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "example.com"
@@ -6663,6 +6668,7 @@ msgid "License"
 msgstr "Licencia"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "Light"
 msgstr "Claro"
 
@@ -12556,6 +12562,7 @@ msgid "system"
 msgstr "sistema"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "System"
 msgstr "Sistema"
 
@@ -13151,6 +13158,7 @@ msgid "Their admins can do it themselves."
 msgstr "Sus administradores pueden hacerlo por su cuenta."
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ThemeSwitcher.tsx
 msgid "Theme"
 msgstr "Tema"
 
