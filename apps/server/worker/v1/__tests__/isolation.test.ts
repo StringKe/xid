@@ -628,7 +628,7 @@ describe('v1 connections 创建:跨租户 org_id 越权拒绝', () => {
       api_keys: [apiKey],
       organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
     })
-    const env = asUnknown<Env>({ DB: db })
+    const env = asUnknown<Env>({ DB: db, KEK: btoa('0'.repeat(32)) })
     const app = buildApp(registerConnections)
     const res = await app.request(
       'https://acme.xid.dev/v1/connections',
@@ -638,7 +638,12 @@ describe('v1 connections 创建:跨租户 org_id 越权拒绝', () => {
         body: JSON.stringify({
           org_id: 'org_1',
           protocol: 'ldap',
-          attribute_mapping: { _legacy: { ldapGatewayUrl: 'https://ldap.example.com/bind' } },
+          attribute_mapping: {
+            _legacy: {
+              ldapGatewayUrl: 'https://ldap-gw.acme-corp.dev/bind',
+              ldapGatewaySecret: 'ldap-gateway-shared-secret-0123456789abcdef',
+            },
+          },
         }),
       },
       env,
