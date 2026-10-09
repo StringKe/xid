@@ -424,8 +424,15 @@ export type OrgTokenPolicyOverride = {
   refreshAbsoluteTimeoutDays: number | null
 }
 
+export type OrgLoginPolicy = {
+  forceSso: boolean
+  allowPasswordLogin: boolean
+}
+
 export type OrgAuthPolicy = {
   hostedAuth: HostedAuthPolicy
+  loginPolicy: OrgLoginPolicy
+  attestationRootsConfigured: boolean
   sessionPolicy: OrgSessionPolicyOverride
   tokenPolicy: OrgTokenPolicyOverride
   deliveryChannelReadiness: DeliveryChannelReadiness
@@ -466,7 +473,7 @@ export type OrgSocialProviders = {
 
 export type UpdateOrgAuthPolicyInput = Pick<
   OrgAuthPolicy,
-  'hostedAuth' | 'sessionPolicy' | 'tokenPolicy'
+  'hostedAuth' | 'loginPolicy' | 'sessionPolicy' | 'tokenPolicy'
 >
 export type UpdateOrgDeliveryChannelsInput = OrgDeliveryChannels
 export type UpdateOrgSocialProvidersInput = OrgSocialProviders

@@ -1,4 +1,4 @@
-// Sign-in & MFA 的「Sign-up and identifiers」分节:标识方式、邮箱域名规则、注册字段、passkey 证明与企业 SSO 开关。
+// Sign-in & MFA 的「Sign-up and identifiers」分节:标识方式、邮箱域名规则、注册字段与企业 SSO 开关。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
@@ -80,7 +80,6 @@ export function SignUpSection({
           allowUserCreation: form.allowUserCreation,
           requireVerifiedEmail: form.requireVerifiedEmail,
           profileFields: form.profileFields,
-          attestationMode: form.attestationMode,
           enterpriseSso: form.enterpriseSso,
         },
       },
@@ -122,18 +121,6 @@ export function SignUpSection({
             <option value="email_or_username">{t`Email address or username`}</option>
             <option value="phone">{t`Phone number`}</option>
             <option value="external_id">{t`External ID`}</option>
-          </Select>
-        </Field>
-        <Field label={<Trans>Passkey attestation</Trans>}>
-          <Select
-            value={form.attestationMode ?? 'none'}
-            onChange={(event) =>
-              patch('attestationMode', event.target.value as HostedAuthPolicy['attestationMode'])
-            }
-          >
-            <option value="none">{t`Not required`}</option>
-            <option value="indirect">{t`Indirect`}</option>
-            <option value="direct">{t`Direct, checked against trusted roots`}</option>
           </Select>
         </Field>
         <Field label={<Trans>Only allow these email domains</Trans>}>

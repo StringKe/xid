@@ -4,58 +4,19 @@ import { Plural, Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Switch } from '@xid-kit/web-ui/ui'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
-import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import type { XidError } from '@xid-kit/types'
 import { SaveButton, SettingsBlock, settingsStyles } from './AuthSettingsLayout'
-import { ChoiceCards, SaveStatus, SwitchRows, UnitField, UnitFields } from './AuthSettingsControls'
+import { ChoiceCards, SaveStatus, SwitchRows } from './AuthSettingsControls'
 import { useSaveOrgAuthPolicy } from './auth-queries'
 import type {
   AuthPolicyInsights,
   MfaPolicy,
   OrgAuthPolicyView,
   SaveOrgAuthPolicyInput,
-  SsoConnectionView,
 } from './auth-queries'
 import type { HostedAuthMethodPolicy, HostedAuthPolicy } from './types'
 
-const MINUTES_PER_DAY = 1440
-
-const styles = stylex.create({
-  domainRow: {
-    display: 'grid',
-    gridTemplateColumns: {
-      default: 'minmax(0, 1fr) auto',
-      '@media (min-width: 48rem)': '12.5rem minmax(0, 1fr) auto',
-    },
-    alignItems: 'center',
-    gap: '0.25rem 1rem',
-    minHeight: '3.25rem',
-    paddingBlock: '0.5rem',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-    fontSize: text.base,
-    lineHeight: leading.sm,
-  },
-  domain: {
-    color: tokens['--xid-fg'],
-    fontWeight: weight.medium,
-    overflowWrap: 'anywhere',
-  },
-  connection: {
-    gridColumn: { default: '1 / -1', '@media (min-width: 48rem)': 'auto' },
-    gridRow: { default: 2, '@media (min-width: 48rem)': 'auto' },
-    color: tokens['--xid-fg'],
-    overflowWrap: 'anywhere',
-  },
-  people: {
-    color: tokens['--xid-muted-foreground'],
-    fontSize: text.sm,
-    fontVariantNumeric: 'tabular-nums',
-    whiteSpace: 'nowrap',
-  },
+export const sectionStyles = stylex.create({
   fieldGroup: {
     display: 'flex',
     flexDirection: 'column',
@@ -63,13 +24,18 @@ const styles = stylex.create({
   },
 })
 
-type SectionProps = {
+export type SectionProps = {
   orgId: string
   policy: OrgAuthPolicyView
   insights: AuthPolicyInsights | undefined
 }
 
-function useSectionSave(orgId: string) {
+export function useSectionSave(orgId: string): {
+  save: (payload: SaveOrgAuthPolicyInput) => void
+  saved: boolean
+  isPending: boolean
+  error: XidError | null
+} {
   const mutation = useSaveOrgAuthPolicy(orgId)
   const [saved, setSaved] = useState(false)
   function save(payload: SaveOrgAuthPolicyInput): void {
@@ -284,7 +250,7 @@ export function TwoStepSection({ orgId, policy, insights }: SectionProps): React
           </Trans>
         </p>
       ) : null}
-      <div {...stylex.props(styles.fieldGroup)}>
+      <div {...stylex.props(sectionStyles.fieldGroup)}>
         <h3 {...stylex.props(settingsStyles.subTitle)}>
           <Trans>How people set it up</Trans>
         </h3>
@@ -299,215 +265,6 @@ export function TwoStepSection({ orgId, policy, insights }: SectionProps): React
       </div>
       <SaveButton isPending={isPending}>
         <Trans>Save two-step verification</Trans>
-      </SaveButton>
-      <SaveStatus error={error} saved={saved} />
-    </SettingsBlock>
-  )
-}
-
-function toText(value: number | null, divisor: number): string {
-  if (value === null) return ''
-  return String(Math.round((value / divisor) * 100) / 100)
-}
-
-function fromText(value: string, multiplier: number): number | null {
-  if (value.trim() === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? Math.round(parsed * multiplier) : null
-}
-
-type LifetimeForm = {
-  absoluteDays: string
-  idleDays: string
-  accessMinutes: string
-  refreshAbsoluteDays: string
-  refreshIdleDays: string
-}
-
-function lifetimeForm(policy: OrgAuthPolicyView): LifetimeForm {
-  return {
-    absoluteDays: toText(policy.sessionPolicy.absoluteTimeoutDays, 1),
-    idleDays: toText(policy.sessionPolicy.idleTimeoutMin, MINUTES_PER_DAY),
-    accessMinutes: toText(policy.tokenPolicy.accessTokenTtlSec, 60),
-    refreshAbsoluteDays: toText(policy.tokenPolicy.refreshAbsoluteTimeoutDays, 1),
-    refreshIdleDays: toText(policy.tokenPolicy.refreshIdleTimeoutDays, 1),
-  }
-}
-
-export function SessionsSection({ orgId, policy }: SectionProps): ReactNode {
-  const { t } = useLingui()
-  const [form, setForm] = useState(() => lifetimeForm(policy))
-  const { save, saved, isPending, error } = useSectionSave(orgId)
-
-  useEffect(() => setForm(lifetimeForm(policy)), [policy])
-
-  function patch(key: keyof LifetimeForm, value: string): void {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
-
-  function submit(): void {
-    save({
-      sessionPolicy: {
-        absoluteTimeoutDays: fromText(form.absoluteDays, 1),
-        idleTimeoutMin: fromText(form.idleDays, MINUTES_PER_DAY),
-      },
-      tokenPolicy: {
-        ...policy.tokenPolicy,
-        accessTokenTtlSec: fromText(form.accessMinutes, 60),
-        refreshAbsoluteTimeoutDays: fromText(form.refreshAbsoluteDays, 1),
-        refreshIdleTimeoutDays: fromText(form.refreshIdleDays, 1),
-      },
-    })
-  }
-
-  const inherit = t`Default`
-  return (
-    <SettingsBlock
-      id="sessions"
-      onSubmit={submit}
-      title={<Trans>Sessions and tokens</Trans>}
-      description={
-        <Trans>
-          Defaults for every application. An application can set its own access token lifetime on
-          its settings page; refresh token lifetimes always come from here.
-        </Trans>
-      }
-    >
-      <div {...stylex.props(styles.fieldGroup)}>
-        <h3 {...stylex.props(settingsStyles.subTitle)}>
-          <Trans>XID session</Trans>
-        </h3>
-        <UnitFields>
-          <UnitField
-            label={<Trans>Sign in again after</Trans>}
-            unit={<Trans>days</Trans>}
-            min={1}
-            max={365}
-            value={form.absoluteDays}
-            placeholder={inherit}
-            onChange={(value) => patch('absoluteDays', value)}
-          />
-          <UnitField
-            label={<Trans>Or after no activity for</Trans>}
-            unit={<Trans>days</Trans>}
-            min={0.01}
-            max={30}
-            step={0.01}
-            value={form.idleDays}
-            placeholder={inherit}
-            onChange={(value) => patch('idleDays', value)}
-          />
-        </UnitFields>
-      </div>
-      <div {...stylex.props(styles.fieldGroup)}>
-        <h3 {...stylex.props(settingsStyles.subTitle)}>
-          <Trans>Tokens issued to applications</Trans>
-        </h3>
-        <UnitFields>
-          <UnitField
-            label={<Trans>Access token</Trans>}
-            unit={<Trans>minutes</Trans>}
-            min={1}
-            max={1440}
-            value={form.accessMinutes}
-            placeholder={inherit}
-            onChange={(value) => patch('accessMinutes', value)}
-          />
-          <UnitField
-            label={<Trans>Refresh token, absolute</Trans>}
-            unit={<Trans>days</Trans>}
-            min={1}
-            max={90}
-            value={form.refreshAbsoluteDays}
-            placeholder={inherit}
-            onChange={(value) => patch('refreshAbsoluteDays', value)}
-          />
-          <UnitField
-            label={<Trans>Refresh token, idle</Trans>}
-            unit={<Trans>days</Trans>}
-            min={1}
-            max={365}
-            value={form.refreshIdleDays}
-            placeholder={inherit}
-            onChange={(value) => patch('refreshIdleDays', value)}
-          />
-        </UnitFields>
-        <p {...stylex.props(settingsStyles.note)}>
-          <Trans>
-            Access tokens: 1 minute to 24 hours. Refresh tokens rotate on every use; reusing an old
-            one signs out the whole chain. Leave a field empty to use the instance default.
-          </Trans>
-        </p>
-      </div>
-      <SaveButton isPending={isPending}>
-        <Trans>Save sessions and tokens</Trans>
-      </SaveButton>
-      <SaveStatus error={error} saved={saved} />
-    </SettingsBlock>
-  )
-}
-
-export function SingleSignOnSection({
-  orgId,
-  policy,
-  insights,
-  orgName,
-  connection,
-}: SectionProps & { orgName: ReactNode; connection: SsoConnectionView | null }): ReactNode {
-  const { t } = useLingui()
-  const [forceSso, setForceSso] = useState(policy.hostedAuth.forceSso)
-  const { save, saved, isPending, error } = useSectionSave(orgId)
-  const routed = (insights?.routedDomains ?? []).filter((domain) => domain.verified)
-
-  useEffect(() => setForceSso(policy.hostedAuth.forceSso), [policy.hostedAuth.forceSso])
-
-  return (
-    <SettingsBlock
-      id="sso"
-      onSubmit={() => save({ hostedAuth: { ...policy.hostedAuth, forceSso } })}
-      title={<Trans>Require single sign-on</Trans>}
-      description={
-        <Trans>
-          Turns off password sign-in for everyone in {orgName}. People sign in through the
-          connection that matches their verified email domain.
-        </Trans>
-      }
-      aside={
-        <Switch
-          label={<span {...stylex.props(page.visuallyHidden)}>{t`Require single sign-on`}</span>}
-          checked={forceSso}
-          onCheckedChange={setForceSso}
-        />
-      }
-    >
-      {routed.length > 0 && connection ? (
-        <ul {...stylex.props(settingsStyles.rows)}>
-          {routed.map((domain) => (
-            <li key={domain.domain} {...stylex.props(styles.domainRow)}>
-              <span {...stylex.props(styles.domain)}>{domain.domain}</span>
-              <span {...stylex.props(styles.connection)}>{connection.name}</span>
-              <span {...stylex.props(styles.people)}>
-                <Plural value={domain.memberCount} one="# person" other="# people" />
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p {...stylex.props(settingsStyles.note)}>
-          <Trans>
-            No verified domain is routed to an enterprise connection yet. Add the connection and
-            verify a domain in Enterprise SSO first.
-          </Trans>
-        </p>
-      )}
-      <p {...stylex.props(settingsStyles.note)}>
-        <Trans>
-          Domains are routed in Enterprise SSO. Turn this on only after every active member has a
-          routed domain, or they cannot sign in.
-        </Trans>
-      </p>
-      <SaveButton isPending={isPending}>
-        <Trans>Save single sign-on</Trans>
       </SaveButton>
       <SaveStatus error={error} saved={saved} />
     </SettingsBlock>

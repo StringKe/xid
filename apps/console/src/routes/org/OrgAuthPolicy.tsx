@@ -7,13 +7,11 @@ import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
 import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
 import { SettingsSections } from './AuthSettingsLayout'
 import type { SettingsSectionLink } from './AuthSettingsLayout'
-import {
-  SessionsSection,
-  SignInMethodsSection,
-  SingleSignOnSection,
-  TwoStepSection,
-} from './AuthPolicySections'
+import { SignInMethodsSection, TwoStepSection } from './AuthPolicySections'
+import { SessionsSection } from './AuthPolicySessionsSection'
+import { AttestationSection } from './AuthPolicyAttestationSection'
 import { SignUpSection } from './AuthPolicySignUpSection'
+import { SingleSignOnSection, effectiveForceSso } from './AuthPolicySsoSection'
 import { useOrgAuthInsights, useOrgAuthPolicyView, useOrgSsoConnectionsView } from './auth-queries'
 import type { AuthPolicyInsights, OrgAuthPolicyView } from './auth-queries'
 
@@ -35,6 +33,7 @@ function useSectionLinks(
   const mfa = policy?.effectiveMfaPolicy
   const notSetUp = insights?.usersWithoutSecondFactor ?? 0
   const absoluteDays = policy?.sessionPolicy.absoluteTimeoutDays ?? null
+  const attestation = hosted?.attestationMode ?? 'none'
   return [
     {
       id: 'methods',
@@ -66,11 +65,26 @@ function useSectionLinks(
     {
       id: 'sso',
       title: <Trans>Single sign-on</Trans>,
-      summary: hosted?.forceSso ? (
-        <Trans>Required, password sign-in is off</Trans>
-      ) : (
-        <Trans>Not required</Trans>
-      ),
+      summary:
+        policy && effectiveForceSso(policy) ? (
+          <Trans>Required, other sign-in methods are off</Trans>
+        ) : policy?.loginPolicy.allowPasswordLogin === false ? (
+          <Trans>Not required, password sign-in is off</Trans>
+        ) : (
+          <Trans>Not required</Trans>
+        ),
+    },
+    {
+      id: 'attestation',
+      title: <Trans>Passkey attestation</Trans>,
+      summary:
+        attestation === 'direct' ? (
+          <Trans>Required</Trans>
+        ) : attestation === 'indirect' ? (
+          <Trans>Checked when present</Trans>
+        ) : (
+          <Trans>Not required</Trans>
+        ),
     },
     {
       id: 'sign-up',
@@ -145,6 +159,7 @@ export default function OrgAuthPolicyPage(): ReactNode {
               orgName={orgName}
               connection={connections?.[0] ?? null}
             />
+            <AttestationSection orgId={orgId} policy={policy} />
             <SignUpSection orgId={orgId} policy={policy} />
           </SettingsSections>
         </LockableFieldset>

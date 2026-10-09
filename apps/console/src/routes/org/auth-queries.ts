@@ -131,6 +131,41 @@ export function useSaveOrgAuthPolicy(
   )
 }
 
+export type TrustedRoot = {
+  fingerprint: string
+  notBefore: string
+  notAfter: string
+}
+
+export type TrustedRootsView = {
+  configured: boolean
+  data: TrustedRoot[]
+}
+
+const TRUSTED_ROOTS_PATH = '/v1/webauthn/trusted-roots'
+const trustedRootsKey = ['webauthn-trusted-roots'] as const
+
+// 可信根属于整个租户,服务端只允许顶层组织管理员读写。
+export function useTrustedRoots(enabled: boolean): UseQueryResult<TrustedRootsView, XidError> {
+  return useApiQuery<TrustedRootsView>(trustedRootsKey, TRUSTED_ROOTS_PATH, { enabled })
+}
+
+export function useReplaceTrustedRoots(
+  orgId: string,
+): UseMutationResult<TrustedRootsView, XidError, string> {
+  return useApiMutation<TrustedRootsView, string>(
+    (api, pem) =>
+      api.request<TrustedRootsView>(TRUSTED_ROOTS_PATH, { method: 'PUT', body: { pem } }),
+    { invalidate: [trustedRootsKey, queryKeys.orgAuthPolicy(orgId)] },
+  )
+}
+
+export function useRemoveTrustedRoots(orgId: string): UseMutationResult<void, XidError, void> {
+  return useApiMutation<void, void>((api) => api.del<void>(TRUSTED_ROOTS_PATH), {
+    invalidate: [trustedRootsKey, queryKeys.orgAuthPolicy(orgId)],
+  })
+}
+
 export function useOrgSocialProvidersView(
   orgId: string,
 ): UseQueryResult<OrgSocialProvidersView, XidError> {

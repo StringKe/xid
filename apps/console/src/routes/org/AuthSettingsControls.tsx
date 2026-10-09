@@ -36,6 +36,10 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-accent-wash'],
     boxShadow: `inset 0 0 0 1.5px ${tokens['--xid-accent']}`,
   },
+  cardDisabled: {
+    cursor: 'not-allowed',
+    opacity: 0.6,
+  },
   radio: {
     flexShrink: 0,
     width: '1.125rem',
@@ -127,6 +131,7 @@ export type ChoiceCardOption<T extends string> = {
   value: T
   label: ReactNode
   description: ReactNode
+  disabled?: boolean
 }
 
 export function ChoiceCards<T extends string>({
@@ -146,12 +151,17 @@ export function ChoiceCards<T extends string>({
       {options.map((option) => (
         <label
           key={option.value}
-          {...stylex.props(styles.card, option.value === value && styles.cardChecked)}
+          {...stylex.props(
+            styles.card,
+            option.value === value && styles.cardChecked,
+            option.disabled && styles.cardDisabled,
+          )}
         >
           <input
             type="radio"
             name={name}
             value={option.value}
+            disabled={option.disabled}
             checked={option.value === value}
             onChange={() => onChange(option.value)}
             {...stylex.props(styles.radio)}

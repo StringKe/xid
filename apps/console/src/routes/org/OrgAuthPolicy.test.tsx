@@ -64,6 +64,8 @@ const policy: OrgAuthPolicyView = {
       blockedEmailDomains: [],
     },
   },
+  loginPolicy: { forceSso: false, allowPasswordLogin: true },
+  attestationRootsConfigured: false,
   sessionPolicy: { idleTimeoutMin: 4320, absoluteTimeoutDays: 14 },
   tokenPolicy: {
     accessTokenTtlSec: 3600,
@@ -86,12 +88,23 @@ const insights: AuthPolicyInsights = {
   routedDomains: [],
 }
 
+let currentPolicy: OrgAuthPolicyView = policy
+
+const idleMutation = () => ({ mutate: vi.fn(), isPending: false, error: null })
+
 vi.mock('./auth-queries', () => ({
-  useOrgAuthPolicyView: () => ({ data: policy, isLoading: false, isError: false }),
+  useOrgAuthPolicyView: () => ({ data: currentPolicy, isLoading: false, isError: false }),
   useOrgAuthInsights: () => ({ data: insights }),
   useOrgSsoConnectionsView: () => ({ data: [] }),
-  useSaveOrgAuthPolicy: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  useSaveOrgAuthPolicy: () => idleMutation(),
+  useTrustedRoots: () => ({ data: { configured: false, data: [] }, isLoading: false }),
+  useReplaceTrustedRoots: () => idleMutation(),
+  useRemoveTrustedRoots: () => idleMutation(),
 }))
+
+function directRadio(html: string): string {
+  return html.match(/<input[^>]*value="direct"[^>]*>/)?.[0] ?? ''
+}
 
 import OrgAuthPolicyPage from './OrgAuthPolicy'
 
@@ -105,6 +118,7 @@ describe('OrgAuthPolicyPage', () => {
       'Save two-step verification',
       'Save sessions and tokens',
       'Save single sign-on',
+      'Save attestation',
       'Save sign-up settings',
     ]) {
       expect(html).toContain(label)
@@ -126,6 +140,43 @@ describe('OrgAuthPolicyPage', () => {
     expect(html).toContain('value="3"')
     expect(html).toContain('value="60"')
     expect(html).not.toContain('Session token TTL')
+  })
+
+  it('disables required attestation until trusted roots are configured', () => {
+    currentPolicy = policy
+
+    const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
+
+    expect(directRadio(html)).toContain('disabled')
+    expect(html).toContain('Add trusted roots first.')
+  })
+
+  it('enables required attestation once trusted roots are configured', () => {
+    currentPolicy = { ...policy, attestationRootsConfigured: true }
+
+    const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
+
+    expect(directRadio(html)).not.toContain('disabled')
+    currentPolicy = policy
+  })
+
+  it('warns when attestation is required but no trusted roots remain', () => {
+    currentPolicy = { ...policy, hostedAuth: { ...policy.hostedAuth, attestationMode: 'direct' } }
+
+    const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
+
+    expect(html).toContain('no one can register a passkey')
+    currentPolicy = policy
+  })
+
+  it('shows single sign-on as required when only the organization policy column enforces it', () => {
+    currentPolicy = { ...policy, loginPolicy: { forceSso: true, allowPasswordLogin: false } }
+
+    const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
+
+    expect(html).toContain('Required, other sign-in methods are off')
+    expect(html).toContain('Allow password sign-in')
+    currentPolicy = policy
   })
 
   it('does not render social provider or delivery channel configuration', () => {
