@@ -394,6 +394,17 @@ function isSafeScimPasswordScrub(statement) {
   )
 }
 
+// Only these SCIM uniqueness indexes may be dropped, because 0024 recreates each one under the same
+// name as a partial index over live rows; the relaxed constraint stays compatible with older code.
+function isSafeScimLiveUniquenessIndexDrop(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  return [
+    'DROP INDEX IF EXISTS `directory_users_dir_username_unq`',
+    'DROP INDEX IF EXISTS `directory_users_dir_external_unq`',
+    'DROP INDEX IF EXISTS `directory_groups_dir_name_unq`',
+  ].includes(normalized)
+}
+
 // Backfills only the new nullable send timestamp for reports already in flight.
 function isSafeMeterReportSentBackfill(statement) {
   const normalized = statement.replace(/\s+/gu, ' ').trim()
@@ -483,7 +494,8 @@ function isApprovedAdditiveStatement(statement) {
     isSafeInstanceManagerDeduplication(statement) ||
     isSafeSamlCertificateUniquenessCutover(statement) ||
     isSafeScimPasswordScrub(statement) ||
-    isSafeMeterReportSentBackfill(statement)
+    isSafeMeterReportSentBackfill(statement) ||
+    isSafeScimLiveUniquenessIndexDrop(statement)
   )
 }
 

@@ -302,6 +302,17 @@ END;`,
     ).toThrow('migration compatibility requires approved additive DDL only')
   })
 
+  it('accepts dropping only the three SCIM uniqueness indexes that 0024 recreates', () => {
+    const exact = 'DROP INDEX IF EXISTS `directory_users_dir_username_unq`;'
+
+    expect(() => assertMigrationCompatibility(migrationSet('0024_scim.sql', exact))).not.toThrow()
+    expect(() =>
+      assertMigrationCompatibility(
+        migrationSet('0024_scim.sql', 'DROP INDEX IF EXISTS `users_tenant_username_unq`;'),
+      ),
+    ).toThrow('migration compatibility requires approved additive DDL only')
+  })
+
   it('accepts only the exact meter report send-time backfill', () => {
     const exact =
       'UPDATE `billing_meter_reports` SET `pending_sent_at` = `pending_reserved_at` WHERE `pending_identifier` IS NOT NULL AND `provider_accepted_at` IS NULL;'
