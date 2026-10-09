@@ -214,9 +214,10 @@ export async function handleSessionHandoff(c: Context<XidHonoEnv>): Promise<Resp
   if (!state || !v.safeParse(handoffStateSchema, state).success) {
     throw new AppError('unauthorized', { httpStatus: 401 })
   }
-  clearStateCookie(c)
   const tenant = await resolveHandoffTenant(c, form.organizationId)
   const grant = await consumeGrant(c, { ...form, state, tenant })
+  // 只在消费成功后清除:第三方伪造的表单不能清掉用户正在进行的交接。
+  clearStateCookie(c)
   if (!isAuthorizeContinuation(grant.continuePath))
     throw new AppError('unauthorized', { httpStatus: 401 })
   await withTenant(c, tenant, async () => {
