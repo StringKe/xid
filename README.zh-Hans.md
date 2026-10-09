@@ -92,10 +92,11 @@ WebAuthn RP ID 和策略全部从单一 `TenantContext` 解析,因此同一份�
 
 ### 接入应用
 
-18 个 `@xid-kit/*` TypeScript package 已配置为可发布,并通过干净的本地 tarball 消费方门禁
-(`pnpm run sdk:distribution:verify`)。仓库内没有能够证明外部 registry 当前状态的发布证据,因此 npm
-发布状态为 `UNKNOWN`;除非你另外核验 registry,否则应使用 workspace 或本地生成的 tarball。下面是
-当前的公开接口。来自 `@xid-kit/react`:
+XID 不向 npm 或任何其他 package registry 发布 package。`@xid-kit/*` TypeScript SDK 以源码形式随本
+仓库分发。XID workspace 内的应用通过 `workspace:^` 依赖它们。其他仓库中的应用在固定的 XID commit
+上构建,用 `pnpm pack` 打包依赖闭包,再通过 `file:` 依赖引用这些 tarball。具体步骤见
+[`docs/zh-Hans/sdks/distribution.md`](docs/zh-Hans/sdks/distribution.md)。下面是当前的公开接口。来自
+`@xid-kit/react`:
 
 ```tsx
 import { XidProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@xid-kit/react'
@@ -271,14 +272,16 @@ public runtime kernel 是 `protocol`、`crypto` 与 `types`;private implementati
 
 `packages/` 下有 15 个 TypeScript SDK package:`core` 与 `backend`,外加面向 React、Next.js、Remix、
 Astro、Vue、Nuxt、Svelte、Solid、Angular、React Native、Expo、Electron 与 Tauri 的框架绑定。加上
-3 个 public runtime kernel(`crypto`、`protocol`、`types`),共有 18 个 package 配置为可发布,并通过
-干净的本地 tarball 安装测试。其余 5 个(`db`、`i18n`、`saml`、`web-ui`、`webauthn`)是 private
-implementation package。外部 npm registry 发布状态仍为 `UNKNOWN`;本地分发证据不等于 registry
-release 声明。
+它们引用的 3 个 runtime kernel(`crypto`、`protocol`、`types`),这 18 个 package 通过干净的本地
+tarball 安装测试(`pnpm run sdk:distribution:verify`)。其余 5 个(`db`、`i18n`、`saml`、`web-ui`、
+`webauthn`)是 Core 与 Console 的内部 package。XID 不向 npm 或任何其他 registry 发布 package;所有 SDK
+都以源码形式随本仓库分发,应用的使用方式见
+[`docs/zh-Hans/sdks/distribution.md`](docs/zh-Hans/sdks/distribution.md)。
 
 `sdk/` 下有 13 个原生 SDK:Go、Rust、Python、Ruby、PHP、Java、.NET、Windows、iOS、macOS、Linux、Android
-与 Flutter。**它们都没有发布到 crates.io、PyPI、Maven Central、RubyGems、Packagist、NuGet、CocoaPods
-或 pub.dev**,也不存在对应的发布流水线,只能从源码引用。CI 不安装任何语言工具链,也不运行它们的测试
+与 Flutter。它们以源码形式随本仓库分发,不发布到 crates.io、PyPI、Maven Central、RubyGems、Packagist、
+NuGet、CocoaPods 或 pub.dev。应用通过各自工具链的 Git 依赖或本地路径依赖引用,具体命令见各 SDK 的
+README。CI 不安装任何语言工具链,也不运行它们的测试
 套件;它校验的是 `tests/native-sdk-contract.test.mjs` 中的契约矩阵:`pnpm check` 在 `check` job 里调用
 `native:verify`,断言矩阵里每个平台条目都指向真实存在的目录。真正执行某个平台的工具链是本地按需动作:
 `XID_NATIVE_SDK_PLATFORM=go pnpm run native:verify`。各平台成熟度见

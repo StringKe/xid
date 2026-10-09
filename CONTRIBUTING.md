@@ -130,10 +130,13 @@ independent.
 
 ## Contributing to the native SDKs
 
-The 13 SDKs under `sdk/` are **not published to any package registry**. They exist so that server
-and client integrations in each language can be verified against the same protocol contract. You do
-not need to prepare release metadata (keywords, homepage, full descriptions) for them. Their
-`license` field is MIT to stay consistent with the repository.
+XID publishes no packages to any package registry. The 13 SDKs under `sdk/`, like the TypeScript
+`@xid-kit/*` packages, are distributed as source in this repository, and applications consume them
+through their toolchain's Git or local-path dependency
+([`docs/sdks/distribution.md`](docs/sdks/distribution.md)). They exist so that server and client
+integrations in each language can be verified against the same protocol contract. You do not need to
+prepare registry metadata (keywords, full descriptions) for them. Their `license` field is MIT to
+stay consistent with the repository.
 
 Verification is driven by `tests/native-sdk-contract.test.mjs`, which holds the per-platform command
 matrix and asserts that every platform in it points at a directory that exists. CI installs no

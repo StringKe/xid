@@ -1,7 +1,7 @@
 # Xid .NET Server SDK
 
-> Registry status: UNPUBLISHED. No external registry release is verified or authorized.
-> Use a local `ProjectReference` until an authorized NuGet release exists.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Use a `ProjectReference` to `sdk/dotnet/Xid.csproj` in a checkout.
 
 **Status: implemented (verified locally)**
 
@@ -28,8 +28,6 @@ XID Identity Platform 的 .NET 服务端 SDK。目标运行时 net8.0。
   <ProjectReference Include="../xid/sdk/dotnet/Xid.csproj" />
 </ItemGroup>
 ```
-
-`Xid` 是预留 NuGet package ID,当前不能通过 `<PackageReference>` 从 NuGet 安装。
 
 依赖:
 
@@ -263,6 +261,5 @@ sdk/dotnet/
 - [ ] **JWKS 预热**:启动时主动拉取 JWKS 而非等第一次请求触发,减少冷启动延迟
 - [ ] **多 Audience 支持**:XidOptions.Audience 目前只接受单字符串,待支持 `IEnumerable<string>`
 - [ ] **PS256 公钥解析验证**:RSA 公钥路径同时服务 RS256 和 PS256,需确认 alg 头匹配逻辑
-- [ ] **NuGet 发布流水线**:GitHub Actions CI(build / test / pack / publish)
 - [ ] **Source Link 与符号包**:调试体验
 - [ ] **ASP.NET Core Middleware**:封装 AuthenticateRequestAsync 为标准 AuthenticationHandler,接入 [Authorize] 属性体系

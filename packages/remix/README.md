@@ -1,16 +1,57 @@
 # @xid-kit/remix
 
-Distribution status: release artifacts are verified locally, but no npm publish has been performed.
-Install commands become registry-backed only after an authorized release. See
-https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+XID 不向 npm 发布任何包，`@xid-kit/remix` 以源码形式在 XID 仓库中分发。
 
 XID 身份平台的 Remix SDK。提供 loader/action server 认证 helpers、cookie session 集成、OAuth callback helper,以及 `@xid-kit/core` / `@xid-kit/react` 客户端 API 的 re-export。
 
 ## 安装
 
-```bash
-pnpm add @xid-kit/remix @remix-run/node @remix-run/react react
+在 XID 仓库内，通过 workspace 引用：
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/remix": "workspace:^"
+  }
+}
 ```
+
+在其他仓库中，从固定的 XID commit 构建，并打包完整依赖闭包：
+
+```bash
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/remix... build
+for pkg in types crypto protocol core backend react remix; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
+```
+
+在应用的 `package.json` 中引用全部 tarball：
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/protocol": "file:vendor/xid/xid-kit-protocol-0.1.0-alpha.0.tgz",
+    "@xid-kit/core": "file:vendor/xid/xid-kit-core-0.1.0-alpha.0.tgz",
+    "@xid-kit/backend": "file:vendor/xid/xid-kit-backend-0.1.0-alpha.0.tgz",
+    "@xid-kit/react": "file:vendor/xid/xid-kit-react-0.1.0-alpha.0.tgz",
+    "@xid-kit/remix": "file:vendor/xid/xid-kit-remix-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+Remix 与 React peer 依赖照常安装：
+
+```bash
+pnpm add @remix-run/node @remix-run/react react
+```
+
+详见 [SDK 分发指南](../../docs/sdks/distribution.md)。
 
 ## 快速上手
 

@@ -1,7 +1,7 @@
 # xid/xid -- PHP Server SDK
 
-> Registry status: UNPUBLISHED. No Packagist release is verified or authorized.
-> Use a Composer path repository from a source checkout.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Use a Composer `path` repository pointing at `sdk/php` in a checkout.
 
 **Status: implemented (verified locally)**
 本机 `run-tests.php` 与 PHPUnit 全部 PASS(见 `docs/sdks/platform-matrix.md`)。核心流程已完整。

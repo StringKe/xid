@@ -1,7 +1,7 @@
 # xid -- XID Identity Platform Python Server SDK
 
-> Registry status: UNPUBLISHED. No PyPI release is verified or authorized.
-> Use the Git source installation below.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Install with `pip` from the Git repository using `#subdirectory=sdk/python`.
 
 **Status: implemented (verified locally)**
 
@@ -223,8 +223,7 @@ if claims.is_guest:
 1. **PS256 算法测试** -- RS-PSS 公钥加载路径需单独验证。
 2. **同步 API** -- `verify_token` 和 `authenticate_request` 目前为 async;需要同步场景(Django/Flask)可包一层 `asyncio.run()`。
 3. **类型存根(.pyi)** -- 生成 `xid/*.pyi` 供 IDE 类型检查。
-4. **发布到 PyPI** -- 配置 GitHub Actions CI:lint + test + publish on tag。
-5. **Discovery 端点刷新** -- 当前 JWKS URI 硬编码为 `{issuer}/jwks`,可选择从 `/.well-known/openid-configuration` 动态取 `jwks_uri`。
+4. **Discovery 端点刷新** -- 当前 JWKS URI 硬编码为 `{issuer}/jwks`,可选择从 `/.well-known/openid-configuration` 动态取 `jwks_uri`。
 
 ---
 

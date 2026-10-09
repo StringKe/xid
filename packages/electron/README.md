@@ -1,8 +1,6 @@
 # @xid-kit/electron
 
-Distribution status: release artifacts are verified locally, but no npm publish has been performed.
-Install commands become registry-backed only after an authorized release. See
-https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+XID publishes no packages to npm; `@xid-kit/electron` is distributed as source in the XID repository.
 
 XID identity platform SDK for Electron apps. Implements the Shared Native Contract
 (Authorization Code + PKCE S256, system browser, no client secret) with:
@@ -23,6 +21,49 @@ Entry points:
 @xid-kit/electron/renderer  # renderer process only
 @xid-kit/electron/preload   # preload script
 ```
+
+---
+
+## Install
+
+Inside the XID repository, reference the workspace package:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/electron": "workspace:^"
+  }
+}
+```
+
+In another repository, build the package from a pinned XID commit and pack its dependency closure:
+
+```bash
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/electron... build
+for pkg in types crypto protocol core electron; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
+```
+
+Reference every tarball from the application's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/protocol": "file:vendor/xid/xid-kit-protocol-0.1.0-alpha.0.tgz",
+    "@xid-kit/core": "file:vendor/xid/xid-kit-core-0.1.0-alpha.0.tgz",
+    "@xid-kit/electron": "file:vendor/xid/xid-kit-electron-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+See the [SDK distribution guide](../../docs/sdks/distribution.md) for details.
 
 ---
 

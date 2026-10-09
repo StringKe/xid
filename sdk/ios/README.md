@@ -1,7 +1,7 @@
 # XID iOS Swift SDK
 
-> Registry status: UNPUBLISHED. No standalone Swift package release or CocoaPods release is
-> verified or authorized. Use a local package path from a source checkout.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Add `sdk/ios` as a Swift Package Manager local package from a checkout.
 
 > **Status: implemented (verified locally)**
 > 本机 `swift test` 全部 PASS(macOS 编译,模拟 iOS 目标,见 `docs/sdks/platform-matrix.md`)。
@@ -144,7 +144,7 @@ if session.isAnonymous {
 - **建号能力**:真正创建或续签 guest 前先 GET `/auth/config?intent=sign-up`,严格读取一次性 `guest.capabilityToken`,再随 POST `/auth/guest` 提交;capability 不缓存或复用。
 - **没有 access token**:guest 会话的凭证是服务端 session cookie,SDK 自动捕获、持久化到 Keychain 并在 `/v1/me` 请求上回放;`session.accessToken` 为 nil,`getAccessToken()` 对 guest 会话会抛 `noActiveSession`。
 - **不可恢复、单设备**:guest 没有凭证,登出或清除数据即永久丢失,服务端 GC 也会回收长期不活跃的 guest。产品应持续引导用户转正。
-- **sub 连续性**:在 guest 会话内完成任一正式登录(转正)后 `session.user.sub` 不变,RP 侧数据自然延续;若用户转而登入另一个既有账号,sub 会变——对比新旧 `session.user.sub` 即可识别,数据合并由 RP 应用层负责。
+- **sub 连续性**:在 guest 会话内完成任一正式登录(转正)后 `session.user.sub` 不变,RP 侧数据自然延续;若用户转而登入另一个既有账号,sub 会变,对比新旧 `session.user.sub` 即可识别,数据合并由 RP 应用层负责。
 - **Turnstile**:仅当服务端启用 Turnstile 时需要传入,`signInAnonymously(turnstileToken: "...")`,native 端通常不需要。
 
 ### 8. 自定义 Token 存储

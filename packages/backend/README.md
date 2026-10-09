@@ -1,8 +1,6 @@
 # @xid-kit/backend
 
-Distribution status: release artifacts are verified locally, but no npm publish has been performed.
-Install commands become registry-backed only after an authorized release. See
-https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+XID publishes no packages to npm; `@xid-kit/backend` is distributed as source in the XID repository.
 
 Backend SDK for XID token and webhook verification.
 
@@ -28,5 +26,44 @@ Security:
 cookie is accepted only when `jwtCookieName` is configured. For a same-origin Core deployment,
 configure `sessionTokenExchange: { endpoint: '/v1/sessions/token' }`; a separate-origin deployment
 must perform an explicit Bearer/JWT handoff.
+
+## Install
+
+Inside the XID repository, reference the workspace package:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/backend": "workspace:^"
+  }
+}
+```
+
+In another repository, build the package from a pinned XID commit and pack its dependency closure:
+
+```bash
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/backend... build
+for pkg in types crypto backend; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
+```
+
+Reference every tarball from the application's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/backend": "file:vendor/xid/xid-kit-backend-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+See the [SDK distribution guide](../../docs/sdks/distribution.md) for details.
 
 See `docs/sdks/backend.md` and `docs/sdks/platform-matrix.md`.

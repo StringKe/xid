@@ -4,18 +4,44 @@
 
 ## Install
 
-Registry availability is currently `UNKNOWN`: the repository verifies installable local tarballs,
-but no npm publication has been performed or authorized. From a source checkout, use the workspace
-package directly or build and install the audited tarball:
+XID publishes no packages to npm; `@xid-kit/backend` is distributed as source in the XID repository.
 
-```sh
-pnpm --filter @xid-kit/backend build
-pnpm --dir packages/backend pack --pack-destination /tmp/xid-sdk-packs
-npm install /tmp/xid-sdk-packs/xid-kit-backend-0.1.0-alpha.0.tgz
+Inside the XID repository, reference the workspace package:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/backend": "workspace:^"
+  }
+}
 ```
 
-After an independently verified npm release, the registry-backed command is
-`pnpm add @xid-kit/backend`. See [SDK Distribution](./distribution.md).
+In another repository, build the package from a pinned XID commit and pack its dependency closure:
+
+```sh
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/backend... build
+for pkg in types crypto backend; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
+```
+
+Reference every tarball from the application's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/backend": "file:vendor/xid/xid-kit-backend-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+See [SDK Distribution](./distribution.md) for details.
 
 ## Runtime support
 
@@ -174,5 +200,4 @@ try {
 - Expected failures return `Result` types; unexpected errors throw `AppError`.
 - Webhook validation binds body, timestamp, and signature with a 5-minute replay window.
 
-Status: current workspace package with locally verified release artifacts. npm registry
-availability remains `UNKNOWN`.
+Status: current workspace package with locally verified vendored tarballs.

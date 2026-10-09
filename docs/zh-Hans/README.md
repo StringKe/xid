@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/README.md source-commit=working-tree source-blob=53953997e899906007b563488e4221ee02031f22 -->
+<!-- xid-translation source=docs/README.md source-commit=working-tree source-blob=11c11646e0752f002fc490abd74b9b82772daf16 -->
 
 > Translation of `docs/README.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/README.md`](../README.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -27,7 +27,7 @@ XID 是跑在 Cloudflare Workers 上的多租户身份认证平台:OIDC/OAuth2 I
 | Flutter                        | [sdks/flutter.md](../sdks/flutter.md)                |
 | HTTP 接口契约(不用 SDK 直接调) | [api-contracts.md](../api-contracts.md)              |
 
-`sdk/` 目录下的 13 个原生 SDK 不发布到任何 registry,以源码形式内置在仓库,详见平台矩阵。
+XID 不向 npm 或任何其他 registry 发布 package。TypeScript `@xid-kit/*` package 与 `sdk/` 下的 13 个原生 SDK 都以源码形式在仓库中分发,见 [sdks/distribution.md](../sdks/distribution.md)。
 
 ## 我想知道 XID 支持哪些协议、支持到什么程度
 

@@ -1,7 +1,7 @@
 # xid-linux
 
-> Registry status: UNPUBLISHED. No crates.io release is verified or authorized.
-> Use the local path dependency below.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Use a Cargo `path` dependency on `sdk/linux` in a checkout.
 
 **Status: implemented (verified locally)**
 
@@ -28,9 +28,7 @@ XID 身份平台 Linux 桌面 SDK。实现 Hosted Auth + OIDC Authorization Code
 
 ```toml
 [dependencies]
-xid-linux = { path = "../sdk/linux" }   # 本地开发
-# 或发布后:
-# xid-linux = "0.1"
+xid-linux = { path = "../sdk/linux" }
 tokio = { version = "1", features = ["full"] }
 ```
 

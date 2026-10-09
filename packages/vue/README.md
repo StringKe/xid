@@ -1,8 +1,6 @@
 # @xid-kit/vue
 
-Distribution status: release artifacts are verified locally, but no npm publish has been performed.
-Install commands become registry-backed only after an authorized release. See
-https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+XID publishes no packages to npm; `@xid-kit/vue` is distributed as source in the XID repository.
 
 Vue 3 SDK for the XID identity platform. Provides Plugin, composables, and prebuilt components
 on top of `@xid-kit/core`.
@@ -11,11 +9,50 @@ on top of `@xid-kit/core`.
 
 ## Installation
 
-```bash
-pnpm add @xid-kit/vue vue
+Inside the XID repository, reference the workspace package:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/vue": "workspace:^"
+  }
+}
 ```
 
-Vue 3 is a peer dependency (`^3.4.0`).
+In another repository, build the package from a pinned XID commit and pack its dependency closure:
+
+```bash
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/vue... build
+for pkg in types crypto protocol core vue; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
+```
+
+Reference every tarball from the application's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/protocol": "file:vendor/xid/xid-kit-protocol-0.1.0-alpha.0.tgz",
+    "@xid-kit/core": "file:vendor/xid/xid-kit-core-0.1.0-alpha.0.tgz",
+    "@xid-kit/vue": "file:vendor/xid/xid-kit-vue-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+Vue 3 is a peer dependency (`^3.4.0`); install it as usual:
+
+```bash
+pnpm add vue
+```
+
+See the [SDK distribution guide](../../docs/sdks/distribution.md) for details.
 
 ---
 

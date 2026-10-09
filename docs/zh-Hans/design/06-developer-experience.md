@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=working-tree source-blob=6fcf13336e017967ecc37cf348936be0fa83f965 -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=working-tree source-blob=73d50d7ab0e0056c5acca52cd259ff6f3eb0793a -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -527,21 +527,20 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform 用
 - Management API:/v1/users 列表支持 ?provisioned_by=anonymous 过滤,不新增端点。
 - 审计与 webhook 事件名(见第 8 节):guest.created、guest.converted、guest.gc_deleted。
 
-## 11. SDK 分发边界
+## 11. SDK 分发
 
-状态:TypeScript release graph 可以生成并消费经审计的 `0.1.0-alpha.0` tarball,但当前没有执行或
-授权 npm publication。因此 registry availability 是 `UNKNOWN`,不是 supported。
+XID 不向 npm 或任何其他 package registry 发布 package。所有 SDK 都以源码形式在 XID 仓库中分发。
 
-- 公开 graph 是 15 个 SDK package 加 `@xid-kit/types`、`@xid-kit/crypto`、
-  `@xid-kit/protocol`。输出的 SDK runtime 或 declaration file 会 import 这些 kernel,因此它们
-  必须是公开 release dependency。公开 artifact 不得依赖 private workspace-only package。
-- 源码 manifest 使用 `workspace:^`;packed manifest 必须是具体 `^0.1.0-alpha.0` range,且不得
-  包含 `workspace:` 或 `catalog:` protocol。
-- `pnpm run sdk:distribution:verify` 是 release artifact gate。它用 `vp pack` 构建、创建并审计
-  全部 tarball,再把它们安装到 workspace 外的全新 consumer 做 TypeScript 与 runtime import
-  检查。它不会 publish,也不会读取 registry credential。
-- 13 个 native SDK 继续 source-only。Manifest 和 README distribution claim 有静态 gate;真实
-  registry publication、package name ownership、signing、provenance 与各平台 release
-  automation 都保持外部 `UNKNOWN`。
+- TypeScript SDK 是 15 个 SDK package,加上输出的 SDK runtime 与 declaration file 会 import 的
+  `@xid-kit/types`、`@xid-kit/crypto`、`@xid-kit/protocol` 三个 kernel。每个
+  `packages/*/package.json` 都是 `"private": true` 且没有 `publishConfig`;任一保护被移除时,
+  `pnpm run sdk:distribution:contract` 会失败。
+- 仓库内的应用通过 `workspace:^` 依赖 SDK。其他仓库中的应用 vendor 从固定 commit 用 `vp pack`
+  与 `pnpm pack` 构建的 tarball;packed manifest 使用具体的 `^0.1.0-alpha.0` range,不含
+  `workspace:` 或 `catalog:` protocol。
+- `pnpm run sdk:distribution:verify` 用 `vp pack` 构建、创建并审计全部 tarball,再把它们安装到
+  workspace 外的全新 consumer 做 TypeScript 与 runtime import 检查。
+- 13 个 native SDK 通过各自工具链的 Git 或 local-path dependency 使用。
+  `pnpm run native:verify` 检查其 manifest metadata 与每个 README 中的源码分发说明。
 
-完整 package graph、gate 行为与手工 tarball 命令见 `docs/sdks/distribution.md`。
+使用方式、每个 SDK 的 vendoring closure 与验证步骤见 `docs/sdks/distribution.md`。

@@ -24,7 +24,7 @@ Start with the SDKs, then read the protocol detail you need.
 | Flutter                                        | [sdks/flutter.md](./sdks/flutter.md)                 |
 | HTTP contract (calling the API without an SDK) | [api-contracts.md](./api-contracts.md)               |
 
-The 13 native SDKs under `sdk/` are published to no registry. They ship as source inside the repository; see the platform matrix.
+XID publishes no packages to npm or to any other registry. The TypeScript `@xid-kit/*` packages and the 13 native SDKs under `sdk/` are distributed as source in the repository; see [sdks/distribution.md](./sdks/distribution.md).
 
 ## I want to know which protocols XID supports, and how far
 

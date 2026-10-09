@@ -1,15 +1,47 @@
 # @xid-kit/astro
 
-Distribution status: release artifacts are verified locally, but no npm publish has been performed.
-Install commands become registry-backed only after an authorized release. See
-https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+XID 不向 npm 发布任何包，`@xid-kit/astro` 以源码形式在 XID 仓库中分发。
 
 XID 身份平台的 Astro SDK。提供 Astro integration(自动注入已配置的 middleware)、SSR middleware(认证状态注入 `Astro.locals`)、岛屿客户端单例(`getClient`)。
 
 ## 安装
 
+在 XID 仓库内，通过 workspace 引用：
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/astro": "workspace:^"
+  }
+}
+```
+
+在其他仓库中，从固定的 XID commit 构建，并打包完整依赖闭包：
+
 ```bash
-pnpm add @xid-kit/astro
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/astro... build
+for pkg in types crypto protocol core backend astro; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
+```
+
+在应用的 `package.json` 中引用全部 tarball：
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/protocol": "file:vendor/xid/xid-kit-protocol-0.1.0-alpha.0.tgz",
+    "@xid-kit/core": "file:vendor/xid/xid-kit-core-0.1.0-alpha.0.tgz",
+    "@xid-kit/backend": "file:vendor/xid/xid-kit-backend-0.1.0-alpha.0.tgz",
+    "@xid-kit/astro": "file:vendor/xid/xid-kit-astro-0.1.0-alpha.0.tgz"
+  }
+}
 ```
 
 Peer dependency:
@@ -17,6 +49,8 @@ Peer dependency:
 ```
 astro >= 4.0.0
 ```
+
+详见 [SDK 分发指南](../../docs/sdks/distribution.md)。
 
 ## 快速上手
 

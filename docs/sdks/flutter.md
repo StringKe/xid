@@ -33,7 +33,7 @@ dependencies:
       ref: main
 ```
 
-This SDK is not published to pub.dev; use the git dependency above or vendor `sdk/flutter` into your own repository.
+XID distributes this SDK as source only; use the git dependency above or vendor `sdk/flutter` into your own repository.
 
 Run `flutter pub get`.
 
@@ -165,5 +165,3 @@ Replaces the token storage backend. Default: `SecureStorageAdapter` (flutter_sec
 - **Cross-platform App Links**: macOS / Linux callback receipt requires additional configuration per flutter_web_auth_2 docs.
 - **`flutter_secure_storage` / `flutter_web_auth_2` platform channels**: not covered by pure-Dart unit tests; require real device or simulator.
 - **Real IdP L4**: a real issuer, application registration, browser callback and token exchange have not been verified on a device or simulator.
-- **pub.dev publishing**: the `xid` registry name is already occupied and no registry ownership or
-  alternate package name has been approved.

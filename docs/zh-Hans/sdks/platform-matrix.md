@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/sdks/platform-matrix.md source-commit=working-tree source-blob=f6c31222c6d3ea95766b7b84ca5598676872288c -->
+<!-- xid-translation source=docs/sdks/platform-matrix.md source-commit=working-tree source-blob=334699d529e85609ad54e50361a49f3a0e850c1b -->
 
 > Translation of `docs/sdks/platform-matrix.md`. The English version is authoritative.
 > 本文是 [`docs/sdks/platform-matrix.md`](../../sdks/platform-matrix.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -11,23 +11,24 @@
 
 ## 分发方式
 
-- 15 个公开 TypeScript SDK 及其 3 个必需 runtime kernel(`types`、`crypto`、`protocol`)可以生成
-  经审计的 `0.1.0-alpha.0` npm tarball。**当前没有执行或授权 npm publish。**
-  `pnpm run sdk:distribution:verify` 使用 `vp pack` 构建并审计全部 tarball,然后把代表性 tarball
-  dependency closure 安装到全新 consumer,严格检查类型、runtime、browser、Worker 与 native peer
-  resolution。见
-  [distribution.md](distribution.md)。
+XID 不向 npm 或任何其他 package registry 发布 package。所有 SDK 都以源码形式在 XID 仓库中分发;
+应用如何使用每个 SDK 见 [distribution.md](distribution.md)。
+
+- 15 个 TypeScript SDK 及其 import 的 3 个 runtime kernel(`types`、`crypto`、`protocol`)是
+  `@xid-kit/*` workspace package,源码版本为 `0.1.0-alpha.0`。应用通过 pnpm workspace 使用,或
+  vendor 从固定 commit 构建的 tarball。`pnpm run sdk:distribution:verify` 使用 `vp pack` 构建并
+  审计全部 tarball,然后把代表性 tarball dependency closure 安装到全新 consumer,严格检查类型、
+  runtime、browser、Worker 与 native peer resolution。
 - `sdk/` 下的 13 个原生 SDK(go、java、rust、php、ruby、python、dotnet、ios、android、macos、
-  windows、linux、flutter)**没有发布到任何 registry**,包括 crates.io、PyPI、Maven Central、
-  RubyGems、Packagist、NuGet、CocoaPods、Swift Package Registry、pub.dev。它们以源码分发。
-  `pnpm native:verify` 检查目录、package manifest、package-format metadata 与真实的 source-only
-  README 文案。各语言真实测试套件继续由本地显式触发
+  windows、linux、flutter)通过各自工具链的 Git 或 local-path dependency 使用。
+  `pnpm native:verify` 检查目录、package manifest、package-format metadata,以及每个 README 中的
+  源码分发说明。各语言真实测试套件继续由本地显式触发
   (`XID_NATIVE_SDK_PLATFORM=go pnpm native:verify`),见 [../deployment.md](../deployment.md)。
 
 ## 状态规则
 
-- `current package`:仓库中已有 package、源码、测试入口、workspace 配置与本地验证过的 release
-  artifact,不代表已发布到 registry。
+- `current package`:仓库中已有 package、源码、测试入口、workspace 配置与验证过的 vendoring
+  tarball。
 - `implemented`:工具链编译通过 + 单元测试全部 PASS。**真实 IdP round-trip(L4)尚未验证,不要按完整 production SDK 预期**。
 - `scaffold`:仓库中已有最小 package、类型、README 或 sample 的起步骨架,**不是完整 production SDK**。源码存在但测试未通过验证。生产前必须真实工具链编译 + 对真实 IdP round-trip 验证。
 - `planned design`:只有平台设计和集成流程,仓库中没有任何代码骨架(当前全部平台已至少 scaffold,本状态保留给未来新增平台)。

@@ -1,7 +1,7 @@
 # xid - XID 身份平台 Rust 服务端 SDK
 
-> Registry status: UNPUBLISHED. No crates.io release is verified or authorized.
-> Use the local path dependency below.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Use a Cargo `path` dependency on `sdk/rust` in a checkout.
 
 > **Status: implemented (verified locally)**
 > 本机 `cargo test` 全部 PASS(见 `docs/sdks/platform-matrix.md`)。
@@ -249,7 +249,6 @@ pub struct WebhookPayload {
 | P1 | RS256 / PS256 端到端实测 |
 | P2 | JWKS 持久化缓存(跨进程重启,可选 redis/文件) |
 | P2 | webhook svix-id 持久化去重 hook(当前仅时间窗防护) |
-| P2 | 发布到 crates.io + CI |
 | P3 | ES384 / ES512 支持 |
 
 ---

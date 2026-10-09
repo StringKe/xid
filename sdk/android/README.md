@@ -1,7 +1,7 @@
 # XID Android SDK
 
-> Registry status: UNPUBLISHED. No external registry release is verified or authorized.
-> Use the source checkout or local project instructions below.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Include `sdk/android` as a Gradle project from a checkout.
 
 > **Status: implemented (verified locally)**
 > 本机 `gradle testDebugUnitTest` 全部 PASS(JVM 单测,见 `docs/sdks/platform-matrix.md`)。
@@ -27,8 +27,6 @@ dependencies {
     implementation(project(":xid-android"))
 }
 ```
-
-`dev.xid:xid-android:0.1.0-alpha.0` 是预留 Maven coordinate,当前不能从 Maven Central 安装。
 
 ---
 

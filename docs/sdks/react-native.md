@@ -10,19 +10,52 @@ deep-link and real-IdP device evidence remain pending.
 
 ## Install
 
-Registry status is `UNPUBLISHED`: local release artifacts are verified, but no npm publication has
-been performed or authorized. The XID registry command below is post-publication only and becomes
-valid after an independently verified authorized release. Until then, install XID from a source
-checkout or audited tarball as described in [SDK Distribution](./distribution.md). React and React
-Native keep their normal registry installation.
+XID publishes no packages to npm; `@xid-kit/react-native` is distributed as source in the XID
+repository.
+
+Inside the XID repository, reference the workspace package:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/react-native": "workspace:^"
+  }
+}
+```
+
+In another repository, build the package from a pinned XID commit and pack its dependency closure:
 
 ```sh
-# Post-publication only
-pnpm add @xid-kit/react-native
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/react-native... build
+for pkg in types crypto protocol react-native; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
+```
 
-# Public peer dependencies
+Reference every tarball from the application's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/protocol": "file:vendor/xid/xid-kit-protocol-0.1.0-alpha.0.tgz",
+    "@xid-kit/react-native": "file:vendor/xid/xid-kit-react-native-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+Install the React and React Native peers as usual:
+
+```sh
 pnpm add react@^19 react-native
 ```
+
+See [SDK Distribution](./distribution.md) for details.
 
 This package has no runtime dependency on `@xid-kit/react`, `@xid-kit/core` or `react-dom`.
 

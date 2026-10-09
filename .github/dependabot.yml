@@ -3,7 +3,7 @@
 # Scope rationale:
 # - npm and github-actions are weekly. They cover the shipped Worker, the SPA, all @xid-kit/*
 #   packages, and the CI supply chain, so their vulnerability window matters most.
-# - The 13 SDKs under sdk/ are not published to any registry, but they carry real third-party
+# - The 13 SDKs under sdk/ are distributed as source in this repository, and they carry real third-party
 #   runtime dependencies (JWT, HTTP, crypto, secure storage). Their updates only need to pass the
 #   CI contract test, so they run monthly and are grouped into a single pull request per ecosystem
 #   to keep noise down.

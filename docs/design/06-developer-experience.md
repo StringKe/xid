@@ -644,24 +644,24 @@ GuestStore DO, GC cron, React and native SDK APIs); the per-platform status live
 - Audit and webhook event names (see section 8): `guest.created`, `guest.converted`, and
   `guest.gc_deleted`.
 
-## 11. SDK distribution boundary
+## 11. SDK distribution
 
-Status: the TypeScript release graph can produce and consume audited `0.1.0-alpha.0` tarballs, but
-no npm publication has been performed or authorized. Registry availability is therefore
-`UNKNOWN`, not supported.
+XID publishes no packages to npm or to any other package registry. Every SDK is distributed as
+source in the XID repository.
 
-- The public graph is the 15 SDK packages plus `@xid-kit/types`, `@xid-kit/crypto`, and
-  `@xid-kit/protocol`. Those kernels are public release dependencies because emitted SDK runtime or
-  declaration files import them. A public artifact must never depend on a private workspace-only
-  package.
-- Source manifests use `workspace:^`; packed manifests must contain concrete
-  `^0.1.0-alpha.0` ranges and no `workspace:` or `catalog:` protocol.
-- `pnpm run sdk:distribution:verify` is the release artifact gate. It builds with `vp pack`, creates
-  and audits all tarballs, and installs them into a fresh out-of-workspace consumer for TypeScript
-  and runtime import checks. It never publishes or reads registry credentials.
-- The 13 native SDKs remain source-only. Their manifests and README distribution claims have a
-  static gate, while actual registry publication, package-name ownership, signing, provenance, and
-  per-platform release automation remain external `UNKNOWN` work.
+- The TypeScript SDKs are the 15 SDK packages plus the `@xid-kit/types`, `@xid-kit/crypto`, and
+  `@xid-kit/protocol` kernels that emitted SDK runtime and declaration files import. Every
+  `packages/*/package.json` is `"private": true` with no `publishConfig`, and
+  `pnpm run sdk:distribution:contract` fails if either guard is dropped.
+- Applications inside the repository depend on an SDK through `workspace:^`. Applications in
+  another repository vendor tarballs built from a pinned commit with `vp pack` and `pnpm pack`;
+  packed manifests carry concrete `^0.1.0-alpha.0` ranges and no `workspace:` or `catalog:`
+  protocol.
+- `pnpm run sdk:distribution:verify` builds with `vp pack`, creates and audits all tarballs, and
+  installs them into fresh out-of-workspace consumers for TypeScript and runtime import checks.
+- The 13 native SDKs are consumed through each toolchain's Git or local-path dependency.
+  `pnpm run native:verify` checks their manifest metadata and the source-distribution statement in
+  every README.
 
-The complete package graph, gate behavior, and manual tarball command are documented in
+Consumption paths, the vendoring closure per SDK, and the verification steps are documented in
 `docs/sdks/distribution.md`.

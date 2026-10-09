@@ -1,7 +1,7 @@
 # @xid/macos (Swift)
 
-> Registry status: UNPUBLISHED. No standalone Swift package release or CocoaPods release is
-> verified or authorized. Use a local package path from a source checkout.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Add `sdk/macos` as a Swift Package Manager local package from a checkout.
 
 > Status: implemented (verified locally)
 >

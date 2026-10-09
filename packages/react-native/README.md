@@ -1,8 +1,6 @@
 # @xid-kit/react-native
 
-Distribution status: release artifacts are verified locally, but no npm publish has been performed.
-Install commands become registry-backed only after an authorized release. See
-https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+XID publishes no packages to npm; `@xid-kit/react-native` is distributed as source in the XID repository.
 
 **Status: implemented locally.** This package owns a secure native OIDC token session. It
 implements Hosted Auth, state-keyed PKCE S256 and nonce, JWKS ID token verification, restart
@@ -31,10 +29,49 @@ See `docs/sdks/platform-matrix.md` for the full capability matrix.
 
 ## Installation
 
+Inside the XID repository, reference the workspace package:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/react-native": "workspace:^"
+  }
+}
+```
+
+In another repository, build the package from a pinned XID commit and pack its dependency closure:
+
 ```sh
-pnpm add @xid-kit/react-native
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/react-native... build
+for pkg in types crypto protocol react-native; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
+```
+
+Reference every tarball from the application's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/protocol": "file:vendor/xid/xid-kit-protocol-0.1.0-alpha.0.tgz",
+    "@xid-kit/react-native": "file:vendor/xid/xid-kit-react-native-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+Install the React and React Native peers as usual:
+
+```sh
 pnpm add react@^19 react-native
 ```
+
+See the [SDK distribution guide](../../docs/sdks/distribution.md) for details.
 
 The package does not depend on `@xid-kit/react`, `@xid-kit/core` or `react-dom`.
 

@@ -1,7 +1,7 @@
 # Xid.Windows
 
-> Registry status: UNPUBLISHED. No external registry release is verified or authorized.
-> Use a local `ProjectReference` until an authorized NuGet release exists.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Use a `ProjectReference` to `sdk/windows/Xid.Windows.csproj` in a checkout.
 
 **Status: implemented (verified locally)**
 
@@ -25,8 +25,6 @@ XID 身份平台 Windows 客户端 SDK,面向 WinUI 3 / Windows App SDK 应用�
   <ProjectReference Include="../xid/sdk/windows/Xid.Windows.csproj" />
 </ItemGroup>
 ```
-
-`Xid.Windows` 是预留 NuGet package ID,当前不能通过 `<PackageReference>` 从 NuGet 安装。
 
 前置要求:
 

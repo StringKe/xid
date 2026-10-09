@@ -102,10 +102,11 @@ Durable Object가 직렬화하며, JWKS는 KV에 캐시되어 Relying Party가 �
 
 ### 애플리케이션 연동
 
-18개의 `@xid-kit/*` TypeScript 패키지는 publishable로 설정되어 있으며 깨끗한 로컬 tarball consumer
-gate(`pnpm run sdk:distribution:verify`)를 통과합니다. 외부 registry의 현재 상태를 입증하는 release
-evidence는 저장소에 없으므로 npm 배포 상태는 `UNKNOWN`입니다. registry를 별도로 검증하지 않았다면
-workspace 또는 로컬에서 만든 tarball을 사용해야 합니다. 아래 API가 현재의 공개 표면입니다.
+XID는 npm이나 다른 어떤 package registry에도 패키지를 게시하지 않습니다. `@xid-kit/*` TypeScript
+SDK는 이 저장소의 소스로 배포됩니다. XID workspace 안의 애플리케이션은 `workspace:^`로 의존합니다. 다른
+저장소의 애플리케이션은 고정한 XID commit에서 빌드하고, `pnpm pack`으로 의존성 closure를 tarball로 만든
+뒤 `file:` 의존성으로 참조합니다. 정확한 절차는 [`docs/sdks/distribution.md`](docs/sdks/distribution.md)에
+있습니다. 아래 API가 현재의 공개 표면입니다.
 `@xid-kit/react`에서:
 
 ```tsx
@@ -291,16 +292,16 @@ XML-DSig는 `xmldsigjs`에 위임하며, 그 사이의 프로토콜과 비즈니
 
 `packages/` 아래에는 TypeScript SDK 패키지 15개가 있습니다. `core`와 `backend`, 그리고 React,
 Next.js, Remix, Astro, Vue, Nuxt, Svelte, Solid, Angular, React Native, Expo, Electron, Tauri용
-framework binding입니다. public runtime kernel 3개(`crypto`, `protocol`, `types`)를 합친 18개
-패키지가 publishable로 설정되어 있고 깨끗한 로컬 tarball installation test를 통과합니다. 나머지
-5개(`db`, `i18n`, `saml`, `web-ui`, `webauthn`)는 private implementation 패키지입니다. 외부 npm
-registry 배포 상태는 여전히 `UNKNOWN`이며, 로컬 distribution evidence는 registry release를
-입증하지 않습니다.
+framework binding입니다. 이들이 import하는 runtime kernel 3개(`crypto`, `protocol`, `types`)를 합친
+18개 패키지는 깨끗한 로컬 tarball installation test(`pnpm run sdk:distribution:verify`)를 통과합니다.
+나머지 5개(`db`, `i18n`, `saml`, `web-ui`, `webauthn`)는 Core와 Console의 내부 패키지입니다. XID는
+npm이나 다른 어떤 registry에도 패키지를 게시하지 않습니다. 모든 SDK는 이 저장소의 소스로 배포되며,
+애플리케이션에서 사용하는 방법은 [`docs/sdks/distribution.md`](docs/sdks/distribution.md)에 있습니다.
 
 `sdk/` 아래의 네이티브 SDK 13개: Go, Rust, Python, Ruby, PHP, Java, .NET, Windows, iOS, macOS,
-Linux, Android, Flutter. **crates.io, PyPI, Maven Central, RubyGems, Packagist, NuGet, CocoaPods,
-pub.dev 어디에도 배포되지 않았으며** 릴리스 파이프라인도 존재하지 않습니다. 소스에서 직접
-가져다 사용하는 방식입니다. CI는 어떤 언어 툴체인도 설치하지 않으며 이들의 테스트 스위트도 실행하지
+Linux, Android, Flutter. 이들은 이 저장소의 소스로 배포되며 crates.io, PyPI, Maven Central, RubyGems,
+Packagist, NuGet, CocoaPods, pub.dev에 게시하지 않습니다. 애플리케이션은 각 툴체인의 Git 의존성 또는
+로컬 경로 의존성으로 사용하며, 정확한 명령은 각 SDK README에 있습니다. CI는 어떤 언어 툴체인도 설치하지 않으며 이들의 테스트 스위트도 실행하지
 않습니다. CI가 검증하는 것은 `tests/native-sdk-contract.test.mjs`의 계약 매트릭스입니다. `pnpm check`가
 `check` job 안에서 `native:verify`를 호출해, 매트릭스의 모든 플랫폼 항목이 실제로 존재하는 디렉터리를
 가리키는지 단언합니다. 특정 플랫폼의 실제 툴체인을 실행하는 것은 로컬 opt-in 작업이며

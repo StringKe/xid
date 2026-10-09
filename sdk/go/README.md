@@ -1,7 +1,7 @@
 # xid-go -- XID 身份平台 Go 服务端 SDK
 
-> Registry status: UNPUBLISHED. Go resolves this module from the Git repository, not from an XID
-> package registry. Pin a commit or future `sdk/go/v*` module tag for reproducible builds.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Go resolves this module from the Git repository; pin a commit for reproducible builds.
 
 > **Status: implemented (verified locally)**
 > 本机 `go test ./...` 全部 PASS(见 `docs/sdks/platform-matrix.md`)。
@@ -27,8 +27,10 @@
 ## 安装
 
 ```bash
-go get github.com/StringKe/xid/sdk/go@main
+go get github.com/StringKe/xid/sdk/go@<commit>
 ```
+
+`<commit>` 用仓库中的具体 commit,保证构建可复现。
 
 依赖:
 

@@ -1,7 +1,7 @@
 # XID Ruby SDK
 
-> Registry status: UNPUBLISHED. No RubyGems release is verified or authorized.
-> Use a local Gemfile path or a locally built gem.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Use a Gemfile `path` dependency, or `gem build` and `gem install` from a checkout.
 
 **Status: implemented (verified locally)**
 本机 minitest 全部 PASS（见 `docs/sdks/platform-matrix.md`）。

@@ -1,7 +1,7 @@
 # XID Java SDK
 
-> Registry status: UNPUBLISHED. No Maven Central release is verified or authorized.
-> Install the artifact into a local Maven repository before using the coordinate below.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Run `mvn install` in `sdk/java`, then use the coordinate below from the local Maven repository.
 
 > **Status: implemented (verified locally)**
 > 本机 main() 自测全部 PASS(见 `docs/sdks/platform-matrix.md`)。
@@ -257,10 +257,8 @@ sdk/java/
 
 1. **HTTP/2 与连接池调优**:`JwksCache` 使用 Java 11+ HttpClient 默认配置。高并发场景可能需要调整连接池参数和 HTTP 版本策略。
 
-5. **异步支持**:当前所有 API 均为同步阻塞。如需在 reactive 框架(如 Spring WebFlux)中使用,需提供基于 CompletableFuture 或 Reactor 的异步变体。
+2. **异步支持**:当前所有 API 均为同步阻塞。如需在 reactive 框架(如 Spring WebFlux)中使用,需提供基于 CompletableFuture 或 Reactor 的异步变体。
 
-6. **Spring Boot AutoConfiguration**:提供 `xid-sdk-java-spring-boot-starter`,自动读取 `application.properties` 中的 `xid.issuer` / `xid.audience` 等配置并注册 XidClient bean。
+3. **Spring Boot AutoConfiguration**:提供 `xid-sdk-java-spring-boot-starter`,自动读取 `application.properties` 中的 `xid.issuer` / `xid.audience` 等配置并注册 XidClient bean。
 
-7. **集成测试**:TokenVerifierTest 中的 JwksCache 是 mock。需补充真实 JWKS 端点(或 WireMock)的集成测试,覆盖网络超时、HTTP 4xx/5xx、格式错误等边界场景。
-
-8. **发布到 Maven Central**:补充 GPG 签名配置和 Sonatype OSSRH 发布流程。
+4. **集成测试**:TokenVerifierTest 中的 JwksCache 是 mock。需补充真实 JWKS 端点(或 WireMock)的集成测试,覆盖网络超时、HTTP 4xx/5xx、格式错误等边界场景。

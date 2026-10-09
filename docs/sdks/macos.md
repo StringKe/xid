@@ -2,7 +2,7 @@
 
 **Status: implemented.** `sdk/macos` has a complete Swift package with source and tests; `swift test` passes. Real IdP round-trip (L4) is pending.
 
-This SDK is distributed as source inside the repository. It is not published to CocoaPods or any other registry.
+XID publishes no packages to any registry. Use this SDK from the XID repository as a Swift Package Manager local package.
 
 Uses the same implementation pattern as `sdk/ios`: `ASWebAuthenticationSession`, Keychain storage, `CryptoKit` PKCE. Platform target is macOS only.
 
@@ -20,19 +20,17 @@ Uses the same implementation pattern as `sdk/ios`: `ASWebAuthenticationSession`,
 
 ## Install
 
-Swift Package Manager:
+Swift Package Manager cannot select a subdirectory from the monorepo URL. Check out the repository (or vendor `sdk/macos` into your own repository), then add `sdk/macos` as a local package in Xcode, or reference it by path in `Package.swift`:
 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/StringKe/xid", branch: "main"),
+    .package(path: "../xid/sdk/macos"),
 ],
 targets: [
-    .target(name: "YourApp", dependencies: [.product(name: "Xid", package: "xid")]),
+    .target(name: "YourApp", dependencies: [.product(name: "Xid", package: "macos")]),
 ]
 ```
-
-You can also vendor `sdk/macos` into your own repository and reference it by local path.
 
 No third-party dependencies. Uses `AuthenticationServices`, `CryptoKit`, `Security`.
 

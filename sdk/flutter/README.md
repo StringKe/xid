@@ -1,10 +1,7 @@
 # xid Flutter SDK
 
-> Registry status: UNPUBLISHED. No external registry release is verified or authorized.
-> The Git source dependency below is the supported distribution path for this checkout.
-> A 2026-07-28 `flutter pub publish --dry-run` reported an existing pub.dev `xid` package at
-> `1.2.1`; ownership is not established by this repository, so the registry name is blocked pending
-> an explicit rename or ownership decision.
+> Distribution: source only. XID publishes no packages to any registry; use this SDK from the XID repository as shown below.
+> Use a pub `git` dependency with `path: sdk/flutter`.
 
 **Status: implemented (verified locally)**
 
@@ -224,4 +221,3 @@ guest 语义:
 - **错误本地化**:当前错误消息为英文/中文混合硬编码,待对接 XID i18n 体系。
 - **原生 ECDSA 证据**:`cryptography_flutter` 的 Android/iOS/macOS platform channel 需要真机或
   模拟器验证;headless `flutter test` 只覆盖 claims 与调用链。
-- **Pub.dev 发布**:`xid` 名称已被占用,仓库尚未确认 registry ownership 或替代包名。

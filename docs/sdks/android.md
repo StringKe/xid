@@ -2,7 +2,7 @@
 
 **Status: implemented.** `sdk/android` has a complete Gradle module with source, unit tests, and workspace config; `gradle testDebugUnitTest` passes (JVM unit tests). Real IdP round-trip (L4) and Android device/emulator testing are pending.
 
-This SDK is distributed as source inside the repository. It is not published to Maven Central or any other registry.
+XID publishes no packages to any registry. Use this SDK from the XID repository as an included Gradle project.
 
 ## What is implemented
 
@@ -18,14 +18,21 @@ This SDK is distributed as source inside the repository. It is not published to 
 
 ## Install
 
-There is no Maven coordinate to depend on. Vendor `sdk/android` into your project (or check out this repository next to it) and include the build:
+Check out this repository next to your project (or vendor `sdk/android` into it) and include the module:
 
 ```kotlin
 // settings.gradle.kts
-includeBuild("../sdk/android")
+include(":xid-android")
+project(":xid-android").projectDir = file("../xid/sdk/android")
 ```
 
-Then depend on the included module from your app module's `build.gradle.kts`.
+Then depend on it from your app module's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation(project(":xid-android"))
+}
+```
 
 ## AndroidManifest.xml
 

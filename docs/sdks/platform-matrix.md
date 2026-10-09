@@ -8,23 +8,26 @@ The coverage target is the mainstream server runtimes and languages, plus client
 
 ## Distribution
 
-- The 15 public TypeScript SDKs and their three required runtime kernels (`types`, `crypto`, and
-  `protocol`) produce audited `0.1.0-alpha.0` npm tarballs. **No npm publish has been performed or
-  authorized.** `pnpm run sdk:distribution:verify` builds with `vp pack`, audits every tarball, and
-  installs representative tarball dependency closures into fresh consumers for strict type,
-  runtime, browser, Worker, and native peer-resolution checks. See
-  [distribution.md](distribution.md).
+XID publishes no packages to npm or to any other package registry. Every SDK is distributed as
+source in the XID repository; [distribution.md](distribution.md) describes how an application
+consumes each one.
+
+- The 15 TypeScript SDKs and the three runtime kernels they import (`types`, `crypto`, and
+  `protocol`) are `@xid-kit/*` workspace packages at source version `0.1.0-alpha.0`. Applications
+  use them through the pnpm workspace or by vendoring tarballs built from a pinned commit.
+  `pnpm run sdk:distribution:verify` builds with `vp pack`, audits every tarball, and installs
+  representative tarball dependency closures into fresh consumers for strict type, runtime,
+  browser, Worker, and native peer-resolution checks.
 - The 13 native SDKs under `sdk/` (go, java, rust, php, ruby, python, dotnet, ios, android, macos,
-  windows, linux, flutter) are **not published to any registry**: not crates.io, PyPI, Maven Central,
-  RubyGems, Packagist, NuGet, CocoaPods, Swift Package Registry or pub.dev. They ship as source.
-  `pnpm native:verify` checks every directory, package manifest, package-format metadata, and honest
-  source-only README wording. Native language test suites remain a local opt-in
+  windows, linux, flutter) are consumed through each toolchain's Git or local-path dependency.
+  `pnpm native:verify` checks every directory, package manifest, package-format metadata, and the
+  source-distribution statement in every README. Native language test suites remain a local opt-in
   (`XID_NATIVE_SDK_PLATFORM=go pnpm native:verify`); see [../deployment.md](../deployment.md).
 
 ## Status vocabulary
 
 - `current package`: the repository has the package, source, test entry point, workspace
-  configuration, and a locally verified release artifact. It does not imply registry publication.
+  configuration, and a verified vendoring tarball.
 - `implemented`: the toolchain compiles and every unit test is PASS. **The real-IdP round trip (L4) is not verified, so do not treat it as a complete production SDK.**
 - `scaffold`: the repository has a starting skeleton with a minimal package, types, README or sample. **It is not a complete production SDK.** The source exists but the tests have not been validated. Before production use it must compile in the real toolchain and be verified against a real IdP round trip.
 - `planned design`: only the platform design and integration flow exist, with no code skeleton in the repository. (Every platform is currently at least scaffold; this status is reserved for platforms added in future.)

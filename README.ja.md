@@ -102,10 +102,11 @@ Durable Object が直列化し、JWKS は KV にキャッシュされるので r
 
 ### アプリケーションへの組み込み
 
-18 個の `@xid-kit/*` TypeScript package は publishable に設定され、clean なローカル tarball consumer
-gate (`pnpm run sdk:distribution:verify`) を通過している。外部 registry の現在の状態を示す release
-evidence はリポジトリ内にないため、npm 公開状態は `UNKNOWN` である。registry を別途確認しない限り、
-workspace またはローカル生成 tarball を使う。以下の API が現在の公開インターフェースである。
+XID は npm やその他の package registry に package を公開しない。`@xid-kit/*` TypeScript SDK は
+このリポジトリのソースとして配布される。XID workspace 内のアプリケーションは `workspace:^` で依存する。
+別リポジトリのアプリケーションは、固定した XID commit でビルドし、`pnpm pack` で依存 closure を tarball
+にして、`file:` 依存で参照する。具体的な手順は [`docs/sdks/distribution.md`](docs/sdks/distribution.md)
+にある。以下の API が現在の公開インターフェースである。
 `@xid-kit/react` から:
 
 ```tsx
@@ -287,15 +288,17 @@ XML-DSig は `xmldsigjs` に委譲する。その間にある protocol とビジ
 
 `packages/` 配下の TypeScript SDK package は 15 個。`core` と `backend`、そして React、Next.js、
 Remix、Astro、Vue、Nuxt、Svelte、Solid、Angular、React Native、Expo、Electron、Tauri 向けの framework
-binding である。public runtime kernel 3 個 (`crypto`、`protocol`、`types`) と合わせた 18 package が
-publishable に設定され、clean なローカル tarball installation test を通過している。残る 5 個
-(`db`、`i18n`、`saml`、`web-ui`、`webauthn`) は private implementation package である。外部 npm
-registry の公開状態は `UNKNOWN` のままであり、ローカル distribution evidence は registry release
-の証明ではない。
+binding である。これらが import する runtime kernel 3 個 (`crypto`、`protocol`、`types`) と合わせた
+18 package は、clean なローカル tarball installation test (`pnpm run sdk:distribution:verify`) を通過
+している。残る 5 個 (`db`、`i18n`、`saml`、`web-ui`、`webauthn`) は Core と Console の内部 package で
+ある。XID は npm やその他の registry に package を公開しない。すべての SDK はこのリポジトリのソースとして
+配布され、アプリケーションからの利用方法は [`docs/sdks/distribution.md`](docs/sdks/distribution.md) に
+ある。
 
 `sdk/` 配下のネイティブ SDK が 13 個。Go、Rust、Python、Ruby、PHP、Java、.NET、Windows、iOS、macOS、
-Linux、Android、Flutter である。**crates.io、PyPI、Maven Central、RubyGems、Packagist、NuGet、CocoaPods、
-pub.dev のいずれにも公開しておらず**、リリースパイプラインも存在しない。ソースから直接利用する形である。
+Linux、Android、Flutter である。これらはこのリポジトリのソースとして配布され、crates.io、PyPI、Maven
+Central、RubyGems、Packagist、NuGet、CocoaPods、pub.dev には公開しない。アプリケーションは各ツールチェーンの
+Git 依存またはローカルパス依存で利用する。具体的なコマンドは各 SDK の README にある。
 CI は言語ツールチェーンを一切インストールせず、これらのテストスイートも実行しない。CI が検証するのは
 `tests/native-sdk-contract.test.mjs` の契約マトリクスである。`pnpm check` が `check` job の中で
 `native:verify` を呼び、マトリクス内の各プラットフォーム項目が実在するディレクトリを指していることを

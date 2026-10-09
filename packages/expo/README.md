@@ -1,8 +1,6 @@
 # @xid-kit/expo
 
-Distribution status: release artifacts are verified locally, but no npm publish has been performed.
-Install commands become registry-backed only after an authorized release. See
-https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+XID publishes no packages to npm; `@xid-kit/expo` is distributed as source in the XID repository.
 
 **Status: current package.** Expo SDK for XID identity platform. Wraps `@xid-kit/react-native` with ready-made adapters for `expo-secure-store` and `expo-web-browser`, plus an Expo Router `useProtectedRoute` hook.
 
@@ -22,10 +20,50 @@ react-native >= 0.73
 
 ## Installation
 
+Inside the XID repository, reference the workspace package:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/expo": "workspace:^"
+  }
+}
+```
+
+In another repository, build the package from a pinned XID commit and pack its dependency closure:
+
 ```sh
-pnpm add @xid-kit/expo
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/expo... build
+for pkg in types crypto protocol react-native expo; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
+```
+
+Reference every tarball from the application's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/protocol": "file:vendor/xid/xid-kit-protocol-0.1.0-alpha.0.tgz",
+    "@xid-kit/react-native": "file:vendor/xid/xid-kit-react-native-0.1.0-alpha.0.tgz",
+    "@xid-kit/expo": "file:vendor/xid/xid-kit-expo-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+Install the Expo and React Native peers as usual:
+
+```sh
 pnpm add expo-secure-store expo-web-browser expo react@^19 react-native
 ```
+
+See the [SDK distribution guide](../../docs/sdks/distribution.md) for details.
 
 The Expo package re-exports the native provider and hooks. It does not require `@xid-kit/react`,
 `@xid-kit/core` or `react-dom`.

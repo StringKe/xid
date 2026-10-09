@@ -105,11 +105,12 @@ single-tenant deployment or a multi-tenant instance, by configuration rather tha
 
 ### Integrating an application
 
-Eighteen `@xid-kit/*` TypeScript packages are configured as publishable and pass the clean local
-tarball consumer gate (`pnpm run sdk:distribution:verify`). No checked-in release evidence proves
-their current state in an external registry, so npm publication is `UNKNOWN`; use the workspace or
-a locally produced tarball unless you independently verify the registry. The API below is the
-current public surface. From `@xid-kit/react`:
+XID publishes no packages to npm or any other package registry. The `@xid-kit/*` TypeScript SDKs
+are distributed as source in this repository. An application inside the XID workspace depends on
+them through `workspace:^`. An application in another repository builds them at a pinned XID
+commit, packs the dependency closure with `pnpm pack`, and references the tarballs through `file:`
+dependencies. [`docs/sdks/distribution.md`](docs/sdks/distribution.md) gives the exact steps. The
+API below is the current public surface. From `@xid-kit/react`:
 
 ```tsx
 import { XidProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@xid-kit/react'
@@ -302,16 +303,18 @@ Every row maps to files and tests in [`docs/protocols/source-map.md`](docs/proto
 
 Fifteen TypeScript SDK packages live under `packages/`: `core` and `backend` plus framework
 bindings for React, Next.js, Remix, Astro, Vue, Nuxt, Svelte, Solid, Angular, React Native, Expo,
-Electron, and Tauri. Together with the 3 public runtime kernels (`crypto`, `protocol`, and `types`),
-18 packages are configured as publishable and pass clean local tarball installation tests. The
-remaining 5 packages (`db`, `i18n`, `saml`, `web-ui`, and `webauthn`) are private implementation
-packages. External npm registry publication remains `UNKNOWN`; local distribution evidence is not
-a registry release claim.
+Electron, and Tauri. Together with the 3 runtime kernels they import (`crypto`, `protocol`, and
+`types`), these 18 packages pass clean local tarball installation tests
+(`pnpm run sdk:distribution:verify`). The remaining 5 packages (`db`, `i18n`, `saml`, `web-ui`, and
+`webauthn`) are internal to Core and Console. XID publishes no package to npm or any other registry;
+every SDK is distributed as source in this repository, and
+[`docs/sdks/distribution.md`](docs/sdks/distribution.md) describes how applications consume it.
 
 Thirteen native SDKs under `sdk/`: Go, Rust, Python, Ruby, PHP, Java, .NET, Windows, iOS, macOS,
-Linux, Android, and Flutter. **None are published to crates.io, PyPI, Maven Central, RubyGems,
-Packagist, NuGet, CocoaPods, or pub.dev**, and no release pipeline exists for them -- they are
-consumed from source. CI installs no language toolchain and runs none of their test suites. What it
+Linux, Android, and Flutter. They are distributed as source in this repository and are not
+published to crates.io, PyPI, Maven Central, RubyGems, Packagist, NuGet, CocoaPods, or pub.dev. An
+application consumes each one through its toolchain's Git or local-path dependency; each SDK README
+gives the exact command. CI installs no language toolchain and runs none of their test suites. What it
 does check is the contract matrix in `tests/native-sdk-contract.test.mjs`: `pnpm check` calls
 `native:verify` inside the `check` job, and that asserts every platform entry in the matrix points
 at a directory that exists. Executing a platform's real toolchain is a local opt-in step:

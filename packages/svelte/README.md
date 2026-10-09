@@ -1,8 +1,6 @@
 # @xid-kit/svelte
 
-Distribution status: release artifacts are verified locally, but no npm publish has been performed.
-Install commands become registry-backed only after an authorized release. See
-https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+XID publishes no packages to npm; `@xid-kit/svelte` is distributed as source in the XID repository.
 
 Svelte 5 / SvelteKit binding for the XID identity platform.
 
@@ -10,14 +8,57 @@ Peer dependencies: `svelte >= 5.0.0` (required), `@sveltejs/kit >= 2.0.0` (optio
 
 ## Quick start
 
-Install in your SvelteKit project:
+### Install
+
+Inside the XID repository, reference the workspace packages:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/svelte": "workspace:^",
+    "@xid-kit/backend": "workspace:^"
+  }
+}
+```
+
+`@xid-kit/backend` is needed only for server-side auth.
+
+In another repository, build the package from a pinned XID commit and pack its dependency closure:
 
 ```bash
-pnpm add @xid-kit/svelte svelte
-pnpm add -D @sveltejs/kit
-# for server-side auth:
-pnpm add @xid-kit/backend
+git clone https://github.com/StringKe/xid.git
+cd xid
+git checkout <commit>
+pnpm install --frozen-lockfile
+pnpm --filter @xid-kit/svelte... build
+for pkg in types crypto protocol core backend svelte; do
+  pnpm --dir "packages/$pkg" pack --pack-destination /path/to/your-app/vendor/xid
+done
 ```
+
+Reference every tarball from the application's `package.json`. The closure already includes `@xid-kit/backend` for server-side auth:
+
+```json
+{
+  "dependencies": {
+    "@xid-kit/types": "file:vendor/xid/xid-kit-types-0.1.0-alpha.0.tgz",
+    "@xid-kit/crypto": "file:vendor/xid/xid-kit-crypto-0.1.0-alpha.0.tgz",
+    "@xid-kit/protocol": "file:vendor/xid/xid-kit-protocol-0.1.0-alpha.0.tgz",
+    "@xid-kit/core": "file:vendor/xid/xid-kit-core-0.1.0-alpha.0.tgz",
+    "@xid-kit/backend": "file:vendor/xid/xid-kit-backend-0.1.0-alpha.0.tgz",
+    "@xid-kit/svelte": "file:vendor/xid/xid-kit-svelte-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+Install the framework peers in your SvelteKit project as usual:
+
+```bash
+pnpm add svelte
+pnpm add -D @sveltejs/kit
+```
+
+See the [SDK distribution guide](../../docs/sdks/distribution.md) for details.
 
 ## Client-side setup
 
