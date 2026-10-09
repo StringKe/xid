@@ -62,8 +62,14 @@ function invalidField(paramName: string): AppError {
   return new AppError('validation_failed', { httpStatus: 422, meta: { paramName } })
 }
 
+// Meta 用 WHATSAPP_META_PHONE_NUMBER_ID、Bird 用 BIRD_CHANNEL_ID 发送,不读取 from。
+const SENDER_PROVIDERS: Readonly<Record<DeliveryChannel, readonly string[]>> = {
+  whatsapp: ['twilio'],
+  sms: ['twilio', 'vonage', 'infobip'],
+}
+
 function assertSenderFormat(rules: ChannelRules, provider: string, from: string | undefined): void {
-  if (from === undefined || provider === 'test') return
+  if (!from || !SENDER_PROVIDERS[rules.channel].includes(provider)) return
   const valid =
     rules.channel === 'whatsapp'
       ? WHATSAPP_FROM.test(from)

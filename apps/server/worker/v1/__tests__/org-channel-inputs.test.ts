@@ -125,6 +125,16 @@ describe('delivery channel input', () => {
     expect(await paramName(res)).toBe('whatsapp.from')
   })
 
+  it('accepts enabling Meta WhatsApp without a sender', async () => {
+    const d1 = await seed()
+
+    const res = await patch(d1, 'delivery-channels', {
+      whatsapp: { provider: 'meta', enabled: true },
+    })
+
+    expect(res.status).toBe(200)
+  })
+
   it('accepts an alphanumeric SMS sender on a single-tenant instance', async () => {
     const d1 = await seed({ mode: 'single_tenant' })
 
