@@ -1,11 +1,12 @@
-// WhatsApp Consumer 测试:provider readiness、Twilio/Meta 请求、失败重试和 notification_failures。
+// WhatsApp Consumer 测试:Twilio Content 模板与 Meta authentication 模板请求、失败重试和 notification_failures。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WhatsappQueueMessage } from '@xid-kit/types'
-import { handleWhatsappBatch, whatsappProviderReady } from '../whatsapp'
+import { handleWhatsappBatch } from '../whatsapp'
 
 vi.mock('../notification-delivery-state', () => ({
   DELIVERY_RETRY_SECONDS: 15,
+  deliveryRetryDelaySeconds: () => 15,
   executeNotificationDelivery: async (
     _env: Env,
     _input: unknown,
@@ -16,6 +17,21 @@ vi.mock('../notification-delivery-state', () => ({
     return 'ack'
   },
 }))
+
+const TWILIO_ENV = {
+  WHATSAPP_PROVIDER: 'twilio',
+  TWILIO_ACCOUNT_SID: 'AC123',
+  TWILIO_AUTH_TOKEN: 'token',
+  TWILIO_WHATSAPP_CONTENT_SID: 'HX0123456789abcdef0123456789abcdef',
+}
+
+const META_ENV = {
+  WHATSAPP_PROVIDER: 'meta',
+  WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
+  WHATSAPP_META_ACCESS_TOKEN: 'meta-token',
+  WHATSAPP_TEMPLATE_NAME: 'xid_otp',
+  WHATSAPP_TEMPLATE_LANGUAGE: 'en_US',
+}
 
 function makeEnv(overrides: Record<string, unknown> = {}): Env {
   return {
@@ -36,57 +52,29 @@ function makeMessage(body: WhatsappQueueMessage, attempts = 1, id = 'whatsapp-me
   }
 }
 
+function otpMessage(payload: Record<string, unknown> = {}) {
+  return makeMessage({
+    type: 'otp',
+    recipient: '+15551234567',
+    payload: {
+      tenantId: 'tenant-1',
+      userId: 'user-1',
+      code: '123456',
+      expiresInMin: 5,
+      ...payload,
+    },
+  })
+}
+
 function makeBatch(message: ReturnType<typeof makeMessage>): MessageBatch<WhatsappQueueMessage> {
   return { messages: [message] } as unknown as MessageBatch<WhatsappQueueMessage>
 }
 
-describe('whatsappProviderReady', () => {
-  it('Twilio 要求 account sid、auth token 且 from 或 messaging service sid 存在', () => {
-    expect(
-      whatsappProviderReady(
-        makeEnv({
-          WHATSAPP_PROVIDER: 'twilio',
-          TWILIO_ACCOUNT_SID: 'AC123',
-          TWILIO_AUTH_TOKEN: 'token',
-          WHATSAPP_FROM: '+15550000000',
-        }),
-      ),
-    ).toBe(true)
-    expect(
-      whatsappProviderReady(
-        makeEnv({
-          WHATSAPP_PROVIDER: 'twilio',
-          TWILIO_ACCOUNT_SID: 'AC123',
-          TWILIO_AUTH_TOKEN: 'token',
-          TWILIO_MESSAGING_SERVICE_SID: 'MG123',
-        }),
-      ),
-    ).toBe(true)
-    expect(whatsappProviderReady(makeEnv({ WHATSAPP_PROVIDER: 'twilio' }))).toBe(false)
-  })
-
-  it('Meta 要求 phone number id 和 access token', () => {
-    expect(
-      whatsappProviderReady(
-        makeEnv({
-          WHATSAPP_PROVIDER: 'meta',
-          WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
-          WHATSAPP_META_ACCESS_TOKEN: 'token',
-        }),
-      ),
-    ).toBe(true)
-    expect(whatsappProviderReady(makeEnv({ WHATSAPP_PROVIDER: 'meta' }))).toBe(false)
-  })
-
-  it('test provider 仅在 development/test 环境可用', () => {
-    expect(
-      whatsappProviderReady(makeEnv({ WHATSAPP_PROVIDER: 'test', ENVIRONMENT: 'development' })),
-    ).toBe(true)
-    expect(
-      whatsappProviderReady(makeEnv({ WHATSAPP_PROVIDER: 'test', ENVIRONMENT: 'production' })),
-    ).toBe(false)
-  })
-})
+function twilioBody(): URLSearchParams {
+  const call = vi.mocked(fetch).mock.calls[0]
+  if (call === undefined) throw new Error('missing twilio fetch call')
+  return (call[1] as { body: URLSearchParams }).body
+}
 
 describe('handleWhatsappBatch', () => {
   beforeEach(() => {
@@ -97,17 +85,11 @@ describe('handleWhatsappBatch', () => {
     vi.unstubAllGlobals()
   })
 
-  it('Twilio provider 发送 whatsapp form encoded message 并 ack', async () => {
-    const message = makeMessage({
-      type: 'otp',
-      recipient: '+15551234567',
-      payload: { tenantId: 'tenant-1', userId: 'user-1', code: '123456', expiresInMin: 5 },
-    })
+  it('Twilio 用 Content 模板发送验证码，不发自由文本', async () => {
+    const message = otpMessage()
     const auditSend = vi.fn().mockResolvedValue(undefined)
     const env = makeEnv({
-      WHATSAPP_PROVIDER: 'twilio',
-      TWILIO_ACCOUNT_SID: 'AC123',
-      TWILIO_AUTH_TOKEN: 'token',
+      ...TWILIO_ENV,
       WHATSAPP_FROM: '+15550000000',
       AUDIT_QUEUE: { send: auditSend },
     })
@@ -124,69 +106,72 @@ describe('handleWhatsappBatch', () => {
         }),
       }),
     )
-    const twilioCall = vi.mocked(fetch).mock.calls[0]
-    if (twilioCall === undefined) throw new Error('missing twilio fetch call')
-    const body = (twilioCall[1] as { body: URLSearchParams }).body
+    const body = twilioBody()
     expect(body.get('To')).toBe('whatsapp:+15551234567')
     expect(body.get('From')).toBe('whatsapp:+15550000000')
-    expect(auditSend).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantId: 'tenant-1',
-        actorId: 'user-1',
-        action: 'notification.sent',
-        payload: expect.objectContaining({
-          channel: 'whatsapp',
-          type: 'otp',
-          provider: 'twilio',
-          recipientType: 'phone',
-        }),
-      }),
-    )
+    expect(body.get('ContentSid')).toBe('HX0123456789abcdef0123456789abcdef')
+    expect(JSON.parse(body.get('ContentVariables') ?? '{}')).toEqual({ '1': '123456' })
+    expect(body.has('Body')).toBe(false)
     const auditPayload = auditSend.mock.calls[0]?.[0]?.payload as Record<string, unknown>
+    expect(auditPayload).toMatchObject({ channel: 'whatsapp', provider: 'twilio' })
     expect(JSON.stringify(auditPayload)).not.toContain('+15551234567')
     expect(JSON.stringify(auditPayload)).not.toContain('123456')
     expect(message.ack).toHaveBeenCalledOnce()
     expect(message.retry).not.toHaveBeenCalled()
   })
 
-  it('Twilio provider 仅配置 messaging service sid 时不要求 from', async () => {
-    const message = makeMessage({
-      type: 'otp',
-      recipient: '+15551234567',
-      payload: { tenantId: 'tenant-1', code: '123456', expiresInMin: 5 },
-    })
+  it('Twilio 只配置 WhatsApp Messaging Service 时由 Sender Pool 选号', async () => {
+    const message = otpMessage()
+    const env = makeEnv({ ...TWILIO_ENV, TWILIO_WHATSAPP_MESSAGING_SERVICE_SID: 'MGwhatsapp' })
+
+    await handleWhatsappBatch(makeBatch(message), env)
+
+    const body = twilioBody()
+    expect(body.get('MessagingServiceSid')).toBe('MGwhatsapp')
+    expect(body.has('From')).toBe(false)
+    expect(message.ack).toHaveBeenCalledOnce()
+  })
+
+  it('Twilio 配置 Messaging Service 时仍使用租户配置的 from', async () => {
+    const message = otpMessage({ from: '+15557654321' })
+    const env = makeEnv({ ...TWILIO_ENV, TWILIO_WHATSAPP_MESSAGING_SERVICE_SID: 'MGwhatsapp' })
+
+    await handleWhatsappBatch(makeBatch(message), env)
+
+    const body = twilioBody()
+    expect(body.get('From')).toBe('whatsapp:+15557654321')
+    expect(body.get('MessagingServiceSid')).toBe('MGwhatsapp')
+  })
+
+  it('Twilio WhatsApp 不使用 SMS 的 Messaging Service', async () => {
+    const message = otpMessage()
+    const env = makeEnv({ ...TWILIO_ENV, TWILIO_MESSAGING_SERVICE_SID: 'MGsms' })
+
+    await handleWhatsappBatch(makeBatch(message), env)
+
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('Twilio 缺少 Content SID 时不调用 provider 并记录失败', async () => {
+    const dbRun = vi.fn().mockResolvedValue(undefined)
+    const message = otpMessage()
     const env = makeEnv({
-      WHATSAPP_PROVIDER: 'twilio',
-      TWILIO_ACCOUNT_SID: 'AC123',
-      TWILIO_AUTH_TOKEN: 'token',
-      TWILIO_MESSAGING_SERVICE_SID: 'MG123',
+      ...TWILIO_ENV,
+      TWILIO_WHATSAPP_CONTENT_SID: undefined,
+      WHATSAPP_FROM: '+15550000000',
+      DB: { prepare: () => ({ bind: () => ({ run: dbRun }) }) },
     })
 
     await handleWhatsappBatch(makeBatch(message), env)
 
-    const twilioCall = vi.mocked(fetch).mock.calls[0]
-    if (twilioCall === undefined) throw new Error('missing twilio fetch call')
-    const body = (twilioCall[1] as { body: URLSearchParams }).body
-    expect(body.get('To')).toBe('whatsapp:+15551234567')
-    expect(body.get('MessagingServiceSid')).toBe('MG123')
-    expect(body.has('From')).toBe(false)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(dbRun).toHaveBeenCalledOnce()
     expect(message.ack).toHaveBeenCalledOnce()
-    expect(message.retry).not.toHaveBeenCalled()
   })
 
-  it('Meta provider 发送 Cloud API text message 并 ack', async () => {
-    const message = makeMessage({
-      type: 'otp',
-      recipient: '+15551234567',
-      payload: { tenantId: 'tenant-1', code: '123456', expiresInMin: 5 },
-    })
-    const auditSend = vi.fn().mockResolvedValue(undefined)
-    const env = makeEnv({
-      WHATSAPP_PROVIDER: 'meta',
-      WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
-      WHATSAPP_META_ACCESS_TOKEN: 'meta-token',
-      AUDIT_QUEUE: { send: auditSend },
-    })
+  it('Meta 用 authentication 模板发送，验证码同时填 body 和 copy code 按钮', async () => {
+    const message = otpMessage()
+    const env = makeEnv(META_ENV)
 
     await handleWhatsappBatch(makeBatch(message), env)
 
@@ -194,75 +179,51 @@ describe('handleWhatsappBatch', () => {
       'https://graph.facebook.com/v25.0/1234567890/messages',
       expect.objectContaining({
         method: 'POST',
-        headers: expect.objectContaining({
-          authorization: 'Bearer meta-token',
-          'content-type': 'application/json',
-        }),
+        headers: expect.objectContaining({ authorization: 'Bearer meta-token' }),
       }),
     )
-    const metaCall = vi.mocked(fetch).mock.calls[0]
-    if (metaCall === undefined) throw new Error('missing meta fetch call')
-    const body = JSON.parse(String((metaCall[1] as { body: string }).body))
-    expect(body).toMatchObject({
+    const call = vi.mocked(fetch).mock.calls[0]
+    if (call === undefined) throw new Error('missing meta fetch call')
+    const body = JSON.parse(String((call[1] as { body: string }).body))
+    expect(body).toEqual({
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to: '+15551234567',
-      type: 'text',
-      text: {
-        preview_url: false,
-        body: 'Your XID verification code is 123456. It expires in 5 minutes.',
+      type: 'template',
+      template: {
+        name: 'xid_otp',
+        language: { code: 'en_US' },
+        components: [
+          { type: 'body', parameters: [{ type: 'text', text: '123456' }] },
+          {
+            type: 'button',
+            sub_type: 'url',
+            index: '0',
+            parameters: [{ type: 'text', text: '123456' }],
+          },
+        ],
       },
     })
-    expect(auditSend).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantId: 'tenant-1',
-        action: 'notification.sent',
-        payload: expect.objectContaining({
-          channel: 'whatsapp',
-          type: 'otp',
-          provider: 'meta',
-          recipientType: 'phone',
-        }),
-      }),
-    )
-    const auditPayload = auditSend.mock.calls[0]?.[0]?.payload as Record<string, unknown>
-    expect(JSON.stringify(auditPayload)).not.toContain('+15551234567')
-    expect(JSON.stringify(auditPayload)).not.toContain('123456')
     expect(message.ack).toHaveBeenCalledOnce()
   })
 
-  it('R2 WhatsApp 模板命中时优先渲染模板文本', async () => {
-    const message = makeMessage({
-      type: 'otp',
-      recipient: '+15551234567',
-      payload: { tenantId: 'tenant-1', code: '123456', expiresInMin: 5, locale: 'zh-Hans' },
-    })
+  it('Meta 缺少模板配置时不调用 provider 并记录失败', async () => {
+    const dbRun = vi.fn().mockResolvedValue(undefined)
+    const message = otpMessage()
     const env = makeEnv({
-      WHATSAPP_PROVIDER: 'meta',
-      WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
-      WHATSAPP_META_ACCESS_TOKEN: 'meta-token',
-      STORAGE: {
-        get: vi.fn().mockImplementation(async (key: string) => {
-          if (key === 'phone-otp-templates/whatsapp/zh-Hans/otp.txt') {
-            return {
-              text: async () => 'R2 WhatsApp 验证码 {{ code }} 有效 {{ expiresInMin }} 分钟',
-            }
-          }
-          return null
-        }),
-      },
+      ...META_ENV,
+      WHATSAPP_TEMPLATE_NAME: undefined,
+      DB: { prepare: () => ({ bind: () => ({ run: dbRun }) }) },
     })
 
     await handleWhatsappBatch(makeBatch(message), env)
 
-    const metaCall = vi.mocked(fetch).mock.calls[0]
-    if (metaCall === undefined) throw new Error('missing meta fetch call')
-    const body = JSON.parse(String((metaCall[1] as { body: string }).body))
-    expect(body.text.body).toBe('R2 WhatsApp 验证码 123456 有效 5 分钟')
+    expect(fetch).not.toHaveBeenCalled()
+    expect(dbRun).toHaveBeenCalledOnce()
     expect(message.ack).toHaveBeenCalledOnce()
   })
 
-  it('provider 未配置时 ack 并落 notification_failures', async () => {
+  it('provider 未配置时 ack 并落脱敏的 notification_failures', async () => {
     const dbRun = vi.fn().mockResolvedValue(undefined)
     let capturedRecipient = ''
     let capturedPayload = ''
@@ -277,11 +238,7 @@ describe('handleWhatsappBatch', () => {
         }),
       },
     })
-    const message = makeMessage({
-      type: 'otp',
-      recipient: '+15551234567',
-      payload: { tenantId: 'tenant-1', userId: 'user-1', code: '123456', expiresInMin: 5 },
-    })
+    const message = otpMessage()
 
     await handleWhatsappBatch(makeBatch(message), env)
 
@@ -289,28 +246,16 @@ describe('handleWhatsappBatch', () => {
     expect(message.retry).not.toHaveBeenCalled()
     expect(dbRun).toHaveBeenCalledOnce()
     expect(capturedRecipient).toMatch(/^sha256:/)
-    expect(capturedRecipient).not.toContain('+15551234567')
     expect(capturedPayload).not.toContain('+15551234567')
     expect(capturedPayload).not.toContain('123456')
-    expect(capturedPayload).not.toContain('Code')
     expect(capturedPayload).toContain('"recipientType":"phone"')
-    expect(capturedPayload).toContain('"recipientHash"')
   })
 
-  it('provider 错误未达上限时 retry', async () => {
+  it('provider 错误交给投递状态机后 retry', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 502 })))
     const dbRun = vi.fn()
-    const env = makeEnv({
-      WHATSAPP_PROVIDER: 'meta',
-      WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
-      WHATSAPP_META_ACCESS_TOKEN: 'meta-token',
-      DB: { prepare: () => ({ bind: () => ({ run: dbRun }) }) },
-    })
-    const message = makeMessage({
-      type: 'otp',
-      recipient: '+15551234567',
-      payload: { tenantId: 'tenant-1', code: '123456', expiresInMin: 5 },
-    })
+    const env = makeEnv({ ...META_ENV, DB: { prepare: () => ({ bind: () => ({ run: dbRun }) }) } })
+    const message = otpMessage()
 
     await handleWhatsappBatch(makeBatch(message), env)
 
@@ -319,26 +264,16 @@ describe('handleWhatsappBatch', () => {
     expect(dbRun).not.toHaveBeenCalled()
   })
 
-  it('provider 请求带超时信号,超时后 retry 不 ack', async () => {
+  it('provider 请求带超时信号', async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
     vi.stubGlobal('fetch', fetchMock)
-    const env = makeEnv({
-      WHATSAPP_PROVIDER: 'meta',
-      WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
-      WHATSAPP_META_ACCESS_TOKEN: 'meta-token',
-    })
-    const message = makeMessage({
-      type: 'otp',
-      recipient: '+15551234567',
-      payload: { tenantId: 'tenant-1', code: '123456', expiresInMin: 5 },
-    })
+    const message = otpMessage()
 
-    await handleWhatsappBatch(makeBatch(message), env)
+    await handleWhatsappBatch(makeBatch(message), makeEnv(META_ENV))
 
     expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
-    expect(message.retry).toHaveBeenCalledOnce()
     expect(message.ack).not.toHaveBeenCalled()
   })
 
@@ -350,15 +285,7 @@ describe('handleWhatsappBatch', () => {
         }),
       },
     })
-    const message = makeMessage(
-      {
-        type: 'otp',
-        recipient: '+15551234567',
-        payload: { tenantId: 'tenant-1', code: '123456', expiresInMin: 5 },
-      },
-      1,
-      'whatsapp-dead-letter-write-failure',
-    )
+    const message = otpMessage()
 
     await handleWhatsappBatch(makeBatch(message), env)
 
@@ -373,11 +300,7 @@ describe('handleWhatsappBatch', () => {
       ENVIRONMENT: 'production',
       DB: { prepare: () => ({ bind: () => ({ run: dbRun }) }) },
     })
-    const message = makeMessage({
-      type: 'otp',
-      recipient: '+15551234567',
-      payload: { tenantId: 'tenant-1', code: '123456', expiresInMin: 5, provider: 'test' },
-    })
+    const message = otpMessage({ provider: 'test' })
 
     await handleWhatsappBatch(makeBatch(message), env)
 

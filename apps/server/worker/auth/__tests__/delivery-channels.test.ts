@@ -82,32 +82,92 @@ describe('smsDeliveryCredentialsReady', () => {
   })
 })
 
-describe('whatsappDeliveryCredentialsReady', () => {
-  it('meta provider only needs secrets, not sender', () => {
-    const policy = { enabled: true, provider: 'meta' as const, secretRefs: [], from: '' }
+describe('smsDeliveryCredentialsReady sender rules', () => {
+  it('accepts a tenant from without SMS_FROM for vonage', () => {
+    const policy = { enabled: true, provider: 'vonage' as const, secretRefs: [], from: 'Northwind' }
     expect(
-      whatsappDeliveryCredentialsReady(
+      smsDeliveryCredentialsReady(
         policy,
-        makeEnv({
-          WHATSAPP_META_PHONE_NUMBER_ID: 'pn1',
-          WHATSAPP_META_ACCESS_TOKEN: 'tok',
-        }),
+        makeEnv({ VONAGE_API_KEY: 'key', VONAGE_API_SECRET: 'secret' }),
       ),
     ).toBe(true)
   })
 
-  it('twilio whatsapp requires sender fallback from env', () => {
+  it('rejects vonage when neither the tenant nor the instance sets a from', () => {
+    const policy = { enabled: true, provider: 'vonage' as const, secretRefs: [], from: '' }
+    expect(
+      smsDeliveryCredentialsReady(
+        policy,
+        makeEnv({ VONAGE_API_KEY: 'key', VONAGE_API_SECRET: 'secret' }),
+      ),
+    ).toBe(false)
+  })
+
+  it('requires the Bird workspace and channel but no from', () => {
+    const policy = { enabled: true, provider: 'messagebird' as const, secretRefs: [], from: '' }
+    expect(
+      smsDeliveryCredentialsReady(
+        policy,
+        makeEnv({ MESSAGEBIRD_ACCESS_KEY: 'key', BIRD_WORKSPACE_ID: 'ws', BIRD_CHANNEL_ID: 'ch' }),
+      ),
+    ).toBe(true)
+    expect(
+      smsDeliveryCredentialsReady(
+        policy,
+        makeEnv({ MESSAGEBIRD_ACCESS_KEY: 'key', SMS_FROM: 'X' }),
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('whatsappDeliveryCredentialsReady', () => {
+  const metaEnv = {
+    WHATSAPP_META_PHONE_NUMBER_ID: 'pn1',
+    WHATSAPP_META_ACCESS_TOKEN: 'tok',
+    WHATSAPP_TEMPLATE_NAME: 'xid_otp',
+    WHATSAPP_TEMPLATE_LANGUAGE: 'en_US',
+  }
+  const twilioEnv = {
+    TWILIO_ACCOUNT_SID: 'AC1',
+    TWILIO_AUTH_TOKEN: 'tok',
+    TWILIO_WHATSAPP_CONTENT_SID: 'HX1',
+  }
+
+  it('meta provider needs credentials and the authentication template, not a sender', () => {
+    const policy = { enabled: true, provider: 'meta' as const, secretRefs: [], from: '' }
+    expect(whatsappDeliveryCredentialsReady(policy, makeEnv(metaEnv))).toBe(true)
+  })
+
+  it('meta provider is not ready without the template name or language', () => {
+    const policy = { enabled: true, provider: 'meta' as const, secretRefs: [], from: '' }
+    const { WHATSAPP_TEMPLATE_LANGUAGE: _language, ...withoutLanguage } = metaEnv
+    expect(whatsappDeliveryCredentialsReady(policy, makeEnv(withoutLanguage))).toBe(false)
+  })
+
+  it('twilio whatsapp is not ready without the Content SID', () => {
+    const policy = { enabled: true, provider: 'twilio' as const, secretRefs: [], from: '+1' }
+    const { TWILIO_WHATSAPP_CONTENT_SID: _sid, ...withoutSid } = twilioEnv
+    expect(whatsappDeliveryCredentialsReady(policy, makeEnv(withoutSid))).toBe(false)
+  })
+
+  it('twilio whatsapp accepts its own Messaging Service as the sender', () => {
     const policy = { enabled: true, provider: 'twilio' as const, secretRefs: [], from: '' }
     expect(
       whatsappDeliveryCredentialsReady(
         policy,
-        makeEnv({
-          TWILIO_ACCOUNT_SID: 'AC1',
-          TWILIO_AUTH_TOKEN: 'tok',
-          TWILIO_MESSAGING_SERVICE_SID: 'MG1',
-        }),
+        makeEnv({ ...twilioEnv, TWILIO_WHATSAPP_MESSAGING_SERVICE_SID: 'MG1' }),
       ),
     ).toBe(true)
+  })
+
+  it('twilio whatsapp does not treat the SMS Messaging Service as a sender', () => {
+    const policy = { enabled: true, provider: 'twilio' as const, secretRefs: [], from: '' }
+    expect(
+      whatsappDeliveryCredentialsReady(
+        policy,
+        makeEnv({ ...twilioEnv, TWILIO_MESSAGING_SERVICE_SID: 'MG1' }),
+      ),
+    ).toBe(false)
   })
 })
 
@@ -141,7 +201,7 @@ describe('whatsappDeliverySecretRefs', () => {
   it('defaults twilio refs for twilio provider', () => {
     expect(
       whatsappDeliverySecretRefs({ enabled: true, provider: 'twilio', secretRefs: [], from: '' }),
-    ).toEqual(['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'])
+    ).toEqual(['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_CONTENT_SID'])
   })
 })
 

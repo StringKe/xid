@@ -2,10 +2,11 @@
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import type { SmsQueueMessage } from '@xid-kit/types'
-import { handleSmsBatch, smsProviderReady } from '../sms'
+import { handleSmsBatch } from '../sms'
 
 vi.mock('../notification-delivery-state', () => ({
   DELIVERY_RETRY_SECONDS: 15,
+  deliveryRetryDelaySeconds: () => 15,
   executeNotificationDelivery: async (
     _env: Env,
     _input: unknown,
@@ -39,72 +40,6 @@ function makeMessage(body: SmsQueueMessage, attempts = 1, id = 'sms-message') {
 function makeBatch(message: ReturnType<typeof makeMessage>): MessageBatch<SmsQueueMessage> {
   return { messages: [message] } as unknown as MessageBatch<SmsQueueMessage>
 }
-
-describe('smsProviderReady', () => {
-  it('Twilio 要求 account sid、auth token 且 from 或 messaging service sid 存在', () => {
-    expect(
-      smsProviderReady(
-        makeEnv({
-          SMS_PROVIDER: 'twilio',
-          TWILIO_ACCOUNT_SID: 'AC123',
-          TWILIO_AUTH_TOKEN: 'token',
-          SMS_FROM: '+15550000000',
-        }),
-      ),
-    ).toBe(true)
-    expect(smsProviderReady(makeEnv({ SMS_PROVIDER: 'twilio' }))).toBe(false)
-  })
-
-  it('Vonage 要求 api key、api secret 和 from', () => {
-    expect(
-      smsProviderReady(
-        makeEnv({
-          SMS_PROVIDER: 'vonage',
-          VONAGE_API_KEY: 'key',
-          VONAGE_API_SECRET: 'secret',
-          SMS_FROM: 'XID',
-        }),
-      ),
-    ).toBe(true)
-    expect(smsProviderReady(makeEnv({ SMS_PROVIDER: 'vonage' }))).toBe(false)
-  })
-
-  it('Infobip 要求 api key、base url 和 from', () => {
-    expect(
-      smsProviderReady(
-        makeEnv({
-          SMS_PROVIDER: 'infobip',
-          INFOBIP_API_KEY: 'key',
-          INFOBIP_BASE_URL: 'https://example.api.infobip.com',
-          SMS_FROM: 'XID',
-        }),
-      ),
-    ).toBe(true)
-    expect(smsProviderReady(makeEnv({ SMS_PROVIDER: 'infobip' }))).toBe(false)
-  })
-
-  it('MessageBird 要求 access key 和 from', () => {
-    expect(
-      smsProviderReady(
-        makeEnv({
-          SMS_PROVIDER: 'messagebird',
-          MESSAGEBIRD_ACCESS_KEY: 'key',
-          SMS_FROM: 'XID',
-        }),
-      ),
-    ).toBe(true)
-    expect(smsProviderReady(makeEnv({ SMS_PROVIDER: 'messagebird' }))).toBe(false)
-  })
-
-  it('test provider 仅在 development/test 环境可用', () => {
-    expect(smsProviderReady(makeEnv({ SMS_PROVIDER: 'test', ENVIRONMENT: 'development' }))).toBe(
-      true,
-    )
-    expect(smsProviderReady(makeEnv({ SMS_PROVIDER: 'test', ENVIRONMENT: 'production' }))).toBe(
-      false,
-    )
-  })
-})
 
 describe('handleSmsBatch', () => {
   beforeEach(() => {
@@ -216,7 +151,15 @@ describe('handleSmsBatch', () => {
     expect(message.ack).toHaveBeenCalledOnce()
   })
 
-  it('Infobip provider 发送 JSON message 并 ack', async () => {
+  it('Infobip provider 按 v3 字段发送 JSON message 并 ack', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json({
+          messages: [{ messageId: 'm1', status: { groupId: 1, groupName: 'PENDING' } }],
+        }),
+      ),
+    )
     const message = makeMessage({
       type: 'otp',
       recipient: '+15551234567',
@@ -244,10 +187,15 @@ describe('handleSmsBatch', () => {
       }),
     )
     const request = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit
-    expect(String(request.body)).toContain('"from":"XID"')
-    expect(String(request.body)).toContain(
-      '"text":"Your XID verification code is 123456. It expires in 5 minutes."',
-    )
+    expect(JSON.parse(String(request.body))).toEqual({
+      messages: [
+        {
+          sender: 'XID',
+          destinations: [{ to: '+15551234567' }],
+          content: { text: 'Your XID verification code is 123456. It expires in 5 minutes.' },
+        },
+      ],
+    })
     expect(auditSend).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-1',
@@ -266,7 +214,7 @@ describe('handleSmsBatch', () => {
     expect(message.ack).toHaveBeenCalledOnce()
   })
 
-  it('MessageBird provider 发送 form encoded message 并 ack', async () => {
+  it('Bird provider 经 Channels API 发送 JSON message 并 ack', async () => {
     const message = makeMessage({
       type: 'otp',
       recipient: '+15551234567',
@@ -276,26 +224,31 @@ describe('handleSmsBatch', () => {
     const env = makeEnv({
       SMS_PROVIDER: 'messagebird',
       MESSAGEBIRD_ACCESS_KEY: 'key',
-      SMS_FROM: 'XID',
+      BIRD_WORKSPACE_ID: 'ws-1',
+      BIRD_CHANNEL_ID: 'ch-1',
       AUDIT_QUEUE: { send: auditSend },
     })
 
     await handleSmsBatch(makeBatch(message), env)
 
     expect(fetch).toHaveBeenCalledWith(
-      'https://rest.messagebird.com/messages',
+      'https://api.bird.com/workspaces/ws-1/channels/ch-1/messages',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
-          accept: 'application/json',
           authorization: 'AccessKey key',
-          'content-type': 'application/x-www-form-urlencoded',
+          'content-type': 'application/json',
         }),
       }),
     )
     const request = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit
-    expect(String(request.body)).toContain('originator=XID')
-    expect(String(request.body)).toContain('body=Your+XID+verification+code+is+123456')
+    expect(JSON.parse(String(request.body))).toEqual({
+      receiver: { contacts: [{ identifierValue: '+15551234567' }] },
+      body: {
+        type: 'text',
+        text: { text: 'Your XID verification code is 123456. It expires in 5 minutes.' },
+      },
+    })
     expect(auditSend).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-1',

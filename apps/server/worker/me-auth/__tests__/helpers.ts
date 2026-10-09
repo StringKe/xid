@@ -174,6 +174,7 @@ export function makeEnv(options: MakeEnvOptions = {}): Env {
           TWILIO_ACCOUNT_SID: 'AC123',
           TWILIO_AUTH_TOKEN: 'token',
           WHATSAPP_FROM: '+15550000000',
+          TWILIO_WHATSAPP_CONTENT_SID: 'HX0123456789abcdef0123456789abcdef',
         }
       : {}),
     ...(options.whatsappProvider === 'meta'
@@ -181,6 +182,8 @@ export function makeEnv(options: MakeEnvOptions = {}): Env {
           WHATSAPP_PROVIDER: 'meta',
           WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
           WHATSAPP_META_ACCESS_TOKEN: 'meta-token',
+          WHATSAPP_TEMPLATE_NAME: 'xid_otp',
+          WHATSAPP_TEMPLATE_LANGUAGE: 'en_US',
         }
       : {}),
   } as unknown as Env

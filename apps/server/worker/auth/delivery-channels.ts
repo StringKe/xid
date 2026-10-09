@@ -6,9 +6,15 @@ import type {
 } from '@xid-kit/types'
 import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 
+// 就绪检查和 Console 列出的配置名。WhatsApp 验证码只能用已审批模板发送,模板配置缺失即未就绪。
 export const WHATSAPP_PROVIDER_REFS = {
-  twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
-  meta: ['WHATSAPP_META_PHONE_NUMBER_ID', 'WHATSAPP_META_ACCESS_TOKEN'],
+  twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_CONTENT_SID'],
+  meta: [
+    'WHATSAPP_META_PHONE_NUMBER_ID',
+    'WHATSAPP_META_ACCESS_TOKEN',
+    'WHATSAPP_TEMPLATE_NAME',
+    'WHATSAPP_TEMPLATE_LANGUAGE',
+  ],
   test: [] as const,
 } as const
 
@@ -16,7 +22,7 @@ export const SMS_PROVIDER_REFS = {
   twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
   vonage: ['VONAGE_API_KEY', 'VONAGE_API_SECRET'],
   infobip: ['INFOBIP_API_KEY', 'INFOBIP_BASE_URL'],
-  messagebird: ['MESSAGEBIRD_ACCESS_KEY'],
+  messagebird: ['MESSAGEBIRD_ACCESS_KEY', 'BIRD_WORKSPACE_ID', 'BIRD_CHANNEL_ID'],
   test: [] as const,
 } as const
 
@@ -52,18 +58,21 @@ export function smsDeliverySecretRefs(policy: DeliveryChannelProviderPolicy): re
   return SMS_PROVIDER_REFS.test
 }
 
+// 发送方规则与 queues/*-providers.ts 一致:租户 from 优先,其次实例级 from;Twilio 可由
+// Messaging Service 选号(WhatsApp 用独立的 Service);Meta 和 Bird 的发送方由号码 id / channel 决定。
 function whatsappSenderReady(policy: DeliveryChannelProviderPolicy | undefined, env: Env): boolean {
   if (!policy || policy.provider === 'meta') return true
   return (
     hasValue(policy.from) ||
     hasValue(env.WHATSAPP_FROM) ||
     hasValue(env.SMS_FROM) ||
-    hasValue(env.TWILIO_MESSAGING_SERVICE_SID)
+    hasValue(env.TWILIO_WHATSAPP_MESSAGING_SERVICE_SID)
   )
 }
 
 function smsSenderReady(policy: DeliveryChannelProviderPolicy | undefined, env: Env): boolean {
   if (!policy) return false
+  if (policy.provider === 'messagebird') return true
   if (policy.provider === 'twilio') {
     return (
       hasValue(policy.from) || hasValue(env.SMS_FROM) || hasValue(env.TWILIO_MESSAGING_SERVICE_SID)
