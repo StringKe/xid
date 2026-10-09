@@ -3,6 +3,7 @@ import { createStripeMeterEvent } from './stripe-client'
 import {
   finalizeMeterDelta,
   markMeterProviderAccepted,
+  METER_KEY,
   meterRetryAllowed,
   reserveMeterDelta,
   type MeterTarget,
@@ -70,10 +71,19 @@ async function loadMeterTargets(
      FROM usage_monthly AS usage
      INNER JOIN organization_plans AS plans
        ON plans.tenant_id = usage.tenant_id
+     LEFT JOIN billing_meter_reports AS reports
+       ON reports.tenant_id = usage.tenant_id
+      AND reports.meter_key = '${METER_KEY}'
+      AND reports.period = usage.year_month
      WHERE usage.year_month = ?
        AND usage.mau > 0
        AND plans.status IN ('active', 'trialing')
        AND plans.external_customer_id IS NOT NULL
+       AND (
+         reports.tenant_id IS NULL
+         OR (reports.reconciliation_required_at IS NULL
+             AND (reports.pending_identifier IS NOT NULL OR usage.mau > reports.reported_value))
+       )
        ${cursorClause}
      ORDER BY usage.tenant_id
      LIMIT ?`,
@@ -105,16 +115,34 @@ async function loadMeterTarget(
     .first<MeterTarget>()
 }
 
+function previousPeriod(now: Date): string {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+    .toISOString()
+    .slice(0, 7)
+}
+
+// Stripe 按 timestamp 把事件归入计费周期:补报上月差额时时间取上月最后一秒。
+export function meterEventTime(period: string, requestedAt: number): Date {
+  const [year, month] = period.split('-').map(Number) as [number, number]
+  const periodEnd = Date.UTC(year, month, 1) - 1000
+  return new Date(Math.min(requestedAt, periodEnd))
+}
+
+// 每天同时派发当月和上月:月末最后一天 02:00 之后新增的 MAU 在下一次日批补报到上月。
 export async function enqueueStripeMauUsageReports(
   env: Env,
   now: Date = new Date(),
 ): Promise<void> {
   if (!billingEnabled(env)) return
-  await env.METERING_QUEUE.send({
-    type: 'stripe_mau_dispatch',
-    period: now.toISOString().slice(0, 7),
-    requestedAt: now.getTime(),
-  })
+  await env.METERING_QUEUE.sendBatch(
+    [previousPeriod(now), now.toISOString().slice(0, 7)].map((period) => ({
+      body: {
+        type: 'stripe_mau_dispatch',
+        period,
+        requestedAt: now.getTime(),
+      } satisfies StripeMeteringQueueMessage,
+    })),
+  )
 }
 
 async function dispatchStripeMeterPage(
@@ -177,7 +205,7 @@ export async function handleStripeMeteringQueueMessage(
     target,
     period: message.period,
     eventName,
-    eventTime: new Date(message.requestedAt),
+    eventTime: meterEventTime(message.period, message.requestedAt),
     now,
   })
 }
