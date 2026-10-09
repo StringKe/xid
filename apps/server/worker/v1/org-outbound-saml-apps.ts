@@ -244,6 +244,8 @@ export function registerOrgOutboundSamlAppRoutes(app: Hono<XidHonoEnv>): void {
     const existing = await db.samlServiceProviders.findOne(where)
     if (!existing) throw new AppError('not_found', { httpStatus: 404 })
     await db.samlServiceProviders.hardDelete(where)
+    // 成对假名只对这个 SP 有意义,应用删除后不能留给同 id 复用。
+    await db.samlPersistentNameIds.hardDelete(eq(schema.samlPersistentNameIds.spId, appId))
     emitWebhookAsync(c, {
       tenantId: tenant.tenantId,
       event: 'organization.outbound_saml_app.deleted',

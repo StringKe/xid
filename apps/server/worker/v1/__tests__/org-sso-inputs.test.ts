@@ -382,6 +382,28 @@ describe('outbound SAML app input', () => {
     expect(await paramName(res)).toBe('attribute_mapping._xidAssignmentGate')
   })
 
+  it('removes the pairwise NameIDs of an app when the app is deleted', async () => {
+    const d1 = await seed()
+    const created = await send(d1, {
+      method: 'POST',
+      path: 'outbound-saml-apps',
+      body: { sp_metadata_xml: SP_METADATA },
+    })
+    const appId = (await json<{ id: string }>(created)).id
+    await tenantDb(d1).samlPersistentNameIds.insertMany([
+      { tenantId: 't_a', spId: appId, userId: 'user_a', nameId: 'pairwise-a' },
+      { tenantId: 't_a', spId: 'sap_other', userId: 'user_a', nameId: 'pairwise-other' },
+    ])
+
+    const res = await buildApp(registerOrganizationsRoutes, {
+      session: sessionFor('user_a'),
+    }).request(`${BASE}/outbound-saml-apps/${appId}`, { method: 'DELETE' }, envOf(d1))
+
+    expect(res.status).toBe(204)
+    const remaining = await tenantDb(d1).samlPersistentNameIds.findMany()
+    expect(remaining.map((row) => row.spId)).toEqual(['sap_other'])
+  })
+
   it('keeps another tenant from importing SP metadata into this organization', async () => {
     const d1 = await seed()
 
