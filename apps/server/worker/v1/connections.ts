@@ -259,6 +259,7 @@ app.patch('/:id', async (c) => {
   if (body.oidc_client_id !== undefined) patch.oidcClientId = body.oidc_client_id
   if (body.oidc_discovery_url !== undefined) patch.oidcDiscoveryUrl = body.oidc_discovery_url
   Object.assign(patch, await samlMetadataPatch(existing.protocol, body))
+  if (patch.idpCertificates !== undefined) patch.idpCertificateRetirements = null
   Object.assign(patch, relayStatePatch(tenant.issuer, body))
   Object.assign(patch, await oidcClientSecretPatch(c.env, body.oidc_client_secret))
   if (body.attribute_mapping !== undefined) {

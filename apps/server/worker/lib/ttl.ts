@@ -59,6 +59,8 @@ export const TOTP_REPLAY_TTL_MS = 90 * 1000
 // SAML / WS-Fed 断言重放集最长保留时间:须覆盖断言整个可接受期(NotOnOrAfter + 时钟偏差),
 // 有效期超过此值的断言直接拒绝,不截短保留时间。
 export const SAML_ASSERTION_REPLAY_MAX_TTL_MS = 24 * 60 * 60 * 1000
+// IdP 证书从 metadata 中消失后继续信任的最长时间(不超过证书自身 notAfter),覆盖 IdP 轮换过渡期。
+export const SAML_IDP_CERTIFICATE_OVERLAP_MS = 30 * 24 * 60 * 60 * 1000
 // step-up token 与 __Host-xid.acr cookie 共用的有效期(01 章 5:敏感操作重新验证)
 export const STEP_UP_TTL_SEC = 5 * 60
 // SCIM token 轮换时旧 token 宽限窗口(07 章:轮换不中断在途同步)

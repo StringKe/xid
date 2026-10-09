@@ -24,6 +24,10 @@ export const ssoConnections = sqliteTable(
       .$type<string[]>()
       .notNull()
       .default([]),
+    // metadata 刷新时从 IdP metadata 中消失、仍在重叠期内保留的证书及其消失时间;手动保存证书时清空。
+    idpCertificateRetirements: text('idp_certificate_retirements', { mode: 'json' }).$type<
+      { certificate: string; retiredAt: number }[]
+    >(),
     oidcClientId: text('oidc_client_id'),
     oidcClientSecretCiphertext: blob('oidc_client_secret_ciphertext', { mode: 'buffer' }),
     oidcDiscoveryUrl: text('oidc_discovery_url'),

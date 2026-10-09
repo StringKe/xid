@@ -1,10 +1,14 @@
-// IdP metadata 刷新时的签名证书合并:metadata 里的证书全部采用,已存证书在 metadata 中消失后
-// 保留到自身 notAfter,让 IdP 轮换期间仍用旧证书签的断言继续通过验签。
+// IdP metadata 刷新时的签名证书合并:metadata 里的证书全部采用;已存证书从 metadata 中消失后记下消失时间,
+// 保留到 min(自身 notAfter, 消失时间 + 重叠期),让 IdP 轮换期间仍用旧证书签的断言继续通过验签。
 
 import { loadIdpVerifyKey } from '@xid-kit/saml'
+import { SAML_IDP_CERTIFICATE_OVERLAP_MS } from '../lib/ttl'
+
+export type IdpCertificateRetirement = { certificate: string; retiredAt: number }
 
 export type MergedIdpCertificates = {
   certificates: string[]
+  retirements: IdpCertificateRetirement[]
   added: string[]
   changed: boolean
 }
@@ -26,15 +30,53 @@ export async function readCertificateNotAfter(
   return new Map(entries)
 }
 
+export function parseRetirements(value: unknown): IdpCertificateRetirement[] {
+  let parsed = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return []
+    }
+  }
+  if (!Array.isArray(parsed)) return []
+  return parsed.filter(
+    (item): item is IdpCertificateRetirement =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as Record<string, unknown>)['certificate'] === 'string' &&
+      Number.isFinite((item as Record<string, unknown>)['retiredAt']),
+  )
+}
+
+function sameRetirements(
+  a: readonly IdpCertificateRetirement[],
+  b: readonly IdpCertificateRetirement[],
+): boolean {
+  if (a.length !== b.length) return false
+  const byKey = new Map(a.map((item) => [certificateKey(item.certificate), item.retiredAt]))
+  return b.every((item) => byKey.get(certificateKey(item.certificate)) === item.retiredAt)
+}
+
+function retainUntil(notAfter: number | null | undefined, retiredAt: number): number | null {
+  if (notAfter === undefined || notAfter === null) return null
+  return Math.min(notAfter, retiredAt + SAML_IDP_CERTIFICATE_OVERLAP_MS)
+}
+
 export function mergeIdpCertificates(input: {
   stored: readonly string[]
+  storedRetirements: readonly IdpCertificateRetirement[]
   fetched: readonly string[]
   notAfter: ReadonlyMap<string, number | null>
   now: number
 }): MergedIdpCertificates {
   const storedKeys = new Set(input.stored.map(certificateKey))
+  const retiredAtByKey = new Map(
+    input.storedRetirements.map((item) => [certificateKey(item.certificate), item.retiredAt]),
+  )
   const seen = new Set<string>()
   const certificates: string[] = []
+  const retirements: IdpCertificateRetirement[] = []
   const added: string[] = []
   for (const cert of input.fetched) {
     const key = certificateKey(cert)
@@ -46,13 +88,20 @@ export function mergeIdpCertificates(input: {
   for (const cert of input.stored) {
     const key = certificateKey(cert)
     if (seen.has(key)) continue
-    const notAfter = input.notAfter.get(cert)
-    if (notAfter === undefined || notAfter === null || notAfter <= input.now) continue
     seen.add(key)
+    const retiredAt = retiredAtByKey.get(key) ?? input.now
+    const until = retainUntil(input.notAfter.get(cert), retiredAt)
+    if (until === null || until <= input.now) continue
     certificates.push(cert)
+    retirements.push({ certificate: cert, retiredAt })
   }
-  const changed =
+  const certificatesChanged =
     certificates.length !== storedKeys.size ||
     certificates.some((cert) => !storedKeys.has(certificateKey(cert)))
-  return { certificates, added, changed }
+  return {
+    certificates,
+    retirements,
+    added,
+    changed: certificatesChanged || !sameRetirements(input.storedRetirements, retirements),
+  }
 }

@@ -255,7 +255,7 @@ describe('pollSamlIdpMetadata negative paths', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const updates = configUpdates(db)
     expect(updates).toHaveLength(1)
-    expect(updates[0]?.args.slice(5)).toEqual(['tenant_1', 'conn_b'])
+    expect(updates[0]?.args.slice(6)).toEqual(['tenant_1', 'conn_b'])
     expect(failureUpdates(db).map((run) => run.args)).toEqual([
       ['metadata_too_large', expect.any(Number), 'tenant_1', 'conn_a'],
     ])
@@ -392,7 +392,7 @@ describe('pollSamlIdpMetadata refresh status', () => {
     expect(success?.args).toEqual([expect.any(Number), 'tenant_1', 'conn_1'])
   })
 
-  it('keeps the previous IdP certificate next to the rotated one until it expires', async () => {
+  it('keeps the previous IdP certificate next to the rotated one and records when it left the metadata', async () => {
     const previous = await generateSelfSignedSamlCertificate('idp-old.example.com')
     const rotated = await generateSelfSignedSamlCertificate('idp-new.example.com')
     if (!previous.ok || !rotated.ok) throw new Error('certificate generation failed')
@@ -411,7 +411,38 @@ describe('pollSamlIdpMetadata refresh status', () => {
       rotated.value.certificateB64,
       previous.value.certificateB64,
     ])
+    expect(JSON.parse(String(update?.args[4]))).toEqual([
+      { certificate: previous.value.certificateB64, retiredAt: expect.any(Number) },
+    ])
     expect(sent.map((message) => message['event'])).toEqual(['connection.saml_certificate_renewed'])
+  })
+
+  it('removes the previous certificate once it has been out of the metadata for the overlap period', async () => {
+    const previous = await generateSelfSignedSamlCertificate('idp-old.example.com')
+    if (!previous.ok) throw new Error('certificate generation failed')
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(idpMetadataXml('CERT_CURRENT'))) as typeof fetch
+    const db = new FakeD1([
+      connection({
+        idp_entity_id: 'https://idp.example.com/metadata',
+        idp_sso_url: 'https://idp.example.com/sso',
+        idp_slo_url: 'https://idp.example.com/slo',
+        idp_certificates: JSON.stringify(['CERT_CURRENT', previous.value.certificateB64]),
+        idp_certificate_retirements: JSON.stringify([
+          {
+            certificate: previous.value.certificateB64,
+            retiredAt: Date.now() - 31 * 24 * 60 * 60 * 1000,
+          },
+        ]),
+      }),
+    ])
+
+    await pollSamlIdpMetadata(makeEnv(db))
+
+    const [update] = configUpdates(db)
+    expect(JSON.parse(String(update?.args[3]))).toEqual(['CERT_CURRENT'])
+    expect(update?.args[4]).toBeNull()
   })
 
   it('removes an expired previous certificate without announcing a renewal', async () => {
@@ -449,6 +480,6 @@ describe('pollSamlIdpMetadata refresh status', () => {
 
     const [update] = configUpdates(db)
     expect(update?.sql).toContain('WHERE tenant_id = ? AND id = ?')
-    expect(update?.args.slice(5)).toEqual(['tenant_9', 'conn_9'])
+    expect(update?.args.slice(6)).toEqual(['tenant_9', 'conn_9'])
   })
 })

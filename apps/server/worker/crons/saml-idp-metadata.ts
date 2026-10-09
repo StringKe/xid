@@ -5,7 +5,11 @@
 import { parseIdpMetadataXml } from '@xid-kit/saml'
 import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
 import { isPublicHttpsUrl } from '../lib/validate'
-import { mergeIdpCertificates, readCertificateNotAfter } from './saml-idp-certificates'
+import {
+  mergeIdpCertificates,
+  parseRetirements,
+  readCertificateNotAfter,
+} from './saml-idp-certificates'
 
 type IdpMetadataConnectionRow = {
   id: string
@@ -16,6 +20,7 @@ type IdpMetadataConnectionRow = {
   idp_sso_url: string | null
   idp_slo_url: string | null
   idp_certificates: string | string[] | null
+  idp_certificate_retirements: string | null
 }
 
 export const IDP_METADATA_REFRESH_ERRORS = [
@@ -165,6 +170,7 @@ async function refreshIdpMetadata(
   const now = Date.now()
   const certificates = mergeIdpCertificates({
     stored: storedCerts,
+    storedRetirements: parseRetirements(row.idp_certificate_retirements),
     fetched: metadata.certificates,
     notAfter: await readCertificateNotAfter(
       storedCerts.filter((cert) => !metadata.certificates.includes(cert)),
@@ -181,7 +187,7 @@ async function refreshIdpMetadata(
   await env.DB.prepare(
     `UPDATE sso_connections
        SET idp_entity_id = ?, idp_sso_url = ?, idp_slo_url = ?,
-           idp_certificates = ?, updated_at = ?
+           idp_certificates = ?, idp_certificate_retirements = ?, updated_at = ?
        WHERE tenant_id = ? AND id = ? AND status = 'active' AND protocol = 'saml'`,
   )
     .bind(
@@ -189,6 +195,7 @@ async function refreshIdpMetadata(
       metadata.ssoUrl,
       metadata.sloUrl,
       JSON.stringify(certificates.certificates),
+      certificates.retirements.length > 0 ? JSON.stringify(certificates.retirements) : null,
       now,
       row.tenant_id,
       row.id,
@@ -234,7 +241,7 @@ export async function pollSamlIdpMetadata(env: Env): Promise<void> {
       cursor === null ? [SAML_METADATA_PAGE_SIZE] : [cursor, SAML_METADATA_PAGE_SIZE]
     const rows: D1Result<IdpMetadataConnectionRow> = await env.DB.prepare(
       `SELECT id, tenant_id, org_id, idp_metadata_url, idp_entity_id, idp_sso_url, idp_slo_url,
-              idp_certificates
+              idp_certificates, idp_certificate_retirements
          FROM sso_connections
          WHERE protocol = 'saml'
            AND status = 'active'

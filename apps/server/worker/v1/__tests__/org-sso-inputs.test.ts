@@ -78,6 +78,25 @@ function send(
   )
 }
 
+const RETIREMENT = { certificate: 'MIIBold', retiredAt: Date.parse('2026-10-01T00:00:00Z') }
+
+async function insertConnectionWithRetiredCertificate(d1: ReturnType<typeof makeDb>) {
+  await tenantDb(d1)
+    .forOrg('t_a')
+    .ssoConnections.insert({
+      id: 'conn_a',
+      tenantId: 't_a',
+      orgId: 't_a',
+      protocol: 'saml',
+      idpCertificates: ['MIIBnew', 'MIIBold'],
+      idpCertificateRetirements: [RETIREMENT],
+    })
+}
+
+function readConnection(d1: ReturnType<typeof makeDb>) {
+  return tenantDb(d1).forOrg('t_a').ssoConnections.findOne(eq(schema.ssoConnections.id, 'conn_a'))
+}
+
 async function paramName(response: Response): Promise<unknown> {
   return (await json<{ meta: { paramName?: string } | null }>(response)).meta?.paramName
 }
@@ -245,6 +264,36 @@ describe('inbound SSO connection input', () => {
     expect(await paramName(rejected)).toBe('relay_state_url')
   })
 
+  it('clears the retained metadata certificates when an admin saves certificates', async () => {
+    const d1 = await seed()
+    await insertConnectionWithRetiredCertificate(d1)
+
+    const res = await send(d1, {
+      method: 'PATCH',
+      path: 'sso-connections/conn_a',
+      body: { idp_certificates: ['MIIBmanual'] },
+    })
+
+    expect(res.status).toBe(200)
+    const row = await readConnection(d1)
+    expect(row?.idpCertificates).toEqual(['MIIBmanual'])
+    expect(row?.idpCertificateRetirements).toBeNull()
+  })
+
+  it('keeps the retained metadata certificates when the patch does not touch certificates', async () => {
+    const d1 = await seed()
+    await insertConnectionWithRetiredCertificate(d1)
+
+    await send(d1, {
+      method: 'PATCH',
+      path: 'sso-connections/conn_a',
+      body: { display_name: 'Acme IdP' },
+    })
+
+    const row = await readConnection(d1)
+    expect(row?.idpCertificateRetirements).toEqual([RETIREMENT])
+  })
+
   it('keeps another tenant from patching the connection with new fields', async () => {
     const d1 = await seed()
     await tenantDb(d1).forOrg('t_a').ssoConnections.insert({
@@ -290,6 +339,25 @@ describe('/v1/connections input', () => {
 
     expect(res.status).toBe(422)
     expect(await paramName(res)).toBe('attribute_mapping._swaVaultEnvelope')
+  })
+
+  it('clears the retained metadata certificates when certificates are saved through the API', async () => {
+    const d1 = await seed()
+    await insertConnectionWithRetiredCertificate(d1)
+    const token = await seedApiKey(d1, { id: 'key_a', scopes: ['connections:write'] })
+
+    const res = await buildApp(registerConnections).request(
+      'https://acme.xid.dev/v1/connections/conn_a',
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idp_certificates: ['MIIBmanual'] }),
+      },
+      envOf(d1),
+    )
+
+    expect(res.status).toBe(200)
+    expect((await readConnection(d1))?.idpCertificateRetirements).toBeNull()
   })
 
   it('does not let another tenant create a connection for this organization', async () => {
