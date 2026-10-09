@@ -82,7 +82,6 @@ const ALLOWED_NON_ENTITY_UUIDS: Record<string, AllowedUuidUse> = {
     reason: 'SAML session binding id',
   },
   'sso/swa-vault.ts': { count: 1, reason: 'SWA credential row id' },
-  'sso/wsfed-token.ts': { count: 1, reason: 'WS-Fed RSTR assertion wrapper Response ID' },
   'sso/wsfed.ts': { count: 1, reason: 'WS-Fed state' },
   'v1/org-auth-policy.ts': { count: 1, reason: 'org policy' },
   'v1/org-branding.ts': { count: 1, reason: 'R2 logo object suffix' },
