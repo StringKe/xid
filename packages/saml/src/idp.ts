@@ -49,7 +49,7 @@ const DEFAULT_NAMEID_FORMATS = [
   'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent',
 ]
 
-function escapeXml(value: string): string {
+export function escapeXml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -58,7 +58,7 @@ function escapeXml(value: string): string {
     .replace(/'/g, '&apos;')
 }
 
-function samlId(prefix: string): string {
+export function samlId(prefix: string): string {
   const bytes = crypto.getRandomValues(new Uint8Array(20))
   let hex = ''
   for (const b of bytes) hex += b.toString(16).padStart(2, '0')
@@ -168,7 +168,7 @@ export function buildSamlResponseXml(input: SamlResponseInput): {
   return { responseId, assertionId, sessionIndex, xml }
 }
 
-async function signElement(doc: Document, target: Element, key: CryptoKey): Promise<void> {
+export async function signElement(doc: Document, target: Element, key: CryptoKey): Promise<void> {
   const id = target.getAttribute('ID') ?? ''
   const signedXml = new SignedXml(doc)
   await signedXml.Sign({ name: 'RSASSA-PKCS1-v1_5' }, key, doc, {
@@ -190,7 +190,7 @@ function childByLocalName(parent: Element, localName: string): Element | null {
   return null
 }
 
-function xmlToBase64(xml: string): string {
+export function xmlToBase64(xml: string): string {
   const bytes = new TextEncoder().encode(xml)
   let binary = ''
   const chunk = 0x8000

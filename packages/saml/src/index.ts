@@ -57,6 +57,8 @@ export type { SpMetadataInput } from './metadata'
 export { parseIdpMetadataXml } from './idp-metadata'
 export type { ParsedIdpMetadata } from './idp-metadata'
 export { buildIdpMetadataXml, buildSamlResponseXml, signSamlResponse } from './idp'
+export { SAML_STATUS, buildSamlStatusResponseXml, signSamlStatusResponse } from './idp-status'
+export type { SamlStatusResponseInput, SignedSamlStatusResponse } from './idp-status'
 export type {
   IdpMetadataInput,
   SamlAttributeValue,
