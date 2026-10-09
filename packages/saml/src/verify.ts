@@ -46,12 +46,14 @@ async function verifyWithAnyKey(
   return { ok: false }
 }
 
-async function verifyElementSignature(
+// 无直接子 Signature 返回 null;有则必须验过,否则整体失败(不因另一层通过而忽略坏签名)。
+async function verifyLayerSignature(
   doc: Document,
   signedElement: Element,
   keys: readonly IdpVerifyKey[],
-): Promise<SamlResult<string>> {
+): Promise<SamlResult<string | null>> {
   const selected = selectSingleSignature(signedElement)
+  if (!selected.ok && selected.error.code === 'signature_required') return okResult(null)
   if (!selected.ok) return failResult(selected.error.code, selected.error.reason)
   const loaded = loadAndCheckSignature(doc, selected.value.signature, signedElement)
   if (!loaded.ok) return failResult(loaded.error.code, loaded.error.reason)
@@ -100,11 +102,13 @@ async function verifyAndResolve(
   if (!structure.ok) return failResult(structure.error.code, structure.error.reason)
 
   // 双 false 会跳过全部验签、接受任意伪造 Response,故回退强制 assertion 签名。
+  // 两层都要求时按「任一层有效签名覆盖断言」:IdP 默认多只签一层(Entra/Google/ADFS 签 Assertion)。
+  // Response 签名的 Reference 已钉在 Response 根且结构白名单只允许一个断言子元素,签名对象即被使用的断言。
   const wantAssertionsSigned = options.wantAssertionsSigned || !options.wantAuthnResponseSigned
 
-  let responseFingerprint: string | undefined
+  let responseFingerprint: string | null = null
   if (options.wantAuthnResponseSigned) {
-    const sig = await verifyElementSignature(parsed.value, responseRoot, keys)
+    const sig = await verifyLayerSignature(parsed.value, responseRoot, keys)
     if (!sig.ok) return failResult(sig.error.code, sig.error.reason)
     responseFingerprint = sig.value
   }
@@ -113,18 +117,16 @@ async function verifyAndResolve(
   if (!resolved.ok) return failResult(resolved.error.code, resolved.error.reason)
   const { assertion, doc: assertionDoc } = resolved.value
 
-  let assertionFingerprint: string | undefined
+  let assertionFingerprint: string | null = null
   if (wantAssertionsSigned) {
-    const sig = await verifyElementSignature(assertionDoc, assertion, keys)
+    const sig = await verifyLayerSignature(assertionDoc, assertion, keys)
     if (!sig.ok) return failResult(sig.error.code, sig.error.reason)
     assertionFingerprint = sig.value
   }
 
-  return okResult({
-    responseRoot,
-    assertion,
-    fingerprint: assertionFingerprint ?? responseFingerprint ?? '',
-  })
+  const fingerprint = assertionFingerprint ?? responseFingerprint
+  if (!fingerprint) return failResult('signature_required', 'no required layer carries a signature')
+  return okResult({ responseRoot, assertion, fingerprint })
 }
 
 export async function verifySamlResponse(

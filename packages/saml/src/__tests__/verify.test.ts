@@ -25,9 +25,9 @@ describe('verifySamlResponse end-to-end', () => {
     }
   })
 
-  it('signature_required when wantAssertionsSigned but assertion unsigned', async () => {
+  it('signature_required when only assertion signing is configured and the assertion is unsigned', async () => {
     const xml = await signedResponse({}, { response: true, assertion: false })
-    const result = await verifySamlResponse(xml, opts())
+    const result = await verifySamlResponse(xml, opts({ wantAuthnResponseSigned: false }))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('signature_required')
   })
