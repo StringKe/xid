@@ -1,11 +1,9 @@
 // assertion 测试向量：合法路径用 Web Crypto 真算，负路径在合法值上单点变异。
 
+import type { StoredCredential, WebAuthnVerificationInput } from '@xid-kit/types'
+
 // 从生产模块 import，避免 fixtures 与克隆检测逻辑漂移。
-import {
-  detectSignCountAnomaly,
-  type AuthenticationVerificationInput as WebAuthnVerificationInput,
-  type StoredPasskeyCredential as StoredCredential,
-} from '../../verify-authentication'
+import { detectSignCountAnomaly } from '../../verify-authentication'
 
 function base64UrlEncode(bytes: Uint8Array): string {
   const base64 = btoa(String.fromCharCode(...bytes))

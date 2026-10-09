@@ -1,15 +1,10 @@
 // 四验证编排与负路径；sign_count 异常标记；注册提取 VerifiedPasskey。
 
 import { derToP1363, p1363ToDer } from '@xid-kit/crypto'
-import type { WebAuthnVerificationInput } from '@xid-kit/types'
+import type { StoredCredential, WebAuthnVerificationInput } from '@xid-kit/types'
 import { describe, expect, it } from 'vitest'
 
-import {
-  detectSignCountAnomaly,
-  verifyAuthentication,
-  type AuthenticationVerificationInput,
-  type StoredPasskeyCredential,
-} from '../verify-authentication'
+import { detectSignCountAnomaly, verifyAuthentication } from '../verify-authentication'
 import { verifyRegistration } from '../verify-registration'
 import {
   buildOriginTamperedVector,
@@ -77,7 +72,7 @@ async function buildValidAuth(opts: {
   aaguid?: Uint8Array
   assertionBackupEligible?: boolean
   storedBackupEligible?: boolean
-}): Promise<{ input: AuthenticationVerificationInput; keyPair: CryptoKeyPair }> {
+}): Promise<{ input: WebAuthnVerificationInput; keyPair: CryptoKeyPair }> {
   const rpId = opts.rpId ?? RP_ID
   const origin = opts.origin ?? ORIGIN
   const keyPair = await generateAssertionKeyPair()
@@ -100,7 +95,7 @@ async function buildValidAuth(opts: {
     (await crypto.subtle.exportKey('raw', keyPair.publicKey)) as ArrayBuffer,
   )
 
-  const storedCredential: StoredPasskeyCredential = {
+  const storedCredential: StoredCredential = {
     credentialId: crypto.getRandomValues(new Uint8Array(16)),
     publicKey: coseEncodeEs256(rawPub),
     coseAlg: -7,
@@ -137,7 +132,7 @@ async function buildValidEdDSAAuth(opts: {
   uv?: boolean
   newSignCount?: number
   storedSignCount?: number
-}): Promise<{ input: AuthenticationVerificationInput }> {
+}): Promise<{ input: WebAuthnVerificationInput }> {
   const rpId = opts.rpId ?? RP_ID
   const origin = opts.origin ?? ORIGIN
   const keyPair = (await crypto.subtle.generateKey({ name: 'Ed25519' }, true, [
@@ -221,7 +216,7 @@ describe('verifyAuthentication: valid path', () => {
 describe('verifyAuthentication: four-verification negative paths', () => {
   it('rejects on challenge mismatch (verification 1)', async () => {
     const { input } = await buildValidAuth({})
-    const tampered: AuthenticationVerificationInput = {
+    const tampered: WebAuthnVerificationInput = {
       ...input,
       expectedChallenge: crypto.getRandomValues(new Uint8Array(32)),
     }

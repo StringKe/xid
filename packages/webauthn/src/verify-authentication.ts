@@ -18,16 +18,6 @@ import { checkClientData, constantTimeEqual } from './parse'
 const ES256: CoseAlg = -7
 const EDDSA: CoseAlg = -8
 
-// backupEligible 是注册时存储的 BE 位；WebAuthn L3 §7.2 要求断言 BE 与之一致。
-export type StoredPasskeyCredential = StoredCredential & { backupEligible: boolean }
-
-export type AuthenticationVerificationInput = Omit<
-  WebAuthnVerificationInput,
-  'storedCredential'
-> & {
-  storedCredential?: StoredPasskeyCredential
-}
-
 // 平台同步 passkey 常见全 0 aaguid，跳过 sign_count 比较以免误报克隆。
 function isPlatformZeroAaguid(aaguid: Uint8Array): boolean {
   return aaguid.every((b) => b === 0)
@@ -95,7 +85,7 @@ function buildResult(
 }
 
 export async function verifyAuthentication(
-  input: AuthenticationVerificationInput,
+  input: WebAuthnVerificationInput,
 ): Promise<Result<VerifiedPasskey, XidError>> {
   const stored = input.storedCredential
   if (!stored || !input.signature) {

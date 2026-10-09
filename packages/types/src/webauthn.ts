@@ -23,6 +23,8 @@ export type StoredCredential = {
   coseAlg: CoseAlg
   signCount: number
   aaguid: Uint8Array
+  // 注册时的 BE 位;WebAuthn L3 §7.2 要求断言 BE 与之一致,克隆检测是否跳过也以它为准
+  backupEligible: boolean
 }
 
 // client 只透传字节；rpId/origin/challenge 由 Worker 从 TenantContext + DO 注入，DO 不持租户配置

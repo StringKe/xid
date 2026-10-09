@@ -2,8 +2,8 @@
 
 import { base64UrlDecode, base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
-import type { AuthenticatorTransport, CoseAlg } from '@xid-kit/types'
-import { verifyRegistration, type StoredPasskeyCredential } from '@xid-kit/webauthn'
+import type { AuthenticatorTransport, CoseAlg, StoredCredential } from '@xid-kit/types'
+import { verifyRegistration } from '@xid-kit/webauthn'
 import { and, eq, isNull, lte } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
@@ -107,7 +107,7 @@ export function getOrCreateAnonKey(c: Context<XidHonoEnv>): string {
   return base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
 }
 
-// 从 DB 行构建 StoredPasskeyCredential(认证时传给 verifyAuthentication)。blob 列在 D1 取回为 Buffer。
+// 从 DB 行构建 StoredCredential(认证时传给 verifyAuthentication)。blob 列在 D1 取回为 Buffer。
 // credential_device_type 在注册时由 BE 位派生(multiDevice 即 BE=1),据此还原存储的 backupEligible。
 export function buildStoredCredential(cred: {
   credentialId: string
@@ -116,7 +116,7 @@ export function buildStoredCredential(cred: {
   signCount: number
   aaguid: Uint8Array | ArrayBuffer
   credentialDeviceType: string
-}): StoredPasskeyCredential | undefined {
+}): StoredCredential | undefined {
   if (cred.coseAlg !== -7 && cred.coseAlg !== -257 && cred.coseAlg !== -8) return undefined
   return {
     credentialId: base64UrlDecode(cred.credentialId),
