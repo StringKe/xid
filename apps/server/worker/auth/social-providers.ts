@@ -4,9 +4,11 @@
 
 import { envelopeEncrypt } from '@xid-kit/crypto'
 import type { SocialProviderPolicy, TenantContext } from '@xid-kit/types'
+import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { isPublicHttpsUrl } from '../lib/validate'
-import { HostedAuthPolicyError } from './hosted-policy'
+import { readBoundedJson } from '../sso/bounded-json'
+import { HostedAuthPolicyError } from './hosted-policy-core'
 
 // provider 标识:内置 google/github/microsoft/apple,亦支持自定义 provider key(任意字符串)。
 export type Provider = string
@@ -55,6 +57,7 @@ export const BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS = {
 } as const
 
 export const SOCIAL_PROVIDER_TIMEOUT_MS = 5_000
+const TOKEN_RESPONSE_MAX_BYTES = 64 * 1024
 
 const CUSTOM_SOCIAL_SECRET_BINDING = /^SOCIAL_[A-Z0-9_]+_CLIENT_SECRET$/
 const PROVIDER_KEY = /^[a-z0-9_-]+$/
@@ -256,10 +259,29 @@ export async function exchangeCode(opts: {
     signal: AbortSignal.timeout(SOCIAL_PROVIDER_TIMEOUT_MS),
   })
   if (!tokenRes.ok) throw new AppError('invalid_grant')
-  const data = (await tokenRes.json()) as Record<string, unknown>
+  return parseTokenResponse(tokenRes)
+}
+
+const tokenResponseSchema = v.looseObject({
+  access_token: v.pipe(v.string(), v.minLength(1)),
+  refresh_token: v.nullish(v.string()),
+  id_token: v.nullish(v.string()),
+  error: v.nullish(v.never()),
+})
+
+// GitHub 等 provider 在 200 响应里返回 { error },缺 access_token 或带 error 都按 code 无效处理。
+async function parseTokenResponse(response: Response): Promise<TokenResponse> {
+  let payload: unknown
+  try {
+    payload = await readBoundedJson(response, TOKEN_RESPONSE_MAX_BYTES)
+  } catch (cause) {
+    throw new AppError('invalid_grant', { cause })
+  }
+  const parsed = v.safeParse(tokenResponseSchema, payload)
+  if (!parsed.success) throw new AppError('invalid_grant')
   return {
-    accessToken: data['access_token'] as string,
-    refreshToken: (data['refresh_token'] as string | undefined) ?? null,
-    idToken: (data['id_token'] as string | undefined) ?? null,
+    accessToken: parsed.output.access_token,
+    refreshToken: parsed.output.refresh_token || null,
+    idToken: parsed.output.id_token || null,
   }
 }
