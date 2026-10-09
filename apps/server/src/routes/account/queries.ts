@@ -23,6 +23,14 @@ import type {
   UserProfile,
 } from './types'
 
+type CeremonyHandoff = { handoff: { url: string } }
+
+// 整页跳转后当前页面即将卸载;返回不结束的 Promise,按钮保持加载态,不弹出成功或失败提示。
+function navigateAway(url: string): Promise<never> {
+  window.location.assign(url)
+  return new Promise<never>(() => undefined)
+}
+
 export type PasskeyRegistrationRequest = {
   deviceName?: string
   securityKey?: boolean
@@ -99,8 +107,13 @@ export function useRegisterPasskey(): UseMutationResult<
 > {
   return useApiMutation<unknown, PasskeyRegistrationRequest>(
     async (api, { deviceName, securityKey, signal }) => {
-      const options = await api.post<PasskeyRegistrationOptions>('/auth/passkey/register/options')
+      const options = await api.post<PasskeyRegistrationOptions | CeremonyHandoff>(
+        '/auth/passkey/register/options',
+        { continue: `${window.location.pathname}${window.location.search}` },
+      )
       if (!options.ok) return options
+      // passkey 只能在组织自己的地址登记:服务端要求换主机时整页跳过去,会话随之交接。
+      if ('handoff' in options.value) return navigateAway(options.value.handoff.url)
 
       const { registrationOptionsToPublicKey, serializeRegistration } =
         await import('../sign-in/passkey')

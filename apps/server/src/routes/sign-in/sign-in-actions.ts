@@ -46,7 +46,7 @@ export type SignInActionContext = {
   excludesFederatedEntry: boolean
   hostedReturn: string
   credentials: ReturnType<typeof useCredentialMutations>
-  passkey: Pick<PasskeySignIn, 'triggerButton'>
+  passkey: Pick<PasskeySignIn, 'triggerButton' | 'triggerEarlierButton'>
   otp: Pick<OtpSend, 'sendOtp' | 'setOtpCode' | 'setOtpSentAt' | 'setOtpResent'>
   discovery: Pick<IdentifierDiscovery, 'startDiscovery' | 'setSsoTarget'>
   refetchAuthConfig: () => void
@@ -87,6 +87,7 @@ type CredentialActions = Pick<
   | 'requestOtp'
   | 'verifyOtp'
   | 'triggerPasskeyButton'
+  | 'triggerEarlierPasskeyButton'
   | 'submitGuest'
 >
 type EntryActions = Pick<SignInActions, 'handleSocial' | 'selectOrganizationContext'>
@@ -189,6 +190,7 @@ function buildCredentialActions(ctx: SignInActionContext): CredentialActions {
       )
     },
     triggerPasskeyButton: whenTurnstileReady(() => ctx.passkey.triggerButton()),
+    triggerEarlierPasskeyButton: whenTurnstileReady(() => ctx.passkey.triggerEarlierButton()),
     submitGuest: () => {
       if (!ctx.authConfig.guest || !turnstileReady) return
       credentials.guest.mutate(

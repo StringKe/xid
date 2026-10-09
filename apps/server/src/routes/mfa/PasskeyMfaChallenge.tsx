@@ -16,12 +16,17 @@ type PasskeyMfaOptions = {
   rpId: string
   userVerification: UserVerificationRequirement
   timeout?: number
+  // 账户里还有早期在实例主域登记的 passkey,可以单独发起一次
+  earlierAvailable?: boolean
   allowCredentials: Array<{
     id: string
     type: PublicKeyCredentialType
     transports?: AuthenticatorTransport[]
   }>
 }
+
+// passkey 只能在组织自己的地址使用:服务端要求换主机时带着当前会话整页跳过去,回来后续跑原流程。
+type CeremonyHandoff = { handoff: { url: string } }
 
 async function requestAssertion(options: PasskeyMfaOptions): Promise<PublicKeyCredential | null> {
   try {
@@ -50,12 +55,25 @@ export function PasskeyMfaChallenge({ isStepUp, methods, above }: ChallengeProps
   const verify = useMfaVerify({ method: 'passkey', invalidMessage: failedMessage })
 
   const [isRequesting, setIsRequesting] = useState(false)
+  const [earlierAvailable, setEarlierAvailable] = useState(false)
 
-  async function handleVerify(): Promise<void> {
+  async function handleVerify(mode: { earlier: boolean }): Promise<void> {
     verify.setError(null)
     setIsRequesting(true)
-    const optionsResult = await api.post<PasskeyMfaOptions>('/auth/mfa/passkey/options')
-    const credential = optionsResult.ok ? await requestAssertion(optionsResult.value) : null
+    const optionsResult = await api.post<PasskeyMfaOptions | CeremonyHandoff>(
+      '/auth/mfa/passkey/options',
+      {
+        continue: `${window.location.pathname}${window.location.search}`,
+        ...(mode.earlier ? { earlier: true } : {}),
+      },
+    )
+    const options = optionsResult.ok ? optionsResult.value : null
+    if (options && 'handoff' in options) {
+      window.location.assign(options.handoff.url)
+      return
+    }
+    if (options) setEarlierAvailable(options.earlierAvailable === true)
+    const credential = options ? await requestAssertion(options) : null
     setIsRequesting(false)
     if (!credential) {
       verify.setError(failedMessage)
@@ -96,11 +114,22 @@ export function PasskeyMfaChallenge({ isStepUp, methods, above }: ChallengeProps
         size="lg"
         fullWidth
         isLoading={isRequesting || verify.isPending}
-        onClick={() => void handleVerify()}
+        onClick={() => void handleVerify({ earlier: false })}
       >
         <Icon name="passkey" size={18} />
         <Trans>Use passkey</Trans>
       </Button>
+      {earlierAvailable ? (
+        <Button
+          variant="secondary"
+          size="lg"
+          fullWidth
+          isLoading={isRequesting || verify.isPending}
+          onClick={() => void handleVerify({ earlier: true })}
+        >
+          <Trans>Use a passkey created on an earlier address</Trans>
+        </Button>
+      ) : null}
       {isStepUp ? (
         <p {...stylex.props(hosted.note)}>
           <Trans>Text message codes can't be used to confirm changes like this.</Trans>

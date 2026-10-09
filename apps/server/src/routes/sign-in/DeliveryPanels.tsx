@@ -151,6 +151,7 @@ export function CodeStartPanel(
 
 export function PasskeyPanel(props: PanelProps): ReactNode {
   const { state, actions } = props
+  const earlierHost = state.authConfig.earlierPasskeyRpId ?? null
   return (
     <div {...stylex.props(hosted.screen)}>
       <AuthHeading
@@ -183,6 +184,18 @@ export function PasskeyPanel(props: PanelProps): ReactNode {
           <Icon name="passkey" size={18} />
           <Trans>Use passkey</Trans>
         </Button>
+        {earlierHost ? (
+          <Button
+            variant="secondary"
+            size="lg"
+            fullWidth
+            isLoading={state.isLoading}
+            disabled={!state.turnstileReady}
+            onClick={actions.triggerEarlierPasskeyButton}
+          >
+            <Trans>Use a passkey created on {earlierHost}</Trans>
+          </Button>
+        ) : null}
         <p {...stylex.props(hosted.note)}>
           <Trans>
             On a different computer, your browser can show a QR code to scan with your phone.

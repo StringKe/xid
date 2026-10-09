@@ -58,6 +58,8 @@ export type PublicHostedAuthConfig = {
     identifierRequired: boolean
     reregistrationRequired: boolean
   }
+  // 组织地址上可用实例主域登录早期登记的 passkey;其他地址为 null。
+  earlierPasskeyRpId?: string | null
   defaultLandingPath: DefaultLandingPath
   branding: OrgBranding | null
   context: HostedAuthContext

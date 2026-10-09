@@ -89,6 +89,7 @@ export type SignInActions = {
   requestOtp: () => void
   verifyOtp: (code: string) => void
   triggerPasskeyButton: () => void
+  triggerEarlierPasskeyButton: () => void
   submitGuest: () => void
   handleSocial: (provider: string) => void
   selectOrganizationContext: (organizationId: string) => void

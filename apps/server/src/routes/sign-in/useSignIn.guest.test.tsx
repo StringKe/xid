@@ -66,6 +66,7 @@ vi.mock('./usePasskeySignIn', () => ({
     isVerifying: false,
     error: null,
     triggerButton: vi.fn(),
+    triggerEarlierButton: vi.fn(),
   }),
 }))
 

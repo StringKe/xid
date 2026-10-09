@@ -249,6 +249,11 @@ function PasskeyCard({ passkey, onRename, onRemove }: CardProps): ReactNode {
               <Trans>Not synced</Trans>
             </Badge>
           )}
+          {passkey.earlier ? (
+            <Badge>
+              <Trans>Earlier address</Trans>
+            </Badge>
+          ) : null}
         </div>
         <PasskeyMeta passkey={passkey} />
       </div>
@@ -492,6 +497,8 @@ export function PasskeySection(): ReactNode {
   const atLimit = list.length >= limit
   const count = list.length
   const host = globalThis.location?.hostname ?? ''
+  const earlierHost = authConfig.data?.earlierPasskeyRpId ?? null
+  const hasEarlier = earlierHost !== null && list.some((passkey) => passkey.earlier)
 
   // 只是提示凭据管理器同步,失败不影响账户里已完成的改动。
   const signal = (): void => {
@@ -583,6 +590,16 @@ export function PasskeySection(): ReactNode {
             <Trans>
               Passkeys created on a different address don't work here. Create one for this address
               to keep signing in with a passkey.
+            </Trans>
+          </Notice>
+        </div>
+      ) : null}
+      {hasEarlier ? (
+        <div {...stylex.props(surface.note)}>
+          <Notice tone="info">
+            <Trans>
+              Passkeys marked Earlier address were created on {earlierHost}. They still work here.
+              Create a passkey for {host}, then remove the earlier one.
             </Trans>
           </Notice>
         </div>

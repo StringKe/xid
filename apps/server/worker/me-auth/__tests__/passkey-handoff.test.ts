@@ -505,6 +505,41 @@ describe('root sessions handed to the organization host for passkey ceremonies',
     expect(sessionsInsert).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'active' }))
   })
 
+  it('keeps a forced MFA enrollment pending on the organization host and returns to /authorize afterwards', async () => {
+    const env = multiHostEnv()
+    const enrolling = sessionWith('pending_mfa_setup')
+    const options = await hostApp(ACME_FROM_ROOT, enrolling).request(
+      `${ROOT}/auth/passkey/register/options`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          continue: `/mfa/setup?redirect_to=${encodeURIComponent(AUTHORIZE)}`,
+        }),
+      },
+      env,
+      execCtx,
+    )
+    const { handoff } = (await options.json()) as { handoff: { url: string } }
+
+    const { state, form } = await followPrepare(env, {
+      prepareUrl: handoff.url,
+      target: ACME_TENANT,
+      source: ACME_FROM_ROOT,
+      session: enrolling,
+    })
+    const consumed = await consume(env, { tenant: ACME_TENANT, origin: ACME, form, cookie: state })
+
+    const location = new URL(consumed.headers.get('location')!, ACME)
+    expect(location.pathname).toBe('/mfa/setup')
+    expect(location.searchParams.get('redirect_to')).toBe(
+      `/auth/passkey/handoff/return?continue=${encodeURIComponent(AUTHORIZE)}`,
+    )
+    expect(sessionsInsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'pending_mfa_setup' }),
+    )
+  })
+
   it('refuses to start a handoff without a session', async () => {
     const env = multiHostEnv()
 

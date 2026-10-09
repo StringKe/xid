@@ -10,7 +10,12 @@ import { apiErrorToKey, type SignInErrorKey } from './shared'
 import { b64urlToBytes, browserSupportsWebAuthn, serializeAssertion } from './passkey'
 import type { SignInFlowFields } from './sign-in-flow'
 
-type ChallengeResponse = { challenge: string; sessionId: string; organizationId?: string }
+type ChallengeResponse = {
+  challenge: string
+  sessionId: string
+  organizationId?: string
+  rpId?: string
+}
 type CeremonyResponse = { ceremony: { origin: string; state: string }; organizationId: string }
 type HandoffForm = { action: string; method: 'POST'; fields: Record<string, string> }
 type VerifyResponse = { redirectUrl?: string; handoff?: HandoffForm }
@@ -65,6 +70,8 @@ export type PasskeySignIn = {
   isVerifying: boolean
   error: SignInErrorKey | null
   triggerButton: () => void
+  // 以实例主域为 rpId 发起,只用于早期在根域登记的 passkey;只在组织地址显示。
+  triggerEarlierButton: () => void
 }
 
 type PasskeySignInOptions = {
@@ -121,12 +128,18 @@ function useDebouncedValue(value: string, delayMs: number): string {
 
 async function fetchChallenge(
   api: ApiClient,
-  input: { identifier: string; organizationId?: string | null; clientId?: string },
+  input: {
+    identifier: string
+    organizationId?: string | null
+    clientId?: string
+    earlier?: boolean
+  },
 ): Promise<ChallengeOutcome> {
   const result = await api.post<ChallengeResponse | CeremonyResponse>('/auth/passkey/challenge', {
     ...(input.identifier ? { identifier: input.identifier } : {}),
     ...(input.organizationId ? { organizationId: input.organizationId } : {}),
     ...(input.clientId ? { clientId: input.clientId } : {}),
+    ...(input.earlier ? { earlier: true } : {}),
   })
   if (result.ok) return result.value
   return result.error.code === 'organization_selection_required' ? result.error.code : null
@@ -153,6 +166,7 @@ function assertionBody(
 function requestOptions(challenge: ChallengeResponse): PublicKeyCredentialRequestOptions {
   return {
     challenge: b64urlToBytes(challenge.challenge),
+    ...(challenge.rpId ? { rpId: challenge.rpId } : {}),
     userVerification: 'required',
     allowCredentials: [],
   }
@@ -278,50 +292,63 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
     submitAssertion,
   ])
 
-  const triggerButton = useCallback((): void => {
-    if (!enabled || !browserSupportsWebAuthn()) {
-      setError('passkey_unavailable')
-      return
-    }
-    const currentIdentifier = latest.current.identifier.trim()
-    if (identifierRequired && !currentIdentifier) {
-      setError('identifier_required')
-      return
-    }
-    abortRef.current?.abort()
-    setError(null)
-    void (async () => {
-      const challenge = await fetchChallenge(api, {
-        identifier: currentIdentifier,
-        organizationId,
-        clientId,
-      })
-      if (challenge === 'organization_selection_required') {
-        latest.current.onOrganizationSelectionRequired()
+  const startButtonCeremony = useCallback(
+    (mode: { earlier: boolean }): void => {
+      if (!enabled || !browserSupportsWebAuthn()) {
+        setError('passkey_unavailable')
         return
       }
-      if (!challenge) {
-        setError('auth_failed')
-        restart()
+      const currentIdentifier = latest.current.identifier.trim()
+      if (identifierRequired && !currentIdentifier) {
+        setError('identifier_required')
         return
       }
-      if (isCeremony(challenge)) {
-        continueOnCeremonyHost(challenge)
-        return
-      }
-      let credential: Credential | null = null
-      try {
-        credential = await navigator.credentials.get({
-          mediation: 'optional',
-          publicKey: requestOptions(challenge),
-        } as CredentialRequestOptions)
-      } catch {
-        // 用户取消或超时(NotAllowedError)只回到可重试状态,不当作认证失败。
-      }
-      if (credential) submitAssertion(credential as PublicKeyCredential, challenge)
-      else restart()
-    })()
-  }, [api, clientId, enabled, identifierRequired, organizationId, restart, submitAssertion])
+      abortRef.current?.abort()
+      setError(null)
+      void (async () => {
+        const challenge = await fetchChallenge(api, {
+          identifier: currentIdentifier,
+          organizationId,
+          clientId,
+          earlier: mode.earlier,
+        })
+        if (challenge === 'organization_selection_required') {
+          latest.current.onOrganizationSelectionRequired()
+          return
+        }
+        if (!challenge) {
+          setError('auth_failed')
+          restart()
+          return
+        }
+        if (isCeremony(challenge)) {
+          continueOnCeremonyHost(challenge)
+          return
+        }
+        let credential: Credential | null = null
+        try {
+          credential = await navigator.credentials.get({
+            mediation: 'optional',
+            publicKey: requestOptions(challenge),
+          } as CredentialRequestOptions)
+        } catch {
+          // 用户取消或超时(NotAllowedError)只回到可重试状态,不当作认证失败。
+        }
+        if (credential) submitAssertion(credential as PublicKeyCredential, challenge)
+        else restart()
+      })()
+    },
+    [api, clientId, enabled, identifierRequired, organizationId, restart, submitAssertion],
+  )
+
+  const triggerButton = useCallback(
+    (): void => startButtonCeremony({ earlier: false }),
+    [startButtonCeremony],
+  )
+  const triggerEarlierButton = useCallback(
+    (): void => startButtonCeremony({ earlier: true }),
+    [startButtonCeremony],
+  )
 
   // 从根域跳来时直接发起一次;浏览器要求用户手势而拒绝时,按钮仍在,用户再点一次即可。
   const autoStarted = useRef(false)
@@ -339,5 +366,6 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
     isVerifying: verifyMutation.isPending,
     error,
     triggerButton,
+    triggerEarlierButton,
   }
 }

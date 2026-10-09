@@ -16,7 +16,7 @@ import type { XidHonoEnv } from '../lib/types'
 import { MFA_VERIFY_SCOPE } from './mfa-challenge'
 import { earlierPasskeyRpId, isEarlierPasskey } from '../auth/passkey-rp-ids'
 import { passkeyCeremonyOrigin } from './passkey-handoff'
-import { handoffPrepareUrl, readHandoffContinue } from './passkey-handoff-paths'
+import { handoffPrepareUrl, isAccountPath, readHandoffContinue } from './passkey-handoff-paths'
 import { requestIp } from './shared'
 
 const passkeyMfaVerifyBodySchema = v.object({
@@ -47,13 +47,18 @@ export async function handlePasskeyMfaOptions(c: Context<XidHonoEnv>): Promise<R
   if (credentials.length === 0) throw new AppError('mfa_setup_required')
   const ceremonyOrigin = passkeyCeremonyOrigin(c, tenant)
   if (ceremonyOrigin) {
-    const continuePath = await readHandoffContinue(c, MFA_PATH)
+    // 登录第二因子回到 /mfa;账户页里的 step-up 回到原账户页,在组织主机上重新确认。
+    const continuePath = await readHandoffContinue(c, {
+      fallback: MFA_PATH,
+      accepts: (pathname) => pathname === MFA_PATH || isAccountPath(pathname),
+    })
     return c.json({ handoff: { url: handoffPrepareUrl(c, ceremonyOrigin, continuePath) } })
   }
 
   const earlierRpId = earlierPasskeyRpId(tenant)
   const earlierCredentials = credentials.filter((cred) => isEarlierPasskey(tenant, cred))
-  const useEarlier = (await readEarlierFlag(c)) && earlierRpId !== null
+  // rp_id 为 NULL 的凭证也可能是本列出现前在组织子域登记的,不能自动改用实例主域,由用户在页面上显式选择。
+  const useEarlier = earlierRpId !== null && (await readEarlierFlag(c))
   const offered = useEarlier ? earlierCredentials : credentials
   if (offered.length === 0) throw new AppError('mfa_setup_required')
   const challenge = await createChallenge(c.env, challengeKey(session.sessionId, tenant.tenantId))

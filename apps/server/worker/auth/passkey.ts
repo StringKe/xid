@@ -34,10 +34,17 @@ import { loadUserCredentialLabel, requireSession, type SessionRequirement } from
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
 import { loadTrustedAttestationRoots } from '../v1/webauthn-trusted-roots'
 import { passkeyCeremonyOrigin } from '../me-auth/passkey-handoff'
-import { handoffPrepareUrl, readHandoffContinue } from '../me-auth/passkey-handoff-paths'
+import {
+  handoffPrepareUrl,
+  isAccountPath,
+  readHandoffContinue,
+} from '../me-auth/passkey-handoff-paths'
 import { registerSessionHandoffRoutes } from '../me-auth/passkey-handoff-routes'
 
 const ACCOUNT_SECURITY_PATH = '/account/security'
+const CREATE_PASSKEY_PATH = '/create-passkey'
+// 强制 MFA 绑定页:待绑定会话在组织主机上登记 passkey 作为第二因子
+const MFA_SETUP_PATH = '/mfa/setup'
 
 const passkey = new Hono<XidHonoEnv>()
 
@@ -108,7 +115,11 @@ passkey.post('/register/options', async (c) => {
   await assertPasskeyPolicy(c, tenant)
   const ceremonyOrigin = passkeyCeremonyOrigin(c, tenant)
   if (ceremonyOrigin) {
-    const continuePath = await readHandoffContinue(c, ACCOUNT_SECURITY_PATH)
+    const continuePath = await readHandoffContinue(c, {
+      fallback: ACCOUNT_SECURITY_PATH,
+      accepts: (pathname) =>
+        isAccountPath(pathname) || pathname === CREATE_PASSKEY_PATH || pathname === MFA_SETUP_PATH,
+    })
     return c.json({ handoff: { url: handoffPrepareUrl(c, ceremonyOrigin, continuePath) } })
   }
 

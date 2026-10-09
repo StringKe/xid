@@ -9,10 +9,12 @@ import { readJsonBody } from '../lib/validate'
 export const SESSION_HANDOFF_PATH = '/auth/passkey/handoff'
 const LOCAL_ORIGIN = 'https://local.invalid'
 
-// 交接后只能落到这几类本地页面:续跑 /authorize、账户页、MFA 页、以及交回 issuer 的返回入口。
+// 交接后只能落到这几类本地页面:续跑 /authorize、账户页、MFA 页、登录后创建 passkey 的提示页,
+// 以及交回 issuer 的返回入口。
 const HANDOFF_CONTINUATION_PREFIXES = [
   '/account',
   '/mfa',
+  '/create-passkey',
   `${SESSION_HANDOFF_PATH}/return`,
 ] as const
 
@@ -27,6 +29,10 @@ export function isHandoffContinuation(path: string): boolean {
 
 export function isAuthorizeContinuation(path: string): boolean {
   return isHandoffContinuation(path) && new URL(path, LOCAL_ORIGIN).pathname === '/authorize'
+}
+
+export function isAccountPath(pathname: string): boolean {
+  return pathname === '/account' || pathname.startsWith('/account/')
 }
 
 // 组织主机上的流程完成后经返回入口把会话交回 issuer 主机。
@@ -46,18 +52,19 @@ export function handoffPrepareUrl(
 
 const handoffContinueBodySchema = v.object({ continue: v.optional(v.string()) })
 
-// 发起交接的 API 由客户端告知交接后回到哪个页面;只接受与默认页同一路径的页面,否则用默认页。
-// MFA 页里要回 issuer 主机续跑的 redirect_to 改走返回入口,完成第二因子后自动交回。
+// 发起交接的 API 由客户端告知交接后回到哪个页面;只接受该 API 允许的页面路径,否则用默认页。
+// 页面里要回 issuer 主机续跑的 redirect_to 改走返回入口,在组织主机完成后自动交回。
 export async function readHandoffContinue(
   c: Context<XidHonoEnv>,
-  fallback: string,
+  input: { fallback: string; accepts: (pathname: string) => boolean },
 ): Promise<string> {
+  const { fallback, accepts } = input
   const json = await readJsonBody(c)
   const parsed = v.safeParse(handoffContinueBodySchema, json.ok ? json.value : {})
   const requested = parsed.success ? parsed.output.continue : undefined
   if (!requested || !isHandoffContinuation(requested)) return fallback
   const url = new URL(requested, LOCAL_ORIGIN)
-  if (url.pathname !== new URL(fallback, LOCAL_ORIGIN).pathname) return fallback
+  if (!accepts(url.pathname)) return fallback
   const redirectTo = url.searchParams.get('redirect_to')
   if (redirectTo && isAuthorizeContinuation(redirectTo)) {
     url.searchParams.set('redirect_to', handoffReturnPath(redirectTo))

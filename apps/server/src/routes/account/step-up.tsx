@@ -219,8 +219,17 @@ function StepUpDialog({ reason, onVerified, onCancel }: StepUpDialogProps): Reac
   const confirmWithPasskey = async (): Promise<void> => {
     setError(null)
     setIsBusy(true)
-    const options = await api.post<PasskeyOptions>('/auth/mfa/passkey/options')
-    const credential = options.ok ? await requestAssertion(options.value) : null
+    const options = await api.post<PasskeyOptions | { handoff: { url: string } }>(
+      '/auth/mfa/passkey/options',
+      { continue: `${window.location.pathname}${window.location.search}` },
+    )
+    const value = options.ok ? options.value : null
+    // passkey 只能在组织自己的地址使用:换主机后在那里重新确认,会话随之交接。
+    if (value && 'handoff' in value) {
+      window.location.assign(value.handoff.url)
+      return
+    }
+    const credential = value ? await requestAssertion(value) : null
     if (!credential) {
       setIsBusy(false)
       setError(t`Your passkey wasn't used. Try again or use another way.`)

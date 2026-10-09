@@ -210,6 +210,7 @@ vi.mock('./useSignIn', () => ({
       requestOtp: vi.fn(),
       verifyOtp: vi.fn(),
       triggerPasskeyButton: vi.fn(),
+      triggerEarlierPasskeyButton: vi.fn(),
       submitGuest: vi.fn(),
       handleSocial: vi.fn(),
       selectOrganizationContext: vi.fn(),

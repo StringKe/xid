@@ -73,6 +73,8 @@ export type PasskeyCredential = {
   transports: readonly string[]
   backedUp: boolean
   deviceType: 'singleDevice' | 'multiDevice'
+  // 早期在实例主域登记:仍可在组织地址登录,建议在当前地址重新创建
+  earlier?: boolean
 }
 
 export type PasskeyList = {

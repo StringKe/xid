@@ -40,6 +40,7 @@ export function IdentifierStep(props: IdentifierStepProps): ReactNode {
   const prompt = identifierPrompt(state.authConfig)
   const placeholder = useIdentifierPlaceholder(prompt)
   const passkeyOffered = state.enabledMethods.includes('passkey')
+  const earlierHost = state.authConfig.earlierPasskeyRpId ?? null
   const showPasskeyButton =
     passkeyOffered &&
     state.passkeySupport === 'yes' &&
@@ -111,6 +112,17 @@ export function IdentifierStep(props: IdentifierStepProps): ReactNode {
             >
               <Icon name="passkey" size={18} />
               <Trans>Continue with a passkey</Trans>
+            </Button>
+          ) : null}
+          {showPasskeyButton && earlierHost ? (
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              disabled={state.isLoading || !state.turnstileReady}
+              onClick={actions.triggerEarlierPasskeyButton}
+            >
+              <Trans>Use a passkey created on {earlierHost}</Trans>
             </Button>
           ) : null}
           {hasSocial ? (
