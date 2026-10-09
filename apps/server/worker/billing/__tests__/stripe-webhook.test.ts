@@ -105,6 +105,60 @@ describe('Stripe webhook persistence', () => {
     d1.close()
   })
 
+  it('acknowledges a subscription of another product without xid_tenant_id as ignored', async () => {
+    const d1 = createBillingDatabase()
+    const env = makeBillingEnv(d1)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const foreign: StripeEvent = {
+      id: 'evt_foreign',
+      type: 'customer.subscription.created',
+      created: 100,
+      data: { object: { id: 'sub_other', customer: 'cus_other', status: 'active', metadata: {} } },
+    }
+
+    await expect(applyStripeEvent(env, foreign)).resolves.toBeUndefined()
+
+    expect(
+      d1.database
+        .prepare(`SELECT status, tenant_id FROM stripe_webhook_events WHERE event_id = ?`)
+        .get('evt_foreign'),
+    ).toEqual({ status: 'ignored', tenant_id: null })
+    expect(d1.database.prepare(`SELECT COUNT(*) AS value FROM organization_plans`).get()).toEqual({
+      value: 0,
+    })
+    d1.close()
+  })
+
+  it('still asks Stripe to retry when a bound customer points at another tenant', async () => {
+    const d1 = createBillingDatabase(['org_1', 'org_2'])
+    const env = makeBillingEnv(d1)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await applyStripeEvent(
+      env,
+      subscriptionEvent('evt_bind', 'customer.subscription.created', 100, 'active'),
+    )
+    const conflicting: StripeEvent = {
+      id: 'evt_conflict',
+      type: 'customer.subscription.updated',
+      created: 200,
+      data: {
+        object: { customer: 'cus_1', status: 'active', metadata: { xid_tenant_id: 'org_2' } },
+      },
+    }
+
+    await expect(applyStripeEvent(env, conflicting)).rejects.toMatchObject({
+      code: 'service_unavailable',
+      httpStatus: 503,
+    })
+
+    expect(
+      d1.database
+        .prepare(`SELECT status FROM stripe_webhook_events WHERE event_id = ?`)
+        .get('evt_conflict'),
+    ).toEqual({ status: 'failed' })
+    d1.close()
+  })
+
   it('bounds the public raw-body buffer before signature verification', async () => {
     await expect(
       readStripeWebhookBody(

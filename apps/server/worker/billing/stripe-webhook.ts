@@ -145,16 +145,19 @@ async function isTopLevelTenant(env: Env, tenantId: string): Promise<boolean> {
   return row !== null
 }
 
+// 返回 null 表示事件不属于 XID:同一 Stripe 账户里其他产品的订阅既没有 xid_tenant_id,
+// customer 也没有绑定任何租户。
 async function resolveTarget(
   env: Env,
   mutation: StripeSubscriptionMutation,
-): Promise<StripeTarget> {
+): Promise<StripeTarget | null> {
   const [customerAccount, hintedAccount, tenantExists] = await Promise.all([
     loadAccountByCustomer(env, mutation.customerId),
     mutation.tenantHint ? loadAccountByTenant(env, mutation.tenantHint) : Promise.resolve(null),
     mutation.tenantHint ? isTopLevelTenant(env, mutation.tenantHint) : Promise.resolve(false),
   ])
 
+  if (!mutation.tenantHint && !customerAccount) return null
   if (mutation.tenantHint && !tenantExists) {
     throw new Error('stripe_tenant_hint_unknown')
   }
@@ -345,7 +348,7 @@ export async function applyStripeEvent(env: Env, event: StripeEvent): Promise<vo
     return
   }
 
-  let target: StripeTarget
+  let target: StripeTarget | null
   try {
     target = await resolveTarget(env, mutation)
   } catch (cause) {
@@ -356,6 +359,15 @@ export async function applyStripeEvent(env: Env, event: StripeEvent): Promise<vo
       outcome: 'provider_retry_required',
     })
     throw new AppError('service_unavailable', { httpStatus: 503, cause })
+  }
+  if (!target) {
+    await recordIgnoredEvent(env, event, now)
+    logWorkerWarning('billing.stripe_event_not_bound', {
+      component: 'stripe-webhook',
+      operation: event.type,
+      outcome: 'ignored',
+    })
+    return
   }
 
   const auditId = createPersistedId('platformAudit')
