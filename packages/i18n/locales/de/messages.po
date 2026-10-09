@@ -1997,6 +1997,10 @@ msgstr "Telefonnummer hinzufügen"
 msgid "Add a ProjectReference to the source checkout from your application project file:"
 msgstr "Fügen Sie der Projektdatei Ihrer Anwendung eine ProjectReference auf den Quellcode-Checkout hinzu:"
 
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Add an active SAML or OpenID Connect connection in Enterprise SSO before requiring single sign-on."
+msgstr "Fügen Sie in Enterprise-SSO eine aktive SAML- oder OpenID-Connect-Verbindung hinzu, bevor Sie Single Sign-On erzwingen."
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Add an app such as Salesforce, Workday or Slack so people sign in to it with their XID account."
 msgstr "Fügen Sie eine App wie Salesforce, Workday oder Slack hinzu, damit sich Personen mit ihrem XID-Konto dort anmelden."
@@ -5669,6 +5673,10 @@ msgstr "Jeder aktivierte Anbieter benötigt einen Issuer mit JWKS-URI oder einen
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "Jedes Mitglied kann eine primäre OrgUnit und zusätzliche Platzierungen haben."
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Each member saves the username and password they use for {name} on their account security page, then opens it from App sign-ins. Email domains are not routed to {name}."
+msgstr "Jedes Mitglied speichert Benutzername und Passwort für {name} auf der Sicherheitsseite seines Kontos und öffnet die App dann über App-Anmeldedaten. E-Mail-Domains werden nicht an {name} weitergeleitet."
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Each organization has its own SAML or OIDC connection, SCIM directory, verified domains and MFA policy. When IT deactivates someone, XID ends their sessions."
 msgstr "Jede Organisation hat eigene SAML- oder OIDC-Verbindungen, ein SCIM-Verzeichnis, verifizierte Domänen und eine MFA-Richtlinie. Wenn die IT jemanden deaktiviert, beendet XID dessen Sitzungen."
@@ -5867,6 +5875,10 @@ msgstr "E-Mail-Zustellung"
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Email domains"
 msgstr "E-Mail-Domänen"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Email domains are not routed to {name}. Point the app or proxy that signs people in at the address below."
+msgstr "E-Mail-Domains werden nicht an {name} weitergeleitet. Richten Sie die App oder den Proxy, der Personen anmeldet, auf die folgende Adresse aus."
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "Email header"
@@ -7191,6 +7203,10 @@ msgstr "Kopfbereich"
 msgid "Header name for auth state between middleware and server components"
 msgstr "Header-Name für den Auth-Zustand zwischen Middleware und Server-Komponenten"
 
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Header-based sign-in"
+msgstr "Header-basierte Anmeldung"
+
 #: apps/console/src/routes/org/sso-connection-form.ts
 msgid "Header-based SSO"
 msgstr "Header-basiertes SSO"
@@ -7340,6 +7356,14 @@ msgstr "Wie Personen sich ausweisen, wenn sie sich bei einer App von {orgName} a
 #: apps/console/src/routes/org/AuthPolicySections.tsx
 msgid "How people set it up"
 msgstr "So richten Personen ihn ein"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "How people sign in"
+msgstr "So melden sich Personen an"
+
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "How people sign in through {name}"
+msgstr "So melden sich Personen über {name} an"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "How the app authenticates"
@@ -8333,6 +8357,10 @@ msgstr "LDAP Direct Bind, WS-Federation, SWA-Passwort-Tresor, Header-basiertes S
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "LDAP gateway URL"
 msgstr "LDAP-Gateway-URL"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "LDAP sign-in"
+msgstr "LDAP-Anmeldung"
 
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "LDAP, WS-Federation, password vaulting or header-based"
@@ -11265,6 +11293,10 @@ msgstr "Anzeige der Passwortstärke"
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Password with breach checks, social sign-in"
 msgstr "Passwort mit Leak-Prüfung, Social Login"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Password-vaulted app"
+msgstr "App mit gespeichertem Passwort"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
@@ -14722,6 +14754,11 @@ msgstr "Die Anmeldeaktivität wurde nicht geladen. Nichts ist verloren; versuche
 msgid "Sign-in activity, organizations and what needs attention."
 msgstr "Anmeldeaktivität, Organisationen und was Aufmerksamkeit braucht."
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "sign-in address"
+msgstr "Anmeldeadresse"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Sign-in address"
 msgstr "Anmeldeadresse"
@@ -17041,10 +17078,6 @@ msgstr "Einschalten"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
 msgstr "Aktivieren Sie eine Bildschirmsperre oder einen Fingerabdruck in den Geräteeinstellungen und versuchen Sie es dann erneut."
-
-#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
-msgid "Turn on an enterprise connection in Enterprise SSO before requiring single sign-on."
-msgstr "Aktivieren Sie in Enterprise-SSO eine Verbindung, bevor Sie Single Sign-On erzwingen."
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Turn on text message codes"

@@ -1997,6 +1997,10 @@ msgstr "電話番号を追加"
 msgid "Add a ProjectReference to the source checkout from your application project file:"
 msgstr "アプリケーションのプロジェクトファイルに、ソース checkout への ProjectReference を追加します:"
 
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Add an active SAML or OpenID Connect connection in Enterprise SSO before requiring single sign-on."
+msgstr "シングルサインオンを必須にする前に、エンタープライズ SSO で有効な SAML または OpenID Connect 接続を追加してください。"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Add an app such as Salesforce, Workday or Slack so people sign in to it with their XID account."
 msgstr "Salesforce、Workday、Slack などのアプリを追加すると、ユーザーは XID アカウントでそのアプリにサインインできます。"
@@ -5669,6 +5673,10 @@ msgstr "有効なプロバイダーごとに、JWKS URI を持つ issuer また�
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "各メンバーは 1 つのプライマリ OrgUnit と追加の配置を持つことができます。"
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Each member saves the username and password they use for {name} on their account security page, then opens it from App sign-ins. Email domains are not routed to {name}."
+msgstr "各メンバーは {name} で使うユーザー名とパスワードをアカウントのセキュリティページに保存し、「アプリのサインイン情報」から開きます。メールドメインは {name} にルーティングされません。"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Each organization has its own SAML or OIDC connection, SCIM directory, verified domains and MFA policy. When IT deactivates someone, XID ends their sessions."
 msgstr "組織ごとに SAML または OIDC 接続、SCIM ディレクトリ、検証済みドメイン、MFA ポリシーを持ちます。IT 部門が誰かを無効化すると、XID はその人のセッションを終了します。"
@@ -5867,6 +5875,10 @@ msgstr "メール配信"
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Email domains"
 msgstr "メールドメイン"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Email domains are not routed to {name}. Point the app or proxy that signs people in at the address below."
+msgstr "メールドメインは {name} にルーティングされません。サインインを処理するアプリまたはプロキシに、下のアドレスを設定してください。"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "Email header"
@@ -7191,6 +7203,10 @@ msgstr "ヘッダー"
 msgid "Header name for auth state between middleware and server components"
 msgstr "middleware とサーバーコンポーネント間の認証状態を表すヘッダー名"
 
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Header-based sign-in"
+msgstr "ヘッダーによるサインイン"
+
 #: apps/console/src/routes/org/sso-connection-form.ts
 msgid "Header-based SSO"
 msgstr "ヘッダーベース SSO"
@@ -7340,6 +7356,14 @@ msgstr "{orgName} のアプリにサインインするときの本人確認方�
 #: apps/console/src/routes/org/AuthPolicySections.tsx
 msgid "How people set it up"
 msgstr "ユーザーの設定方法"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "How people sign in"
+msgstr "サインイン方法"
+
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "How people sign in through {name}"
+msgstr "{name} 経由のサインイン方法"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "How the app authenticates"
@@ -8333,6 +8357,10 @@ msgstr "LDAP 直接バインド、WS-Federation、SWA パスワード保管、�
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "LDAP gateway URL"
 msgstr "LDAP ゲートウェイ URL"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "LDAP sign-in"
+msgstr "LDAP サインイン"
 
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "LDAP, WS-Federation, password vaulting or header-based"
@@ -11265,6 +11293,10 @@ msgstr "パスワード強度メーター"
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Password with breach checks, social sign-in"
 msgstr "漏えいチェック付きパスワード、ソーシャルサインイン"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Password-vaulted app"
+msgstr "パスワード保管アプリ"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
@@ -14722,6 +14754,11 @@ msgstr "サインインのアクティビティを読み込めませんでした
 msgid "Sign-in activity, organizations and what needs attention."
 msgstr "サインインのアクティビティ、組織、対応が必要な項目です。"
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "sign-in address"
+msgstr "サインイン用アドレス"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Sign-in address"
 msgstr "サインイン用アドレス"
@@ -17041,10 +17078,6 @@ msgstr "オンにする"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
 msgstr "デバイスの設定で画面ロックまたは指紋を有効にしてから、もう一度お試しください。"
-
-#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
-msgid "Turn on an enterprise connection in Enterprise SSO before requiring single sign-on."
-msgstr "シングルサインオンを必須にする前に、エンタープライズ SSO で接続を有効にしてください。"
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Turn on text message codes"

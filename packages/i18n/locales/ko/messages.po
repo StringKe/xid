@@ -1997,6 +1997,10 @@ msgstr "전화번호 추가"
 msgid "Add a ProjectReference to the source checkout from your application project file:"
 msgstr "애플리케이션 프로젝트 파일에 소스 checkout을 가리키는 ProjectReference를 추가하세요:"
 
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Add an active SAML or OpenID Connect connection in Enterprise SSO before requiring single sign-on."
+msgstr "SSO를 필수로 설정하기 전에 엔터프라이즈 SSO에서 활성 SAML 또는 OpenID Connect 연결을 추가하세요."
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Add an app such as Salesforce, Workday or Slack so people sign in to it with their XID account."
 msgstr "Salesforce, Workday, Slack 같은 앱을 추가하면 사용자가 XID 계정으로 로그인할 수 있습니다."
@@ -5669,6 +5673,10 @@ msgstr "켜진 공급자마다 JWKS URI가 있는 issuer 또는 userinfo 엔드�
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "각 구성원은 하나의 기본 OrgUnit과 추가 배치를 가질 수 있습니다."
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Each member saves the username and password they use for {name} on their account security page, then opens it from App sign-ins. Email domains are not routed to {name}."
+msgstr "각 멤버는 {name}에서 사용하는 사용자 이름과 비밀번호를 계정 보안 페이지에 저장한 뒤 「앱 로그인 정보」에서 엽니다. 이메일 도메인은 {name}(으)로 라우팅되지 않습니다."
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Each organization has its own SAML or OIDC connection, SCIM directory, verified domains and MFA policy. When IT deactivates someone, XID ends their sessions."
 msgstr "조직마다 자체 SAML 또는 OIDC 연결, SCIM 디렉터리, 인증된 도메인, MFA 정책이 있습니다. IT가 누군가를 비활성화하면 XID가 그 사람의 세션을 종료합니다."
@@ -5867,6 +5875,10 @@ msgstr "이메일 전송"
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Email domains"
 msgstr "이메일 도메인"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Email domains are not routed to {name}. Point the app or proxy that signs people in at the address below."
+msgstr "이메일 도메인은 {name}(으)로 라우팅되지 않습니다. 로그인을 처리하는 앱이나 프록시가 아래 주소를 사용하도록 설정하세요."
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "Email header"
@@ -7191,6 +7203,10 @@ msgstr "헤더"
 msgid "Header name for auth state between middleware and server components"
 msgstr "middleware와 서버 컴포넌트 간 인증 상태를 위한 헤더 이름"
 
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Header-based sign-in"
+msgstr "헤더 기반 로그인"
+
 #: apps/console/src/routes/org/sso-connection-form.ts
 msgid "Header-based SSO"
 msgstr "헤더 기반 SSO"
@@ -7340,6 +7356,14 @@ msgstr "{orgName}의 앱에 로그인할 때 본인을 확인하는 방법입니
 #: apps/console/src/routes/org/AuthPolicySections.tsx
 msgid "How people set it up"
 msgstr "사용자 설정 방법"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "How people sign in"
+msgstr "로그인 방법"
+
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "How people sign in through {name}"
+msgstr "{name}을(를) 통한 로그인 방법"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "How the app authenticates"
@@ -8333,6 +8357,10 @@ msgstr "LDAP 직접 바인드, WS-Federation, SWA 비밀번호 보관, 헤더 �
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "LDAP gateway URL"
 msgstr "LDAP 게이트웨이 URL"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "LDAP sign-in"
+msgstr "LDAP 로그인"
 
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "LDAP, WS-Federation, password vaulting or header-based"
@@ -11265,6 +11293,10 @@ msgstr "비밀번호 강도 표시기"
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Password with breach checks, social sign-in"
 msgstr "유출 검사가 포함된 비밀번호, 소셜 로그인"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Password-vaulted app"
+msgstr "비밀번호 보관 앱"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
@@ -14722,6 +14754,11 @@ msgstr "로그인 활동을 불러오지 못했습니다. 손실된 내용은 �
 msgid "Sign-in activity, organizations and what needs attention."
 msgstr "로그인 활동, 조직, 확인이 필요한 항목입니다."
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "sign-in address"
+msgstr "로그인 주소"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Sign-in address"
 msgstr "로그인 주소"
@@ -17041,10 +17078,6 @@ msgstr "켜기"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
 msgstr "기기 설정에서 화면 잠금이나 지문을 켠 뒤 다시 시도하세요."
-
-#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
-msgid "Turn on an enterprise connection in Enterprise SSO before requiring single sign-on."
-msgstr "SSO를 필수로 설정하기 전에 엔터프라이즈 SSO에서 연결을 켜세요."
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Turn on text message codes"

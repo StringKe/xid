@@ -1997,6 +1997,10 @@ msgstr "添加手机号"
 msgid "Add a ProjectReference to the source checkout from your application project file:"
 msgstr "从应用项目文件添加指向源码 checkout 的 ProjectReference:"
 
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Add an active SAML or OpenID Connect connection in Enterprise SSO before requiring single sign-on."
+msgstr "请先在企业 SSO 中添加一个已启用的 SAML 或 OpenID Connect 连接，再要求单点登录。"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Add an app such as Salesforce, Workday or Slack so people sign in to it with their XID account."
 msgstr "添加 Salesforce、Workday 或 Slack 等应用，让用户用 XID 账户登录。"
@@ -5669,6 +5673,10 @@ msgstr "每个已开启的提供方都需要带 JWKS URI 的 issuer，或 userin
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "每个成员可以有一个主要组织单元和其他展示位置。"
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Each member saves the username and password they use for {name} on their account security page, then opens it from App sign-ins. Email domains are not routed to {name}."
+msgstr "每位成员在账户安全页保存自己在 {name} 使用的用户名和密码，然后从「应用登录信息」打开它。邮箱域名不会路由到 {name}。"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Each organization has its own SAML or OIDC connection, SCIM directory, verified domains and MFA policy. When IT deactivates someone, XID ends their sessions."
 msgstr "每个组织都有自己的 SAML 或 OIDC 连接、SCIM 目录、已验证域名和 MFA 策略。IT 停用某人时，XID 会结束其会话。"
@@ -5867,6 +5875,10 @@ msgstr "邮件投递"
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Email domains"
 msgstr "邮箱域名"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Email domains are not routed to {name}. Point the app or proxy that signs people in at the address below."
+msgstr "邮箱域名不会路由到 {name}。请让负责登录的应用或代理使用下面的地址。"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "Email header"
@@ -7191,6 +7203,10 @@ msgstr "请求头"
 msgid "Header name for auth state between middleware and server components"
 msgstr "middleware 和服务端组件之间传递认证状态的请求头名称"
 
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Header-based sign-in"
+msgstr "请求头登录"
+
 #: apps/console/src/routes/org/sso-connection-form.ts
 msgid "Header-based SSO"
 msgstr "基于请求头的 SSO"
@@ -7340,6 +7356,14 @@ msgstr "用户登录 {orgName} 的任何应用时如何证明身份。每个部�
 #: apps/console/src/routes/org/AuthPolicySections.tsx
 msgid "How people set it up"
 msgstr "用户如何设置"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "How people sign in"
+msgstr "用户如何登录"
+
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "How people sign in through {name}"
+msgstr "用户如何通过 {name} 登录"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "How the app authenticates"
@@ -8333,6 +8357,10 @@ msgstr "LDAP 直接绑定、WS-Federation、SWA 密码保管、基于 Header 的
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "LDAP gateway URL"
 msgstr "LDAP 网关 URL"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "LDAP sign-in"
+msgstr "LDAP 登录"
 
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "LDAP, WS-Federation, password vaulting or header-based"
@@ -11265,6 +11293,10 @@ msgstr "密码强度计"
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Password with breach checks, social sign-in"
 msgstr "带泄露检查的密码、社交登录"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Password-vaulted app"
+msgstr "密码代填应用"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
@@ -14722,6 +14754,11 @@ msgstr "登录活动加载失败。没有丢失任何数据，请稍后重试。
 msgid "Sign-in activity, organizations and what needs attention."
 msgstr "登录活动、组织以及需要处理的事项。"
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "sign-in address"
+msgstr "登录地址"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Sign-in address"
 msgstr "登录地址"
@@ -17041,10 +17078,6 @@ msgstr "开启"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
 msgstr "请在设备设置中开启屏幕锁定或指纹，然后重试。"
-
-#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
-msgid "Turn on an enterprise connection in Enterprise SSO before requiring single sign-on."
-msgstr "请先在企业 SSO 中启用一个企业连接，再要求单点登录。"
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Turn on text message codes"

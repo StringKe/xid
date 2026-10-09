@@ -1997,6 +1997,10 @@ msgstr "Ajouter un numéro de téléphone"
 msgid "Add a ProjectReference to the source checkout from your application project file:"
 msgstr "Ajoutez une ProjectReference vers le checkout du code source depuis le fichier projet de votre application :"
 
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Add an active SAML or OpenID Connect connection in Enterprise SSO before requiring single sign-on."
+msgstr "Ajoutez une connexion SAML ou OpenID Connect active dans SSO d'entreprise avant d'exiger l'authentification unique."
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Add an app such as Salesforce, Workday or Slack so people sign in to it with their XID account."
 msgstr "Ajoutez une application comme Salesforce, Workday ou Slack pour que les personnes s'y connectent avec leur compte XID."
@@ -5669,6 +5673,10 @@ msgstr "Chaque fournisseur activé nécessite un émetteur avec une URI JWKS, ou
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "Chaque membre peut avoir une OrgUnit principale et des emplacements supplémentaires."
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Each member saves the username and password they use for {name} on their account security page, then opens it from App sign-ins. Email domains are not routed to {name}."
+msgstr "Chaque membre enregistre le nom d'utilisateur et le mot de passe qu'il utilise pour {name} sur la page de sécurité de son compte, puis l'ouvre depuis Identifiants d'applications. Les domaines d'e-mail ne sont pas routés vers {name}."
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Each organization has its own SAML or OIDC connection, SCIM directory, verified domains and MFA policy. When IT deactivates someone, XID ends their sessions."
 msgstr "Chaque organisation a sa propre connexion SAML ou OIDC, son annuaire SCIM, ses domaines vérifiés et sa politique MFA. Quand l'IT désactive quelqu'un, XID met fin à ses sessions."
@@ -5867,6 +5875,10 @@ msgstr "Envoi des e-mails"
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Email domains"
 msgstr "Domaines e-mail"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "Email domains are not routed to {name}. Point the app or proxy that signs people in at the address below."
+msgstr "Les domaines d'e-mail ne sont pas routés vers {name}. Configurez l'application ou le proxy qui connecte les personnes avec l'adresse ci-dessous."
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "Email header"
@@ -7191,6 +7203,10 @@ msgstr "En-tête"
 msgid "Header name for auth state between middleware and server components"
 msgstr "Nom d'en-tête pour l'état d'authentification entre middleware et composants serveur"
 
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Header-based sign-in"
+msgstr "Connexion par en-tête"
+
 #: apps/console/src/routes/org/sso-connection-form.ts
 msgid "Header-based SSO"
 msgstr "SSO par en-têtes"
@@ -7340,6 +7356,14 @@ msgstr "Comment les personnes prouvent leur identité lorsqu'elles se connectent
 #: apps/console/src/routes/org/AuthPolicySections.tsx
 msgid "How people set it up"
 msgstr "Comment les personnes la configurent"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "How people sign in"
+msgstr "Comment les personnes se connectent"
+
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "How people sign in through {name}"
+msgstr "Comment les personnes se connectent via {name}"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "How the app authenticates"
@@ -8333,6 +8357,10 @@ msgstr "LDAP direct bind, WS-Federation, coffre SWA, SSO par en-têtes et framew
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "LDAP gateway URL"
 msgstr "URL de la passerelle LDAP"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "LDAP sign-in"
+msgstr "Connexion LDAP"
 
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "LDAP, WS-Federation, password vaulting or header-based"
@@ -11265,6 +11293,10 @@ msgstr "Indicateur de robustesse du mot de passe"
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Password with breach checks, social sign-in"
 msgstr "Mot de passe avec vérification des fuites, connexion sociale"
+
+#: apps/console/src/routes/org/auth-format.ts
+msgid "Password-vaulted app"
+msgstr "Application à mot de passe enregistré"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
@@ -14722,6 +14754,11 @@ msgstr "L'activité de connexion ne s'est pas chargée. Rien n'est perdu ; rées
 msgid "Sign-in activity, organizations and what needs attention."
 msgstr "Activité de connexion, organisations et points à traiter."
 
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
+msgid "sign-in address"
+msgstr "adresse de connexion"
+
+#: apps/console/src/routes/org/SsoLegacyUsage.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Sign-in address"
 msgstr "Adresse de connexion"
@@ -17041,10 +17078,6 @@ msgstr "Activer"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
 msgstr "Activez un verrouillage d'écran ou une empreinte digitale dans les réglages de votre appareil, puis réessayez."
-
-#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
-msgid "Turn on an enterprise connection in Enterprise SSO before requiring single sign-on."
-msgstr "Activez une connexion dans SSO d'entreprise avant d'exiger l'authentification unique."
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Turn on text message codes"
