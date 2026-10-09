@@ -37,6 +37,9 @@ export type VerifiedAuthnRequest = {
   destination: string
   acsUrl: string
   signatureVerified: boolean
+  forceAuthn: boolean
+  isPassive: boolean
+  nameIdPolicy: { format?: string; allowCreate?: boolean } | null
 }
 
 export type VerifyAuthnRequestOptions = {
@@ -191,5 +194,26 @@ export async function verifySamlAuthnRequest(
     return failResult('recipient_mismatch', 'AuthnRequest ProtocolBinding must be HTTP-POST')
   }
 
-  return okResult({ requestId, issuer, destination, acsUrl, signatureVerified })
+  const nameIdPolicyElement = assertionChild(root, SAMLP_NS, 'NameIDPolicy')
+  const nameIdFormat = nameIdPolicyElement?.getAttribute('Format') ?? undefined
+  const allowCreate = nameIdPolicyElement?.getAttribute('AllowCreate')
+  return okResult({
+    requestId,
+    issuer,
+    destination,
+    acsUrl,
+    signatureVerified,
+    forceAuthn: isXmlTrue(root.getAttribute('ForceAuthn')),
+    isPassive: isXmlTrue(root.getAttribute('IsPassive')),
+    nameIdPolicy: nameIdPolicyElement
+      ? {
+          ...(nameIdFormat ? { format: nameIdFormat } : {}),
+          ...(allowCreate === null ? {} : { allowCreate: isXmlTrue(allowCreate) }),
+        }
+      : null,
+  })
+}
+
+function isXmlTrue(value: string | null | undefined): boolean {
+  return value === 'true' || value === '1'
 }
