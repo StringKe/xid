@@ -1,0 +1,1 @@
+UPDATE `sso_connections` SET `attribute_mapping` = json_remove(`attribute_mapping`, '$.idpId') WHERE json_valid(`attribute_mapping`) AND json_extract(`attribute_mapping`, '$.idpId') IN ('nameID', 'User.username', 'sub', 'http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname', 'eduPersonPrincipalName');

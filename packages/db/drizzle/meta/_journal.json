@@ -211,6 +211,27 @@
       "when": 1791567540481,
       "tag": "0029_saml_persistent_name_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1791568690509,
+      "tag": "0030_saml_idp_certificate_retirements",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1791568690879,
+      "tag": "0031_sso_preset_idp_id_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1791568691259,
+      "tag": "0032_session_auth_method",
+      "breakpoints": true
     }
   ]
 }
