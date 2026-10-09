@@ -85,6 +85,7 @@ async function setup() {
     body?: unknown
     token?: string
     tenantId?: string
+    executionCtx?: ExecutionContext
   }): Promise<Response> {
     const tenantId = request.tenantId ?? 't_1'
     return apps.get(tenantId)!.request(
@@ -98,6 +99,7 @@ async function setup() {
         ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
       },
       env,
+      request.executionCtx,
     )
   }
   return { tenantDb, scim, revokeCalls }
@@ -218,6 +220,17 @@ describe('SCIM User PATCH attribute paths', () => {
           value: { 'urn:ietf:params:scim:schemas:core:2.0:User': { Password: 'secret-two' } },
         },
       ),
+    })
+
+    const row = await harness.tenantDb.directoryUsers.findOne(eq(schema.directoryUsers.id, id))
+    expect(JSON.stringify(row?.scimRaw)).not.toMatch(/secret-/)
+  })
+
+  it('never persists password nested under the core schema URN in a POST body', async () => {
+    const harness = await setup()
+
+    const id = await createUser(harness, 'nested@example.com', {
+      'urn:ietf:params:scim:schemas:core:2.0:User': { password: 'secret-nested' },
     })
 
     const row = await harness.tenantDb.directoryUsers.findOne(eq(schema.directoryUsers.id, id))
@@ -430,6 +443,31 @@ describe('SCIM Group PATCH compatibility', () => {
 })
 
 describe('SCIM Bulk', () => {
+  it('keeps sub-request webhook and audit work alive through the outer ExecutionContext', async () => {
+    const harness = await setup()
+    const waitUntil = vi.fn()
+    const executionCtx = { waitUntil, passThroughOnException: vi.fn(), props: {} }
+
+    const res = await harness.scim({
+      method: 'POST',
+      path: '/Bulk',
+      executionCtx: executionCtx as unknown as ExecutionContext,
+      body: {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:BulkRequest'],
+        Operations: [
+          {
+            method: 'POST',
+            path: '/Users',
+            data: { userName: 'ctx@example.com', emails: [{ value: 'ctx@example.com' }] },
+          },
+        ],
+      },
+    })
+
+    expect(res.status).toBe(200)
+    expect(waitUntil).toHaveBeenCalled()
+  })
+
   it('resolves bulkId references inside data to the created resource id', async () => {
     const harness = await setup()
 

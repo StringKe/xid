@@ -17,7 +17,7 @@ import {
   removeAllGroupMembers,
 } from './group-members'
 import { applyGroupPatch } from './group-patch'
-import { readScimPatchOps } from './patch'
+import { readScimPatchOps } from './patch-paths'
 import { projectScimResource } from './projection'
 import { buildGroupScimRepr, buildVersion, scimResourceHeaders, versionGuardFromRow } from './repr'
 import { openScimRequest } from './route-context'

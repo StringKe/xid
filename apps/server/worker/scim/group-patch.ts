@@ -3,8 +3,8 @@
 import type { ScimAttrPath, ScimFilterExpr } from './filter-parser'
 import { memberRefs } from './group-members'
 import type { GroupMemberPatch } from './group-members'
-import { flattenValueMap, parsePatchPath, reservedAttribute } from './patch'
-import type { PatchError, PatchOp } from './patch'
+import { flattenValueMap, parsePatchPath, reservedAttribute } from './patch-paths'
+import type { PatchError, PatchOp } from './patch-paths'
 
 type GroupPatchPlan = { displayName?: string; memberPatches: GroupMemberPatch[] }
 
