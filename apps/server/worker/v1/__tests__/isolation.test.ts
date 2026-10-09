@@ -494,7 +494,12 @@ function buildApp(
 ): Hono<XidHonoEnv> {
   const app = new Hono<XidHonoEnv>()
   app.onError((err, c) => {
-    if (isAppError(err)) return c.json({ code: err.code }, err.httpStatus as 400)
+    if (isAppError(err)) {
+      return c.json(
+        { code: err.code, ...(err.meta ? { meta: err.meta } : {}) },
+        err.httpStatus as 400,
+      )
+    }
     return c.json({ code: 'server_error' }, 500)
   })
   app.use('*', async (c: Context<XidHonoEnv>, next) => {
@@ -1401,6 +1406,14 @@ describe('v1 webhooks URL SSRF 防护', () => {
   })
 })
 
+const MINIMAL_IDP_METADATA = `<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="https://idp.example.com/entity">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:KeyDescriptor use="signing"><ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIIBcert</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+
 describe('v1 connections:SSO URL 校验与内部 attribute_mapping 剔除', () => {
   it('POST:IdP URL 为 http 或内网 IP -> 422', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
@@ -1436,15 +1449,14 @@ describe('v1 connections:SSO URL 校验与内部 attribute_mapping 剔除', () =
     }
   })
 
-  it('POST:公网 https SAML endpoints 接受,201 响应不下发 _ 前缀内部键', async () => {
+  async function postSamlConnection(attributeMapping: Record<string, unknown>) {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const db = makeFakeD1({
       api_keys: [apiKey],
       organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
     })
     const env = asUnknown<Env>({ DB: db })
-    const app = buildApp(registerConnections)
-    const res = await app.request(
+    return buildApp(registerConnections).request(
       'https://acme.xid.dev/v1/connections',
       {
         method: 'POST',
@@ -1455,20 +1467,38 @@ describe('v1 connections:SSO URL 校验与内部 attribute_mapping 剔除', () =
           idp_sso_url: 'https://idp.example.com/sso',
           idp_slo_url: 'https://idp.example.com/slo',
           idp_metadata_url: 'https://idp.example.com/metadata.xml',
-          attribute_mapping: {
-            email: 'mail',
-            _swaVault: { cred: 'sealed' },
-            _swaVaultEnvelope: { ciphertext: 'x' },
-          },
+          attribute_mapping: attributeMapping,
         }),
       },
       env,
     )
-    expect(res.status).toBe(201)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body['idp_slo_url']).toBe('https://idp.example.com/slo')
-    const mapping = body['attribute_mapping'] as Record<string, unknown>
-    expect(mapping).toEqual({ email: 'mail' })
+  }
+
+  it('POST:请求体带 _ 前缀内部键 -> 422 且指向该键', async () => {
+    const res = await postSamlConnection({ email: 'mail', _swaVault: { cred: 'sealed' } })
+
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({
+      code: 'validation_failed',
+      meta: { paramName: 'attribute_mapping._swaVault' },
+    })
+  })
+
+  it('POST:公网 https SAML endpoints 接受,同步拉取 metadata 后 201', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(MINIMAL_IDP_METADATA, { status: 200 })),
+    )
+    try {
+      const res = await postSamlConnection({ email: 'mail' })
+
+      expect(res.status).toBe(201)
+      const body = (await res.json()) as Record<string, unknown>
+      expect(body['idp_slo_url']).toBe('https://idp.example.com/slo')
+      expect(body['attribute_mapping']).toEqual({ email: 'mail' })
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('GET:响应 attribute_mapping 剔除 _swaVault 等 _ 前缀键', async () => {
