@@ -14,8 +14,8 @@ import {
 } from './smoke-l3-shared.mjs'
 import { pollUntil } from './poll-until.mjs'
 
-const smsPhone = '+15551234567'
-const whatsappPhone = '+15559876543'
+const smsPhone = '+12125550142'
+const whatsappPhone = '+12125550143'
 
 const phoneRecipients = [
   { channel: 'sms', phone: smsPhone },

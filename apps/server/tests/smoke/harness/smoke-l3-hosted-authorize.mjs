@@ -34,7 +34,7 @@ const userId = 'user_l3_hosted_authz'
 const userEmailId = 'email_l3_hosted_authz'
 const userPhoneId = 'phone_l3_hosted_authz'
 const userEmail = 'hosted-authz@localhost.test'
-const userPhone = '+15557654321'
+const userPhone = '+12125550144'
 const userPassword = 'LocalL3HostedAuthz123!'
 // 本地 RP 回调;浏览器必须真实落到 RP,才能证明 /authorize 走了整页导航。
 let redirectUri = ''
