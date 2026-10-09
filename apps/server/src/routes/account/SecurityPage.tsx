@@ -14,6 +14,7 @@ import { tokens } from '../../styles/tokens.stylex'
 import { AccountPage } from './AccountPage'
 import { surface } from './account-surface'
 import { ConnectedAccountsSection } from './ConnectedAccountsSection'
+import { SwaAppsSection } from './SwaAppsSection'
 import { ContactCodeDialog, type PendingContact } from './ContactCodeDialog'
 import { GuestConversionBanner } from './GuestConversionBanner'
 import { PasskeySection } from './PasskeySection'
@@ -197,6 +198,7 @@ export default function SecurityPage(): ReactNode {
       {isGuest ? null : <PasswordSection />}
       {isGuest ? null : <TwoStepSection />}
       <ConnectedAccountsSection />
+      <SwaAppsSection />
     </AccountPage>
   )
 }
