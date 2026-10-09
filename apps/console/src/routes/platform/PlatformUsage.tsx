@@ -13,6 +13,7 @@ import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { statusToneFor, useBillingStatusLabel } from '@xid-kit/web-ui/enum-labels'
+import { MeterReconciliationSection } from './MeterReconciliationSection'
 import { useBillingConfigQuery, useUsageOverviewList } from './queries'
 
 const styles = stylex.create({
@@ -130,6 +131,8 @@ export default function PlatformUsage(): ReactNode {
         />
         <LoadMore query={usage} loadMoreLabel={<Trans>Load more</Trans>} />
       </ConsolePageSection>
+
+      <MeterReconciliationSection enabled={isBillingEnabled} />
     </ConsolePage>
   )
 }
