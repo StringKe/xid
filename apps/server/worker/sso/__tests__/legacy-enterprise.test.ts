@@ -3,17 +3,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { HostedAuthPolicy } from '@xid-kit/types'
 import { DEFAULT_HOSTED_AUTH_POLICY } from '@xid-kit/types'
-import { envelopeEncrypt, sha256Hex } from '@xid-kit/crypto'
+import { sha256Hex } from '@xid-kit/crypto'
 import { Hono } from 'hono'
 import type { ErrorHandler } from 'hono'
 import type { XidHonoEnv } from '../../lib/types'
-import { AppError, isAppError } from '../../lib/errors'
+import { isAppError } from '../../lib/errors'
 import { registerLdapRoutes } from '../ldap'
 import { registerWsfedRoutes } from '../wsfed'
-import { registerSwaRoutes } from '../swa'
 import { registerDirectoryConnectorRoutes } from '../directory-connector'
 import { buildFakeWresult, storeFakeWsfedState } from '../../test-harness/fake-wsfed'
-import { decodeKek } from '../../oidc/shared'
 
 const mockSsoConnectionsFindOne = vi.fn()
 const mockSsoConnectionsUpdate = vi.fn()
@@ -94,38 +92,8 @@ function makeConnection(protocol: string, overrides: Record<string, unknown> = {
         wsfedReplyUrl: 'https://tenant-1.xid.dev/sso/wsfed/{connectionId}/callback',
         wsfedAllowIdpInitiated: true,
       },
-      _swaVault: {
-        'vault.user@example.com': {
-          username: 'vault.user@example.com',
-          passwordHash: '4f8e2f1f0f6d9db7d2f0d5f2d2f0d5f2d2f0d5f2d2f0d5f2d2f0d5f2d2f',
-          email: 'vault.user@example.com',
-        },
-      },
     },
     ...overrides,
-  }
-}
-
-async function makeEnvelopeVault(password: string) {
-  const hash = await sha256Hex(password)
-  const encrypted = await envelopeEncrypt(
-    new TextEncoder().encode(
-      JSON.stringify({
-        'vault.user@example.com': {
-          username: 'vault.user@example.com',
-          passwordHash: hash,
-          email: 'vault.user@example.com',
-        },
-      }),
-    ),
-    decodeKek(INSTANCE_KEK),
-    1,
-  )
-  return {
-    iv: btoa(String.fromCharCode(...encrypted.iv)),
-    ciphertext: btoa(String.fromCharCode(...encrypted.ciphertext)),
-    tag: btoa(String.fromCharCode(...encrypted.tag)),
-    kekVersion: encrypted.kekVersion,
   }
 }
 
@@ -144,7 +112,6 @@ function buildApp() {
   })
   registerLdapRoutes(app)
   registerWsfedRoutes(app)
-  registerSwaRoutes(app)
   registerDirectoryConnectorRoutes(app)
   return app
 }
@@ -398,149 +365,6 @@ describe('enterprise legacy protocols', () => {
     expect(res.status).toBe(404)
   })
 
-  it('SWA authenticate succeeds with fake harness user', async () => {
-    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('swa'))
-    const app = buildApp()
-    const res = await app.request(
-      '/sso/swa/conn-1/authenticate',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'swa.user@example.com', password: 'swa-pass' }),
-      },
-      fakeEnv,
-    )
-    expect(res.status).toBe(302)
-  })
-
-  it('SWA authenticate accepts form POST credentials', async () => {
-    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('swa'))
-    const app = buildApp()
-    const res = await app.request(
-      '/sso/swa/conn-1/authenticate',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          username: 'swa.user@example.com',
-          password: 'swa-pass',
-        }).toString(),
-      },
-      fakeEnv,
-    )
-    expect(res.status).toBe(302)
-  })
-
-  it('SWA authenticate succeeds with vaulted credentials', async () => {
-    const passwordHash = await sha256Hex('vault-pass')
-    mockSsoConnectionsFindOne.mockResolvedValue(
-      makeConnection('swa', {
-        attributeMapping: {
-          _swaVault: {
-            'vault.user@example.com': {
-              username: 'vault.user@example.com',
-              passwordHash,
-              email: 'vault.user@example.com',
-            },
-          },
-        },
-      }),
-    )
-    const app = buildApp()
-    const res = await app.request(
-      '/sso/swa/conn-1/authenticate',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'vault.user@example.com', password: 'vault-pass' }),
-      },
-      fakeEnv,
-    )
-    expect(res.status).toBe(302)
-  })
-
-  it('SWA authenticate reads envelope-encrypted vault credentials', async () => {
-    const envelope = await makeEnvelopeVault('vault-pass')
-    mockSsoConnectionsFindOne.mockResolvedValue(
-      makeConnection('swa', {
-        attributeMapping: {
-          _swaVaultEnvelope: envelope,
-        },
-      }),
-    )
-    const app = buildApp()
-    const res = await app.request(
-      '/sso/swa/conn-1/authenticate',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'vault.user@example.com', password: 'vault-pass' }),
-      },
-      fakeEnv,
-    )
-    expect(res.status).toBe(302)
-  })
-
-  it('SWA vault rejects unauthenticated writes', async () => {
-    mockRequireApiKeyOrOrgManager.mockRejectedValueOnce(
-      new AppError('unauthorized', { httpStatus: 401 }),
-    )
-    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('swa'))
-    const app = buildApp()
-    const res = await app.request(
-      '/sso/swa/conn-1/vault',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'vault.user@example.com', password: 'vault-pass' }),
-      },
-      fakeEnv,
-    )
-    expect(res.status).toBe(401)
-    expect(mockRequireApiKeyOrOrgManager).toHaveBeenCalledWith(
-      expect.anything(),
-      'org-1',
-      'connections:write',
-    )
-  })
-
-  it('SWA vault stores credentials when org manager is authenticated', async () => {
-    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('swa'))
-    const app = buildApp()
-    const res = await app.request(
-      '/sso/swa/conn-1/vault',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'vault.user@example.com', password: 'vault-pass' }),
-      },
-      fakeEnv,
-    )
-    expect(res.status).toBe(200)
-    expect(mockRequireApiKeyOrOrgManager).toHaveBeenCalled()
-    expect(mockSsoConnectionsUpdate).toHaveBeenCalled()
-    const updateArg = mockSsoConnectionsUpdate.mock.calls[0]?.[0] as {
-      attributeMapping: Record<string, unknown>
-    }
-    expect(updateArg.attributeMapping._swaVaultEnvelope).toBeTruthy()
-    expect(updateArg.attributeMapping._swaVault).toBeUndefined()
-  })
-
-  it('SWA authenticate enforces tenant isolation on unknown connection', async () => {
-    mockSsoConnectionsFindOne.mockResolvedValue(null)
-    const app = buildApp()
-    const res = await app.request(
-      '/sso/swa/other-tenant/authenticate',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'swa.user@example.com', password: 'swa-pass' }),
-      },
-      fakeEnv,
-    )
-    expect(res.status).toBe(404)
-  })
-
   it('header-based SSO requires trusted proxy secret when configured', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('header'))
     const app = buildApp()
@@ -627,7 +451,7 @@ describe('enterprise legacy protocols', () => {
     },
   )
 
-  it('header-based SSO enforces tenant isolation on unknown connection', async () => {
+  it('header-based SSO answers an unknown connection with the same 401 as a wrong secret', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(null)
     const app = buildApp()
     const res = await app.request(
@@ -641,7 +465,8 @@ describe('enterprise legacy protocols', () => {
       },
       fakeEnv,
     )
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ code: 'invalid_credentials' })
   })
 
   it('directory connector validate returns implemented connector status', async () => {
