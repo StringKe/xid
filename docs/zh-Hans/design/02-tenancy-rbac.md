@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=working-tree source-blob=4463bae5ea38e0dbc8fa1e61bcd79cd3bccc8c70 -->
+<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=working-tree source-blob=f80b3ceb12cea8a3447e3a73f6f4bac8dba415a1 -->
 
 > Translation of `docs/design/02-tenancy-rbac.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/02-tenancy-rbac.md`](../../design/02-tenancy-rbac.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -202,7 +202,8 @@ Session 持有 active_org_id;User 为平台级实体,跨 org 访问通过 Member
 
 ## 5. 组织级配置
 
-- SSO 强制:绑定 SAML/OIDC connection 到 org,匹配域名用户必须走该 org SSO,不允许密码登录
+- SSO 强制:`org_policies.force_sso` 与 `hostedAuth.forceSso` 都能开启,任一为真即生效。开启后 Hosted Auth 对该组织拒绝全部非 SSO 方式(密码、passkey、邮箱与手机 OTP、Magic Link、社交登录、guest),不只针对邮箱域名匹配连接的用户。只有组织存在 `active` 的 SSO 连接时才能开启。写入入口:auth-policy API 的 `loginPolicy.forceSso` 与 `hostedAuth.forceSso`;Console「Single sign-on」分节只有一个「Require single sign-on」开关,保存时同时写这两处,关闭时两处一起清除
+- 密码登录限制:`org_policies.allow_password_login = false` 时即使 `hostedAuth.password` 允许也不能用密码登录。写入入口:auth-policy API 的 `loginPolicy.allowPasswordLogin`;Console「Sign-in methods」分节只有一个 Password 开关,保存时同时写 `loginPolicy.allowPasswordLogin` 与 `hostedAuth.password.enabled`,两者都允许时开关才显示为开启
 - MFA 强制:org 级覆盖 instance 默认(required|optional|disabled),方法白名单
 - Organization Domains:DNS TXT 验证,enrollment_mode(automatic|invite_required),已验证域触发 managed 成员标记。验证记录是 TXT 名 `_xid.{domain}`、值 `xid-verify={token}`;API 以 `verification_record` 返回二者,与每日验证任务使用同一函数生成
 - 组织品牌:per-org 颜色、圆角、字体以及浅色和深色 logo;请求解析到该组织时(租户子域、自定义域名或显式指定组织)应用到 Hosted UI。未解析的实例根入口始终显示默认品牌
@@ -212,7 +213,7 @@ Session 持有 active_org_id;User 为平台级实体,跨 org 访问通过 Member
 
 ### 设计决策
 
-org_policies 表统一管理所有 per-org 策略覆盖,逐字段回退:未设置的字段(null)回退 instance 默认,已设字段覆盖。策略在 login flow 和 token 生成时实时读 D1(低延迟可接受)。branding 以校验后的 JSON 存于 `organizations.private_metadata.branding`,载入 `TenantContext.policy.branding`,由 `/auth/config` 下发给 Hosted UI。清空字段(写 null)即恢复该字段默认值。浅色 logo 同步到 `organizations.logo_url`,consent 页读取它。
+org_policies 表统一管理所有 per-org 策略覆盖,逐字段回退:未设置的字段(null)回退 instance 默认,已设字段覆盖。策略在 login flow 和 token 生成时实时读 D1(低延迟可接受)。`force_sso` 与 `allow_password_login` 只收紧不放宽:`buildPolicy` 把它们并入 `TenantContext.policy.hostedAuth`(任一方要求即 `forceSso` 为真,两者都允许时 `password.allowLogin` 才为真),运行时只读 `hostedAuth`。branding 以校验后的 JSON 存于 `organizations.private_metadata.branding`,载入 `TenantContext.policy.branding`,由 `/auth/config` 下发给 Hosted UI。清空字段(写 null)即恢复该字段默认值。浅色 logo 同步到 `organizations.logo_url`,consent 页读取它。
 
 核心实体 OrgPolicy、OrgBranding、OrgMetadata、SsoConnection(见 08 章):策略覆盖、品牌、元数据、连接配置。
 

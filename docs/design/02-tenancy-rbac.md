@@ -255,8 +255,8 @@ by Membership (see chapter 08).
 
 ## 5. Per-organization configuration
 
-- SSO enforcement: bind a SAML/OIDC connection to the org so that users with a matching email domain
-  MUST go through that org's SSO and cannot use password sign-in
+- SSO enforcement: `org_policies.force_sso` and `hostedAuth.forceSso` both turn it on, and either one being true is enough. While it is on, Hosted Auth denies every non-SSO method for the organization (password, passkey, email and phone OTP, magic link, social, guest); it is not limited to users whose email domain matches a connection. It can be turned on only when the organization has an `active` SSO connection. Write paths: `loginPolicy.forceSso` and `hostedAuth.forceSso` on the auth-policy API, and the single "Require single sign-on" switch in the Console "Single sign-on" section, which writes both fields on save so that turning it off clears both
+- Password sign-in restriction: `org_policies.allow_password_login = false` blocks password sign-in even when `hostedAuth.password` allows it. Write paths: `loginPolicy.allowPasswordLogin` on the auth-policy API, and the single Password switch in the Console "Sign-in methods" section, which writes `loginPolicy.allowPasswordLogin` and `hostedAuth.password.enabled` together; the Console shows the switch on only when both allow password
 - MFA enforcement: the org level overrides the instance default (`required` | `optional` |
   `disabled`), with a method allowlist
 - Organization Domains: DNS TXT verification, `enrollment_mode` (`automatic` | `invite_required`), and
@@ -282,7 +282,7 @@ by Membership (see chapter 08).
 The `org_policies` table centralizes every per-org policy override with field-by-field fallback: any
 field left null falls back to the instance default, and any field that is set overrides it. Policies
 are read from D1 in real time during the sign-in flow and token generation (the added latency is
-acceptable). Branding is stored as validated JSON in `organizations.private_metadata.branding`,
+acceptable). `force_sso` and `allow_password_login` only tighten, never loosen: `buildPolicy` folds them into `TenantContext.policy.hostedAuth` (`forceSso` is true when either side requires it, and `password.allowLogin` is true only when both allow it), and the runtime reads only `hostedAuth`. Branding is stored as validated JSON in `organizations.private_metadata.branding`,
 loaded into `TenantContext.policy.branding`, and returned by `/auth/config` for the Hosted UI. Clearing
 a field (writing null) restores the default for that field. The light logo is mirrored to
 `organizations.logo_url`, which the consent page reads.
