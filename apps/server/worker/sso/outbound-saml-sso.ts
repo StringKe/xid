@@ -16,11 +16,12 @@ import {
   withoutAssignmentGate,
 } from './assignment-gate'
 import { chooseNameIdFormat, nameIdValue } from './outbound-saml-name-id'
+import { resolvePersistentNameId } from './outbound-saml-persistent-name-id'
 import { idpEntityId, postBindingForm, requiredParam, resolveSp } from './outbound-saml-shared'
 import type { SamlServiceProvider } from './outbound-saml-shared'
 import { importSamlSigningKey, loadSigningCert } from './outbound-saml-signing'
 import { readVerifiedOutboundSsoRequest } from './outbound-saml-sso-message'
-import { SAML_STATUS, buildSamlStatusResponse } from './outbound-saml-status'
+import { SAML_STATUS, buildSignedSamlStatusResponse } from './outbound-saml-status'
 import {
   consumeOutboundSsoRequest,
   OUTBOUND_SSO_RESUME_PARAM,
@@ -94,20 +95,20 @@ function userAttributes(
   return out
 }
 
-function statusResponse(
+async function statusResponse(
   c: Context<XidHonoEnv>,
   target: SsoTarget,
   status: { topLevel: string; secondLevel: string; reason: string },
-): Response {
+): Promise<Response> {
   logWorkerWarning('sso.outbound_saml.status_response', {
     component: 'outbound-saml',
     operation: 'sso',
     outcome: status.secondLevel,
     reason: status.reason,
   })
-  const samlMessage = buildSamlStatusResponse({
+  const samlMessage = await buildSignedSamlStatusResponse(c, {
+    sp: target.sp,
     issuer: idpEntityId(c, target.appId),
-    destination: target.sp.acsUrl,
     inResponseTo: target.request.inResponseTo,
     topLevelStatus: status.topLevel,
     secondLevelStatus: status.secondLevel,
@@ -147,12 +148,10 @@ async function issueAssertion(
   const email = await primaryEmail(c, user)
   const nameId = await nameIdValue({
     format: nameIdFormat,
-    pepper: c.env.PEPPER,
-    tenantId: c.get('tenant').tenantId,
-    appId,
-    userId: user.id,
     email,
     username: user.username ?? null,
+    persistentNameId: () =>
+      resolvePersistentNameId(c.env.DB, c.get('tenant'), { spId: appId, userId: user.id }),
   })
   if (nameId === null) {
     return statusResponse(c, target, {

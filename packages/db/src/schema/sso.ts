@@ -1,8 +1,8 @@
 // SSO + 签名密钥(08 章 16):私钥信封加密拆三 blob,明文永不入库。
 
 import { sql } from 'drizzle-orm'
-import { blob, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import { boolCol, numCol, tenantId, timestamps, tsMs } from './common'
+import { blob, index, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { boolCol, createdAt, numCol, tenantId, timestamps, tsMs } from './common'
 
 export const ssoConnections = sqliteTable(
   'sso_connections',
@@ -140,6 +140,22 @@ export const samlServiceProviders = sqliteTable(
   (t) => [
     uniqueIndex('saml_service_providers_entity_unq').on(t.tenantId, t.orgId, t.spEntityId),
     index('saml_service_providers_org_idx').on(t.tenantId, t.orgId),
+  ],
+)
+
+// 出站 SAML persistent NameID:首次签发时随机生成并持久化,同一 SP 稳定,不同 SP 之间不可关联。
+export const samlPersistentNameIds = sqliteTable(
+  'saml_persistent_name_ids',
+  {
+    tenantId: tenantId(),
+    spId: text('sp_id').notNull(),
+    userId: text('user_id').notNull(),
+    nameId: text('name_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.spId, t.userId] }),
+    uniqueIndex('saml_persistent_name_ids_name_unq').on(t.tenantId, t.spId, t.nameId),
   ],
 )
 

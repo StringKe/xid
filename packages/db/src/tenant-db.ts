@@ -240,6 +240,7 @@ const TENANT_TABLES = {
   certStore: schema.certStore,
   samlServiceProviders: schema.samlServiceProviders,
   samlSessionBindings: schema.samlSessionBindings,
+  samlPersistentNameIds: schema.samlPersistentNameIds,
   directories: schema.directories,
   scimTargets: schema.scimTargets,
   scimTargetResources: schema.scimTargetResources,

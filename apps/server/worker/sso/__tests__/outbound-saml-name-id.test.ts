@@ -1,18 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { NAME_ID_FORMAT, chooseNameIdFormat, nameIdValue } from '../outbound-saml-name-id'
 
-const PEPPER = 'v1:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8'
 const SAML2_EMAIL = 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress'
 
 function valueInput(overrides: Partial<Parameters<typeof nameIdValue>[0]> = {}) {
   return {
     format: NAME_ID_FORMAT.persistent,
-    pepper: PEPPER,
-    tenantId: 'tenant_1',
-    appId: 'app_1',
-    userId: 'user_1',
     email: 'user@example.com',
     username: 'user',
+    persistentNameId: vi.fn().mockResolvedValue('stored-pseudonym'),
     ...overrides,
   }
 }
@@ -81,22 +77,18 @@ describe('nameIdValue', () => {
     expect(value).toBe('user')
   })
 
-  it('derives a stable persistent value that does not contain the user id or email', async () => {
-    const first = await nameIdValue(valueInput())
-    const second = await nameIdValue(valueInput())
+  it('returns the stored persistent value for persistent', async () => {
+    const value = await nameIdValue(valueInput())
 
-    expect(first).toBe(second)
-    expect(first).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    expect(first).not.toContain('user_1')
-    expect(first).not.toContain('example.com')
+    expect(value).toBe('stored-pseudonym')
   })
 
-  it('derives different persistent values for different SPs and tenants', async () => {
-    const base = await nameIdValue(valueInput())
-    const otherApp = await nameIdValue(valueInput({ appId: 'app_2' }))
-    const otherTenant = await nameIdValue(valueInput({ tenantId: 'tenant_2' }))
+  it('does not touch the persistent mapping for other formats', async () => {
+    const input = valueInput({ format: SAML2_EMAIL })
 
-    expect(new Set([base, otherApp, otherTenant]).size).toBe(3)
+    await nameIdValue(input)
+
+    expect(input.persistentNameId).not.toHaveBeenCalled()
   })
 
   it('generates a fresh transient value for every assertion', async () => {

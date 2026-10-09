@@ -1,7 +1,8 @@
 // 出站 SAML NameID:按 SAML Core 8.3 的格式语义生成值,并按 AuthnRequest 的 NameIDPolicy 选择格式。
-// persistent 是 (tenant, app, user) 的成对假名:同一 SP 稳定,不同 SP 之间不可关联,也不暴露内部 user id。
+// persistent 是 (tenant, app, user) 的成对假名:首次签发时随机生成并持久化,同一 SP 稳定,
+// 不同 SP 之间不可关联,也不暴露内部 user id。
 
-import { base64UrlDecode, base64UrlEncode, toBufferSource } from '@xid-kit/crypto'
+import { base64UrlEncode } from '@xid-kit/crypto'
 
 export const NAME_ID_FORMAT = {
   emailAddress: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
@@ -22,8 +23,6 @@ export const OUTBOUND_SAML_NAME_ID_FORMATS: readonly string[] = [
 ]
 
 type NameIdKind = keyof typeof NAME_ID_FORMAT
-
-const PERSISTENT_NAME_ID_INFO = 'xid:saml:persistent-name-id:v1'
 
 function kindOf(format: string): NameIdKind | null {
   const canonical = LEGACY_FORMAT_ALIASES[format] ?? format
@@ -51,41 +50,8 @@ export function chooseNameIdFormat(input: {
   return { ok: true, format: input.configuredFormat }
 }
 
-function decodePepper(raw: string): Uint8Array {
-  const match = raw.match(/^v\d+:(.+)$/)
-  return base64UrlDecode(match ? (match[1] ?? '') : raw)
-}
-
-async function persistentNameId(input: {
-  pepper: string
-  tenantId: string
-  appId: string
-  userId: string
-}): Promise<string> {
-  const pepper = decodePepper(input.pepper)
-  try {
-    const baseKey = await crypto.subtle.importKey('raw', toBufferSource(pepper), 'HKDF', false, [
-      'deriveKey',
-    ])
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: 'HKDF',
-        hash: 'SHA-256',
-        salt: new Uint8Array(0),
-        info: new TextEncoder().encode(PERSISTENT_NAME_ID_INFO),
-      },
-      baseKey,
-      { name: 'HMAC', hash: 'SHA-256', length: 256 },
-      false,
-      ['sign'],
-    )
-    const message = new TextEncoder().encode(
-      [input.tenantId, input.appId, input.userId].join('\u0000'),
-    )
-    return base64UrlEncode(new Uint8Array(await crypto.subtle.sign('HMAC', key, message)))
-  } finally {
-    pepper.fill(0)
-  }
+export function randomOpaqueNameId(): string {
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)))
 }
 
 function transientNameId(): string {
@@ -93,14 +59,12 @@ function transientNameId(): string {
 }
 
 // 返回 null 表示用户没有该格式要求的值(例如 emailAddress 但没有邮箱)。
+// persistent 值由调用方从持久化映射取得,只在确实签发 persistent 时才读写数据库。
 export async function nameIdValue(input: {
   format: string
-  pepper: string
-  tenantId: string
-  appId: string
-  userId: string
   email: string | null
   username: string | null
+  persistentNameId: () => Promise<string>
 }): Promise<string | null> {
   switch (kindOf(input.format)) {
     case 'emailAddress':
@@ -108,7 +72,7 @@ export async function nameIdValue(input: {
     case 'unspecified':
       return input.email ?? input.username
     case 'persistent':
-      return persistentNameId(input)
+      return input.persistentNameId()
     case 'transient':
       return transientNameId()
     case null:

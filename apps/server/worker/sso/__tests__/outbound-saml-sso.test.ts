@@ -6,14 +6,23 @@ import type { ErrorHandler } from 'hono'
 import { isAppError } from '../../lib/errors'
 import type { SessionData, XidHonoEnv } from '../../lib/types'
 
-const { signSamlResponseMock, verifySamlAuthnRequestMock, trackOutboundSamlSessionMock } =
-  vi.hoisted(() => ({
-    signSamlResponseMock: vi.fn(),
-    verifySamlAuthnRequestMock: vi.fn(),
-    trackOutboundSamlSessionMock: vi.fn(),
-  }))
+const {
+  signSamlResponseMock,
+  signSamlStatusResponseMock,
+  verifySamlAuthnRequestMock,
+  trackOutboundSamlSessionMock,
+  signingKey,
+} = vi.hoisted(() => ({
+  signSamlResponseMock: vi.fn(),
+  signSamlStatusResponseMock: vi.fn(),
+  verifySamlAuthnRequestMock: vi.fn(),
+  trackOutboundSamlSessionMock: vi.fn(),
+  signingKey: { kind: 'idp-signing-key' },
+}))
 
-vi.mock('@xid-kit/saml', () => ({
+vi.mock('@xid-kit/saml', async (importOriginal) => ({
+  SAML_STATUS: (await importOriginal<typeof import('@xid-kit/saml')>()).SAML_STATUS,
+  signSamlStatusResponse: (...args: unknown[]) => signSamlStatusResponseMock(...args),
   buildIdpMetadataXml: vi.fn(() => '<EntityDescriptor />'),
   decodeSamlBindingPayload: vi.fn().mockResolvedValue({ ok: true, value: '<AuthnRequest/>' }),
   loadIdpVerifyKey: vi.fn().mockResolvedValue({
@@ -26,7 +35,11 @@ vi.mock('@xid-kit/saml', () => ({
 
 vi.mock('../outbound-saml-signing', () => ({
   loadSigningCert: vi.fn().mockResolvedValue({ id: 'cert_1', certificate: 'CERT' }),
-  importSamlSigningKey: vi.fn().mockResolvedValue({}),
+  importSamlSigningKey: vi.fn().mockResolvedValue(signingKey),
+}))
+
+vi.mock('../outbound-saml-persistent-name-id', () => ({
+  resolvePersistentNameId: vi.fn().mockResolvedValue('stored-persistent-name-id'),
 }))
 
 vi.mock('../saml-do', () => ({
@@ -187,7 +200,47 @@ beforeEach(() => {
   spFindOne.mockResolvedValue(SP)
   userEmailFindOne.mockResolvedValue({ email: 'user@example.com' })
   signSamlResponseMock.mockResolvedValue({ ok: true, value: { samlResponse: btoa('<R/>') } })
+  signSamlStatusResponseMock.mockImplementation(async (input: unknown) => {
+    const { buildSamlStatusResponseXml } =
+      await vi.importActual<typeof import('@xid-kit/saml')>('@xid-kit/saml')
+    const built = buildSamlStatusResponseXml(
+      input as Parameters<typeof buildSamlStatusResponseXml>[0],
+    )
+    return { ok: true, value: { ...built, samlResponse: btoa(built.xml) } }
+  })
   authnRequest()
+})
+
+describe('outbound SAML status Response signing', () => {
+  it('signs the status Response with the SP signing key and the request routing fields', async () => {
+    authnRequest({ isPassive: true })
+
+    await sso(makeApp(), makeEnv())
+
+    expect(signSamlStatusResponseMock).toHaveBeenCalledWith(
+      {
+        issuer: expect.stringContaining('sp_1'),
+        destination: SP.acsUrl,
+        inResponseTo: '_authn_1',
+        topLevelStatus: 'urn:oasis:names:tc:SAML:2.0:status:Responder',
+        secondLevelStatus: 'urn:oasis:names:tc:SAML:2.0:status:NoPassive',
+      },
+      signingKey,
+    )
+  })
+
+  it('returns server_error instead of an unsigned Response when status signing fails', async () => {
+    authnRequest({ isPassive: true })
+    signSamlStatusResponseMock.mockResolvedValue({
+      ok: false,
+      error: { code: 'signature_invalid', reason: 'sign failed' },
+    })
+
+    const res = await sso(makeApp(), makeEnv())
+
+    expect(res.status).toBe(500)
+    expect(await res.text()).not.toContain('SAMLResponse')
+  })
 })
 
 describe('outbound SAML IsPassive', () => {
@@ -285,14 +338,14 @@ describe('outbound SAML NameIDPolicy', () => {
     expect(signSamlResponseMock).not.toHaveBeenCalled()
   })
 
-  it('issues a pairwise persistent NameID when the SP requests persistent', async () => {
+  it('issues the stored persistent NameID when the SP requests persistent', async () => {
     authnRequest({ nameIdPolicy: { format: PERSISTENT, allowCreate: true } })
 
     await sso(makeApp(session(new Date())), makeEnv())
 
     const input = signSamlResponseMock.mock.calls[0]?.[0] as Record<string, unknown>
     expect(input['nameIdFormat']).toBe(PERSISTENT)
-    expect(input['subjectNameId']).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(input['subjectNameId']).toBe('stored-persistent-name-id')
     expect(trackOutboundSamlSessionMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ nameId: input['subjectNameId'], nameIdFormat: PERSISTENT }),
