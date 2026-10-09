@@ -421,6 +421,31 @@ describe('outbound SCIM sync 门控', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  it('手动「立即同步」不受自动全量去重标记影响,已有未开始的自动全量时仍入队', async () => {
+    const queueSend = vi.fn().mockResolvedValue(undefined)
+    const env = makeEnv(
+      {
+        ...verifiedUserTables(),
+        scim_targets: [{ ...targetRow(ENCRYPTED_TOKEN_FIELDS), full_sync_queued_at: Date.now() }],
+        organizations: [orgRow()],
+        memberships: [membershipRow('admin')],
+        manager_assignments: [],
+      },
+      {
+        KEK: TEST_KEK,
+        SCIM_QUEUE: { send: queueSend },
+        AUDIT_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
+      },
+    )
+
+    const res = await postSync(buildApp(makeSession('user_1')), env)
+
+    expect(res.status).toBe(202)
+    expect(queueSend).toHaveBeenCalledWith(
+      expect.objectContaining({ targetId: 'st_1', actorId: 'user_1' }),
+    )
+  })
+
   it('mapped User 用 PUT 幂等更新,本轮完整 upsert 后才 PATCH 旧 mapping active=false', async () => {
     const calls: Array<{ url: string; method: string; body?: Record<string, unknown> }> = []
     vi.stubGlobal(
@@ -963,7 +988,12 @@ describe('outbound SCIM automatic sync after membership changes', () => {
       { SCIM_QUEUE: { send } },
     )
 
-    const count = await enqueueOrgScimTargetSyncs({ env, tenant: TENANT, orgId: 'org_1' })
+    const count = await enqueueOrgScimTargetSyncs({
+      env,
+      tenant: TENANT,
+      orgId: 'org_1',
+      userId: 'user_1',
+    })
 
     expect(count).toBe(1)
     expect(send).toHaveBeenCalledTimes(1)
@@ -973,6 +1003,7 @@ describe('outbound SCIM automatic sync after membership changes', () => {
         orgId: 'org_1',
         targetId: 'st_ready',
         issuer: 'https://acme.xid.dev',
+        userId: 'user_1',
       }),
     )
   })

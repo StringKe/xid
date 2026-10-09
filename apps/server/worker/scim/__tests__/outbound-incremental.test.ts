@@ -9,7 +9,8 @@ import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SqliteD1 } from '../../../../../packages/db/src/__tests__/sqlite-d1'
 import { handleScimSyncBatch } from '../../queues/scim-sync'
-import { enqueueOrgScimTargetSyncs } from '../outbound-enqueue'
+import { SCIM_FULL_SYNC_DEDUPE_WINDOW_MS } from '../../lib/ttl'
+import { claimScimFullSync, enqueueOrgScimTargetSyncs } from '../outbound-enqueue'
 import { executeScimTargetSync, executeScimUserSync, FULL_SYNC_CHUNK_SIZE } from '../outbound-sync'
 import { encryptScimTargetToken } from '../target-credentials'
 
@@ -210,5 +211,48 @@ describe('outbound SCIM full reconciliation', () => {
       undefined,
       'user_0000',
     ])
+  })
+
+  it('shares one pending full-sync claim between the daily cron and org-level enqueue', async () => {
+    const { env, tenant, sent } = await setup(1)
+    const key = { tenantId: 't_1', orgId: 'org_1', targetId: 'st_1' }
+    const now = Date.now()
+
+    const cronClaimed = await claimScimFullSync(env, key, now)
+    const orgQueued = await enqueueOrgScimTargetSyncs({ env, tenant, orgId: 'org_1' })
+    const otherTenantClaimed = await claimScimFullSync(env, { ...key, tenantId: 't_2' }, now)
+    const staleClaimed = await claimScimFullSync(
+      env,
+      key,
+      now + SCIM_FULL_SYNC_DEDUPE_WINDOW_MS + 1,
+    )
+
+    expect([cronClaimed, orgQueued, otherTenantClaimed, staleClaimed]).toEqual([
+      true,
+      0,
+      false,
+      true,
+    ])
+    expect(sent).toEqual([])
+  })
+
+  it('lets the next automatic full sync through once the consumer starts the pending run', async () => {
+    const { env, tenant, target, sent } = await setup(1)
+    stubDownstream()
+    await enqueueOrgScimTargetSyncs({ env, tenant, orgId: 'org_1' })
+    const { batch } = queueMessage(sent[0]!)
+    resolveTenantContextByIssuer.mockResolvedValue({
+      ok: true,
+      value: { status: 'resolved', tenant },
+    })
+
+    await handleScimSyncBatch(batch, env)
+    const claimedAfterStart = await claimScimFullSync(env, {
+      tenantId: 't_1',
+      orgId: target.orgId,
+      targetId: target.id,
+    })
+
+    expect(claimedAfterStart).toBe(true)
   })
 })

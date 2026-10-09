@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { enqueueScheduledScimTargetSyncs } from '../scim-targets'
+import { SCIM_FULL_SYNC_DEDUPE_WINDOW_MS } from '../../lib/ttl'
 
 function asType<T>(value: unknown): T {
   return value as T
@@ -8,8 +9,14 @@ function asType<T>(value: unknown): T {
 const ENCRYPTED = { tokenIv: 'iv', tokenCiphertext: 'ct', tokenTag: 'tag' }
 const NO_TOKEN = { tokenIv: null, tokenCiphertext: null, tokenTag: null }
 
-function pagedEnv(pages: unknown[][], extra: Record<string, unknown> = {}) {
+// claimed 列出已有未开始全量的 target id,条件 UPDATE 对它们返回 changes=0。
+function pagedEnv(
+  pages: unknown[][],
+  extra: Record<string, unknown> = {},
+  claimed: ReadonlySet<string> = new Set(),
+) {
   const queries: { sql: string; params: unknown[] }[] = []
+  const claims: unknown[][] = []
   const send = vi.fn().mockResolvedValue(undefined)
   const env = asType<Env>({
     DB: {
@@ -19,13 +26,17 @@ function pagedEnv(pages: unknown[][], extra: Record<string, unknown> = {}) {
             queries.push({ sql, params })
             return { results: pages[queries.length - 1] ?? [] }
           },
+          run: async () => {
+            claims.push(params)
+            return { meta: { changes: claimed.has(String(params[3])) ? 0 : 1 } }
+          },
         }),
       }),
     },
     SCIM_QUEUE: { send },
     ...extra,
   })
-  return { env, queries, send }
+  return { env, queries, claims, send }
 }
 
 describe('daily outbound SCIM sync fallback', () => {
@@ -56,6 +67,37 @@ describe('daily outbound SCIM sync fallback', () => {
         requestedAt: now,
       }),
     )
+  })
+
+  it('skips a target whose automatic full sync is still pending and claims the others', async () => {
+    const now = Date.parse('2026-10-06T02:00:00.000Z')
+    const page = [
+      {
+        id: 'st_pending',
+        tenantId: 't_1',
+        orgId: 'org_1',
+        primaryDomain: 'xid.example',
+        ...ENCRYPTED,
+      },
+      {
+        id: 'st_free',
+        tenantId: 't_1',
+        orgId: 'org_2',
+        primaryDomain: 'xid.example',
+        ...ENCRYPTED,
+      },
+    ]
+    const { env, claims, send } = pagedEnv([page], {}, new Set(['st_pending']))
+
+    const total = await enqueueScheduledScimTargetSyncs(env, now)
+
+    expect(total).toBe(1)
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'st_free' }))
+    expect(claims).toEqual([
+      [now, 't_1', 'org_1', 'st_pending', now - SCIM_FULL_SYNC_DEDUPE_WINDOW_MS],
+      [now, 't_1', 'org_2', 'st_free', now - SCIM_FULL_SYNC_DEDUPE_WINDOW_MS],
+    ])
   })
 
   it('enqueues legacy secret-backed targets and skips targets without any token', async () => {

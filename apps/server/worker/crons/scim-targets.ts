@@ -1,7 +1,9 @@
 // daily cron 兜底:给每个已配置 token 的 active 出站 SCIM target 入队一轮同步,
 // 覆盖未即时触发的成员与账号变化(04 章 3)。cron 无请求级 TenantContext,按 target 行携带的 tenant 投递。
+// 与其他自动全量入队共用去重标记:同一 target 已有未开始的全量时跳过。
 
 import { instanceIssuerFor } from '@xid-kit/db'
+import { claimScimFullSync } from '../scim/outbound-enqueue'
 import { scimTargetHasToken } from '../scim/target-credentials'
 
 const PAGE_SIZE = 100
@@ -38,6 +40,8 @@ export async function enqueueScheduledScimTargetSyncs(
       .all<ScheduledTargetRow>()
     const ready = results.filter((row) => scimTargetHasToken(env, row))
     for (const row of ready) {
+      const key = { tenantId: row.tenantId, orgId: row.orgId, targetId: row.id }
+      if (!(await claimScimFullSync(env, key, now))) continue
       await env.SCIM_QUEUE.send({
         tenantId: row.tenantId,
         orgId: row.orgId,
@@ -46,8 +50,8 @@ export async function enqueueScheduledScimTargetSyncs(
         runId: crypto.randomUUID(),
         requestedAt: now,
       })
+      total += 1
     }
-    total += ready.length
     const last = results[results.length - 1]
     if (!last || results.length < PAGE_SIZE) return total
     cursor = last.id

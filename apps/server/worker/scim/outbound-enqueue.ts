@@ -2,7 +2,7 @@
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { ScimSyncQueueMessage, TenantContext } from '@xid-kit/types'
-import { and, eq, isNull, lt, or } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { SCIM_FULL_SYNC_DEDUPE_WINDOW_MS } from '../lib/ttl'
 import type { XidHonoEnv } from '../lib/types'
@@ -27,6 +27,7 @@ function scimSyncMessage(
   }
 }
 
+// 管理员「立即同步」不经过全量去重:操作员明确要求现在跑一轮,即使已有未开始的自动全量也照样入队。
 export async function enqueueScimTargetSync(
   c: Context<XidHonoEnv>,
   target: ScimTarget,
@@ -45,21 +46,23 @@ export type OrgScimSyncRequest = {
   userId?: string
 }
 
-async function claimFullSync(request: OrgScimSyncRequest, target: ScimTarget): Promise<boolean> {
-  const now = Date.now()
-  const claimed = await createTenantDb(request.env.DB, request.tenant)
-    .forOrg(target.orgId)
-    .scimTargets.update(
-      { fullSyncQueuedAt: new Date(now) },
-      and(
-        eq(schema.scimTargets.id, target.id),
-        or(
-          isNull(schema.scimTargets.fullSyncQueuedAt),
-          lt(schema.scimTargets.fullSyncQueuedAt, new Date(now - SCIM_FULL_SYNC_DEDUPE_WINDOW_MS)),
-        ),
-      ),
-    )
-  return claimed.length > 0
+export type ScimTargetKey = { tenantId: string; orgId: string; targetId: string }
+
+// 自动触发的全量对账入队前先抢占 full_sync_queued_at:标记为空或超过去重窗口才抢到。
+// 用条件 UPDATE 做 compare-and-swap,daily cron 没有请求级 TenantContext 也走同一条语句。
+export async function claimScimFullSync(
+  env: Env,
+  key: ScimTargetKey,
+  now: number = Date.now(),
+): Promise<boolean> {
+  const result = await env.DB.prepare(
+    `UPDATE scim_targets SET full_sync_queued_at = ?1
+      WHERE tenant_id = ?2 AND org_id = ?3 AND id = ?4
+        AND (full_sync_queued_at IS NULL OR full_sync_queued_at < ?5)`,
+  )
+    .bind(now, key.tenantId, key.orgId, key.targetId, now - SCIM_FULL_SYNC_DEDUPE_WINDOW_MS)
+    .run()
+  return result.meta.changes > 0
 }
 
 // 消费者开始执行全量对账时释放标记,此后的变化会重新入队。
@@ -80,7 +83,16 @@ export async function enqueueOrgScimTargetSyncs(request: OrgScimSyncRequest): Pr
   let queued = 0
   for (const target of targets) {
     if (!scimTargetHasToken(request.env, target)) continue
-    if (request.userId === undefined && !(await claimFullSync(request, target))) continue
+    if (
+      request.userId === undefined &&
+      !(await claimScimFullSync(request.env, {
+        tenantId: request.tenant.tenantId,
+        orgId: target.orgId,
+        targetId: target.id,
+      }))
+    ) {
+      continue
+    }
     await request.env.SCIM_QUEUE.send(
       scimSyncMessage(request.tenant, target, { userId: request.userId }),
     )
