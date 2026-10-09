@@ -1,302 +1,237 @@
-import { Trans, useLingui } from '@lingui/react/macro'
-import { useEffect, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import { Plural, Trans, useLingui } from '@lingui/react/macro'
+import { useState } from 'react'
+import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import {
   Alert,
   Badge,
   Button,
-  Checkbox,
-  EmptyState,
-  Field,
-  Input,
-  Spinner,
-} from '@xid-kit/web-ui/ui'
-import {
   ConsolePage,
   ConsolePageNotice,
-  ConsolePageSection,
-  ConsolePageSplitSection,
+  Icon,
+  Spinner,
 } from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { formatDate } from '../../lib/date-format'
 import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
-import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
-import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
-import { useOrgSocialProvidersQuery, useUpdateOrgSocialProviders } from './queries'
-import type { OrgSocialProviderPolicy, OrgSocialProviders } from './types'
-import type { XidError } from '@xid-kit/types'
+import { SelfServiceLockNotice } from './SelfServiceLock'
+import { useUpdateOrgSocialProviders } from './queries'
+import { useOrgSocialProvidersView } from './auth-queries'
+import type { SocialProviderView } from './auth-queries'
+import { SocialProviderDialog } from './SocialProviderDialog'
+import {
+  EMPTY_SOCIAL_PROVIDER,
+  KNOWN_SOCIAL_PROVIDERS,
+  SOCIAL_PROVIDER_TEMPLATES,
+  isKnownProvider,
+  providerMonogram,
+  providerName,
+} from './social-provider-presets'
+import type { OrgSocialProviderPolicy } from './types'
+
+const WIDE = '@media (min-width: 48rem)'
 
 const styles = stylex.create({
-  loadingZone: {
-    display: 'flex',
-    justifyContent: 'center',
-    paddingBlock: '2.25rem',
-  },
-  templateBtnRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-  },
-  addRow: {
-    display: 'flex',
-    gap: '0.75rem',
-    alignItems: 'flex-end',
-    flexWrap: 'wrap',
-  },
-  addInputWrap: {
-    flex: '1 1 240px',
-    minWidth: 0,
-  },
-  providerMeta: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  providerHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.625rem',
-    flexWrap: 'wrap',
-  },
-  readinessNote: {
-    margin: 0,
-    fontSize: '0.75rem',
-    lineHeight: 1.45,
+  table: {
+    maxWidth: '54rem',
     fontFamily: tokens['--xid-font'],
+  },
+  head: {
+    display: { default: 'none', [WIDE]: 'grid' },
+    gridTemplateColumns: 'minmax(0, 1fr) 8rem 9rem 6.5rem',
+    gap: '1rem',
+    paddingBottom: '0.625rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
     color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
   },
-  readinessReady: {
-    color: tokens['--xid-success'],
+  numberHead: {
+    textAlign: 'end',
   },
-  checkGrid: {
+  row: {
     display: 'grid',
     gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 36rem)': 'repeat(2, minmax(0, 1fr))',
+      default: 'minmax(0, 1fr) auto',
+      [WIDE]: 'minmax(0, 1fr) 8rem 9rem 6.5rem',
     },
-    gap: 0,
+    alignItems: 'center',
+    gap: '1rem',
+    minHeight: { default: '4.25rem', [WIDE]: '3rem' },
+    paddingBlock: '0.375rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
   },
-  checkRow: {
+  rowButton: {
+    appearance: 'none',
+    margin: 0,
+    padding: 0,
+    borderWidth: 0,
+    width: '100%',
+    textAlign: 'start',
+    backgroundColor: 'transparent',
+    color: 'inherit',
+    font: 'inherit',
+    cursor: 'pointer',
+  },
+  provider: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
-    paddingBlock: '0.25rem',
-    fontSize: '0.8125rem',
+    gap: '0.75rem',
+    minWidth: 0,
+  },
+  monogram: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    width: '2rem',
+    height: '2rem',
+    borderRadius: tokens['--xid-radius'],
+    backgroundColor: tokens['--xid-muted'],
     color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    cursor: 'pointer',
+    fontSize: text.sm,
+    fontWeight: weight.medium,
+  },
+  providerText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+    minWidth: 0,
+  },
+  name: {
+    color: tokens['--xid-fg'],
+    fontSize: { default: text.md, [WIDE]: text.base },
+    fontWeight: weight.medium,
+    lineHeight: leading.sm,
+  },
+  detail: {
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+    lineHeight: leading.sm,
+    overflowWrap: 'anywhere',
+  },
+  wideOnly: {
+    display: { default: 'none', [WIDE]: 'flex' },
+  },
+  wideDetail: {
+    display: { default: 'none', [WIDE]: 'block' },
+  },
+  narrowDetail: {
+    display: { default: 'block', [WIDE]: 'none' },
+  },
+  narrowOnly: {
+    display: { default: 'inline-flex', [WIDE]: 'none' },
+    color: tokens['--xid-muted-foreground'],
+  },
+  count: {
+    justifyContent: 'flex-end',
+    color: tokens['--xid-fg'],
+    fontSize: text.base,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  action: {
+    justifyContent: 'flex-end',
+  },
+  muted: {
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+  },
+  footer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '1rem',
+    maxWidth: '54rem',
+    paddingTop: '1.5rem',
+  },
+  note: {
+    margin: 0,
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+    lineHeight: leading.base,
   },
 })
 
-const DEFAULT_SOCIAL_PROVIDER: OrgSocialProviderPolicy = {
-  authorizationEndpoint: '',
-  tokenEndpoint: '',
-  clientId: '',
-  clientSecretRef: '',
-  userInfoEndpoint: '',
-  scopes: ['openid', 'email', 'profile'],
-  usesPkce: true,
-  enabled: false,
-  allowLogin: false,
-  allowUserCreation: false,
-  requireVerifiedEmail: true,
-  allowedEmailDomains: [],
-  blockedEmailDomains: [],
-  hasClientSecret: false,
-  credentialsReady: false,
+type Row = { key: string; policy: SocialProviderView | null }
+
+function useProviderDescription(): (row: Row) => ReactNode {
+  const { i18n } = useLingui()
+  return ({ key, policy }) => {
+    if (!policy) {
+      if (key === 'google') return <Trans>Needs an OAuth client from Google Cloud Console</Trans>
+      if (key === 'microsoft')
+        return <Trans>Personal accounts only. Work accounts use Enterprise SSO.</Trans>
+      if (key === 'github') return <Trans>Needs an OAuth app from GitHub developer settings</Trans>
+      return <Trans>Needs a Services ID and a signing key from Apple Developer</Trans>
+    }
+    if (!policy.enabled && policy.disabledAt) {
+      const date = formatDate(i18n, policy.disabledAt)
+      return <Trans>Turned off {date}</Trans>
+    }
+    if (!policy.credentialsReady) {
+      return <Trans>Client ID or the secret set by your instance operator is missing</Trans>
+    }
+    const scopes = policy.scopes.join(', ')
+    return <Trans>Asks for {scopes}</Trans>
+  }
 }
 
-const SOCIAL_PROVIDER_TEMPLATES: Record<string, OrgSocialProviderPolicy> = {
-  google: {
-    ...DEFAULT_SOCIAL_PROVIDER,
-    authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-    tokenEndpoint: 'https://oauth2.googleapis.com/token',
-    clientSecretRef: 'GOOGLE_CLIENT_SECRET',
-    userInfoEndpoint: 'https://openidconnect.googleapis.com/v1/userinfo',
-    issuer: 'https://accounts.google.com',
-    jwksUri: 'https://www.googleapis.com/oauth2/v3/certs',
-    scopes: ['openid', 'email', 'profile'],
-  },
-  github: {
-    ...DEFAULT_SOCIAL_PROVIDER,
-    authorizationEndpoint: 'https://github.com/login/oauth/authorize',
-    tokenEndpoint: 'https://github.com/login/oauth/access_token',
-    clientSecretRef: 'GITHUB_CLIENT_SECRET',
-    scopes: ['read:user', 'user:email'],
-  },
-  microsoft: {
-    ...DEFAULT_SOCIAL_PROVIDER,
-    authorizationEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-    tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-    clientSecretRef: 'MICROSOFT_CLIENT_SECRET',
-    userInfoEndpoint: 'https://graph.microsoft.com/oidc/userinfo',
-    issuer: 'https://login.microsoftonline.com/{tenantid}/v2.0',
-    jwksUri: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
-    scopes: ['openid', 'email', 'profile'],
-  },
-  apple: {
-    ...DEFAULT_SOCIAL_PROVIDER,
-    authorizationEndpoint: 'https://appleid.apple.com/auth/authorize',
-    tokenEndpoint: 'https://appleid.apple.com/auth/token',
-    clientSecretRef: 'APPLE_CLIENT_SECRET',
-    issuer: 'https://appleid.apple.com',
-    jwksUri: 'https://appleid.apple.com/auth/keys',
-    scopes: ['openid', 'email', 'name'],
-  },
-  github_emu: {
-    ...DEFAULT_SOCIAL_PROVIDER,
-    authorizationEndpoint: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
-    tokenEndpoint: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
-    clientSecretRef: 'GITHUB_EMU_CLIENT_SECRET',
-    userInfoEndpoint: 'https://graph.microsoft.com/oidc/userinfo',
-    issuer: '',
-    jwksUri: 'https://login.microsoftonline.com/organizations/discovery/v2.0/keys',
-    externalIdClaim: 'external_id',
-    scopes: ['openid', 'email', 'profile'],
-  },
-}
-
-const PROFILE_SOURCE_FIELDS = new Set([
-  'authorizationEndpoint',
-  'tokenEndpoint',
-  'userInfoEndpoint',
-  'issuer',
-  'jwksUri',
-])
-
-function isProfileSourceError(error: XidError): boolean {
-  return (
-    error.code === 'validation_failed' && PROFILE_SOURCE_FIELDS.has(error.meta?.paramName ?? '')
+function StatusBadge({ policy }: { policy: SocialProviderView | null }): ReactNode {
+  if (!policy) return <span {...stylex.props(styles.muted)}>{<Trans>Not set up</Trans>}</span>
+  if (policy.enabled && !policy.credentialsReady) {
+    return (
+      <Badge tone="warning">
+        <Trans>Needs setup</Trans>
+      </Badge>
+    )
+  }
+  return policy.enabled ? (
+    <Badge tone="success">
+      <Trans>On</Trans>
+    </Badge>
+  ) : (
+    <Badge tone="neutral">
+      <Trans>Off</Trans>
+    </Badge>
   )
 }
 
-function listToText(value: string[]): string {
-  return value.join(', ')
-}
-
-function textToList(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean)
-}
-
-function normalizeProviderKey(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
-function CheckRow({
-  checked,
-  label,
-  onChange,
-}: {
-  checked: boolean
-  label: ReactNode
-  onChange: (checked: boolean) => void
-}): ReactNode {
+function NarrowSummary({ policy }: { policy: SocialProviderView | null }): ReactNode {
+  const { i18n } = useLingui()
+  if (!policy) return <Trans>Not set up</Trans>
+  if (!policy.enabled) {
+    const date = formatDate(i18n, policy.disabledAt)
+    return date ? <Trans>Off since {date}</Trans> : <Trans>Off</Trans>
+  }
   return (
-    <label {...stylex.props(styles.checkRow)}>
-      <Checkbox checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      <span>{label}</span>
-    </label>
+    <Plural
+      value={policy.signIns30d}
+      one="On, # person signed in over 30 days"
+      other="On, # people signed in over 30 days"
+    />
   )
 }
 
 export default function OrgSocialProvidersPage(): ReactNode {
-  const { t } = useLingui()
-  const errorMessage = useManagementErrorMessage()
+  const { t, i18n } = useLingui()
   const locked = useOrgSelfServiceLocked()
-  const { orgId } = useOrgTarget()
-  const { data, isLoading, isError } = useOrgSocialProvidersQuery(orgId)
-  const updateProviders = useUpdateOrgSocialProviders(orgId)
-  const [form, setForm] = useState<OrgSocialProviders | null>(() => data ?? null)
-  const [newProviderKey, setNewProviderKey] = useState('')
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [pendingRemoveProvider, setPendingRemoveProvider] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (data) setForm(data)
-  }, [data])
-
-  function patchSocialProvider(provider: string, patch: Partial<OrgSocialProviderPolicy>): void {
-    setForm((prev) => {
-      if (!prev) return prev
-      const current = prev.socialProviders[provider] ?? DEFAULT_SOCIAL_PROVIDER
-      return {
-        ...prev,
-        socialProviders: {
-          ...prev.socialProviders,
-          [provider]: { ...current, ...patch },
-        },
-      }
-    })
-  }
-
-  function removeSocialProvider(provider: string): void {
-    setForm((prev) => {
-      if (!prev) return prev
-      const next = { ...prev.socialProviders }
-      delete next[provider]
-      return { ...prev, socialProviders: next }
-    })
-  }
-
-  function addSocialProvider(): void {
-    const key = normalizeProviderKey(newProviderKey)
-    if (!key || !form || form.socialProviders[key]) return
-    setForm((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        socialProviders: {
-          ...prev.socialProviders,
-          [key]: { ...DEFAULT_SOCIAL_PROVIDER },
-        },
-      }
-    })
-    setNewProviderKey('')
-  }
-
-  function addSocialProviderTemplate(provider: string): void {
-    const template = SOCIAL_PROVIDER_TEMPLATES[provider]
-    if (!template || !form || form.socialProviders[provider]) return
-    setForm((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        socialProviders: {
-          ...prev.socialProviders,
-          [provider]: { ...template },
-        },
-      }
-    })
-  }
-
-  function confirmRemoveProvider(): void {
-    if (!pendingRemoveProvider) return
-    removeSocialProvider(pendingRemoveProvider)
-    setPendingRemoveProvider(null)
-  }
-
-  function handleSave(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault()
-    if (!orgId || !form || locked) return
-    setSaveSuccess(false)
-    updateProviders.mutate(
-      { socialProviders: form.socialProviders },
-      { onSuccess: () => setSaveSuccess(true) },
-    )
-  }
+  const { orgId, orgName } = useOrgTarget()
+  const { data, isLoading, isError } = useOrgSocialProvidersView(orgId)
+  const update = useUpdateOrgSocialProviders(orgId)
+  const describe = useProviderDescription()
+  const [editing, setEditing] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<string | null>(null)
+  const title = <Trans>Social login</Trans>
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>Social providers</Trans>}>
+      <ConsolePage title={title}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -306,315 +241,174 @@ export default function OrgSocialProvidersPage(): ReactNode {
     )
   }
 
-  const socialEntries = form ? Object.entries(form.socialProviders) : []
+  const configured = data?.socialProviders ?? {}
+  const rows: Row[] = [
+    ...KNOWN_SOCIAL_PROVIDERS.map((key) => ({ key, policy: configured[key] ?? null })),
+    ...Object.keys(configured)
+      .filter((key) => !isKnownProvider(key))
+      .map((key) => ({ key, policy: configured[key] ?? null })),
+  ]
+
+  function baseProviders(): Record<string, OrgSocialProviderPolicy> {
+    return { ...configured }
+  }
+
+  function save(key: string, policy: OrgSocialProviderPolicy): void {
+    update.mutate(
+      { socialProviders: { ...baseProviders(), [key]: policy } },
+      { onSuccess: () => setEditing(null) },
+    )
+  }
+
+  function remove(key: string): void {
+    const next = baseProviders()
+    delete next[key]
+    update.mutate(
+      { socialProviders: next },
+      {
+        onSuccess: () => {
+          setRemoving(null)
+          setEditing(null)
+        },
+      },
+    )
+  }
+
+  const removingName = removing ? providerName(removing) : ''
+  const editingPolicy = editing
+    ? (configured[editing] ??
+      (isKnownProvider(editing) ? SOCIAL_PROVIDER_TEMPLATES[editing] : EMPTY_SOCIAL_PROVIDER))
+    : null
 
   return (
     <ConsolePage
-      title={<Trans>Social providers</Trans>}
+      title={title}
       lead={
-        <Trans>Social sign-in providers available on this organization&apos;s Hosted UI.</Trans>
+        <Trans>
+          Buttons on the {orgName} sign-in page for people who sign in with a personal account.
+        </Trans>
       }
     >
-      {locked || isError || updateProviders.error || saveSuccess ? (
+      {locked || isError ? (
         <ConsolePageNotice>
           {locked ? <SelfServiceLockNotice /> : null}
           {isError ? (
             <Alert tone="error">
-              <Trans>Failed to load social providers.</Trans>
-            </Alert>
-          ) : null}
-          {updateProviders.error ? (
-            <Alert tone="error">
-              {isProfileSourceError(updateProviders.error) ? (
-                <Trans>
-                  Each enabled provider other than GitHub needs both an issuer and a JWKS URI, or a
-                  userinfo endpoint. Replace any placeholder with your own value.
-                </Trans>
-              ) : (
-                errorMessage(updateProviders.error)
-              )}
-            </Alert>
-          ) : null}
-          {saveSuccess ? (
-            <Alert tone="success">
-              <Trans>Social providers saved.</Trans>
+              <Trans>
+                Social login settings could not be loaded. Reload the page to try again.
+              </Trans>
             </Alert>
           ) : null}
         </ConsolePageNotice>
       ) : null}
-
-      {!form ? (
-        <ConsolePageSection>
-          <div {...stylex.props(styles.loadingZone)}>
-            {isLoading ? <Spinner label={t`Loading social providers`} /> : null}
+      {!data ? (
+        isLoading ? (
+          <div {...stylex.props(consoleShell.sectionPad)}>
+            <Spinner label={t`Loading social login`} />
           </div>
-        </ConsolePageSection>
+        ) : null
       ) : (
-        <form onSubmit={handleSave} noValidate>
-          <LockableFieldset locked={locked}>
-            <ConsolePageSplitSection
-              title={<Trans>Provider connections</Trans>}
-              description={
-                <Trans>Add a provider from a template or register a custom provider key.</Trans>
-              }
-            >
-              <div {...stylex.props(styles.templateBtnRow)}>
-                {Object.keys(SOCIAL_PROVIDER_TEMPLATES).map((provider) => (
-                  <Button
-                    key={provider}
+        <>
+          <div role="table" aria-label={t`Social login providers`} {...stylex.props(styles.table)}>
+            <div role="row" {...stylex.props(styles.head)}>
+              <span role="columnheader">
+                <Trans>Provider</Trans>
+              </span>
+              <span role="columnheader">
+                <Trans>Status</Trans>
+              </span>
+              <span role="columnheader" {...stylex.props(styles.numberHead)}>
+                <Trans>People, last 30 days</Trans>
+              </span>
+              <span role="columnheader">
+                <span {...stylex.props(page.visuallyHidden)}>{t`Actions`}</span>
+              </span>
+            </div>
+            {rows.map((row) => {
+              const name = providerName(row.key)
+              return (
+                <div role="row" key={row.key} {...stylex.props(styles.row)}>
+                  <button
                     type="button"
-                    variant="secondary"
-                    disabled={Boolean(form.socialProviders[provider])}
-                    onClick={() => addSocialProviderTemplate(provider)}
+                    role="cell"
+                    disabled={locked}
+                    onClick={() => setEditing(row.key)}
+                    {...stylex.props(styles.rowButton, styles.provider)}
                   >
-                    <Trans>Add {provider} template</Trans>
-                  </Button>
-                ))}
-              </div>
-              <div {...stylex.props(styles.addRow)}>
-                <div {...stylex.props(styles.addInputWrap)}>
-                  <Field label={<Trans>New provider key</Trans>}>
-                    <Input
-                      value={newProviderKey}
-                      onChange={(event) => setNewProviderKey(event.target.value)}
-                      placeholder={t`google`}
-                    />
-                  </Field>
+                    <span aria-hidden {...stylex.props(styles.monogram)}>
+                      {providerMonogram(row.key)}
+                    </span>
+                    <span {...stylex.props(styles.providerText)}>
+                      <span {...stylex.props(styles.name)}>{name}</span>
+                      <span {...stylex.props(styles.detail, styles.wideDetail)}>
+                        {describe(row)}
+                      </span>
+                      <span {...stylex.props(styles.detail, styles.narrowDetail)}>
+                        <NarrowSummary policy={row.policy} />
+                      </span>
+                    </span>
+                  </button>
+                  <span role="cell" {...stylex.props(styles.wideOnly)}>
+                    <StatusBadge policy={row.policy} />
+                  </span>
+                  <span role="cell" {...stylex.props(styles.wideOnly, styles.count)}>
+                    {row.policy ? i18n.number(row.policy.signIns30d) : null}
+                  </span>
+                  <span role="cell" {...stylex.props(styles.wideOnly, styles.action)}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={locked}
+                      onClick={() => setEditing(row.key)}
+                    >
+                      {row.policy ? <Trans>Configure…</Trans> : <Trans>Set up…</Trans>}
+                    </Button>
+                  </span>
+                  <span aria-hidden {...stylex.props(styles.narrowOnly)}>
+                    <Icon name="chevron-right" />
+                  </span>
                 </div>
-                <Button
-                  type="button"
-                  disabled={!normalizeProviderKey(newProviderKey)}
-                  onClick={addSocialProvider}
-                >
-                  <Trans>Add provider</Trans>
-                </Button>
-              </div>
-            </ConsolePageSplitSection>
-
-            {socialEntries.length === 0 ? (
-              <ConsolePageSection>
-                <EmptyState title={<Trans>No social providers configured.</Trans>} />
-              </ConsolePageSection>
-            ) : (
-              socialEntries.map(([provider, policy]) => (
-                <ConsolePageSplitSection
-                  key={provider}
-                  title={provider}
-                  meta={
-                    <div {...stylex.props(styles.providerMeta)}>
-                      <div {...stylex.props(styles.providerHeader)}>
-                        {policy.credentialsReady ? (
-                          <Badge tone="success">
-                            <Trans>Ready</Trans>
-                          </Badge>
-                        ) : (
-                          <Badge tone="neutral">
-                            <Trans>Not ready</Trans>
-                          </Badge>
-                        )}
-                        <Button
-                          type="button"
-                          variant="danger"
-                          onClick={() => setPendingRemoveProvider(provider)}
-                        >
-                          <Trans>Remove provider</Trans>
-                        </Button>
-                      </div>
-                      <p
-                        {...stylex.props(
-                          styles.readinessNote,
-                          policy.credentialsReady ? styles.readinessReady : undefined,
-                        )}
-                      >
-                        {policy.credentialsReady ? (
-                          <Trans>OAuth credentials are ready for Hosted UI.</Trans>
-                        ) : (
-                          <Trans>
-                            OAuth credentials are not ready. Hosted UI hides this provider until
-                            client ID, authorization endpoint, token endpoint, issuer with JWKS URI
-                            or a userinfo endpoint, client secret reference, and Workers Secret are
-                            configured.
-                          </Trans>
-                        )}
-                      </p>
-                    </div>
-                  }
-                >
-                  <div {...stylex.props(styles.checkGrid)}>
-                    <CheckRow
-                      checked={policy.enabled}
-                      label={<Trans>Enabled</Trans>}
-                      onChange={(checked) => patchSocialProvider(provider, { enabled: checked })}
-                    />
-                    <CheckRow
-                      checked={policy.allowLogin}
-                      label={<Trans>Allow login</Trans>}
-                      onChange={(checked) => patchSocialProvider(provider, { allowLogin: checked })}
-                    />
-                    <CheckRow
-                      checked={policy.allowUserCreation}
-                      label={<Trans>Allow user creation</Trans>}
-                      onChange={(checked) =>
-                        patchSocialProvider(provider, { allowUserCreation: checked })
-                      }
-                    />
-                    <CheckRow
-                      checked={policy.requireVerifiedEmail}
-                      label={<Trans>Require verified email</Trans>}
-                      onChange={(checked) =>
-                        patchSocialProvider(provider, { requireVerifiedEmail: checked })
-                      }
-                    />
-                    <CheckRow
-                      checked={policy.usesPkce}
-                      label={<Trans>Use PKCE</Trans>}
-                      onChange={(checked) => patchSocialProvider(provider, { usesPkce: checked })}
-                    />
-                  </div>
-
-                  <Field label={<Trans>Client ID</Trans>}>
-                    <Input
-                      value={policy.clientId}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, { clientId: event.target.value.trim() })
-                      }
-                    />
-                  </Field>
-                  <Field
-                    label={<Trans>Client secret binding</Trans>}
-                    hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
-                  >
-                    <Input
-                      value={policy.clientSecretRef ?? ''}
-                      readOnly
-                      placeholder={t`GOOGLE_CLIENT_SECRET`}
-                    />
-                  </Field>
-                  <Field label={<Trans>Authorization endpoint</Trans>}>
-                    <Input
-                      value={policy.authorizationEndpoint}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, {
-                          authorizationEndpoint: event.target.value.trim(),
-                        })
-                      }
-                      placeholder={t`https://accounts.google.com/o/oauth2/v2/auth`}
-                    />
-                  </Field>
-                  <Field label={<Trans>Token endpoint</Trans>}>
-                    <Input
-                      value={policy.tokenEndpoint}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, {
-                          tokenEndpoint: event.target.value.trim(),
-                        })
-                      }
-                      placeholder={t`https://oauth2.googleapis.com/token`}
-                    />
-                  </Field>
-                  <Field label={<Trans>Userinfo endpoint</Trans>}>
-                    <Input
-                      value={policy.userInfoEndpoint ?? ''}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, {
-                          userInfoEndpoint: event.target.value.trim(),
-                        })
-                      }
-                      placeholder={t`https://openidconnect.googleapis.com/v1/userinfo`}
-                    />
-                  </Field>
-                  <Field
-                    label={<Trans>Issuer</Trans>}
-                    hint={
-                      <Trans>
-                        Enter the exact issuer of your identity provider tenant. Only the Microsoft
-                        template may keep its multi-tenant issuer placeholder.
-                      </Trans>
-                    }
-                  >
-                    <Input
-                      value={policy.issuer ?? ''}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, { issuer: event.target.value.trim() })
-                      }
-                      placeholder={t`https://accounts.google.com`}
-                    />
-                  </Field>
-                  <Field label={<Trans>JWKS URI</Trans>}>
-                    <Input
-                      value={policy.jwksUri ?? ''}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, { jwksUri: event.target.value.trim() })
-                      }
-                    />
-                  </Field>
-                  <Field label={<Trans>External ID claim</Trans>}>
-                    <Input
-                      value={policy.externalIdClaim ?? ''}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, {
-                          externalIdClaim: event.target.value.trim(),
-                        })
-                      }
-                      placeholder={t`external_id`}
-                    />
-                  </Field>
-                  <Field label={<Trans>Scopes</Trans>}>
-                    <Input
-                      value={listToText([...policy.scopes])}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, { scopes: textToList(event.target.value) })
-                      }
-                      placeholder={t`openid, email, profile`}
-                    />
-                  </Field>
-                  <Field label={<Trans>Allowed domains</Trans>}>
-                    <Input
-                      value={listToText(policy.allowedEmailDomains)}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, {
-                          allowedEmailDomains: textToList(event.target.value),
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label={<Trans>Blocked domains</Trans>}>
-                    <Input
-                      value={listToText(policy.blockedEmailDomains)}
-                      onChange={(event) =>
-                        patchSocialProvider(provider, {
-                          blockedEmailDomains: textToList(event.target.value),
-                        })
-                      }
-                    />
-                  </Field>
-                </ConsolePageSplitSection>
-              ))
-            )}
-
-            <ConsolePageSection>
-              <div>
-                <Button type="submit" isLoading={updateProviders.isPending}>
-                  <Trans>Save changes</Trans>
-                </Button>
-              </div>
-            </ConsolePageSection>
-          </LockableFieldset>
-        </form>
+              )
+            })}
+          </div>
+          <div {...stylex.props(styles.footer)}>
+            <p {...stylex.props(styles.note)}>
+              <Trans>
+                When someone signs in with a provider using an email that already has a {orgName}{' '}
+                account, XID asks them to prove they own that account before linking the two.
+              </Trans>
+            </p>
+          </div>
+        </>
       )}
-
-      {pendingRemoveProvider ? (
+      {editing && editingPolicy ? (
+        <SocialProviderDialog
+          providerKey={editing}
+          initial={editingPolicy}
+          isNew={!configured[editing]}
+          isPending={update.isPending}
+          error={update.error}
+          onSave={(policy) => save(editing, policy)}
+          onRemove={() => setRemoving(editing)}
+          onClose={() => {
+            update.reset()
+            setEditing(null)
+          }}
+        />
+      ) : null}
+      {removing ? (
         <ConfirmDialog
-          title={<Trans>Remove provider?</Trans>}
+          title={<Trans>Remove {removingName}?</Trans>}
           description={
             <Trans>
-              {pendingRemoveProvider} will be removed from the social sign-in configuration. Save
-              changes to apply.
+              The {removingName} button disappears from the sign-in page. People who signed in with
+              it keep their accounts and can use another method.
             </Trans>
           }
           confirmLabel={<Trans>Remove</Trans>}
-          onConfirm={confirmRemoveProvider}
-          onCancel={() => setPendingRemoveProvider(null)}
+          isLoading={update.isPending}
+          onConfirm={() => remove(removing)}
+          onCancel={() => setRemoving(null)}
         />
       ) : null}
     </ConsolePage>

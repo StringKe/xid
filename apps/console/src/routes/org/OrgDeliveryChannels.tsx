@@ -1,366 +1,326 @@
-import { Trans, useLingui } from '@lingui/react/macro'
-import { useEffect, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+// /console/org/delivery-channels(Messaging):邮件由实例提供,SMS 与 WhatsApp 按组织配置;
+// 每个渠道显示近 24 小时投递失败数和最常见原因,不显示收件人和内容。
+
+import { Plural, Trans, useLingui } from '@lingui/react/macro'
+import { useState } from 'react'
+import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Badge, Button, Checkbox, Field, Input, Select, Spinner } from '@xid-kit/web-ui/ui'
-import {
-  ConsolePage,
-  ConsolePageNotice,
-  ConsolePageSection,
-  ConsolePageSplitSection,
-} from '@xid-kit/web-ui/ui'
+import { Alert, Badge, Button, ConsolePage, ConsolePageNotice, Spinner } from '@xid-kit/web-ui/ui'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { useOrgDeliveryChannelsQuery, useUpdateOrgDeliveryChannels } from './queries'
-import type { OrgDeliveryChannels } from './types'
 import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
-import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
-import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import { SelfServiceLockNotice } from './SelfServiceLock'
+import { useOrgDeliveryChannelsView } from './auth-queries'
+import type { DeliveryFailureSummary, OrgDeliveryChannelsView } from './auth-queries'
+import { ValueRows } from './AuthDetailParts'
+import { DeliveryChannelDialog, useProviderLabel } from './DeliveryChannelDialog'
+import type { MessagingChannel } from './DeliveryChannelDialog'
 
-const WHATSAPP_PROVIDERS = ['twilio', 'meta', 'test'] as const
-const SMS_PROVIDERS = ['twilio', 'vonage', 'infobip', 'messagebird', 'test'] as const
-
-const WHATSAPP_SECRET_REFS: Record<(typeof WHATSAPP_PROVIDERS)[number], string[]> = {
-  twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
-  meta: ['WHATSAPP_META_PHONE_NUMBER_ID', 'WHATSAPP_META_ACCESS_TOKEN'],
-  test: [],
-}
-
-const SMS_SECRET_REFS: Record<(typeof SMS_PROVIDERS)[number], string[]> = {
-  twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
-  vonage: ['VONAGE_API_KEY', 'VONAGE_API_SECRET'],
-  infobip: ['INFOBIP_API_KEY', 'INFOBIP_BASE_URL'],
-  messagebird: ['MESSAGEBIRD_ACCESS_KEY'],
-  test: [],
-}
+const WIDE = '@media (min-width: 48rem)'
 
 const styles = stylex.create({
-  loadingZone: {
-    display: 'flex',
-    justifyContent: 'center',
-    paddingBlock: '2.25rem',
-  },
-  channelMeta: {
+  stack: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  readinessNote: {
-    margin: 0,
-    fontSize: '0.75rem',
-    lineHeight: 1.4,
-    color: tokens['--xid-muted-foreground'],
+    gap: { default: '2rem', [WIDE]: '2.5rem' },
+    maxWidth: '54rem',
     fontFamily: tokens['--xid-font'],
-    maxWidth: '26rem',
   },
-  readinessReady: {
-    color: tokens['--xid-success'],
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
   },
-  checkRow: {
+  head: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
-    paddingBlock: '0.3125rem',
-    fontSize: '0.8125rem',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headText: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  title: {
+    margin: 0,
     color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    cursor: 'pointer',
+    fontSize: { default: text.md, [WIDE]: text.lg },
+    lineHeight: leading.lg,
+    fontWeight: weight.display,
+    letterSpacing: tokens['--xid-tracking-title'],
+  },
+  notSetUp: {
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+  },
+  setup: {
+    display: 'flex',
+    flexDirection: { default: 'column', [WIDE]: 'row' },
+    alignItems: { default: 'stretch', [WIDE]: 'center' },
+    justifyContent: 'space-between',
+    gap: '1rem',
+    paddingBlock: '1rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: tokens['--xid-border'],
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  setupText: {
+    margin: 0,
+    maxWidth: '40rem',
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.base,
+    lineHeight: leading.base,
+  },
+  reason: {
+    display: 'block',
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+    lineHeight: leading.sm,
   },
 })
 
-const DEFAULT_CHANNELS: OrgDeliveryChannels = {
-  whatsapp: {
-    provider: 'meta',
-    enabled: false,
-    from: '',
-    secretRefs: WHATSAPP_SECRET_REFS.meta,
-    hasSecrets: false,
-    credentialsReady: false,
-    providers: [],
-  },
-  sms: {
-    provider: 'twilio',
-    enabled: false,
-    from: '',
-    secretRefs: SMS_SECRET_REFS.twilio,
-    hasSecrets: false,
-    credentialsReady: false,
-    providers: [],
-  },
+function emailDomain(address: string | null): string | null {
+  if (!address) return null
+  const at = address.lastIndexOf('@')
+  return at === -1 ? null : address.slice(at + 1)
 }
 
-function listToText(value: readonly string[]): string {
-  return value.join(', ')
+function FailureValue({ failures }: { failures: DeliveryFailureSummary }): ReactNode {
+  if (failures.count === 0) return <Trans>None</Trans>
+  const reason = failures.topReason
+  return (
+    <>
+      <Plural value={failures.count} one="# message" other="# messages" />
+      {reason ? (
+        <span {...stylex.props(styles.reason)}>
+          <Trans>Most common reason: {reason}</Trans>
+        </span>
+      ) : null}
+    </>
+  )
 }
 
-function channelConfigured(input: { enabled: boolean; credentialsReady: boolean }): boolean {
-  return input.enabled && input.credentialsReady
+function FailureBadge({ failures }: { failures: DeliveryFailureSummary }): ReactNode {
+  if (failures.count === 0) return null
+  return (
+    <Badge tone="warning">
+      <Plural value={failures.count} one="# failed in 24 hours" other="# failed in 24 hours" />
+    </Badge>
+  )
+}
+
+function EmailSection({ data }: { data: OrgDeliveryChannelsView }): ReactNode {
+  const { fromAddress, fromName } = data.email
+  const domain = emailDomain(fromAddress)
+  const sender = fromAddress ? (fromName ? `${fromName} <${fromAddress}>` : fromAddress) : null
+  return (
+    <section {...stylex.props(styles.section)}>
+      <div {...stylex.props(styles.headText)}>
+        <h2 {...stylex.props(styles.title)}>
+          <Trans>Email</Trans>
+        </h2>
+        <Badge tone="success">
+          <Trans>Provided by XID</Trans>
+        </Badge>
+        <FailureBadge failures={data.failures24h.email} />
+      </div>
+      <ValueRows
+        rows={[
+          {
+            key: 'from',
+            label: <Trans>Sent from</Trans>,
+            value: sender ?? <Trans>The default sender of your XID instance</Trans>,
+          },
+          {
+            key: 'domain',
+            label: <Trans>Sending domain</Trans>,
+            value: domain ? (
+              <Trans>{domain}, set up by your instance operator with DKIM, SPF and DMARC</Trans>
+            ) : (
+              <Trans>Set up by your instance operator with DKIM, SPF and DMARC</Trans>
+            ),
+          },
+          {
+            key: 'failed',
+            label: <Trans>Failed, last 24 hours</Trans>,
+            value: <FailureValue failures={data.failures24h.email} />,
+          },
+        ]}
+      />
+    </section>
+  )
+}
+
+function PhoneSection({
+  channel,
+  data,
+  locked,
+  onEdit,
+}: {
+  channel: MessagingChannel
+  data: OrgDeliveryChannelsView
+  locked: boolean
+  onEdit: () => void
+}): ReactNode {
+  const providerLabel = useProviderLabel()
+  const config = data[channel]
+  const failures = data.failures24h[channel]
+  const title = channel === 'sms' ? <Trans>SMS</Trans> : <Trans>WhatsApp</Trans>
+  const configured = config.enabled || config.from !== ''
+  const provider = providerLabel(config.provider)
+  const from = config.from
+  const secretNames = config.secretRefs.join(', ')
+
+  if (!configured) {
+    return (
+      <section {...stylex.props(styles.section)}>
+        <div {...stylex.props(styles.headText)}>
+          <h2 {...stylex.props(styles.title)}>{title}</h2>
+          <span {...stylex.props(styles.notSetUp)}>
+            <Trans>Not set up</Trans>
+          </span>
+        </div>
+        <div {...stylex.props(styles.setup)}>
+          <p {...stylex.props(styles.setupText)}>
+            {channel === 'sms' ? (
+              <Trans>Send sign-in codes by text message to people without a work email.</Trans>
+            ) : (
+              <Trans>
+                Send sign-in codes over WhatsApp where SMS delivery is unreliable. Needs an approved
+                WhatsApp Business sender.
+              </Trans>
+            )}
+          </p>
+          <Button type="button" variant="secondary" disabled={locked} onClick={onEdit}>
+            {channel === 'sms' ? <Trans>Set up SMS…</Trans> : <Trans>Set up WhatsApp…</Trans>}
+          </Button>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section {...stylex.props(styles.section)}>
+      <div {...stylex.props(styles.head)}>
+        <div {...stylex.props(styles.headText)}>
+          <h2 {...stylex.props(styles.title)}>{title}</h2>
+          {!config.enabled ? (
+            <Badge tone="neutral">
+              <Trans>Off</Trans>
+            </Badge>
+          ) : !config.credentialsReady ? (
+            <Badge tone="warning">
+              <Trans>Credentials missing</Trans>
+            </Badge>
+          ) : null}
+          <FailureBadge failures={failures} />
+        </div>
+        <Button type="button" variant="secondary" disabled={locked} onClick={onEdit}>
+          <Trans>Edit…</Trans>
+        </Button>
+      </div>
+      <ValueRows
+        rows={[
+          {
+            key: 'provider',
+            label: <Trans>Provider</Trans>,
+            value: from ? (
+              <Trans>
+                {provider}, from {from}
+              </Trans>
+            ) : (
+              provider
+            ),
+          },
+          {
+            key: 'credentials',
+            label: <Trans>Credentials</Trans>,
+            value: config.credentialsReady ? (
+              <Trans>Set by your instance operator</Trans>
+            ) : (
+              <Trans>Missing. Ask your instance operator to set {secretNames}.</Trans>
+            ),
+          },
+          {
+            key: 'failed',
+            label: <Trans>Failed, last 24 hours</Trans>,
+            value: <FailureValue failures={failures} />,
+          },
+        ]}
+      />
+    </section>
+  )
 }
 
 export default function OrgDeliveryChannelsPage(): ReactNode {
   const { t } = useLingui()
-  const errorMessage = useManagementErrorMessage()
   const locked = useOrgSelfServiceLocked()
-  const { orgId } = useOrgTarget()
-  const query = useOrgDeliveryChannelsQuery(orgId)
-  const updateChannels = useUpdateOrgDeliveryChannels(orgId)
-  const [form, setForm] = useState<OrgDeliveryChannels | null>(() => query.data ?? null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-
-  // 品牌名不译;dev 捕获渠道名走 lingui。
-  const whatsappProviderLabels: Record<(typeof WHATSAPP_PROVIDERS)[number], string> = {
-    twilio: 'Twilio',
-    meta: 'Meta',
-    test: t`Test capture (dev)`,
-  }
-  const smsProviderLabels: Record<(typeof SMS_PROVIDERS)[number], string> = {
-    twilio: 'Twilio',
-    vonage: 'Vonage',
-    infobip: 'Infobip',
-    messagebird: 'MessageBird',
-    test: t`Test capture (dev)`,
-  }
-
-  useEffect(() => {
-    if (query.data) setForm(query.data)
-  }, [query.data])
-
-  function patchWhatsapp(next: Partial<OrgDeliveryChannels['whatsapp']>): void {
-    setForm((prev) =>
-      prev
-        ? {
-            ...prev,
-            whatsapp: { ...prev.whatsapp, ...next },
-          }
-        : prev,
-    )
-    setSaveSuccess(false)
-  }
-
-  function patchSms(next: Partial<OrgDeliveryChannels['sms']>): void {
-    setForm((prev) =>
-      prev
-        ? {
-            ...prev,
-            sms: { ...prev.sms, ...next },
-          }
-        : prev,
-    )
-    setSaveSuccess(false)
-  }
-
-  function selectWhatsappProvider(provider: OrgDeliveryChannels['whatsapp']['provider']): void {
-    patchWhatsapp({ provider, secretRefs: WHATSAPP_SECRET_REFS[provider] })
-  }
-
-  function selectSmsProvider(provider: OrgDeliveryChannels['sms']['provider']): void {
-    patchSms({ provider, secretRefs: SMS_SECRET_REFS[provider] })
-  }
-
-  function handleSave(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault()
-    if (!form || locked) return
-    updateChannels.mutate(form, {
-      onSuccess: (next) => {
-        setForm(next)
-        setSaveSuccess(true)
-      },
-    })
-  }
+  const { orgId, orgName } = useOrgTarget()
+  const { data, isLoading, isError } = useOrgDeliveryChannelsView(orgId)
+  const [editing, setEditing] = useState<MessagingChannel | null>(null)
+  const title = <Trans>Messaging</Trans>
 
   return (
     <ConsolePage
-      title={<Trans>Delivery channels</Trans>}
+      title={title}
       lead={
         <Trans>
-          WhatsApp and SMS delivery providers used by this organization&apos;s OTP sign-in.
+          How XID sends sign-in codes, magic links and invitations to {orgName} people. Messages go
+          out in the background, so a slow provider never holds up sign-in.
         </Trans>
       }
     >
-      {locked || query.isError || updateChannels.error || saveSuccess ? (
+      {!orgId || locked || isError ? (
         <ConsolePageNotice>
-          {locked ? <SelfServiceLockNotice /> : null}
-          {query.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to load delivery channels.</Trans>
+          {!orgId ? (
+            <Alert tone="info">
+              <Trans>No organization selected.</Trans>
             </Alert>
           ) : null}
-          {updateChannels.error ? (
-            <Alert tone="error">{errorMessage(updateChannels.error)}</Alert>
-          ) : null}
-          {saveSuccess ? (
-            <Alert tone="success">
-              <Trans>Delivery channels saved.</Trans>
+          {locked ? <SelfServiceLockNotice /> : null}
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Messaging settings could not be loaded. Reload the page to try again.</Trans>
             </Alert>
           ) : null}
         </ConsolePageNotice>
       ) : null}
-
-      {!form ? (
-        <ConsolePageSection>
-          <div {...stylex.props(styles.loadingZone)}>
-            {query.isLoading ? <Spinner label={t`Loading delivery channels`} /> : null}
-          </div>
-        </ConsolePageSection>
-      ) : (
-        <form onSubmit={handleSave} noValidate>
-          <LockableFieldset locked={locked}>
-            <ConsolePageSplitSection
-              title={<Trans>WhatsApp provider</Trans>}
-              meta={
-                <div {...stylex.props(styles.channelMeta)}>
-                  <div>
-                    <Badge tone={channelConfigured(form.whatsapp) ? 'success' : 'neutral'}>
-                      {channelConfigured(form.whatsapp) ? (
-                        <Trans>Ready</Trans>
-                      ) : (
-                        <Trans>Not ready</Trans>
-                      )}
-                    </Badge>
-                  </div>
-                  <p
-                    {...stylex.props(
-                      styles.readinessNote,
-                      channelConfigured(form.whatsapp) ? styles.readinessReady : undefined,
-                    )}
-                  >
-                    {channelConfigured(form.whatsapp) ? (
-                      <Trans>WhatsApp delivery is ready for Hosted UI.</Trans>
-                    ) : (
-                      <Trans>
-                        WhatsApp delivery stays hidden until the provider is enabled and all
-                        referenced Workers Secrets exist.
-                      </Trans>
-                    )}
-                  </p>
-                </div>
-              }
-            >
-              <label {...stylex.props(styles.checkRow)}>
-                <Checkbox
-                  checked={form.whatsapp.enabled}
-                  onChange={(event) => patchWhatsapp({ enabled: event.target.checked })}
-                />
-                <span>
-                  <Trans>Enabled</Trans>
-                </span>
-              </label>
-              <Field label={<Trans>Provider</Trans>}>
-                <Select
-                  value={form.whatsapp.provider}
-                  onChange={(event) =>
-                    selectWhatsappProvider(
-                      event.target.value as OrgDeliveryChannels['whatsapp']['provider'],
-                    )
-                  }
-                >
-                  {WHATSAPP_PROVIDERS.map((p) => (
-                    <option key={p} value={p}>
-                      {whatsappProviderLabels[p]}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label={<Trans>Sender</Trans>}>
-                <Input
-                  value={form.whatsapp.from}
-                  onChange={(event) => patchWhatsapp({ from: event.target.value.trim() })}
-                  placeholder={t`whatsapp:+15550000000`}
-                />
-              </Field>
-              <Field
-                label={<Trans>Secret bindings</Trans>}
-                hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
-              >
-                <Input
-                  value={listToText(form.whatsapp.secretRefs)}
-                  readOnly
-                  placeholder={t`WHATSAPP_META_PHONE_NUMBER_ID, WHATSAPP_META_ACCESS_TOKEN`}
-                />
-              </Field>
-            </ConsolePageSplitSection>
-
-            <ConsolePageSplitSection
-              title={<Trans>SMS provider</Trans>}
-              meta={
-                <div {...stylex.props(styles.channelMeta)}>
-                  <div>
-                    <Badge tone={channelConfigured(form.sms) ? 'success' : 'neutral'}>
-                      {channelConfigured(form.sms) ? (
-                        <Trans>Ready</Trans>
-                      ) : (
-                        <Trans>Not ready</Trans>
-                      )}
-                    </Badge>
-                  </div>
-                  <p
-                    {...stylex.props(
-                      styles.readinessNote,
-                      channelConfigured(form.sms) ? styles.readinessReady : undefined,
-                    )}
-                  >
-                    {channelConfigured(form.sms) ? (
-                      <Trans>SMS delivery is ready for Hosted UI.</Trans>
-                    ) : (
-                      <Trans>
-                        SMS delivery stays hidden until the provider is enabled, a sender is set,
-                        and all referenced Workers Secrets exist.
-                      </Trans>
-                    )}
-                  </p>
-                </div>
-              }
-            >
-              <label {...stylex.props(styles.checkRow)}>
-                <Checkbox
-                  checked={form.sms.enabled}
-                  onChange={(event) => patchSms({ enabled: event.target.checked })}
-                />
-                <span>
-                  <Trans>Enabled</Trans>
-                </span>
-              </label>
-              <Field label={<Trans>Provider</Trans>}>
-                <Select
-                  value={form.sms.provider}
-                  onChange={(event) =>
-                    selectSmsProvider(event.target.value as OrgDeliveryChannels['sms']['provider'])
-                  }
-                >
-                  {SMS_PROVIDERS.map((p) => (
-                    <option key={p} value={p}>
-                      {smsProviderLabels[p]}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label={<Trans>Sender</Trans>}>
-                <Input
-                  value={form.sms.from}
-                  onChange={(event) => patchSms({ from: event.target.value.trim() })}
-                  placeholder={t`+15550000000`}
-                />
-              </Field>
-              <Field
-                label={<Trans>Secret bindings</Trans>}
-                hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
-              >
-                <Input
-                  value={listToText(form.sms.secretRefs)}
-                  readOnly
-                  placeholder={t`TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN`}
-                />
-              </Field>
-              <div>
-                <Button type="submit" isLoading={updateChannels.isPending}>
-                  <Trans>Save changes</Trans>
-                </Button>
-              </div>
-            </ConsolePageSplitSection>
-          </LockableFieldset>
-        </form>
-      )}
+      {orgId && !data && isLoading ? (
+        <div {...stylex.props(consoleShell.sectionPad)}>
+          <Spinner label={t`Loading messaging`} />
+        </div>
+      ) : null}
+      {data ? (
+        <div {...stylex.props(styles.stack)}>
+          <EmailSection data={data} />
+          <PhoneSection
+            channel="sms"
+            data={data}
+            locked={locked}
+            onEdit={() => setEditing('sms')}
+          />
+          <PhoneSection
+            channel="whatsapp"
+            data={data}
+            locked={locked}
+            onEdit={() => setEditing('whatsapp')}
+          />
+        </div>
+      ) : null}
+      {editing && data ? (
+        <DeliveryChannelDialog
+          orgId={orgId}
+          channel={editing}
+          channels={data}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
     </ConsolePage>
   )
 }
-
-export { DEFAULT_CHANNELS }

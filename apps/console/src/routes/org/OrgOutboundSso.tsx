@@ -1,570 +1,391 @@
-import { Trans, useLingui } from '@lingui/react/macro'
-import { OUTBOUND_CONSOLE_PRESETS } from '@xid-kit/protocol'
-import { useEffect, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+// /console/org/outbound-sso:XID 作为 IdP 的第三方 SAML app 列表;?appId= 显示详情。
+
+import { Plural, Trans, useLingui } from '@lingui/react/macro'
+import { useState } from 'react'
+import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
-import { Alert, Button, Field, Input, Select, Textarea } from '@xid-kit/web-ui/ui'
 import {
+  Alert,
+  Badge,
+  Button,
   ConsolePage,
   ConsolePageNotice,
-  ConsolePageSection,
-  ConsolePageSplitSection,
+  Dropdown,
+  EmptyState,
+  Icon,
+  Spinner,
 } from '@xid-kit/web-ui/ui'
-import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { useNavigate, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import {
-  useCreateOutboundSamlApp,
-  useDeleteOutboundSamlApp,
-  useOrgOutboundSamlAppsQuery,
-  useUpdateOutboundSamlApp,
-} from './queries'
-import type { AssignmentGate, CreateOutboundSamlAppInput, OutboundSamlApp } from './types'
-import { EndpointList } from './EndpointList'
+import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
+import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { list } from '../../components/page/list-styles'
+import { formatDate } from '../../lib/date-format'
 import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
-import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
-import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import { SelfServiceLockNotice } from './SelfServiceLock'
+import { useDeleteOutboundSamlApp } from './queries'
+import { useOrgOutboundSamlAppsView } from './auth-queries'
+import type { OutboundSamlAppView } from './auth-queries'
+import { CERTIFICATE_WARNING_DAYS, daysUntil, relativeTime } from './auth-format'
+import { OutboundAppDialog, appDisplayName, gateSummary } from './OutboundSamlAppForms'
+import { OutboundSamlAppDetail, SAML_APPS_PATH } from './OutboundSamlAppDetail'
+
+export { parseCertificates } from './OutboundSamlAppForms'
+
+const WIDE = '@media (min-width: 48rem)'
+const COLUMNS = 'minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) 9rem 2.5rem'
 
 const styles = stylex.create({
-  presetRow: { display: 'flex', flexWrap: 'wrap', gap: '0.5rem' },
-  formGrid: { display: 'grid', gap: '1rem' },
-  actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' },
+  toolbar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  count: {
+    margin: 0,
+    paddingTop: '0.75rem',
+    color: tokens['--xid-fg'],
+    fontSize: text.sm,
+    fontWeight: weight.medium,
+  },
+  head: {
+    display: { default: 'none', [WIDE]: 'grid' },
+    gridTemplateColumns: COLUMNS,
+    gap: '1rem',
+    marginTop: '1.5rem',
+    paddingBottom: '0.625rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+  },
+  headEnd: {
+    textAlign: 'end',
+    color: tokens['--xid-fg'],
+  },
+  rows: {
+    margin: { default: '1rem 0 0', [WIDE]: 0 },
+    padding: 0,
+    listStyle: 'none',
+    borderTopWidth: { default: '1px', [WIDE]: 0 },
+    borderTopStyle: 'solid',
+    borderTopColor: tokens['--xid-border'],
+  },
+  row: {
+    display: 'grid',
+    gridTemplateColumns: { default: 'minmax(0, 1fr) auto', [WIDE]: COLUMNS },
+    alignItems: 'center',
+    gap: '0.25rem 1rem',
+    paddingBlock: '0.625rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+    fontSize: text.base,
+  },
+  open: {
+    appearance: 'none',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+    minWidth: 0,
+    margin: 0,
+    padding: 0,
+    borderWidth: 0,
+    textAlign: 'start',
+    backgroundColor: 'transparent',
+    color: tokens['--xid-fg'],
+    font: 'inherit',
+    cursor: 'pointer',
+  },
+  name: {
+    fontSize: { default: text.md, [WIDE]: text.base },
+    fontWeight: weight.medium,
+    lineHeight: leading.sm,
+  },
+  entity: {
+    color: tokens['--xid-muted-foreground'],
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: text.xs,
+    overflowWrap: 'anywhere',
+  },
+  narrowMeta: {
+    display: { default: 'block', [WIDE]: 'none' },
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+  },
+  wide: {
+    display: { default: 'none', [WIDE]: 'block' },
+    minWidth: 0,
+  },
+  last: {
+    display: { default: 'none', [WIDE]: 'block' },
+    textAlign: 'end',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  never: {
+    color: tokens['--xid-muted-foreground'],
+  },
+  chevron: {
+    display: { default: 'inline-flex', [WIDE]: 'none' },
+    color: tokens['--xid-muted-foreground'],
+  },
+  menu: {
+    display: { default: 'none', [WIDE]: 'flex' },
+    justifyContent: 'flex-end',
+  },
 })
 
-const columns: ColumnDef<OutboundSamlApp>[] = [
-  { id: 'provider', header: () => <Trans>Preset</Trans>, cell: ({ row }) => row.original.provider },
-  {
-    id: 'entity',
-    header: () => <Trans>SP entity ID</Trans>,
-    cell: ({ row }) => row.original.spEntityId,
-  },
-  { id: 'acs', header: () => <Trans>ACS URL</Trans>, cell: ({ row }) => row.original.acsUrl },
-  {
-    id: 'metadata',
-    header: () => <Trans>IdP metadata URL</Trans>,
-    cell: ({ row }) => (
-      <span {...stylex.props(consoleShell.mono)}>{row.original.idpMetadataUrl}</span>
-    ),
-  },
-]
-
-type AppForm = {
-  preset: string
-  spEntityId: string
-  acsUrl: string
-  sloUrl: string
-  sloBinding: 'redirect' | 'post'
-  spCertificates: string
-}
-
-const EMPTY_FORM: AppForm = {
-  preset: '',
-  spEntityId: '',
-  acsUrl: '',
-  sloUrl: '',
-  sloBinding: 'redirect',
-  spCertificates: '',
-}
-
-function OidcRedirectHint({ presetKey }: { presetKey: string }): ReactNode {
-  const { t } = useLingui()
-  const redirectUri = presetForKey(presetKey)?.oidcRedirectPlaceholder
-  if (!redirectUri) return null
-  return (
-    <EndpointList
-      entries={[
-        {
-          label: t`OIDC redirect URI for the downstream app`,
-          values: [redirectUri],
-          hint: (
-            <Trans>
-              Reference value from the template. Replace the placeholders and register it in the
-              downstream SaaS OIDC app; XID does not store it. OIDC client registration uses the
-              OAuth application catalog.
-            </Trans>
-          ),
-        },
-      ]}
-    />
-  )
-}
-
-function IdpEndpoints({ app }: { app: OutboundSamlApp }): ReactNode {
-  const { t } = useLingui()
-  return (
-    <EndpointList
-      entries={[
-        { label: t`IdP entity ID`, values: [app.idpEntityId] },
-        { label: t`IdP metadata URL`, values: [app.idpMetadataUrl] },
-        { label: t`IdP SSO URL`, values: [app.idpSsoUrl] },
-        { label: t`IdP SLO URL`, values: [app.idpSloUrl] },
-      ]}
-    />
-  )
-}
-
-function presetForKey(key: string) {
-  return OUTBOUND_CONSOLE_PRESETS.find((item) => item.key === key)
-}
-
-function parseCommaSeparated(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-export function parseCertificates(value: string): string[] {
-  const pemPattern = /-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/gu
-  const pemCertificates = [...value.matchAll(pemPattern)]
-    .map((match) => (match[1] ?? '').replace(/\s+/gu, ''))
-    .filter(Boolean)
-  const base64Certificates = value
-    .replace(pemPattern, '\n\n')
-    .trim()
-    .split(/\n\s*\n/gu)
-    .map((block) => block.replace(/\s+/gu, ''))
-    .filter(Boolean)
-  return [...new Set([...pemCertificates, ...base64Certificates])]
-}
-
-function buildAssignmentGate(
-  mode: AssignmentGate['mode'],
-  allowedRoles: string,
-  allowedUserIds: string,
-): AssignmentGate {
-  if (mode === 'all') return { mode: 'all', allowed_user_ids: [], allowed_roles: [] }
-  return {
-    mode: 'restricted',
-    allowed_user_ids: parseCommaSeparated(allowedUserIds),
-    allowed_roles: parseCommaSeparated(allowedRoles),
+function CertificateCell({ app }: { app: OutboundSamlAppView }): ReactNode {
+  const { i18n } = useLingui()
+  const active = app.signingCertificates.find((cert) => cert.status === 'active') ?? null
+  if (!active) return <Trans>Created on first sign-in</Trans>
+  const days = daysUntil(active.notAfter)
+  if (days !== null && days <= 0) {
+    return (
+      <Badge tone="danger">
+        <Trans>Expired</Trans>
+      </Badge>
+    )
   }
+  if (days !== null && days <= CERTIFICATE_WARNING_DAYS) {
+    return (
+      <Badge tone="warning">
+        <Plural value={days} one="Expires in # day" other="Expires in # days" />
+      </Badge>
+    )
+  }
+  const date = formatDate(i18n, active.notAfter)
+  return <Trans>Expires {date}</Trans>
+}
+
+function lastSignInSort(a: OutboundSamlAppView, b: OutboundSamlAppView): number {
+  return (
+    (b.lastSignInAt ? Date.parse(b.lastSignInAt) : 0) -
+    (a.lastSignInAt ? Date.parse(a.lastSignInAt) : 0)
+  )
 }
 
 export default function OrgOutboundSso(): ReactNode {
-  const { t } = useLingui()
-  const errorMessage = useManagementErrorMessage()
+  const { t, i18n } = useLingui()
   const locked = useOrgSelfServiceLocked()
-  const { orgId } = useOrgTarget()
-  const { data, isLoading, isError } = useOrgOutboundSamlAppsQuery(orgId)
-  const createApp = useCreateOutboundSamlApp(orgId)
-  const updateApp = useUpdateOutboundSamlApp(orgId)
-  const deleteApp = useDeleteOutboundSamlApp(orgId)
-  const [createForm, setCreateForm] = useState<AppForm>(EMPTY_FORM)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<AppForm>(EMPTY_FORM)
-  const [createGateMode, setCreateGateMode] = useState<AssignmentGate['mode']>('all')
-  const [createAllowedRoles, setCreateAllowedRoles] = useState('')
-  const [createAllowedUserIds, setCreateAllowedUserIds] = useState('')
-  const [editGateMode, setEditGateMode] = useState<AssignmentGate['mode']>('all')
-  const [editAllowedRoles, setEditAllowedRoles] = useState('')
-  const [editAllowedUserIds, setEditAllowedUserIds] = useState('')
-  const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
-  const [pendingDelete, setPendingDelete] = useState(false)
-  const selected = data?.find((app) => app.id === selectedId) ?? null
+  const { orgId, orgName } = useOrgTarget()
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
+  const { data, isLoading, isError } = useOrgOutboundSamlAppsView(orgId)
+  const remove = useDeleteOutboundSamlApp(orgId)
+  const [query, setQuery] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [removing, setRemoving] = useState<OutboundSamlAppView | null>(null)
+  const appId = params.get('appId')
+  const title = <Trans>SAML apps</Trans>
 
-  useEffect(() => {
-    if (!selected && data && data.length > 0) setSelectedId(data[0]!.id)
-  }, [data, selected])
-
-  useEffect(() => {
-    if (selected) {
-      setEditForm({
-        preset: selected.provider,
-        spEntityId: selected.spEntityId,
-        acsUrl: selected.acsUrl,
-        sloUrl: selected.sloUrl ?? '',
-        sloBinding: selected.sloBinding,
-        spCertificates: selected.spCertificates.join('\n\n'),
-      })
-      setEditGateMode(selected.assignmentGate.mode)
-      setEditAllowedRoles(selected.assignmentGate.allowed_roles.join(', '))
-      setEditAllowedUserIds(selected.assignmentGate.allowed_user_ids.join(', '))
-    }
-  }, [selected])
-
-  function applyPreset(key: string): void {
-    const preset = presetForKey(key)
-    if (!preset) return
-    setCreateForm({
-      preset: preset.key,
-      spEntityId: preset.entityId,
-      acsUrl: preset.acsUrl,
-      sloUrl: '',
-      sloBinding: 'redirect',
-      spCertificates: '',
-    })
+  function openApp(id: string | null): void {
+    navigate(id ? `${SAML_APPS_PATH}?appId=${encodeURIComponent(id)}` : SAML_APPS_PATH)
   }
 
-  function toPayload(form: AppForm): CreateOutboundSamlAppInput {
-    return {
-      preset: form.preset || undefined,
-      sp_entity_id: form.spEntityId || undefined,
-      acs_url: form.acsUrl,
-      slo_url: form.sloUrl.trim() || null,
-      slo_binding: form.sloBinding,
-      sp_certificates: parseCertificates(form.spCertificates),
-    }
-  }
-
-  function handleCreate(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault()
-    if (!createForm.acsUrl.trim()) {
-      setMessage({ tone: 'error', text: t`ACS URL is required.` })
-      return
-    }
-    if (createForm.sloUrl.trim() && parseCertificates(createForm.spCertificates).length === 0) {
-      setMessage({
-        tone: 'error',
-        text: t`SP signing certificate is required when an SLO URL is configured.`,
-      })
-      return
-    }
-    createApp.mutate(
-      {
-        ...toPayload(createForm),
-        assignment_gate: buildAssignmentGate(
-          createGateMode,
-          createAllowedRoles,
-          createAllowedUserIds,
-        ),
-      },
-      {
-        onSuccess: (app) => {
-          setCreateForm(EMPTY_FORM)
-          setCreateGateMode('all')
-          setCreateAllowedRoles('')
-          setCreateAllowedUserIds('')
-          setSelectedId(app.id)
-          setMessage({ tone: 'success', text: t`Outbound SAML app created.` })
-        },
-      },
-    )
-  }
-
-  function handleUpdate(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault()
-    if (!selected) return
-    if (editForm.sloUrl.trim() && parseCertificates(editForm.spCertificates).length === 0) {
-      setMessage({
-        tone: 'error',
-        text: t`SP signing certificate is required when an SLO URL is configured.`,
-      })
-      return
-    }
-    updateApp.mutate(
-      {
-        appId: selected.id,
-        payload: {
-          ...toPayload(editForm),
-          assignment_gate: buildAssignmentGate(editGateMode, editAllowedRoles, editAllowedUserIds),
-        },
-      },
-      { onSuccess: () => setMessage({ tone: 'success', text: t`Outbound SAML app saved.` }) },
-    )
-  }
-
-  function handleDelete(): void {
-    if (!selected) return
-    deleteApp.mutate(selected.id, {
-      onSuccess: () => {
-        setSelectedId(null)
-        setMessage({ tone: 'success', text: t`Outbound SAML app deleted.` })
-      },
-      onSettled: () => setPendingDelete(false),
-    })
-  }
-
-  if (!orgId) {
+  const selected = appId ? (data?.find((app) => app.id === appId) ?? null) : null
+  if (orgId && selected) {
     return (
-      <ConsolePage wide title={<Trans>Outbound enterprise SSO</Trans>}>
-        <ConsolePageNotice>
-          <Alert tone="info">
-            <Trans>No organization selected.</Trans>
-          </Alert>
-        </ConsolePageNotice>
-      </ConsolePage>
+      <>
+        {locked ? (
+          <ConsolePageNotice>
+            <SelfServiceLockNotice />
+          </ConsolePageNotice>
+        ) : null}
+        <OutboundSamlAppDetail
+          orgId={orgId}
+          app={selected}
+          locked={locked}
+          onBack={() => openApp(null)}
+        />
+      </>
     )
   }
 
-  const actionError = createApp.error ?? updateApp.error ?? deleteApp.error
+  const needle = query.trim().toLowerCase()
+  const apps = (data ?? [])
+    .filter(
+      (app) =>
+        !needle ||
+        appDisplayName(app).toLowerCase().includes(needle) ||
+        app.spEntityId.toLowerCase().includes(needle),
+    )
+    .sort(lastSignInSort)
+  const removingName = removing ? appDisplayName(removing) : ''
 
   return (
     <ConsolePage
       wide
-      title={<Trans>Outbound enterprise SSO</Trans>}
+      title={title}
       lead={
         <Trans>
-          Configure downstream SaaS SAML service providers from preset templates. SAML/OIDC presets
-          also show a reference OIDC redirect URI for manual SaaS admin setup.
+          Third-party apps where {orgName} people sign in with their XID account. XID is the
+          identity provider for each one.
         </Trans>
       }
     >
-      {locked || message || actionError || isError ? (
+      {!orgId || locked || isError || (appId && data && !selected) ? (
         <ConsolePageNotice>
+          {!orgId ? (
+            <Alert tone="info">
+              <Trans>No organization selected.</Trans>
+            </Alert>
+          ) : null}
           {locked ? <SelfServiceLockNotice /> : null}
-          {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
-          {actionError ? <Alert tone="error">{errorMessage(actionError)}</Alert> : null}
           {isError ? (
             <Alert tone="error">
-              <Trans>Failed to load outbound SAML apps.</Trans>
+              <Trans>SAML apps could not be loaded. Reload the page to try again.</Trans>
+            </Alert>
+          ) : null}
+          {appId && data && !selected ? (
+            <Alert tone="info">
+              <Trans>This SAML app no longer exists.</Trans>
             </Alert>
           ) : null}
         </ConsolePageNotice>
       ) : null}
-
-      <ConsolePageSection title={<Trans>Apps</Trans>}>
-        <DataTable
-          columns={columns}
-          data={data ?? []}
-          getRowId={(row) => row.id}
-          isLoading={isLoading}
-          emptyMessage={<Trans>No outbound SAML apps configured.</Trans>}
-          onRowClick={(row) => setSelectedId(row.id)}
-          isRowSelected={(row) => row.id === selectedId}
-        />
-      </ConsolePageSection>
-
-      <ConsolePageSplitSection
-        title={<Trans>Create app</Trans>}
-        description={
-          <Trans>
-            Register a downstream SAML service provider from a preset template and choose which
-            members can launch it.
-          </Trans>
-        }
-      >
-        <LockableFieldset locked={locked}>
-          <div {...stylex.props(styles.presetRow)}>
-            {OUTBOUND_CONSOLE_PRESETS.map((preset) => (
-              <Button
-                key={preset.key}
-                type="button"
-                variant="secondary"
-                onClick={() => applyPreset(preset.key)}
-              >
-                <Trans>Add {preset.label} template</Trans>
-              </Button>
-            ))}
-          </div>
-          <form onSubmit={handleCreate} noValidate {...stylex.props(styles.formGrid)}>
-            <Field label={t`SP entity ID`}>
-              <Input
-                value={createForm.spEntityId}
-                onChange={(event) =>
-                  setCreateForm((prev) => ({ ...prev, spEntityId: event.target.value }))
-                }
+      {orgId && !data && isLoading ? (
+        <div {...stylex.props(consoleShell.sectionPad)}>
+          <Spinner label={t`Loading SAML apps`} />
+        </div>
+      ) : null}
+      {data ? (
+        <section>
+          <div {...stylex.props(styles.toolbar)}>
+            <label {...stylex.props(list.search)}>
+              <span {...stylex.props(list.searchIcon)}>
+                <Icon name="search" size={16} />
+              </span>
+              <input
+                type="search"
+                value={query}
+                aria-label={t`Search SAML apps`}
+                placeholder={t`App name or entity ID`}
+                onChange={(event) => setQuery(event.target.value)}
+                {...stylex.props(list.searchInput)}
               />
-            </Field>
-            <Field label={t`ACS URL`}>
-              <Input
-                value={createForm.acsUrl}
-                onChange={(event) =>
-                  setCreateForm((prev) => ({ ...prev, acsUrl: event.target.value }))
-                }
-                required
-              />
-            </Field>
-            <Field label={t`SLO URL (optional)`}>
-              <Input
-                value={createForm.sloUrl}
-                onChange={(event) =>
-                  setCreateForm((prev) => ({ ...prev, sloUrl: event.target.value }))
-                }
-              />
-            </Field>
-            <Field label={t`Binding`}>
-              <Select
-                value={createForm.sloBinding}
-                onChange={(event) =>
-                  setCreateForm((prev) => ({
-                    ...prev,
-                    sloBinding: event.target.value as AppForm['sloBinding'],
-                  }))
-                }
-              >
-                <option value="redirect">{t`HTTP-Redirect`}</option>
-                <option value="post">{t`HTTP-POST`}</option>
-              </Select>
-            </Field>
-            <Field
-              label={t`SP signing certificates`}
-              hint={t`Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line.`}
-            >
-              <Textarea
-                value={createForm.spCertificates}
-                onChange={(event) =>
-                  setCreateForm((prev) => ({ ...prev, spCertificates: event.target.value }))
-                }
-                placeholder={t`MIIC...`}
-              />
-            </Field>
-            <OidcRedirectHint presetKey={createForm.preset} />
-            <Field label={t`Assignment mode`}>
-              <Select
-                value={createGateMode}
-                onChange={(event) =>
-                  setCreateGateMode(event.target.value as AssignmentGate['mode'])
-                }
-              >
-                <option value="all">{t`All members`}</option>
-                <option value="restricted">{t`Restricted roles`}</option>
-              </Select>
-            </Field>
-            {createGateMode === 'restricted' ? (
-              <>
-                <Field label={t`Allowed roles (comma-separated)`}>
-                  <Input
-                    value={createAllowedRoles}
-                    onChange={(event) => setCreateAllowedRoles(event.target.value)}
-                    placeholder={t`admin, owner`}
-                  />
-                </Field>
-                <Field label={t`Allowed user IDs (comma-separated)`}>
-                  <Input
-                    value={createAllowedUserIds}
-                    onChange={(event) => setCreateAllowedUserIds(event.target.value)}
-                    placeholder={t`user_abc, user_def`}
-                  />
-                </Field>
-              </>
-            ) : null}
-            <div {...stylex.props(styles.actions)}>
-              <Button type="submit" isLoading={createApp.isPending}>
-                <Trans>Create app</Trans>
+            </label>
+            <div {...stylex.props(list.barEnd)}>
+              <Button type="button" disabled={locked} onClick={() => setAdding(true)}>
+                <Icon name="plus" size={14} />
+                <Trans>Add SAML app</Trans>
               </Button>
             </div>
-          </form>
-        </LockableFieldset>
-      </ConsolePageSplitSection>
-
-      {selected ? (
-        <ConsolePageSplitSection
-          title={<Trans>Edit app</Trans>}
-          meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selected.provider}</p>}
-          description={
-            <Trans>Enter these XID identity provider values in the downstream SaaS admin.</Trans>
-          }
-        >
-          <IdpEndpoints app={selected} />
-          <LockableFieldset locked={locked}>
-            <form onSubmit={handleUpdate} noValidate {...stylex.props(styles.formGrid)}>
-              <Field label={t`SP entity ID`}>
-                <Input
-                  value={editForm.spEntityId}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, spEntityId: event.target.value }))
-                  }
-                />
-              </Field>
-              <Field label={t`ACS URL`}>
-                <Input
-                  value={editForm.acsUrl}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, acsUrl: event.target.value }))
-                  }
-                  required
-                />
-              </Field>
-              <Field label={t`SLO URL (optional)`}>
-                <Input
-                  value={editForm.sloUrl}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, sloUrl: event.target.value }))
-                  }
-                />
-              </Field>
-              <Field label={t`Binding`}>
-                <Select
-                  value={editForm.sloBinding}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      sloBinding: event.target.value as AppForm['sloBinding'],
-                    }))
-                  }
-                >
-                  <option value="redirect">{t`HTTP-Redirect`}</option>
-                  <option value="post">{t`HTTP-POST`}</option>
-                </Select>
-              </Field>
-              <Field
-                label={t`SP signing certificates`}
-                hint={t`Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line.`}
-              >
-                <Textarea
-                  value={editForm.spCertificates}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, spCertificates: event.target.value }))
-                  }
-                  placeholder={t`MIIC...`}
-                />
-              </Field>
-              <OidcRedirectHint presetKey={selected.provider} />
-              <Field
-                label={t`Assignment mode`}
-                hint={
-                  <Trans>
-                    Restricted mode limits outbound SSO launch and SCIM sync to members with
-                    selected roles or explicit user IDs.
-                  </Trans>
-                }
-              >
-                <Select
-                  value={editGateMode}
-                  onChange={(event) =>
-                    setEditGateMode(event.target.value as AssignmentGate['mode'])
-                  }
-                >
-                  <option value="all">{t`All members`}</option>
-                  <option value="restricted">{t`Restricted roles`}</option>
-                </Select>
-              </Field>
-              {editGateMode === 'restricted' ? (
-                <>
-                  <Field label={t`Allowed roles (comma-separated)`}>
-                    <Input
-                      value={editAllowedRoles}
-                      onChange={(event) => setEditAllowedRoles(event.target.value)}
-                      placeholder={t`admin, owner`}
-                    />
-                  </Field>
-                  <Field label={t`Allowed user IDs (comma-separated)`}>
-                    <Input
-                      value={editAllowedUserIds}
-                      onChange={(event) => setEditAllowedUserIds(event.target.value)}
-                      placeholder={t`user_abc, user_def`}
-                    />
-                  </Field>
-                </>
-              ) : null}
-              <div {...stylex.props(styles.actions)}>
-                <Button type="submit" isLoading={updateApp.isPending}>
-                  <Trans>Save changes</Trans>
-                </Button>
-                <Button type="button" variant="danger" onClick={() => setPendingDelete(true)}>
-                  <Trans>Delete app</Trans>
-                </Button>
+          </div>
+          {data.length === 0 ? (
+            <EmptyState
+              variant="first-use"
+              title={<Trans>No SAML apps yet</Trans>}
+              description={
+                <Trans>
+                  Add an app such as Salesforce, Workday or Slack so people sign in to it with their
+                  XID account.
+                </Trans>
+              }
+            />
+          ) : (
+            <>
+              <p {...stylex.props(styles.count)}>
+                <Plural value={apps.length} one="# app" other="# apps" />
+              </p>
+              <div aria-hidden {...stylex.props(styles.head)}>
+                <span>
+                  <Trans>App</Trans>
+                </span>
+                <span>
+                  <Trans>Who can sign in</Trans>
+                </span>
+                <span>
+                  <Trans>Signing certificate</Trans>
+                </span>
+                <span {...stylex.props(styles.headEnd)}>
+                  <Trans>Last sign-in</Trans>
+                </span>
+                <span />
               </div>
-            </form>
-          </LockableFieldset>
-        </ConsolePageSplitSection>
+              <ul {...stylex.props(styles.rows)}>
+                {apps.map((app) => {
+                  const name = appDisplayName(app)
+                  return (
+                    <li key={app.id} {...stylex.props(styles.row)}>
+                      <button
+                        type="button"
+                        onClick={() => openApp(app.id)}
+                        {...stylex.props(styles.open)}
+                      >
+                        <span {...stylex.props(styles.name)}>{name}</span>
+                        <span {...stylex.props(styles.entity)}>{app.spEntityId}</span>
+                        <span {...stylex.props(styles.narrowMeta)}>
+                          {gateSummary(app.assignmentGate)}
+                        </span>
+                      </button>
+                      <span {...stylex.props(styles.wide)}>{gateSummary(app.assignmentGate)}</span>
+                      <span {...stylex.props(styles.wide)}>
+                        <CertificateCell app={app} />
+                      </span>
+                      <span {...stylex.props(styles.last, !app.lastSignInAt && styles.never)}>
+                        {app.lastSignInAt ? (
+                          relativeTime(i18n, app.lastSignInAt)
+                        ) : (
+                          <Trans>No sign-ins yet</Trans>
+                        )}
+                      </span>
+                      <span {...stylex.props(styles.menu)}>
+                        <Dropdown
+                          ariaLabel={t`Actions for ${name}`}
+                          align="end"
+                          triggerStyle={list.iconButton}
+                          trigger={<Icon name="more-horizontal" size={16} />}
+                          items={[
+                            {
+                              key: 'open',
+                              label: <Trans>Open</Trans>,
+                              onSelect: () => openApp(app.id),
+                            },
+                            {
+                              key: 'remove',
+                              label: <Trans>Remove app…</Trans>,
+                              tone: 'danger',
+                              disabled: locked,
+                              separatorBefore: true,
+                              onSelect: () => setRemoving(app),
+                            },
+                          ]}
+                        />
+                      </span>
+                      <span aria-hidden {...stylex.props(styles.chevron)}>
+                        <Icon name="chevron-right" />
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
+        </section>
       ) : null}
-
-      {pendingDelete && selected ? (
+      {adding && orgId ? (
+        <OutboundAppDialog
+          orgId={orgId}
+          app={null}
+          onClose={() => setAdding(false)}
+          onCreated={(created) => {
+            setAdding(false)
+            openApp(created.id)
+          }}
+        />
+      ) : null}
+      {removing ? (
         <ConfirmDialog
-          title={<Trans>Delete app?</Trans>}
-          description={
-            <Trans>
-              {selected.provider} ({selected.spEntityId}) will be deleted. Members can no longer use
-              this SAML application.
-            </Trans>
-          }
-          confirmLabel={<Trans>Delete app</Trans>}
-          isLoading={deleteApp.isPending}
-          onConfirm={handleDelete}
-          onCancel={() => setPendingDelete(false)}
+          title={<Trans>Remove {removingName}?</Trans>}
+          description={<Trans>People can no longer sign in to {removingName} with XID.</Trans>}
+          confirmLabel={<Trans>Remove app</Trans>}
+          isLoading={remove.isPending}
+          onConfirm={() => remove.mutate(removing.id, { onSettled: () => setRemoving(null) })}
+          onCancel={() => setRemoving(null)}
         />
       ) : null}
     </ConsolePage>

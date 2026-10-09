@@ -13,11 +13,13 @@ import {
 import type {
   DeliveryChannelProviderPolicy,
   HostedAuthPolicy,
+  MfaEnforcement,
   SocialProviderPolicy,
   TenantContext,
 } from '@xid-kit/types'
 import {
   DEFAULT_HOSTED_AUTH_POLICY,
+  MFA_ENFORCEMENT,
   ORGANIZATION_MEMBERSHIP_ROLES,
   SESSION_POLICY_BOUNDS,
   TOKEN_POLICY_BOUNDS,
@@ -99,6 +101,16 @@ import { registerOrgBrandingRoutes } from './org-branding'
 import { registerOrgDomainsRoutes } from './org-domains'
 import { registerOrgMembersRoutes } from './org-members'
 import {
+  deliveryFailures24h,
+  outboundLastSignIns,
+  outboundSigningCertificates,
+  parseCertificates,
+  registerOrgAuthInsightRoutes,
+  socialProviderActivity,
+  ssoConnectionInsights,
+} from './org-auth-insights'
+import type { DeliveryFailures24h } from './org-auth-insights'
+import {
   ORG_LIST_BATCH_SIZE,
   auditOrgMutation,
   readAllById,
@@ -160,6 +172,11 @@ const patchOrgBodySchema = v.object({
 // auth-policy / delivery-channels / social-providers 的 PATCH body 只要求"是对象":
 // 字段级语义由 domain normalize 处理,schema 不做字段约束。
 const policyPatchBodySchema = v.record(v.string(), v.unknown())
+
+// null 清除组织覆盖,回落实例默认。
+const mfaPolicyPatchSchema = v.object({
+  mfaPolicy: v.optional(v.nullable(v.picklist(MFA_ENFORCEMENT))),
+})
 
 const ssoConnectionDisplayNameSchema = v.pipe(
   v.string(),
@@ -299,10 +316,24 @@ type ConsoleAuthPolicy = {
   sessionPolicy: ConsoleSessionPolicyOverride
   tokenPolicy: ConsoleTokenPolicyOverride
   deliveryChannelReadiness: ConsoleDeliveryChannelReadiness
+  mfaPolicy: MfaEnforcement | null
+  effectiveMfaPolicy: MfaEnforcement
 }
 
 type ConsoleSocialProviders = {
   socialProviders: Record<string, ConsoleSocialProviderPolicy>
+}
+
+type ConsoleSocialProvidersWithActivity = {
+  socialProviders: Record<
+    string,
+    ConsoleSocialProviderPolicy & { signIns30d: number; disabledAt: string | null }
+  >
+}
+
+type ConsoleDeliveryChannelsWithStatus = ConsoleDeliveryChannels & {
+  email: { fromAddress: string | null; fromName: string | null }
+  failures24h: DeliveryFailures24h
 }
 
 type ResolvedDeliveryChannelsPolicy = {
@@ -568,13 +599,34 @@ function storedPolicyNumber(
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function asMfaEnforcement(value: string | null | undefined): MfaEnforcement | null {
+  return MFA_ENFORCEMENT.find((item) => item === value) ?? null
+}
+
+// instances 无 tenant_id,按组织所属 instance_id 直查(同 findOrgByInstanceSlug)。
+async function readInstanceMfaPolicy(
+  c: Context<XidHonoEnv>,
+  org: typeof schema.organizations.$inferSelect,
+): Promise<MfaEnforcement> {
+  const rows = await drizzle(c.env.DB, { schema })
+    .select({ mfaPolicy: schema.instances.mfaPolicy })
+    .from(schema.instances)
+    .where(eq(schema.instances.id, org.instanceId))
+    .limit(1)
+  return asMfaEnforcement(rows[0]?.mfaPolicy) ?? 'optional'
+}
+
 function toConsoleAuthPolicy(
   org: typeof schema.organizations.$inferSelect,
   env: Env,
-  policy?: typeof schema.orgPolicies.$inferSelect,
+  policy: typeof schema.orgPolicies.$inferSelect | undefined,
+  instanceMfaPolicy: MfaEnforcement,
 ): ConsoleAuthPolicy {
   const metadata = readPrivateMetadata(org)
+  const mfaPolicy = asMfaEnforcement(policy?.mfaPolicy)
   return {
+    mfaPolicy,
+    effectiveMfaPolicy: mfaPolicy ?? instanceMfaPolicy,
     hostedAuth: normalizeHostedAuthPolicy(metadata['hostedAuth']),
     sessionPolicy: {
       idleTimeoutMin: policy?.sessionIdleTimeoutMin ?? null,
@@ -872,13 +924,18 @@ function applyTokenJsonField(
 }
 
 // org_policies upsert:无行则 insert(仅写本次涉及列,其余列靠 schema 默认/null,见 08 章 10.6)。
-async function upsertOrgSessionTokenPolicy(
+async function upsertOrgPolicy(
   orgDb: ReturnType<ReturnType<typeof createTenantDb>['forOrg']>,
   tenantId: string,
-  rawSession: unknown,
-  tokenPatch: TokenPolicyPatch | null,
+  patch: {
+    rawSession: unknown
+    tokenPatch: TokenPolicyPatch | null
+    mfaPolicy: MfaEnforcement | null | undefined
+  },
 ): Promise<typeof schema.orgPolicies.$inferSelect> {
+  const { rawSession, tokenPatch } = patch
   const updates: Partial<typeof schema.orgPolicies.$inferInsert> = {}
+  if (patch.mfaPolicy !== undefined) updates.mfaPolicy = patch.mfaPolicy
   if (rawSession !== undefined) {
     if (!isRecord(rawSession)) {
       throw new AppError('validation_failed', {
@@ -1089,7 +1146,20 @@ app.get('/:id/sso-connections', async (c) => {
         { orderBy: asc(schema.ssoConnections.id), limit: ORG_LIST_BATCH_SIZE },
       ),
   )
-  return c.json(rows.map((row) => toConsoleSsoConnection(c.get('tenant'), row)))
+  const insights = await ssoConnectionInsights(
+    c,
+    id,
+    rows.map((row) => row.id),
+  )
+  const data = await Promise.all(
+    rows.map(async (row) => ({
+      ...toConsoleSsoConnection(c.get('tenant'), row),
+      idpCertificates: await parseCertificates(row.idpCertificates),
+      lastSignInAt: insights.lastSignInAt.get(row.id) ?? null,
+      routedDomains: insights.routedDomains,
+    })),
+  )
+  return c.json(data)
 })
 
 // POST /v1/organizations/:id/sso-connections
@@ -1212,8 +1282,13 @@ app.patch('/:id/sso-connections/:connectionId', async (c) => {
   if (body.oidc_discovery_url !== undefined) patch.oidcDiscoveryUrl = body.oidc_discovery_url
   Object.assign(patch, await oidcClientSecretPatch(c.env, body.oidc_client_secret))
   if (body.attribute_mapping !== undefined) {
-    assertHeaderConnectionConfig(existing.protocol, body.attribute_mapping)
-    patch.attributeMapping = body.attribute_mapping
+    // 响应剔除了 `_` 前缀的内部键(预设标记、SWA vault 信封),回写时保留请求未带的内部键。
+    const internal = Object.fromEntries(
+      Object.entries(existing.attributeMapping).filter(([key]) => key.startsWith('_')),
+    )
+    const attributeMapping = { ...internal, ...body.attribute_mapping }
+    assertHeaderConnectionConfig(existing.protocol, attributeMapping)
+    patch.attributeMapping = attributeMapping
   }
   if (body.role_mapping !== undefined) patch.roleMapping = body.role_mapping
   if (body.jit_enabled !== undefined) patch.jitEnabled = body.jit_enabled
@@ -1261,6 +1336,7 @@ app.delete('/:id/sso-connections/:connectionId', async (c) => {
 })
 
 registerOrganizationDirectoryRoutes(app)
+registerOrgAuthInsightRoutes(app)
 
 // GET /v1/organizations/:id/auth-policy
 app.get('/:id/auth-policy', async (c) => {
@@ -1268,9 +1344,24 @@ app.get('/:id/auth-policy', async (c) => {
   await requireApiKeyOrOrgManager(c, id, 'organizations:read')
   const org = await requireOrg(c, id)
   const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const policy = await db.forOrg(id).orgPolicies.findOne()
-  return c.json(toConsoleAuthPolicy(org, c.env, policy))
+  const [policy, instanceMfaPolicy] = await Promise.all([
+    db.forOrg(id).orgPolicies.findOne(),
+    readInstanceMfaPolicy(c, org),
+  ])
+  return c.json(toConsoleAuthPolicy(org, c.env, policy, instanceMfaPolicy))
 })
+
+function changedAuthPolicyFields(body: Record<string, unknown>): string[] {
+  const groups: Record<string, readonly string[]> = {
+    hostedAuth: ['hostedAuth', 'hosted_auth'],
+    sessionPolicy: ['sessionPolicy', 'session_policy'],
+    tokenPolicy: ['tokenPolicy', 'token_policy'],
+    mfaPolicy: ['mfaPolicy'],
+  }
+  return Object.entries(groups)
+    .filter(([, keys]) => keys.some((key) => hasOwn(body, key)))
+    .map(([field]) => field)
+}
 
 // PATCH /v1/organizations/:id/auth-policy
 app.patch('/:id/auth-policy', async (c) => {
@@ -1281,6 +1372,7 @@ app.patch('/:id/auth-policy', async (c) => {
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(policyPatchBodySchema, json.value)
+  const { mfaPolicy } = validateBody(mfaPolicyPatchSchema, body)
   const currentMetadata = readPrivateMetadata(org)
   const hostedAuth = mergeAuthPolicy(normalizeHostedAuthPolicy(currentMetadata['hostedAuth']), body)
   const privateMetadata = {
@@ -1293,28 +1385,48 @@ app.patch('/:id/auth-policy', async (c) => {
   const tokenPatch = readTokenPolicyPatch(body['tokenPolicy'] ?? body['token_policy'])
   const rawSession = body['sessionPolicy'] ?? body['session_policy']
   const policy =
-    rawSession !== undefined || tokenPatch !== null
-      ? await upsertOrgSessionTokenPolicy(orgDb, tenant.tenantId, rawSession, tokenPatch)
+    rawSession !== undefined || tokenPatch !== null || mfaPolicy !== undefined
+      ? await upsertOrgPolicy(orgDb, tenant.tenantId, { rawSession, tokenPatch, mfaPolicy })
       : await orgDb.orgPolicies.findOne()
-  const updated = await db.organizations.update(
-    { privateMetadata },
-    eq(schema.organizations.id, id),
-  )
+  const [updated, instanceMfaPolicy] = await Promise.all([
+    db.organizations.update({ privateMetadata }, eq(schema.organizations.id, id)),
+    readInstanceMfaPolicy(c, org),
+  ])
   emitWebhookAsync(c, {
     tenantId: tenant.tenantId,
     event: 'organization.auth_policy.updated',
     payload: { orgId: id },
   })
-  auditOrgPolicy(c, auth, { orgId: id, action: 'organization.auth_policy.updated' })
-  return c.json(toConsoleAuthPolicy(updated[0]!, c.env, policy))
+  auditOrgMutation(c, auth, {
+    action: 'organization.auth_policy.updated',
+    orgId: id,
+    targetType: 'organization',
+    targetId: id,
+    details: { fields: changedAuthPolicyFields(body) },
+  })
+  return c.json(toConsoleAuthPolicy(updated[0]!, c.env, policy, instanceMfaPolicy))
 })
+
+async function withDeliveryStatus(
+  c: Context<XidHonoEnv>,
+  org: typeof schema.organizations.$inferSelect,
+): Promise<ConsoleDeliveryChannelsWithStatus> {
+  return {
+    ...toConsoleDeliveryChannels(org, c.env),
+    email: {
+      fromAddress: c.env.EMAIL_FROM_ADDRESS ?? null,
+      fromName: c.env.EMAIL_FROM_NAME ?? null,
+    },
+    failures24h: await deliveryFailures24h(c),
+  }
+}
 
 // GET /v1/organizations/:id/delivery-channels
 app.get('/:id/delivery-channels', async (c) => {
   const id = c.req.param('id')
   await requireApiKeyOrOrgManager(c, id, 'organizations:read')
   const org = await requireOrg(c, id)
-  return c.json(toConsoleDeliveryChannels(org, c.env))
+  return c.json(await withDeliveryStatus(c, org))
 })
 
 // PATCH /v1/organizations/:id/delivery-channels
@@ -1348,15 +1460,42 @@ app.patch('/:id/delivery-channels', async (c) => {
     payload: { orgId: id },
   })
   auditOrgPolicy(c, auth, { orgId: id, action: 'organization.delivery_channels.updated' })
-  return c.json(toConsoleDeliveryChannels(updated[0]!, c.env))
+  return c.json(await withDeliveryStatus(c, updated[0]!))
 })
+
+async function withSocialActivity(
+  c: Context<XidHonoEnv>,
+  org: typeof schema.organizations.$inferSelect,
+): Promise<ConsoleSocialProvidersWithActivity> {
+  const { socialProviders } = toConsoleSocialProviders(org, c.env)
+  const activity = await socialProviderActivity(c, org.id, socialProviders)
+  return {
+    socialProviders: Object.fromEntries(
+      Object.entries(socialProviders).map(([provider, policy]) => [
+        provider,
+        { ...policy, ...(activity[provider] ?? { signIns30d: 0, disabledAt: null }) },
+      ]),
+    ),
+  }
+}
+
+function providerToggles(
+  before: Readonly<Record<string, SocialProviderPolicy>>,
+  after: Readonly<Record<string, SocialProviderPolicy>>,
+): { enabledProviders: string[]; disabledProviders: string[] } {
+  const keys = Object.keys(after)
+  return {
+    enabledProviders: keys.filter((key) => after[key]?.enabled && !before[key]?.enabled),
+    disabledProviders: keys.filter((key) => !after[key]?.enabled && before[key]?.enabled),
+  }
+}
 
 // GET /v1/organizations/:id/social-providers
 app.get('/:id/social-providers', async (c) => {
   const id = c.req.param('id')
   await requireApiKeyOrOrgManager(c, id, 'organizations:read')
   const org = await requireOrg(c, id)
-  return c.json(toConsoleSocialProviders(org, c.env))
+  return c.json(await withSocialActivity(c, org))
 })
 
 // PATCH /v1/organizations/:id/social-providers
@@ -1369,11 +1508,8 @@ app.patch('/:id/social-providers', async (c) => {
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(policyPatchBodySchema, json.value)
   const currentMetadata = readPrivateMetadata(org)
-  const socialProviders = mergeSocialProviders(
-    normalizeSocialProviders(currentMetadata['socialProviders']) ?? {},
-    body,
-    c.env,
-  )
+  const currentProviders = normalizeSocialProviders(currentMetadata['socialProviders']) ?? {}
+  const socialProviders = mergeSocialProviders(currentProviders, body, c.env)
   const privateMetadata = {
     ...currentMetadata,
     socialProviders,
@@ -1389,8 +1525,14 @@ app.patch('/:id/social-providers', async (c) => {
     event: 'organization.social_providers.updated',
     payload: { orgId: id },
   })
-  auditOrgPolicy(c, auth, { orgId: id, action: 'organization.social_providers.updated' })
-  return c.json(toConsoleSocialProviders(updated[0]!, c.env))
+  auditOrgMutation(c, auth, {
+    action: 'organization.social_providers.updated',
+    orgId: id,
+    targetType: 'organization',
+    targetId: id,
+    details: providerToggles(currentProviders, socialProviders),
+  })
+  return c.json(await withSocialActivity(c, updated[0]!))
 })
 
 async function assertValidOutboundSpCertificates(certificates: readonly string[]): Promise<void> {
@@ -1458,7 +1600,20 @@ app.get('/:id/outbound-saml-apps', async (c) => {
       { orderBy: asc(schema.samlServiceProviders.id), limit: ORG_LIST_BATCH_SIZE },
     ),
   )
-  return c.json(rows.map((row) => toConsoleOutboundSamlApp(c.get('tenant'), row)))
+  const [lastSignIns, signingCertificates] = await Promise.all([
+    outboundLastSignIns(
+      c,
+      rows.map((row) => row.id),
+    ),
+    rows.length === 0 ? Promise.resolve([]) : outboundSigningCertificates(c),
+  ])
+  return c.json(
+    rows.map((row) => ({
+      ...toConsoleOutboundSamlApp(c.get('tenant'), row),
+      lastSignInAt: lastSignIns.get(row.id) ?? null,
+      signingCertificates,
+    })),
+  )
 })
 
 // POST /v1/organizations/:id/outbound-saml-apps
@@ -1576,7 +1731,11 @@ app.patch('/:id/outbound-saml-apps/:appId', async (c) => {
   }
   const gate = assignmentGateFromBody(body)
   if (body.attribute_mapping !== undefined) {
-    patch.attributeMapping = body.attribute_mapping
+    // 预设标记与分配门槛存于 `_` 前缀内部键,请求未带时沿用已有值。
+    const internal = Object.fromEntries(
+      Object.entries(existing.attributeMapping).filter(([key]) => key.startsWith('_')),
+    )
+    patch.attributeMapping = { ...internal, ...body.attribute_mapping }
   }
   if (gate) {
     const base = (patch.attributeMapping ?? existing.attributeMapping) as Record<string, unknown>

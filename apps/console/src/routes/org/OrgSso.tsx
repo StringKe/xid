@@ -1,256 +1,242 @@
+// /console/org/sso:一个组织最多一个企业连接。无连接显示首次为空,有连接直接显示详情;
+// ?step=new|metadata|domains 进入新建向导的三步。
+
 import { Trans, useLingui } from '@lingui/react/macro'
-import { useEffect, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Button } from '@xid-kit/web-ui/ui'
-import {
-  ConsolePage,
-  ConsolePageNotice,
-  ConsolePageSection,
-  ConsolePageSplitSection,
-} from '@xid-kit/web-ui/ui'
-import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { Alert, Button, ConsolePage, ConsolePageNotice, Icon, Spinner } from '@xid-kit/web-ui/ui'
+import { useLocation, useNavigate, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
-import {
-  useCreateSsoConnection,
-  useDeleteSsoConnection,
-  useOrgSsoConnectionsQuery,
-  useUpdateSsoConnection,
-} from './queries'
-import { SsoConnectionEndpoints } from './SsoConnectionEndpoints'
-import { SsoConnectionCreate } from './SsoConnectionCreate'
-import { ConnectionFields, ssoFormStyles } from './SsoConnectionFields'
-import { useSsoConnectionColumns } from './useSsoConnectionColumns'
-import { EMPTY_FORM, connectionToForm, createPayload, updatePayload } from './sso-connection-form'
-import type { ConnectionForm, SsoProtocol } from './sso-connection-form'
+import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
+import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { DOCS_URL } from '../../components/layout/ConsoleTopBar'
 import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
-import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
+import { SelfServiceLockNotice } from './SelfServiceLock'
+import { useOrgSsoConnectionsView } from './auth-queries'
+import { SsoConnectionDetail } from './SsoConnectionDetail'
+import {
+  SsoDomainsStep,
+  SsoMetadataStep,
+  SsoProviderStep,
+  WizardBreadcrumb,
+} from './SsoConnectionCreate'
+
+const SSO_PATH = '/console/org/sso'
 
 const styles = stylex.create({
-  tableFooter: {
+  empty: {
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    gap: '1rem',
+    maxWidth: '40rem',
+    paddingTop: '1.5rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: tokens['--xid-border'],
+    fontFamily: tokens['--xid-font'],
+  },
+  emptyTitle: {
+    margin: 0,
+    color: tokens['--xid-fg'],
+    fontSize: text.lg,
+    lineHeight: leading.lg,
+    fontWeight: weight.display,
+    letterSpacing: tokens['--xid-tracking-title'],
+  },
+  emptyText: {
+    margin: 0,
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.base,
+    lineHeight: leading.base,
+  },
+  steps: {
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
+  },
+  step: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '1rem',
+    paddingBlock: '0.75rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+    color: tokens['--xid-fg'],
+    fontSize: text.base,
+    lineHeight: leading.base,
+  },
+  stepNumber: {
+    flexShrink: 0,
+    width: '1rem',
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  actions: {
+    display: 'flex',
     flexWrap: 'wrap',
-    gap: '0.75rem',
-    marginTop: '0.75rem',
+    alignItems: 'center',
+    gap: '1rem',
+    paddingTop: '0.5rem',
+  },
+  link: {
+    color: tokens['--xid-accent'],
+    fontSize: text.sm,
+    fontWeight: weight.medium,
+    textDecoration: 'none',
   },
 })
 
+function FirstRun({ locked, onAdd }: { locked: boolean; onAdd: () => void }): ReactNode {
+  return (
+    <section aria-labelledby="sso-empty-title" {...stylex.props(styles.empty)}>
+      <h2 id="sso-empty-title" {...stylex.props(styles.emptyTitle)}>
+        <Trans>No enterprise connections yet</Trans>
+      </h2>
+      <p {...stylex.props(styles.emptyText)}>
+        <Trans>
+          Connect a company&apos;s Okta, Microsoft Entra ID or other identity provider. People with
+          an email at that company&apos;s domain then skip the password and sign in through their
+          own provider.
+        </Trans>
+      </p>
+      <ol {...stylex.props(styles.steps)}>
+        <li {...stylex.props(styles.step)}>
+          <span {...stylex.props(styles.stepNumber)}>1</span>
+          <Trans>Pick the provider and protocol, SAML 2.0 or OpenID Connect</Trans>
+        </li>
+        <li {...stylex.props(styles.step)}>
+          <span {...stylex.props(styles.stepNumber)}>2</span>
+          <Trans>Swap metadata with the company&apos;s IT admin</Trans>
+        </li>
+        <li {...stylex.props(styles.step)}>
+          <span {...stylex.props(styles.stepNumber)}>3</span>
+          <Trans>Verify their email domain with a DNS record, then turn on routing</Trans>
+        </li>
+      </ol>
+      <div {...stylex.props(styles.actions)}>
+        <Button type="button" disabled={locked} onClick={onAdd}>
+          <Icon name="plus" size={14} />
+          <Trans>Add connection</Trans>
+        </Button>
+        <a
+          href={`${DOCS_URL}/enterprise-sso`}
+          target="_blank"
+          rel="noreferrer"
+          {...stylex.props(styles.link)}
+        >
+          <Trans>Read the enterprise SSO guide</Trans>
+        </a>
+      </div>
+    </section>
+  )
+}
+
 export default function OrgSso(): ReactNode {
   const { t } = useLingui()
-  const errorMessage = useManagementErrorMessage()
   const locked = useOrgSelfServiceLocked()
-  const { orgId } = useOrgTarget()
-  const { data, isLoading, isError } = useOrgSsoConnectionsQuery(orgId)
-  const createConnection = useCreateSsoConnection(orgId)
-  const updateConnection = useUpdateSsoConnection(orgId)
-  const deleteConnection = useDeleteSsoConnection(orgId)
-  const columns = useSsoConnectionColumns()
-  const [creating, setCreating] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<ConnectionForm>(EMPTY_FORM)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [pendingDelete, setPendingDelete] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
-  const selectedConnection = data?.find((connection) => connection.id === selectedId) ?? null
-  const hasConnection = (data?.length ?? 0) > 0
+  const { orgId, orgName } = useOrgTarget()
+  const [params] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { data, isLoading, isError } = useOrgSsoConnectionsView(orgId)
+  const step = params.get('step')
+  const connection = data?.[0] ?? null
+  const title = <Trans>Enterprise SSO</Trans>
+  const lead = (
+    <Trans>
+      Company identity providers. When someone enters an email at a routed domain, XID sends them
+      straight to that provider.
+    </Trans>
+  )
 
-  useEffect(() => {
-    if (!selectedConnection && data && data.length > 0) setSelectedId(data[0]!.id)
-  }, [data, selectedConnection])
-
-  useEffect(() => {
-    if (selectedConnection) setEditForm(connectionToForm(selectedConnection))
-  }, [selectedConnection])
-
-  function resetMessages(): void {
-    setFormError(null)
-    setSuccess(null)
+  function goStep(next: string | null): void {
+    navigate(next ? `${location.pathname}?step=${next}` : SSO_PATH)
   }
 
-  function handleCreateFromPreset(presetKey: string, protocol: SsoProtocol): void {
-    resetMessages()
-    createConnection.mutate(
-      { preset: presetKey, protocol },
-      {
-        onSuccess: (connection) => {
-          setCreating(false)
-          setSelectedId(connection.id)
-          setSuccess(t`SSO connection created from template.`)
-        },
-      },
-    )
-  }
-
-  function handleCreate(form: ConnectionForm, onDone: () => void): void {
-    resetMessages()
-    const payload = createPayload(form)
-    if (!payload) {
-      setFormError(t`Attribute mapping and role mapping must be JSON objects.`)
-      return
-    }
-    createConnection.mutate(payload, {
-      onSuccess: (connection) => {
-        onDone()
-        setCreating(false)
-        setSelectedId(connection.id)
-        setSuccess(t`SSO connection created.`)
-      },
-    })
-  }
-
-  function handleUpdate(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault()
-    if (!selectedConnection) return
-    resetMessages()
-    const payload = updatePayload(editForm)
-    if (!payload) {
-      setFormError(t`Attribute mapping and role mapping must be JSON objects.`)
-      return
-    }
-    updateConnection.mutate(
-      { connectionId: selectedConnection.id, payload },
-      { onSuccess: () => setSuccess(t`SSO connection saved.`) },
-    )
-  }
-
-  function handleDelete(): void {
-    if (!selectedConnection) return
-    resetMessages()
-    deleteConnection.mutate(selectedConnection.id, {
-      onSuccess: () => {
-        setSelectedId(null)
-        setSuccess(t`SSO connection deleted.`)
-      },
-      onSettled: () => setPendingDelete(false),
-    })
-  }
-
-  if (!orgId) {
+  if (!orgId || !data) {
     return (
-      <ConsolePage wide title={<Trans>Inbound SSO connections</Trans>}>
+      <ConsolePage title={title} lead={lead}>
         <ConsolePageNotice>
-          <Alert tone="info">
-            <Trans>No organization selected.</Trans>
-          </Alert>
+          {!orgId ? (
+            <Alert tone="info">
+              <Trans>No organization selected.</Trans>
+            </Alert>
+          ) : null}
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Enterprise SSO could not be loaded. Reload the page to try again.</Trans>
+            </Alert>
+          ) : null}
         </ConsolePageNotice>
+        {isLoading ? (
+          <div {...stylex.props(consoleShell.sectionPad)}>
+            <Spinner label={t`Loading enterprise SSO`} />
+          </div>
+        ) : null}
       </ConsolePage>
     )
   }
 
-  const actionError = createConnection.error ?? updateConnection.error ?? deleteConnection.error
+  const lockNotice = locked ? (
+    <ConsolePageNotice>
+      <SelfServiceLockNotice />
+    </ConsolePageNotice>
+  ) : null
+
+  if (!connection && step === 'new') {
+    return (
+      <div {...stylex.props(consoleShell.root)}>
+        <div {...stylex.props(consoleShell.contentCap)}>
+          <WizardBreadcrumb current={<Trans>Add connection</Trans>} />
+          {lockNotice}
+          <SsoProviderStep
+            orgId={orgId}
+            orgName={orgName}
+            locked={locked}
+            onCreated={() => goStep('metadata')}
+            onCancel={() => goStep(null)}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (connection && (step === 'metadata' || step === 'domains')) {
+    return (
+      <div {...stylex.props(consoleShell.root)}>
+        <div {...stylex.props(consoleShell.contentCap)}>
+          <WizardBreadcrumb current={<Trans>Add connection</Trans>} />
+          {lockNotice}
+          {step === 'metadata' ? (
+            <SsoMetadataStep
+              orgId={orgId}
+              connection={connection}
+              locked={locked}
+              onNext={() => goStep('domains')}
+            />
+          ) : (
+            <SsoDomainsStep connection={connection} onFinish={() => goStep(null)} />
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if (connection) {
+    return (
+      <>
+        {lockNotice}
+        <SsoConnectionDetail orgId={orgId} connection={connection} locked={locked} />
+      </>
+    )
+  }
 
   return (
-    <ConsolePage
-      wide
-      title={<Trans>Inbound SSO connections</Trans>}
-      lead={
-        <Trans>
-          Manage SAML, OIDC, and legacy enterprise identity provider connections for this
-          organization.
-        </Trans>
-      }
-    >
-      {locked || formError || success || actionError || isError ? (
-        <ConsolePageNotice>
-          {locked ? <SelfServiceLockNotice /> : null}
-          {formError ? <Alert tone="error">{formError}</Alert> : null}
-          {success ? <Alert tone="success">{success}</Alert> : null}
-          {actionError ? <Alert tone="error">{errorMessage(actionError)}</Alert> : null}
-          {isError ? (
-            <Alert tone="error">
-              <Trans>Failed to load inbound SSO connections. Reload the page to try again.</Trans>
-            </Alert>
-          ) : null}
-        </ConsolePageNotice>
-      ) : null}
-
-      <ConsolePageSection title={<Trans>Connections</Trans>}>
-        <DataTable
-          columns={columns}
-          data={data ?? []}
-          getRowId={(row) => row.id}
-          isLoading={isLoading}
-          emptyMessage={<Trans>No inbound SSO connections configured.</Trans>}
-          onRowClick={(row) => setSelectedId(row.id)}
-          isRowSelected={(row) => row.id === selectedId}
-        />
-        {data && !creating ? (
-          <div {...stylex.props(styles.tableFooter)}>
-            {hasConnection ? (
-              <p {...stylex.props(consoleShell.sectionDescription)}>
-                <Trans>
-                  Each organization has one inbound connection. Delete it before adding another.
-                </Trans>
-              </p>
-            ) : (
-              <Button type="button" disabled={locked} onClick={() => setCreating(true)}>
-                <Trans>Add connection</Trans>
-              </Button>
-            )}
-          </div>
-        ) : null}
-      </ConsolePageSection>
-
-      {creating && !hasConnection ? (
-        <SsoConnectionCreate
-          locked={locked}
-          isPending={createConnection.isPending}
-          onCreateFromPreset={handleCreateFromPreset}
-          onCreate={handleCreate}
-          onCancel={() => setCreating(false)}
-        />
-      ) : null}
-
-      {selectedConnection ? (
-        <ConsolePageSplitSection
-          title={<Trans>Edit connection</Trans>}
-          meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selectedConnection.name}</p>}
-          description={
-            <Trans>Enter these XID service provider values in your identity provider.</Trans>
-          }
-        >
-          <SsoConnectionEndpoints connection={selectedConnection} />
-          <form onSubmit={handleUpdate} noValidate>
-            <LockableFieldset locked={locked}>
-              <div {...stylex.props(ssoFormStyles.formGrid)}>
-                <ConnectionFields
-                  form={editForm}
-                  onChange={setEditForm}
-                  allowProtocolSwitch={false}
-                />
-                <div {...stylex.props(ssoFormStyles.fullSpan, ssoFormStyles.actions)}>
-                  <Button type="button" variant="ghost" onClick={() => setPendingDelete(true)}>
-                    <Trans>Delete connection</Trans>
-                  </Button>
-                  <Button type="submit" isLoading={updateConnection.isPending}>
-                    <Trans>Save changes</Trans>
-                  </Button>
-                </div>
-              </div>
-            </LockableFieldset>
-          </form>
-        </ConsolePageSplitSection>
-      ) : null}
-
-      {pendingDelete && selectedConnection ? (
-        <ConfirmDialog
-          title={<Trans>Delete connection?</Trans>}
-          description={
-            <Trans>
-              {selectedConnection.name} will be deleted. Users can no longer sign in through this
-              connection.
-            </Trans>
-          }
-          confirmLabel={<Trans>Delete connection</Trans>}
-          isLoading={deleteConnection.isPending}
-          onConfirm={handleDelete}
-          onCancel={() => setPendingDelete(false)}
-        />
-      ) : null}
+    <ConsolePage title={title} lead={lead}>
+      {lockNotice}
+      <FirstRun locked={locked} onAdd={() => goStep('new')} />
     </ConsolePage>
   )
 }

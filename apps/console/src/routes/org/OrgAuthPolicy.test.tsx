@@ -1,10 +1,13 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import type { OrgAuthPolicy } from './types'
+import type { AuthPolicyInsights, OrgAuthPolicyView } from './auth-queries'
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Plural: ({ value, other }: { value: number; other: string }) => (
+    <>{other.replace('#', String(value))}</>
+  ),
   useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
 }))
 
@@ -13,16 +16,23 @@ vi.mock('@xid-kit/web-ui/api-error-message', () => ({
 }))
 
 vi.mock('@xid-kit/web-ui/session', () => ({
-  useAuth: () => ({
-    activeOrg: { id: 'org_1', name: 'Default' },
-  }),
+  useAuth: () => ({ activeOrg: { id: 'org_1', name: 'Northwind Logistics' } }),
 }))
 
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   useSearchParams: () => [new URLSearchParams()],
+  useLocation: () => ({ pathname: '/console/org/auth-policy', search: '', hash: '' }),
+  useNavigate: () => vi.fn(),
 }))
 
-const policy: OrgAuthPolicy = {
+const method = {
+  enabled: false,
+  allowLogin: false,
+  allowUserCreation: false,
+  requireEmailVerification: true,
+}
+
+const policy: OrgAuthPolicyView = {
   hostedAuth: {
     identifierMode: 'email',
     requireVerifiedEmail: true,
@@ -39,42 +49,12 @@ const policy: OrgAuthPolicy = {
       givenName: 'hidden',
       familyName: 'hidden',
     },
-    password: {
-      enabled: false,
-      allowLogin: false,
-      allowUserCreation: false,
-      requireEmailVerification: true,
-    },
-    magicLink: {
-      enabled: true,
-      allowLogin: true,
-      allowUserCreation: false,
-      requireEmailVerification: true,
-    },
-    emailOtp: {
-      enabled: true,
-      allowLogin: true,
-      allowUserCreation: false,
-      requireEmailVerification: true,
-    },
-    whatsappOtp: {
-      enabled: false,
-      allowLogin: false,
-      allowUserCreation: false,
-      requireEmailVerification: true,
-    },
-    smsOtp: {
-      enabled: false,
-      allowLogin: false,
-      allowUserCreation: false,
-      requireEmailVerification: true,
-    },
-    passkey: {
-      enabled: false,
-      allowLogin: false,
-      allowUserCreation: false,
-      requireEmailVerification: true,
-    },
+    password: { ...method, enabled: true, allowLogin: true },
+    magicLink: method,
+    emailOtp: { ...method, enabled: true, allowLogin: true },
+    whatsappOtp: method,
+    smsOtp: method,
+    passkey: { ...method, enabled: true, allowLogin: true },
     enterpriseSso: {
       enabled: false,
       allowLogin: false,
@@ -84,65 +64,75 @@ const policy: OrgAuthPolicy = {
       blockedEmailDomains: [],
     },
   },
-  sessionPolicy: {
-    idleTimeoutMin: 60,
-    absoluteTimeoutDays: null,
-  },
+  sessionPolicy: { idleTimeoutMin: 4320, absoluteTimeoutDays: 14 },
   tokenPolicy: {
-    accessTokenTtlSec: 300,
+    accessTokenTtlSec: 3600,
     sessionTokenTtlSec: null,
-    refreshIdleTimeoutDays: null,
-    refreshAbsoluteTimeoutDays: null,
+    refreshIdleTimeoutDays: 30,
+    refreshAbsoluteTimeoutDays: 7,
   },
   deliveryChannelReadiness: {
     whatsappOtp: { configured: false, channel: null },
     smsOtp: { configured: false, channel: null },
   },
+  mfaPolicy: 'required',
+  effectiveMfaPolicy: 'required',
 }
 
-const updatePolicy = {
-  error: null,
-  isPending: false,
-  mutateAsync: vi.fn(),
+const insights: AuthPolicyInsights = {
+  passkeySignIns30d: 5804,
+  passwordUserCount: 3140,
+  usersWithoutSecondFactor: 1206,
+  routedDomains: [],
 }
 
-vi.mock('./queries', () => ({
-  useOrgAuthPolicyQuery: () => ({
-    data: policy,
-    isLoading: false,
-    isError: false,
-  }),
-  useUpdateOrgAuthPolicy: () => updatePolicy,
+vi.mock('./auth-queries', () => ({
+  useOrgAuthPolicyView: () => ({ data: policy, isLoading: false, isError: false }),
+  useOrgAuthInsights: () => ({ data: insights }),
+  useOrgSsoConnectionsView: () => ({ data: [] }),
+  useSaveOrgAuthPolicy: () => ({ mutate: vi.fn(), isPending: false, error: null }),
 }))
 
 import OrgAuthPolicyPage from './OrgAuthPolicy'
 
 describe('OrgAuthPolicyPage', () => {
-  it('does not render social provider connection management', () => {
+  it('renders each section with its own save button', () => {
     const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
 
-    expect(html).toContain('Authentication policy')
-    expect(html).toContain('Methods')
-    expect(html).toContain('Delivery channel is not configured')
-    expect(html).not.toContain('Social providers')
-    expect(html).not.toContain('Provider connections')
-    expect(html).not.toContain('Provider configured')
-    expect(html).not.toContain('Provider is not configured')
-    expect(html).not.toContain('Add provider')
-    expect(html).not.toContain('Client secret reference')
-    expect(html).not.toContain('GOOGLE_CLIENT_SECRET')
+    expect(html).toContain('Sign-in &amp; MFA')
+    for (const label of [
+      'Save sign-in methods',
+      'Save two-step verification',
+      'Save sessions and tokens',
+      'Save single sign-on',
+      'Save sign-up settings',
+    ]) {
+      expect(html).toContain(label)
+    }
   })
 
-  it('renders session and token override fields', () => {
+  it('shows sign-in counts from the insights endpoint', () => {
     const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
 
-    expect(html).toContain('Session idle timeout (minutes)')
-    expect(html).toContain('Session absolute timeout (days)')
-    expect(html).toContain('Access token TTL (seconds)')
-    expect(html).toContain('Session token TTL (seconds)')
-    expect(html).toContain('Refresh token idle timeout (days)')
-    expect(html).toContain('Refresh token absolute timeout (days)')
-    // 静态渲染不跑 useEffect,空值即 Inherit instance default 占位。
-    expect(html.match(/Inherit instance default/g)).toHaveLength(6)
+    expect(html).toContain('5804 people signed in with a passkey in the last 30 days.')
+    expect(html).toContain('3140 people still use one.')
+    expect(html).toContain('1206 people have not set one up yet.')
+  })
+
+  it('shows lifetimes in the units the fields use', () => {
+    const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
+
+    expect(html).toContain('value="14"')
+    expect(html).toContain('value="3"')
+    expect(html).toContain('value="60"')
+    expect(html).not.toContain('Session token TTL')
+  })
+
+  it('does not render social provider or delivery channel configuration', () => {
+    const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
+
+    expect(html).not.toContain('GOOGLE_CLIENT_SECRET')
+    expect(html).not.toContain('TWILIO_AUTH_TOKEN')
+    expect(html).toContain('Set up SMS or WhatsApp in Messaging before turning this on.')
   })
 })
