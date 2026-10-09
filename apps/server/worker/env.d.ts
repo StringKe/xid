@@ -6,6 +6,7 @@
 // 铁律:binding 不在业务代码裸调,走封装层(此处只声明类型)。
 
 import type {
+  EmailProviderName,
   EmailQueueMessage,
   WhatsappQueueMessage,
   SmsQueueMessage,
@@ -60,6 +61,8 @@ type WorkerBindings = {
   // 不需要也不应修改 Queue consumer 源码。
   EMAIL_FROM_ADDRESS?: string
   EMAIL_FROM_NAME?: string
+  // test 只在 development/test 环境把验证码写进本地捕获,其他环境拒绝发送。
+  EMAIL_PROVIDER?: EmailProviderName
 
   // Workers Secrets(wrangler types 不输出 secrets)
   // KEK:信封加密主密钥(base64 编码 32 字节 AES-256-GCM 密钥,见 signing-keys rule)

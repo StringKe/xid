@@ -466,3 +466,69 @@ describe('handleEmailBatch:Cloudflare Email Service provider', () => {
     expect(ack).toHaveBeenCalledOnce()
   })
 })
+
+describe('handleEmailBatch:本地 test provider', () => {
+  function otpBatch(ack: () => void, retry: () => void): MessageBatch<never> {
+    return {
+      messages: [
+        {
+          body: {
+            type: 'otp',
+            recipient: 'u@example.com',
+            payload: { tenantId: 'tenant-1', code: '482913', expiresInMin: 10, locale: 'en' },
+          } as EmailQueueMessage,
+          attempts: 1,
+          ack,
+          retry,
+        },
+      ],
+    } as unknown as MessageBatch<never>
+  }
+
+  it('development 环境把验证码写进本地捕获且不调用 Cloudflare Email', async () => {
+    const emailSend = vi.fn()
+    const cachePut = vi.fn().mockResolvedValue(undefined)
+    const env = {
+      ENVIRONMENT: 'development',
+      EMAIL_PROVIDER: 'test',
+      EMAIL: { send: emailSend } as unknown as SendEmail,
+      CACHE: { put: cachePut } as unknown as KVNamespace,
+      AUDIT_QUEUE: { send: vi.fn().mockResolvedValue(undefined) } as unknown as Queue,
+      STORAGE: makeStorage(),
+      DB: { prepare: () => ({ bind: () => ({ run: vi.fn() }) }) },
+    } as unknown as Env
+    const ack = vi.fn()
+
+    await handleEmailBatch(otpBatch(ack, vi.fn()), env)
+
+    expect(emailSend).not.toHaveBeenCalled()
+    expect(cachePut).toHaveBeenCalledWith(
+      'test-otp:tenant-1:u@example.com',
+      expect.stringContaining('"code":"482913"'),
+      expect.objectContaining({ expirationTtl: 600 }),
+    )
+    expect(JSON.parse(cachePut.mock.calls[0]?.[1] as string)).toMatchObject({
+      channel: 'email',
+      provider: 'test',
+    })
+    expect(ack).toHaveBeenCalledOnce()
+  })
+
+  it('production 环境拒绝 test provider,不发送也不确认消息', async () => {
+    const emailSend = vi.fn()
+    const env = {
+      ENVIRONMENT: 'production',
+      EMAIL_PROVIDER: 'test',
+      EMAIL: { send: emailSend } as unknown as SendEmail,
+      STORAGE: makeStorage(),
+    } as unknown as Env
+    const ack = vi.fn()
+
+    await expect(handleEmailBatch(otpBatch(ack, vi.fn()), env)).rejects.toThrow(
+      'email_provider_not_configured',
+    )
+
+    expect(emailSend).not.toHaveBeenCalled()
+    expect(ack).not.toHaveBeenCalled()
+  })
+})

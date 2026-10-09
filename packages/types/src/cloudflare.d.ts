@@ -3,6 +3,7 @@
 import type {
   AuditQueueMessage,
   CloudflareForSaasEnv,
+  EmailProviderName,
   EmailQueueMessage,
   MeteringQueueEnvelope,
   PrivacyQueueMessage,
@@ -53,6 +54,7 @@ export type Env = CloudflareForSaasEnv & {
   ENVIRONMENT: string
   EMAIL_FROM_ADDRESS?: string
   EMAIL_FROM_NAME?: string
+  EMAIL_PROVIDER?: EmailProviderName
   KEK: string
   PEPPER: string
   BOOTSTRAP_TOKEN?: string

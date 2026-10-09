@@ -1,6 +1,7 @@
 // Email Queue Consumer:渲染 Mustache 子集模板 + 调 Cloudflare Email Service 发信。
 // 见 docs/design/07-platform-operations.md 第 3 节、3.1。
-// - 首版仅启用 CloudflareEmailProvider(env.EMAIL.send),Resend/SendGrid/SMTP 不保留可配置路径。
+// - 只发 CloudflareEmailProvider(env.EMAIL.send),Resend/SendGrid/SMTP 不保留可配置路径;
+//   EMAIL_PROVIDER=test 仅供本地 smoke 捕获验证码,不真实发信。
 // - 事务模板优先从 R2 邮件语言包读取,缺失时回退内置模板。
 // - 失败指数退避重试最多 5 次,超限死信入 D1 notification_failures。
 //   退避用 message.retry({ delaySeconds });Queue 在 max_retries 后自动投 DLQ,
@@ -8,6 +9,8 @@
 
 import type { EmailQueueMessage } from '@xid-kit/types'
 import * as v from 'valibot'
+import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
+import { TestEmailProvider } from '../test-harness/test-otp'
 import { renderTemplate } from './mustache'
 import { executeNotificationDelivery, DELIVERY_RETRY_SECONDS } from './notification-delivery-state'
 import { recordNotificationSent } from './notification-audit'
@@ -28,6 +31,7 @@ export type EmailSendInput = {
   subject: string
   html: string
   text: string
+  tenantId?: string
 }
 
 // Provider 抽象:Consumer 不感知具体实现(见 07 章 3.1)。
@@ -555,8 +559,11 @@ async function recordFailure(
     .run()
 }
 
-function resolveProvider(env: Env): EmailProvider {
-  // 单一默认 provider:Cloudflare Email Service。
+export function resolveEmailProvider(env: Env): EmailProvider {
+  if (env.EMAIL_PROVIDER === 'test') {
+    if (!isDevOrTestEnvironment(env)) throw new Error('email_provider_not_configured')
+    return new TestEmailProvider(env)
+  }
   return new CloudflareEmailProvider(env.EMAIL)
 }
 
@@ -602,7 +609,7 @@ async function processEmailMessage(
   }
   try {
     const result = await executeNotificationDelivery(env, delivery, {
-      send: () => provider.send(input),
+      send: () => provider.send({ ...input, tenantId: delivery.tenantId }),
       recordAudit: () => recordNotificationSent(env, delivery),
     })
     if (result === 'ack') {
@@ -624,7 +631,7 @@ export async function handleEmailBatch(
   batch: MessageBatch<EmailQueueMessage>,
   env: Env,
 ): Promise<void> {
-  const provider = resolveProvider(env)
+  const provider = resolveEmailProvider(env)
   for (const message of batch.messages) {
     await processEmailMessage(message, env, provider)
   }

@@ -17,6 +17,7 @@ export type EmailQueueMessage = {
   payload: Record<string, unknown>
 }
 
+export type EmailProviderName = 'cloudflare' | 'test'
 export type SmsProviderName = 'twilio' | 'vonage' | 'infobip' | 'messagebird' | 'test'
 export type WhatsappProviderName = 'twilio' | 'meta' | 'test'
 

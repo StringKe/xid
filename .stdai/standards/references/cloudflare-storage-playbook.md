@@ -83,8 +83,10 @@ silently lost on transient Queue failure.
 - The sending domain MUST be onboarded (`wrangler email sending enable {domain}`) with DKIM / SPF /
   DMARC. Transactional only. Both `html` and `text` are required.
 - The provider abstraction is the `EmailProvider` type in `apps/server/worker/queues/email.ts`
-  (`{ name, send(input) }`). `CloudflareEmailProvider` is the only implementation wired up --
-  `resolveProvider` returns it unconditionally. Resend / SendGrid / SMTP are deliberately not
+  (`{ name, send(input) }`). `CloudflareEmailProvider` is the only provider that sends mail --
+  `resolveEmailProvider` returns it unless `EMAIL_PROVIDER=test`, which is accepted only in a
+  development/test environment and captures the 6-digit code in KV for local smoke (`/test/otp/latest`)
+  without sending; any other environment rejects it. Resend / SendGrid / SMTP are deliberately not
   configurable paths in this version. The email consumer MUST go through `EmailProvider`, never call a
   concrete provider directly.
 

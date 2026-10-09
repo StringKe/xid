@@ -163,6 +163,9 @@ describe('run-l2-l3 smoke lifecycle', () => {
     expect(source).toContain('"ENVIRONMENT": "production"')
     expect(createSmokeWranglerConfig(source)).toBe(configs.entry)
     expect(entry.vars.ENVIRONMENT).toBe('development')
+    expect(entry.vars.EMAIL_PROVIDER).toBe('test')
+    expect(queueConsumer.vars.EMAIL_PROVIDER).toBe('test')
+    expect(source).not.toContain('EMAIL_PROVIDER')
     expect(isAbsolute(entry.main)).toBe(true)
     expect(entry.main).toContain('/worker/index.ts')
     expect(isAbsolute(entry.d1_databases[0].migrations_dir)).toBe(true)
@@ -178,13 +181,18 @@ describe('run-l2-l3 smoke lifecycle', () => {
       'SCIM_QUEUE',
       'PRIVACY_QUEUE',
     ])
-    expect(entry.queues.consumers).toEqual([
-      expect.objectContaining({
-        queue: 'xid-scim-sync',
-        max_batch_size: 1,
-        max_batch_timeout: 1,
-      }),
+    expect(entry.queues.consumers.map((consumer) => consumer.queue)).toEqual([
+      'xid-email',
+      'xid-audit',
+      'xid-metering',
+      'xid-scim-sync',
     ])
+    for (const consumer of entry.queues.consumers) {
+      expect(consumer).toMatchObject({ max_batch_size: 1, max_batch_timeout: 1 })
+    }
+    expect(entry.durable_objects.bindings.map((binding) => binding.name)).toEqual(
+      expect.arrayContaining(['METERING', 'AUDIT_SEQ']),
+    )
     expect(queueConsumer.name).toBe('xid-smoke-queue-consumers')
     expect(queueConsumer).not.toHaveProperty('assets')
     expect(queueConsumer).not.toHaveProperty('routes')

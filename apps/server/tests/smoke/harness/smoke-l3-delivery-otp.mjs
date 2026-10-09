@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import {
+  adminEmail,
   applyLocalMigrations,
+  collectSetCookie,
   d1,
   ensureDevServerHealthy,
   ensureSeeded,
@@ -56,6 +58,72 @@ async function ensureTestPhoneRecipients(fixture) {
   }
 }
 
+async function enableEmailOtpSignIn(fixture) {
+  const rows = await d1(
+    `SELECT private_metadata FROM organizations WHERE id = ${sqlString(fixture.tenantId)} LIMIT 1;`,
+    'load org metadata',
+  )
+  const metadata = JSON.parse(rows[0]?.private_metadata || '{}')
+  metadata.hostedAuth = {
+    ...(metadata.hostedAuth ?? {}),
+    identifierMode: 'email',
+    emailOtp: { enabled: true, allowLogin: true, allowUserCreation: false },
+  }
+  await d1(
+    `UPDATE organizations SET private_metadata = ${sqlString(JSON.stringify(metadata))}, updated_at = ${Date.now()} WHERE id = ${sqlString(fixture.tenantId)};`,
+    'enable email otp sign-in',
+  )
+}
+
+async function signInWithEmailOtp() {
+  const send = await fetchText('/auth/otp/email/send', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: adminEmail }),
+  })
+  if (send.res.status !== 200 && send.res.status !== 202) {
+    throw new Error(`email otp send failed http=${send.res.status} body=${send.text}`)
+  }
+  printResult('PASS', 'email otp enqueue', `http=${send.res.status}`)
+  const record = await assertOtpCapture(adminEmail, 'email')
+  const verify = await fetchText('/auth/otp/email/verify', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: adminEmail, code: record.code }),
+  })
+  const cookie = collectSetCookie(verify.res)
+  if (verify.res.status !== 200 || !cookie.includes('__Host-xid.rt.')) {
+    throw new Error(`email otp sign-in failed http=${verify.res.status} body=${verify.text}`)
+  }
+  printResult('PASS', 'email otp sign-in', `http=${verify.res.status}`)
+  return cookie
+}
+
+async function assertActiveUserMetering(fixture, cookie) {
+  const stats = await pollUntil(
+    async () => {
+      const res = await fetchText(
+        `/v1/organizations/${encodeURIComponent(fixture.tenantId)}/stats`,
+        {
+          cookie,
+        },
+      )
+      if (res.res.status !== 200) {
+        throw new Error(`organization stats failed http=${res.res.status} body=${res.text}`)
+      }
+      return JSON.parse(res.text)
+    },
+    {
+      isReady: (value) => value.dau >= 1,
+      label: `organization stats dau tenant=${fixture.tenantId}`,
+    },
+  )
+  if (stats.mau < stats.dau) {
+    throw new Error(`organization stats mau below dau: ${JSON.stringify(stats)}`)
+  }
+  printResult('PASS', 'metering dau/mau', `dau=${stats.dau} mau=${stats.mau}`)
+}
+
 async function assertOtpCapture(recipient, channel) {
   const record = await pollUntil(
     async () => {
@@ -77,6 +145,7 @@ async function assertOtpCapture(recipient, channel) {
     throw new Error(`${channel} otp record invalid: ${JSON.stringify(record)}`)
   }
   printResult('PASS', `test ${channel} otp capture`, `code_len=${record.code.length}`)
+  return record
 }
 
 export async function runL3DeliveryOtpSmoke() {
@@ -110,4 +179,8 @@ export async function runL3DeliveryOtpSmoke() {
   }
   printResult('PASS', 'whatsapp otp enqueue', `http=${whatsappSend.res.status}`)
   await assertOtpCapture(whatsappPhone, 'whatsapp')
+
+  await enableEmailOtpSignIn(fixture)
+  const cookie = await signInWithEmailOtp()
+  await assertActiveUserMetering(fixture, cookie)
 }

@@ -1,8 +1,9 @@
-// 本地 SMS/WhatsApp L3:按 tenant/recipient 把最近 OTP 存 KV。
+// 本地 Email/SMS/WhatsApp L3:按 tenant/recipient 把最近 OTP 存 KV,不真实发送。
 
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
+import type { EmailProvider, EmailSendInput } from '../queues/email'
 import type { XidHonoEnv } from '../lib/types'
 import { isDevOrTestEnvironment } from './dev-gate'
 
@@ -11,7 +12,7 @@ const OTP_TTL_SEC = 600
 
 export type CapturedOtp = {
   tenantId: string
-  channel: 'sms' | 'whatsapp'
+  channel: 'email' | 'sms' | 'whatsapp'
   provider: string
   recipient: string
   code: string
@@ -63,6 +64,25 @@ testOtp.get('/latest', async (c) => {
 
 export function registerTestOtpRoutes(app: Hono<XidHonoEnv>): void {
   app.route('/test/otp', testOtp)
+}
+
+// 邮件正文里只有验证码是独立的 6 位数字;链接类邮件没有验证码,只吞掉不发送。
+export class TestEmailProvider implements EmailProvider {
+  readonly name = 'test'
+
+  constructor(private readonly env: Env) {}
+
+  async send(input: EmailSendInput): Promise<void> {
+    const code = /\b(\d{6})\b/.exec(input.text)?.[1]
+    if (!code || !input.tenantId) return
+    await captureTestOtp(this.env, {
+      tenantId: input.tenantId,
+      channel: 'email',
+      provider: 'test',
+      recipient: input.to,
+      code,
+    })
+  }
 }
 
 export class TestSmsProvider {

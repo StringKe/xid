@@ -360,6 +360,81 @@ async function seedCore(corePort) {
   return JSON.parse(body)
 }
 
+async function corePost(corePort, path, body) {
+  const response = await fetchWithTimeout(`http://127.0.0.1:${corePort}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', host: 'xid.dev' },
+    body: JSON.stringify(body),
+  })
+  return { response, body: await response.text() }
+}
+
+async function pollCore(name, read) {
+  const deadline = Date.now() + REQUEST_TIMEOUT_MS * 2
+  while (Date.now() < deadline) {
+    const value = await read()
+    if (value !== null) return value
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  throw new Error(`${name} did not complete within ${REQUEST_TIMEOUT_MS * 2}ms`)
+}
+
+// 邮件验证码由本地 test provider 捕获,登录后经 METERING Queue -> MeteringDO 写入 DAU/MAU。
+async function checkEmailOtpMetering(corePort, bootstrap) {
+  const send = await corePost(corePort, '/auth/otp/email/send', { email: SMOKE_ADMIN_EMAIL })
+  if (send.response.status !== 200 && send.response.status !== 202) {
+    throw new Error(`email otp send http=${send.response.status} body=${send.body}`)
+  }
+  const captured = await pollCore('email otp capture', async () => {
+    const response = await fetchWithTimeout(
+      `http://127.0.0.1:${corePort}/test/otp/latest?recipient=${encodeURIComponent(SMOKE_ADMIN_EMAIL)}`,
+      { headers: { host: 'xid.dev' } },
+    )
+    const body = await response.text()
+    if (response.status === 404) return null
+    if (response.status !== 200)
+      throw new Error(`email otp capture http=${response.status} body=${body}`)
+    return JSON.parse(body)
+  })
+  if (
+    captured.channel !== 'email' ||
+    captured.provider !== 'test' ||
+    !/^\d{6}$/u.test(captured.code)
+  ) {
+    throw new Error(
+      `email otp capture invalid: ${JSON.stringify({ ...captured, code: undefined })}`,
+    )
+  }
+  print('PASS', 'email otp capture', 'channel=email')
+
+  const verify = await corePost(corePort, '/auth/otp/email/verify', {
+    email: SMOKE_ADMIN_EMAIL,
+    code: captured.code,
+  })
+  const cookie = verify.response.headers
+    .getSetCookie()
+    .map((value) => value.split(';')[0])
+    .join('; ')
+  if (verify.response.status !== 200 || !cookie.includes('__Host-xid.rt.')) {
+    throw new Error(`email otp sign-in http=${verify.response.status} body=${verify.body}`)
+  }
+  print('PASS', 'email otp sign-in', `http=${verify.response.status}`)
+
+  const stats = await pollCore('organization DAU', async () => {
+    const response = await fetchWithTimeout(
+      `http://127.0.0.1:${corePort}/v1/organizations/${encodeURIComponent(bootstrap.tenantId)}/stats`,
+      { headers: { host: 'xid.dev', cookie } },
+    )
+    const body = await response.text()
+    if (response.status !== 200)
+      throw new Error(`organization stats http=${response.status} body=${body}`)
+    const value = JSON.parse(body)
+    return value.dau >= 1 ? value : null
+  })
+  if (stats.mau < stats.dau) throw new Error(`organization MAU below DAU: ${JSON.stringify(stats)}`)
+  print('PASS', 'metering DAU/MAU', `dau=${stats.dau} mau=${stats.mau}`)
+}
+
 function sqlString(value) {
   return `'${String(value).replaceAll("'", "''")}'`
 }
@@ -919,6 +994,7 @@ export async function main() {
       adminPassword: SMOKE_ADMIN_PASSWORD,
     })
     if (process.env.XID_THREE_WORKER_BROWSER_ONLY !== '1') {
+      await checkEmailOtpMetering(ports.core, bootstrap)
       await runChecks(`http://127.0.0.1:${ports.proxy}`, ports)
     }
     print('PASS', 'three Worker integration smoke')

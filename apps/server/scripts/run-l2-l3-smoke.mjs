@@ -12,7 +12,8 @@ const repoRoot = join(appDir, '..', '..')
 const wranglerConfigPath = join(appDir, 'wrangler.jsonc')
 const workerEntryPath = join(appDir, 'worker', 'index.ts')
 const consoleDistPath = join(repoRoot, 'apps', 'console', 'dist', 'console')
-const ENTRY_SMOKE_QUEUE_NAMES = new Set(['xid-scim-sync'])
+// Metering 与 audit consumer 依赖 METERING / AUDIT_SEQ Durable Object,只有 entry Worker 声明了它们。
+const ENTRY_SMOKE_QUEUE_NAMES = new Set(['xid-email', 'xid-audit', 'xid-metering', 'xid-scim-sync'])
 const AUXILIARY_SMOKE_QUEUE_NAMES = new Set(['xid-sms', 'xid-whatsapp'])
 const L3_SOCIAL_PROVIDER_SECRET_BINDING = 'SOCIAL_LOCALOIDC_CLIENT_SECRET'
 const L3_BUILT_IN_SOCIAL_SECRET_BINDINGS = [
@@ -449,7 +450,7 @@ function createSmokeConfigBase(source) {
       ...database,
       migrations_dir: join(repoRoot, 'packages', 'db', 'drizzle'),
     })),
-    vars: { ...config.vars, ENVIRONMENT: 'development' },
+    vars: { ...config.vars, ENVIRONMENT: 'development', EMAIL_PROVIDER: 'test' },
   }
 }
 
