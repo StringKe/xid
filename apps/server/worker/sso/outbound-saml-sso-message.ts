@@ -108,7 +108,17 @@ export async function readVerifiedOutboundSsoRequest(
   input: { appId: string; sp: SamlServiceProvider },
 ): Promise<OutboundSsoRequest> {
   const message = await readOutboundSsoMessage(c)
-  if (!message.requestXml) return { inResponseTo: undefined, relayState: message.relayState }
+  const requestedAt = Date.now()
+  if (!message.requestXml) {
+    return {
+      inResponseTo: undefined,
+      relayState: message.relayState,
+      forceAuthn: false,
+      isPassive: false,
+      nameIdFormat: undefined,
+      requestedAt,
+    }
+  }
   const verified = await verifySamlAuthnRequest(message.requestXml, {
     expectedIssuer: input.sp.spEntityId,
     expectedDestination: idpSsoUrl(c, input.appId),
@@ -118,5 +128,12 @@ export async function readVerifiedOutboundSsoRequest(
     ...(message.redirectSignature ? { redirectSignature: message.redirectSignature } : {}),
   })
   if (!verified.ok) throwOutboundAuthnRequestError(verified.error.code)
-  return { inResponseTo: verified.value.requestId, relayState: message.relayState }
+  return {
+    inResponseTo: verified.value.requestId,
+    relayState: message.relayState,
+    forceAuthn: verified.value.forceAuthn,
+    isPassive: verified.value.isPassive,
+    nameIdFormat: verified.value.nameIdPolicy?.format,
+    requestedAt,
+  }
 }

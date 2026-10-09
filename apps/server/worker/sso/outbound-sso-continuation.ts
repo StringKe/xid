@@ -1,5 +1,6 @@
-// 出站 SAML IdP:未完成认证时把已验证的 AuthnRequest 上下文(InResponseTo、RelayState)暂存到
-// OAuthFlowDO,continue 只带不透明 id。POST 绑定的 SAMLRequest 在表单里,无法放进 continue URL。
+// 出站 SAML IdP:未完成认证时把已验证的 AuthnRequest 上下文(InResponseTo、RelayState、ForceAuthn、
+// NameIDPolicy 和收到请求的时间)暂存到 OAuthFlowDO,continue 只带不透明 id。
+// POST 绑定的 SAMLRequest 在表单里,无法放进 continue URL。
 
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
@@ -12,6 +13,10 @@ export const OUTBOUND_SSO_RESUME_PARAM = 'saml_request'
 export type OutboundSsoRequest = {
   inResponseTo: string | undefined
   relayState: string | null
+  forceAuthn: boolean
+  isPassive: boolean
+  nameIdFormat: string | undefined
+  requestedAt: number
 }
 
 function continuationStub(c: Context<XidHonoEnv>, id: string): DurableObjectStub {
@@ -24,14 +29,18 @@ export async function stashOutboundSsoRequest(
   input: { appId: string; request: OutboundSsoRequest },
 ): Promise<string> {
   const id = crypto.randomUUID()
+  const { request } = input
   const res = await continuationStub(c, id).fetch('https://oauth-flow-do/store', {
     method: 'POST',
     body: JSON.stringify({
       state: id,
       pendingParams: {
         appId: input.appId,
-        relayState: input.request.relayState,
-        ...(input.request.inResponseTo ? { inResponseTo: input.request.inResponseTo } : {}),
+        relayState: request.relayState,
+        forceAuthn: request.forceAuthn,
+        requestedAt: request.requestedAt,
+        ...(request.inResponseTo ? { inResponseTo: request.inResponseTo } : {}),
+        ...(request.nameIdFormat ? { nameIdFormat: request.nameIdFormat } : {}),
       },
       ttlMs: OAUTH_FLOW_STATE_TTL_MS,
     }),
@@ -40,17 +49,32 @@ export async function stashOutboundSsoRequest(
   return id
 }
 
+function optionalString(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string') throw new AppError('server_error')
+  return value
+}
+
 function parseStashedRequest(body: unknown, appId: string): OutboundSsoRequest {
   const record = (body as { record?: { pendingParams?: Record<string, unknown> } }).record
   const params = record?.pendingParams
   if (!params || params['appId'] !== appId) throw new AppError('invalid_request')
-  const inResponseTo = params['inResponseTo']
   const relayState = params['relayState']
-  if (inResponseTo !== undefined && typeof inResponseTo !== 'string') {
+  const forceAuthn = params['forceAuthn']
+  const requestedAt = params['requestedAt']
+  if (relayState !== null && typeof relayState !== 'string') throw new AppError('server_error')
+  if (typeof forceAuthn !== 'boolean' || typeof requestedAt !== 'number') {
     throw new AppError('server_error')
   }
-  if (relayState !== null && typeof relayState !== 'string') throw new AppError('server_error')
-  return { inResponseTo, relayState }
+  return {
+    inResponseTo: optionalString(params['inResponseTo']),
+    relayState,
+    forceAuthn,
+    // IsPassive 请求从不暂存:没有会话时直接回 NoPassive。
+    isPassive: false,
+    nameIdFormat: optionalString(params['nameIdFormat']),
+    requestedAt,
+  }
 }
 
 export async function consumeOutboundSsoRequest(
@@ -77,20 +101,22 @@ export function outboundSsoResumePath(appId: string, id: string): string {
   return `/sso/outbound/saml/${encodeURIComponent(appId)}/sso?${params.toString()}`
 }
 
-// 待完成 MFA 的会话去完成 MFA,其余去登录;完成后回到续跑地址签发 SAMLResponse。
+// ForceAuthn 一律回登录页重新认证;否则待完成 MFA 的会话去完成 MFA,其余去登录。
+// 完成后回到续跑地址签发 SAMLResponse。
 export function outboundSsoInteractionRedirect(
   c: Context<XidHonoEnv>,
-  input: { session: SessionData | null; returnTo: string },
+  input: { session: SessionData | null; returnTo: string; reauthenticate: boolean },
 ): Response {
   const ctx = c.get('tenant')
-  if (input.session?.status === 'pending_mfa') {
+  if (!input.reauthenticate && input.session?.status === 'pending_mfa') {
     return c.redirect(`${ctx.issuer}${mfaRedirectPath(input.returnTo)}`, 302)
   }
-  if (input.session?.status === 'pending_mfa_setup') {
+  if (!input.reauthenticate && input.session?.status === 'pending_mfa_setup') {
     return c.redirect(`${ctx.issuer}${mfaSetupRedirectPath(input.returnTo)}`, 302)
   }
   const url = new URL(`${ctx.issuer}/sign-in`)
   url.searchParams.set('organization_id', ctx.tenantId)
   url.searchParams.set('continue', input.returnTo)
+  if (input.reauthenticate) url.searchParams.set('reauthenticate', '1')
   return c.redirect(url.toString(), 302)
 }

@@ -1,4 +1,5 @@
-// 出站 SAML IdP 的 /sso:为已认证用户签发 SAMLResponse 并 POST 到 SP 的 ACS。
+// 出站 SAML IdP 的 /sso:按 AuthnRequest 的 ForceAuthn、IsPassive 和 NameIDPolicy 决定重新认证、
+// 返回错误状态或为已认证用户签发 SAMLResponse,并 POST 到 SP 的 ACS。
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { signSamlResponse } from '@xid-kit/saml'
@@ -7,16 +8,19 @@ import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import { findOrganizationAccessGrant } from '../lib/organization-access'
+import { logWorkerWarning } from '../lib/safe-log'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import {
   assertUserPassesAssignmentGate,
   parseAssignmentGate,
   withoutAssignmentGate,
 } from './assignment-gate'
+import { chooseNameIdFormat, nameIdValue } from './outbound-saml-name-id'
 import { idpEntityId, postBindingForm, requiredParam, resolveSp } from './outbound-saml-shared'
 import type { SamlServiceProvider } from './outbound-saml-shared'
 import { importSamlSigningKey, loadSigningCert } from './outbound-saml-signing'
 import { readVerifiedOutboundSsoRequest } from './outbound-saml-sso-message'
+import { SAML_STATUS, buildSamlStatusResponse } from './outbound-saml-status'
 import {
   consumeOutboundSsoRequest,
   OUTBOUND_SSO_RESUME_PARAM,
@@ -24,9 +28,12 @@ import {
   outboundSsoResumePath,
   stashOutboundSsoRequest,
 } from './outbound-sso-continuation'
+import type { OutboundSsoRequest } from './outbound-sso-continuation'
 import { trackOutboundSamlSession } from './saml-do'
 
 type UserRow = typeof schema.users.$inferSelect
+
+type SsoTarget = { appId: string; sp: SamlServiceProvider; request: OutboundSsoRequest }
 
 const DEFAULT_NAME_ID_FORMAT = 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress'
 
@@ -49,16 +56,14 @@ async function readAuthenticatedUser(
   return user
 }
 
-async function primaryEmail(c: Context<XidHonoEnv>, user: UserRow): Promise<string> {
+async function primaryEmail(c: Context<XidHonoEnv>, user: UserRow): Promise<string | null> {
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   if (user.primaryEmailId) {
     const row = await db.userEmails.findOne(eq(schema.userEmails.id, user.primaryEmailId))
     if (row?.email) return row.email
   }
   const first = await db.userEmails.findOne(eq(schema.userEmails.userId, user.id))
-  if (first?.email) return first.email
-  if (user.username) return user.username
-  throw new AppError('invalid_request', { httpStatus: 400 })
+  return first?.email ?? null
 }
 
 function readMappingString(
@@ -89,22 +94,49 @@ function userAttributes(
   return out
 }
 
-export async function handleSso(c: Context<XidHonoEnv>): Promise<Response> {
-  const session = c.get('session')
-  const appId = requiredParam(c, 'appId')
-  const sp = await resolveSp(c, appId)
-  const resumeId = c.req.method === 'GET' ? c.req.query(OUTBOUND_SSO_RESUME_PARAM) : undefined
-  const request = resumeId
-    ? await consumeOutboundSsoRequest(c, { appId, id: resumeId })
-    : await readVerifiedOutboundSsoRequest(c, { appId, sp })
-  if (!session || session.status !== 'active') {
-    const id = await stashOutboundSsoRequest(c, { appId, request })
-    return outboundSsoInteractionRedirect(c, {
-      session,
-      returnTo: outboundSsoResumePath(appId, id),
-    })
-  }
-  const { inResponseTo, relayState } = request
+function statusResponse(
+  c: Context<XidHonoEnv>,
+  target: SsoTarget,
+  status: { topLevel: string; secondLevel: string; reason: string },
+): Response {
+  logWorkerWarning('sso.outbound_saml.status_response', {
+    component: 'outbound-saml',
+    operation: 'sso',
+    outcome: status.secondLevel,
+    reason: status.reason,
+  })
+  const samlMessage = buildSamlStatusResponse({
+    issuer: idpEntityId(c, target.appId),
+    destination: target.sp.acsUrl,
+    inResponseTo: target.request.inResponseTo,
+    topLevelStatus: status.topLevel,
+    secondLevelStatus: status.secondLevel,
+  })
+  return c.html(
+    postBindingForm({
+      destination: target.sp.acsUrl,
+      samlMessage,
+      fieldName: 'SAMLResponse',
+      relayState: target.request.relayState,
+    }),
+    200,
+  )
+}
+
+// ForceAuthn 要求在收到 AuthnRequest 之后完成的认证,复用更早建立的会话不算数。
+function satisfiesAuthentication(
+  session: SessionData | null | undefined,
+  request: OutboundSsoRequest,
+): session is SessionData {
+  if (!session || session.status !== 'active') return false
+  return !request.forceAuthn || session.authenticatedAt.getTime() >= request.requestedAt
+}
+
+async function issueAssertion(
+  c: Context<XidHonoEnv>,
+  target: SsoTarget & { session: SessionData; nameIdFormat: string },
+): Promise<Response> {
+  const { appId, sp, request, session, nameIdFormat } = target
   const user = await readAuthenticatedUser(c, session)
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   await assertUserPassesAssignmentGate(db, {
@@ -112,20 +144,37 @@ export async function handleSso(c: Context<XidHonoEnv>): Promise<Response> {
     userId: user.id,
     gate: parseAssignmentGate(sp.attributeMapping as Record<string, unknown>),
   })
+  const email = await primaryEmail(c, user)
+  const nameId = await nameIdValue({
+    format: nameIdFormat,
+    pepper: c.env.PEPPER,
+    tenantId: c.get('tenant').tenantId,
+    appId,
+    userId: user.id,
+    email,
+    username: user.username ?? null,
+  })
+  if (nameId === null) {
+    return statusResponse(c, target, {
+      topLevel: SAML_STATUS.responder,
+      secondLevel: SAML_STATUS.invalidNameIdPolicy,
+      reason: 'name_id_value_missing',
+    })
+  }
+  const attributeEmail = email ?? user.username
+  if (!attributeEmail) throw new AppError('invalid_request', { httpStatus: 400 })
   const cert = await loadSigningCert(c, sp)
   const key = await importSamlSigningKey(cert, c.env.KEK)
-  const email = await primaryEmail(c, user)
-  const sessionIndex = session.sessionId
   const signed = await signSamlResponse(
     {
       issuer: idpEntityId(c, appId),
       audience: sp.spEntityId,
       acsUrl: sp.acsUrl,
-      subjectNameId: email,
-      nameIdFormat: sp.nameIdFormat || DEFAULT_NAME_ID_FORMAT,
-      attributes: userAttributes(sp, user, email),
-      sessionIndex,
-      inResponseTo,
+      subjectNameId: nameId,
+      nameIdFormat,
+      attributes: userAttributes(sp, user, attributeEmail),
+      sessionIndex: session.sessionId,
+      inResponseTo: request.inResponseTo,
     },
     key,
   )
@@ -135,26 +184,64 @@ export async function handleSso(c: Context<XidHonoEnv>): Promise<Response> {
       longMessage: 'outbound_saml_sign_failed',
     })
   }
-
-  const ttlMs = Math.max(0, session.expiresAt.getTime() - Date.now())
   await trackOutboundSamlSession(
     c,
     {
       appId,
-      sessionIndex,
+      sessionIndex: session.sessionId,
       userId: session.userId,
       sessionId: session.sessionId,
-      nameId: email,
-      nameIdFormat: sp.nameIdFormat || DEFAULT_NAME_ID_FORMAT,
+      nameId,
+      nameIdFormat,
     },
-    ttlMs,
+    Math.max(0, session.expiresAt.getTime() - Date.now()),
   )
+  return c.html(
+    postBindingForm({
+      destination: sp.acsUrl,
+      samlMessage: signed.value.samlResponse,
+      fieldName: 'SAMLResponse',
+      relayState: request.relayState,
+    }),
+    200,
+  )
+}
 
-  const html = postBindingForm({
-    destination: sp.acsUrl,
-    samlMessage: signed.value.samlResponse,
-    fieldName: 'SAMLResponse',
-    relayState,
+export async function handleSso(c: Context<XidHonoEnv>): Promise<Response> {
+  const session = c.get('session')
+  const appId = requiredParam(c, 'appId')
+  const sp = await resolveSp(c, appId)
+  const resumeId = c.req.method === 'GET' ? c.req.query(OUTBOUND_SSO_RESUME_PARAM) : undefined
+  const request = resumeId
+    ? await consumeOutboundSsoRequest(c, { appId, id: resumeId })
+    : await readVerifiedOutboundSsoRequest(c, { appId, sp })
+  const target: SsoTarget = { appId, sp, request }
+  const format = chooseNameIdFormat({
+    configuredFormat: sp.nameIdFormat || DEFAULT_NAME_ID_FORMAT,
+    requestedFormat: request.nameIdFormat,
   })
-  return c.html(html, 200)
+  if (!format.ok) {
+    const requesterError = format.cause === 'requested_format_unsupported'
+    return statusResponse(c, target, {
+      topLevel: requesterError ? SAML_STATUS.requester : SAML_STATUS.responder,
+      secondLevel: SAML_STATUS.invalidNameIdPolicy,
+      reason: format.cause,
+    })
+  }
+  if (!satisfiesAuthentication(session, request)) {
+    if (request.isPassive) {
+      return statusResponse(c, target, {
+        topLevel: SAML_STATUS.responder,
+        secondLevel: SAML_STATUS.noPassive,
+        reason: request.forceAuthn ? 'force_authn_with_is_passive' : 'no_session',
+      })
+    }
+    const id = await stashOutboundSsoRequest(c, { appId, request })
+    return outboundSsoInteractionRedirect(c, {
+      session: session ?? null,
+      returnTo: outboundSsoResumePath(appId, id),
+      reauthenticate: request.forceAuthn,
+    })
+  }
+  return issueAssertion(c, { ...target, session, nameIdFormat: format.format })
 }

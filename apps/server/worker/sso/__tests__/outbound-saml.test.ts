@@ -391,6 +391,9 @@ describe('outbound SAML SLO', () => {
         destination: 'https://acme.xid.dev/sso/outbound/saml/sp_1/sso',
         acsUrl: SP.acsUrl,
         signatureVerified: false,
+        forceAuthn: false,
+        isPassive: false,
+        nameIdPolicy: null,
       },
     })
     encodeRedirectBindingMessageMock.mockResolvedValue('encoded-request')
