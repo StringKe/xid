@@ -19,6 +19,7 @@ import {
   recordOtpFailure,
 } from '../auth/otp'
 import { smsDeliveryReady } from '../auth/delivery-channels'
+import { reservePhoneOtpIpBudget, reservePhoneOtpTenantBudget } from '../auth/phone-otp-budget'
 import { excludedMfaMethods } from '../auth/passkey-mfa-eligibility'
 import { findActiveSmsFactor } from '../lib/mfa-methods'
 import { completeMfaOnSession, requireMfaSession } from '../lib/mfa-session'
@@ -53,6 +54,8 @@ export async function handleMfaSmsSend(c: Context<XidHonoEnv>): Promise<Response
   const factor = await loadSmsFactorForSession(c, tenant, session)
   if (!factor) throw new AppError('mfa_setup_required')
 
+  await reservePhoneOtpIpBudget(c.env, requestIp(c))
+  await reservePhoneOtpTenantBudget(c.env, tenant.tenantId)
   await enforceSendRateLimit(c.env, `mfasms:${tenant.tenantId}`, factor.phone)
   await persistAndSendOtp({
     c,

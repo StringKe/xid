@@ -10,6 +10,7 @@ import * as v from 'valibot'
 import { smsOtpQueuePayload } from '../auth/delivery-channels'
 import { constantTimeEqualStr, recordOtpFailure, reserveOtpSendRateLimit } from '../auth/otp'
 import { AppError } from '../lib/errors'
+import { requestIp } from '../me-auth/shared'
 import { enqueueTransactionalEmail } from '../lib/transactional-email'
 import { OTP_EMAIL_TTL_MS, OTP_MAX_ATTEMPTS, OTP_PHONE_TTL_MS } from '../lib/ttl'
 import type { XidHonoEnv } from '../lib/types'
@@ -85,7 +86,7 @@ export async function issueContactCode(
 ): Promise<PendingContact> {
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
-  await reserveOtpSendRateLimit(c.env, input.flow.target, tenant.tenantId)
+  await reserveOtpSendRateLimit(c.env, input.flow.target, tenant.tenantId, { ip: requestIp(c) })
   const code = randomString(6, '0123456789')
   const ttlMs = input.kind === 'email' ? OTP_EMAIL_TTL_MS : OTP_PHONE_TTL_MS
   const id = crypto.randomUUID()
