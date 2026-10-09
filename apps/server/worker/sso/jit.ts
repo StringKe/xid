@@ -22,6 +22,8 @@ type Db = ReturnType<typeof createTenantDb>
 export type SsoAssertion = {
   // 主键:idp_id = SAML NameID / OIDC sub(见 04 章 1 设计决策)
   idpId: string
+  // 连接改用稳定属性作 idpId 前,同一用户按 NameID 绑定;命中旧绑定时沿用该用户并补绑新 idpId。
+  legacyIdpId?: string
   connectionId: string
   orgId: string
   email: string | null
@@ -225,6 +227,20 @@ async function loadConnection(db: Db, assertion: SsoAssertion): Promise<SsoConne
   return connection
 }
 
+async function findActiveIdentity(
+  db: Db,
+  connectionId: string,
+  providerUserId: string,
+): Promise<typeof schema.userIdentities.$inferSelect | undefined> {
+  return db.userIdentities.findOne(
+    and(
+      eq(schema.userIdentities.provider, connectionId),
+      eq(schema.userIdentities.providerUserId, providerUserId),
+      isNull(schema.userIdentities.revokedAt),
+    ),
+  )
+}
+
 // JIT Provisioning 主入口。
 export async function jitProvision(
   c: Context<XidHonoEnv>,
@@ -246,14 +262,12 @@ export async function jitProvision(
     ),
   }
 
-  // 分支 A:idp_id 精确匹配(已撤销的绑定不在此命中)。
-  const existingIdentity = await db.userIdentities.findOne(
-    and(
-      eq(schema.userIdentities.provider, assertion.connectionId),
-      eq(schema.userIdentities.providerUserId, assertion.idpId),
-      isNull(schema.userIdentities.revokedAt),
-    ),
-  )
+  // 分支 A:idp_id 精确匹配(已撤销的绑定不在此命中),其次是迁移前的 NameID 绑定。
+  const existingIdentity =
+    (await findActiveIdentity(db, assertion.connectionId, assertion.idpId)) ??
+    (assertion.legacyIdpId
+      ? await findActiveIdentity(db, assertion.connectionId, assertion.legacyIdpId)
+      : undefined)
   if (existingIdentity) {
     await enforceEnterpriseSsoPolicy({ c, action: 'login', email: assertion.email })
     return syncExistingUser(ctx, existingIdentity.userId)

@@ -137,7 +137,7 @@ async function runAcs(c: Context<XidHonoEnv>, connectionId: string): Promise<Res
 
   const relayTarget = requestFlow
     ? new URL(requestFlow.continuePath, c.get('tenant').issuer).toString()
-    : resolveRelayState(c.get('tenant'), relayState)
+    : resolveRelayState(c.get('tenant'), relayState, connection.relayStateUrl)
   const defaultLandingPath = defaultLandingPathFor(c.get('tenant'))
   const localRelayTarget = relayTarget.startsWith(c.get('tenant').issuer)
     ? relayTarget.slice(c.get('tenant').issuer.length) || defaultLandingPath

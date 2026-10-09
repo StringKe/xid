@@ -408,6 +408,27 @@ describe('jitProvision -- 已有成员角色', () => {
     expect(mockMembershipsUpdate).toHaveBeenCalledWith({ role: 'admin' }, expect.anything())
   })
 
+  it('新 idpId 未绑定但迁移前的 NameID 绑定存在 -> 沿用原用户并补绑新 idpId', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
+    mockUserIdentitiesFindOne
+      .mockReset()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ id: 'identity-legacy', userId: 'user-legacy' })
+      .mockResolvedValueOnce(undefined)
+    mockMembershipsFindOne.mockResolvedValue({ id: 'mem-1', role: 'member' })
+
+    const result = await jitProvision(
+      makeContext(),
+      makeAssertion({ idpId: 'stable-oid', legacyIdpId: 'alice@corp.example.com' }),
+    )
+
+    expect(result).toEqual({ userId: 'user-legacy', provisioned: false })
+    expect(mockUserIdentitiesInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-legacy', providerUserId: 'stable-oid' }),
+    )
+    expect(mockProvisionAccountAtomically).not.toHaveBeenCalled()
+  })
+
   it('member 的 group 未命中映射时保持 member 且不写库', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(
       makeConnection({ roleMapping: { Engineering: 'admin' } }),
