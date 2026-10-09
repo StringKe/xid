@@ -3355,7 +3355,7 @@ describe('v1 org outbound-saml-apps 归属与跨租户隔离', () => {
     expect(body.id).toMatch(/^sp_[A-Za-z0-9]{21}$/u)
   })
 
-  it('atomically replaces an active IdP certificate inside the 30-day window', async () => {
+  it('keeps using an active IdP certificate inside the 30-day window without rotating it', async () => {
     const now = Date.now()
     const dayMs = 24 * 60 * 60 * 1000
     const oldCertificate = await generateSelfSignedSamlCertificate(
@@ -3432,13 +3432,9 @@ describe('v1 org outbound-saml-apps 归属与跨租户隔离', () => {
 
     expect(response.status).toBe(201)
     const body = (await response.json()) as { idpSigningCertId: string }
-    expect(body.idpSigningCertId).not.toBe('cert_old')
-    expect(certStore.find((row) => row['id'] === 'cert_old')?.['status']).toBe('retiring')
-    expect(
-      certStore.find(
-        (row) => row['id'] === body.idpSigningCertId && row['usage'] === 'saml_idp_signing',
-      )?.['status'],
-    ).toBe('active')
+    expect(body.idpSigningCertId).toBe('cert_old')
+    expect(certStore.find((row) => row['id'] === 'cert_old')?.['status']).toBe('active')
+    expect(certStore.filter((row) => row['usage'] === 'saml_idp_signing')).toHaveLength(1)
   })
 
   it('reuses the concurrent provisioning winner after an active-certificate conflict', async () => {
