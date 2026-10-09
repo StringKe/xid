@@ -1,7 +1,8 @@
 // AuthnRequest 生成与可选签名。ID 由调用方存 DO 供 InResponseTo 比对;本层只产出原始 XML
 // (Redirect 的 DEFLATE 在 worker)。
 
-import { Parse, SignedXml, Stringify } from 'xmldsigjs'
+import { Parse, Stringify } from 'xmldsigjs'
+import { createSamlSignedXml } from './signing'
 import { loadIdpVerifyKeys } from './cert'
 import { assertionChild, assertionChildren } from './extract'
 import { SAMLP_NS, SAML_ASSERTION_NS } from './precheck'
@@ -110,7 +111,7 @@ export async function signAuthnRequest(
 ): Promise<SamlResult<string>> {
   try {
     const doc = Parse(request.xml)
-    const signedXml = new SignedXml(doc)
+    const signedXml = createSamlSignedXml(doc)
     await signedXml.Sign(signAlgorithm, spPrivateKey, doc, {
       references: [
         { uri: `#${request.id}`, hash: 'SHA-256', transforms: ['enveloped', 'exc-c14n'] },

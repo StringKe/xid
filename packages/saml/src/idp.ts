@@ -1,6 +1,7 @@
 // XID 作为 IdP 时输出 metadata 与已签 Response;签名仍走 xmldsigjs。
 
-import { Parse, SignedXml, Stringify } from 'xmldsigjs'
+import { Parse, Stringify } from 'xmldsigjs'
+import { createSamlSignedXml } from './signing'
 import { SAML_ASSERTION_NS, SAMLP_NS } from './precheck'
 import { failResult, okResult } from './errors'
 import type { SamlResult } from './errors'
@@ -170,7 +171,7 @@ export function buildSamlResponseXml(input: SamlResponseInput): {
 
 export async function signElement(doc: Document, target: Element, key: CryptoKey): Promise<void> {
   const id = target.getAttribute('ID') ?? ''
-  const signedXml = new SignedXml(doc)
+  const signedXml = createSamlSignedXml(doc)
   await signedXml.Sign({ name: 'RSASSA-PKCS1-v1_5' }, key, doc, {
     references: [{ uri: `#${id}`, hash: 'SHA-256', transforms: ['enveloped', 'exc-c14n'] }],
   })

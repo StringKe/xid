@@ -1,6 +1,7 @@
 // verifySamlResponse 测试共用:默认选项、签名 Response 构造与 XSW 注入片段。
 
-import { Parse, SignedXml, Stringify } from 'xmldsigjs'
+import { Parse, Stringify } from 'xmldsigjs'
+import { createSamlSignedXml } from '../signing'
 import {
   ACS_URL,
   IDP_CERT_B64,
@@ -78,7 +79,7 @@ export function standaloneAssertion(assertionXml: string): string {
 export async function signStandaloneAssertion(assertionXml: string): Promise<string> {
   const doc = Parse(assertionXml)
   const id = doc.documentElement.getAttribute('ID') ?? ''
-  const signedXml = new SignedXml(doc)
+  const signedXml = createSamlSignedXml(doc)
   await signedXml.Sign({ name: 'RSASSA-PKCS1-v1_5' }, await idpSignKey(), doc, {
     references: [{ uri: `#${id}`, hash: 'SHA-256', transforms: ['enveloped', 'exc-c14n'] }],
   })

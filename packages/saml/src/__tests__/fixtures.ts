@@ -7,7 +7,8 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fromBER } from 'asn1js'
 import { Certificate } from 'pkijs'
-import { Parse, SignedXml, Stringify } from 'xmldsigjs'
+import { Parse, Stringify } from 'xmldsigjs'
+import { createSamlSignedXml } from '../signing'
 import { toBufferSource } from '@xid-kit/crypto'
 
 export const IDP_ENTITY_ID = 'https://idp.example.com/metadata'
@@ -171,7 +172,7 @@ export function buildResponseXml(parts: ResponseParts = {}): string {
 // Signature 须紧跟 Issuer,与生产接收 allowlist 顺序一致。
 async function signElement(doc: Document, target: Element, key: CryptoKey): Promise<void> {
   const id = target.getAttribute('ID') ?? ''
-  const signedXml = new SignedXml(doc)
+  const signedXml = createSamlSignedXml(doc)
   await signedXml.Sign({ name: 'RSASSA-PKCS1-v1_5' }, key, doc, {
     references: [{ uri: `#${id}`, hash: 'SHA-256', transforms: ['enveloped', 'exc-c14n'] }],
   })

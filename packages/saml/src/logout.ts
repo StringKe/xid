@@ -1,7 +1,8 @@
 // LogoutRequest/Response 解析、验签与签名;与 Response 共用 structure/cert。
 
 import { toBufferSource } from '@xid-kit/crypto'
-import { Parse, SignedXml, Stringify } from 'xmldsigjs'
+import { Parse, Stringify } from 'xmldsigjs'
+import { createSamlSignedXml } from './signing'
 import { DEFAULT_SAML_CLOCK_SKEW_MS, loadIdpVerifyKeys, MAX_SAML_CLOCK_SKEW_MS } from './cert'
 import type { IdpVerifyKey } from './cert'
 import { assertionChild } from './extract'
@@ -507,7 +508,7 @@ async function signRootElement(
     const doc = Parse(xml)
     const root = doc.documentElement
     const id = root.getAttribute('ID') ?? ''
-    const signedXml = new SignedXml(doc)
+    const signedXml = createSamlSignedXml(doc)
     await signedXml.Sign({ name: 'RSASSA-PKCS1-v1_5' }, privateKey, doc, {
       references: [{ uri: `#${id}`, hash: 'SHA-256', transforms: ['enveloped', 'exc-c14n'] }],
     })
