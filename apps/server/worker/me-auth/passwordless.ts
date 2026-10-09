@@ -280,7 +280,7 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
     defaultContinuePath: defaultLandingPathFor(tenant),
   })
 
-  await reserveOtpSendRateLimit(c.env, target, tenant.tenantId)
+  await reserveOtpSendRateLimit(c.env, target, tenant.tenantId, { ip: requestIp(c) })
 
   const db = createTenantDb(c.env.DB, tenant)
   const skipDefaultMembership = shouldSkipDefaultMembership({

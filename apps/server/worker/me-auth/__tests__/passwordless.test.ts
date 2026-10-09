@@ -735,6 +735,7 @@ describe('POST /auth/otp/email/send', () => {
       expect.anything(),
       'user@example.com',
       'tenant-1',
+      { ip: null },
     )
   })
 
@@ -1197,6 +1198,7 @@ describe('POST /auth/otp/sms/send', () => {
       expect.anything(),
       '+15551234567',
       'tenant-1',
+      { ip: null },
     )
     expect(resolveTargetUserId).toHaveBeenCalledWith(expect.anything(), 'sms', '+15551234567')
   })

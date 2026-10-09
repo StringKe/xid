@@ -1,8 +1,8 @@
 // otp.ts:Email OTP(6 位,10min)+ WhatsApp/SMS OTP(6 位,5min)passwordless 认证 handler。
 // OTP 存 HMAC-SHA256 哈希(verificationTokens.codeHash),验证后以 consumedAt CAS 标记消费。
-// 限流:同一邮箱/手机 1/min + 5/hour(RateLimitStore DO,anti-abuse rule)。
+// 限流:同一邮箱/手机 1/min + 5/hour;手机另有 IP 与租户总量上限(RateLimitStore DO,anti-abuse rule)。
 // 最多 5 次错误后 token 作废(01 章 4:Email OTP 5 次错误后作废)。
-// Phone OTP target 由调用方规范化为 E.164,国家白名单固定为 +1(US/CA),没有租户级配置(01 章 4)。
+// Phone OTP target 由调用方规范化为 E.164,只放行美国和加拿大的在用区号,没有租户级配置(01 章 4)。
 // 枚举防护:邮箱/手机不存在与已发送统一 200 模糊响应。
 
 import { randomString, sha256Hex } from '@xid-kit/crypto'
@@ -19,9 +19,12 @@ import { OTP_EMAIL_TTL_MS, OTP_MAX_ATTEMPTS, OTP_PHONE_TTL_MS } from '../lib/ttl
 import { enqueueTransactionalEmail } from '../lib/transactional-email'
 import type { PasswordlessFlowContext } from './passwordless-flow'
 import { serializePasswordlessFlowContext } from './passwordless-flow'
-
-// Phone 国家前缀白名单(默认 US +1 / CA +1)
-const PHONE_ALLOWED_PREFIXES = ['+1']
+import {
+  isPhoneOtpTarget,
+  reservePhoneOtpIpBudget,
+  reservePhoneOtpTenantBudget,
+} from './phone-otp-budget'
+import { isAllowedPhoneOtpTarget } from './phone-otp-regions'
 
 export type OtpChannel = 'email' | 'whatsapp' | 'sms'
 
@@ -50,15 +53,21 @@ export async function checkRateLimit(
   if (!result.allowed) throw new AppError('rate_limited')
 }
 
+// 手机目标依次占用 IP、号码、租户三个维度:先被 IP 或号码拒绝的请求不消耗租户总量。
+// 调用方拿不到来源 IP 时只占号码和租户维度。
 export async function reserveOtpSendRateLimit(
   env: Env,
   target: string,
   tenantId: string,
+  options: { ip?: string | null } = {},
 ): Promise<void> {
+  const isPhone = isPhoneOtpTarget(target)
+  if (isPhone && options.ip) await reservePhoneOtpIpBudget(env, options.ip)
   await reserveRateLimitWindows(env, `otp:send:${tenantId}:${target}`, [
     { key: RL_MIN_KEY(target, tenantId), policy: POLICIES.OTP_SEND },
     { key: RL_HOUR_KEY(target, tenantId), policy: OTP_SEND_HOURLY_POLICY },
   ])
+  if (isPhone) await reservePhoneOtpTenantBudget(env, tenantId)
 }
 
 // 生成 6 位数字 OTP(crypto.getRandomValues,无模偏差)。
@@ -77,7 +86,7 @@ export function constantTimeEqualStr(a: string, b: string): boolean {
 }
 
 function validatePhoneOtpTarget(phone: string): boolean {
-  return PHONE_ALLOWED_PREFIXES.some((pfx) => phone.startsWith(pfx))
+  return isAllowedPhoneOtpTarget(phone)
 }
 
 // 限流 key + hourly policy 导出供 me-auth 渠道拆分端点(/otp/email/send 等)复用,统一 key 命名。
