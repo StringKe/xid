@@ -193,8 +193,10 @@ export async function verifyTrustedProxySecret(
 export async function prepareLegacyAttributeMapping(
   protocol: string,
   attributeMapping: Record<string, unknown>,
-  previousMapping?: Record<string, unknown> | null,
+  previousMapping: Record<string, unknown> | null | undefined,
+  env: { KEK: string },
 ): Promise<Record<string, unknown>> {
+  void env
   const prepared: Record<string, unknown> = { ...attributeMapping }
   const legacy = legacyObject(attributeMapping)
   const previousLegacy = legacyObject(previousMapping)

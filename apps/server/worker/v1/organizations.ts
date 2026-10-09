@@ -1199,7 +1199,7 @@ app.post('/:id/sso-connections', async (c) => {
         ? withPresetAttributeMapping(preset.key, preset.attributeMapping)
         : {})
   const attributeMapping = isLegacySsoProtocol(protocol)
-    ? await prepareLegacyAttributeMapping(protocol, requestedMapping)
+    ? await prepareLegacyAttributeMapping(protocol, requestedMapping, null, c.env)
     : requestedMapping
   assertHeaderConnectionConfig(protocol, attributeMapping)
   const roleMapping =
@@ -1293,7 +1293,12 @@ app.patch('/:id/sso-connections/:connectionId', async (c) => {
     )
     const merged = { ...internal, ...body.attribute_mapping }
     const attributeMapping = isLegacySsoProtocol(existing.protocol)
-      ? await prepareLegacyAttributeMapping(existing.protocol, merged, existing.attributeMapping)
+      ? await prepareLegacyAttributeMapping(
+          existing.protocol,
+          merged,
+          existing.attributeMapping,
+          c.env,
+        )
       : merged
     assertHeaderConnectionConfig(existing.protocol, attributeMapping)
     patch.attributeMapping = attributeMapping

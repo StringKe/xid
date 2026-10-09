@@ -139,6 +139,8 @@ app.post('/', async (c) => {
   const attributeMapping = await prepareLegacyAttributeMapping(
     protocol,
     body.attribute_mapping ?? {},
+    null,
+    c.env,
   )
 
   // org_id 必须属于当前 TenantContext 的 tenant(requireOrg 走查询层注入 tenant_id;跨租户/不存在 -> 404)。
@@ -243,6 +245,7 @@ app.patch('/:id', async (c) => {
       existing.protocol,
       body.attribute_mapping,
       existing.attributeMapping,
+      c.env,
     )
   }
   if (body.role_mapping !== undefined) patch.roleMapping = body.role_mapping
