@@ -1,14 +1,15 @@
 // WS-Federation 1.2 第 13 节:wresult 是 wst:RequestSecurityTokenResponse(WS-Trust 1.3 可外包一层
 // RequestSecurityTokenResponseCollection),断言放在 RequestedSecurityToken 里。
-// 断言验签与语义只走 @xid-kit/saml 的公开入口:SAML 2.0 断言包进最小 samlp:Response 交给 verifySamlResponse
-// (只要求断言层签名,exc-c14n 与祖先上下文无关);SAML 1.1 断言交给 verifySaml11Assertion。
+// 断言以自身为根交给 @xid-kit/saml 验证:SAML 2.0 用 verifySamlAssertion,SAML 1.1 用 verifySaml11Assertion,
+// 签名规范化不受 RSTR 信封上的命名空间影响。
 
 import {
   SAML1_ASSERTION_NS,
   securityPrecheck,
   verifySaml11Assertion,
-  verifySamlResponse,
+  verifySamlAssertion,
 } from '@xid-kit/saml'
+import type { AttributeMapping } from '@xid-kit/saml'
 import type { SamlAssertionResult } from '@xid-kit/types'
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 import type { Element as XmlElement } from '@xmldom/xmldom'
@@ -20,8 +21,6 @@ const WS_TRUST_NAMESPACES = new Set([
   'http://docs.oasis-open.org/ws-sx/ws-trust/200512',
 ])
 const SAML2_ASSERTION_NS = 'urn:oasis:names:tc:SAML:2.0:assertion'
-const SAMLP_NS = 'urn:oasis:names:tc:SAML:2.0:protocol'
-const STATUS_SUCCESS = 'urn:oasis:names:tc:SAML:2.0:status:Success'
 
 function wresultInvalid(reason: string): AppError {
   return new AppError('malformed_request', { httpStatus: 400, longMessage: `wsfed:${reason}` })
@@ -81,24 +80,13 @@ export function extractRequestedToken(xml: string): XmlElement {
   return tokens[0]
 }
 
-function wrapAssertion(assertion: XmlElement, now: number): string {
-  const assertionXml = new XMLSerializer().serializeToString(assertion)
-  return [
-    `<samlp:Response xmlns:samlp="${SAMLP_NS}" ID="_wsfed-${crypto.randomUUID()}" Version="2.0"`,
-    ` IssueInstant="${new Date(now).toISOString()}">`,
-    `<samlp:Status><samlp:StatusCode Value="${STATUS_SUCCESS}"/></samlp:Status>`,
-    assertionXml,
-    `</samlp:Response>`,
-  ].join('')
-}
-
 export type VerifyWsfedTokenOptions = {
   idpCertificatesB64: readonly string[]
   expectedIssuer: string
   realm: string
   replyUrl: string
   clockSkewToleranceMs: number
-  attributeMapping: Parameters<typeof verifySamlResponse>[1]['attributeMapping']
+  attributeMapping: AttributeMapping
   now?: number
 }
 
@@ -136,18 +124,14 @@ async function verifySaml2Token(
   token: XmlElement,
   options: VerifyWsfedTokenOptions,
 ): Promise<SamlAssertionResult> {
-  const now = options.now ?? Date.now()
-  const verified = await verifySamlResponse(wrapAssertion(token, now), {
+  const verified = await verifySamlAssertion(new XMLSerializer().serializeToString(token), {
     idpCertificatesB64: options.idpCertificatesB64,
     expectedIssuer: options.expectedIssuer,
     expectedAudience: options.realm,
     acsUrl: options.replyUrl,
-    spInitiated: 'auto',
-    wantAuthnResponseSigned: false,
-    wantAssertionsSigned: true,
     requireSubjectConfirmationRecipient: false,
     clockSkewToleranceMs: options.clockSkewToleranceMs,
-    now,
+    ...(options.now === undefined ? {} : { now: options.now }),
     ...(options.attributeMapping ? { attributeMapping: options.attributeMapping } : {}),
   })
   if (!verified.ok) throw samlErrorToApp(verified.error.code, verified.error.reason)

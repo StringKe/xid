@@ -2,7 +2,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
-import { Parse, SignedXml } from 'xmldsigjs'
+import { Parse, SignedXml, Stringify } from 'xmldsigjs'
 import { isAppError } from '../../lib/errors'
 import { buildFakeWresult, fakeWsfedSigner } from '../../test-harness/fake-wsfed-token'
 import type { FakeWsfedTokenType } from '../../test-harness/fake-wsfed-token'
@@ -61,23 +61,19 @@ function rstr(tokenXml: string): string {
   return `<t:RequestSecurityTokenResponse xmlns:t="${TRUST_2005}"><t:RequestedSecurityToken>${tokenXml}</t:RequestedSecurityToken></t:RequestSecurityTokenResponse>`
 }
 
-// AD FS 风格:SubjectConfirmationData 只有 NotOnOrAfter,没有 Recipient。
-// 签名在带 saml 前缀的 samlp:Response 上下文里完成:单独签名后套壳、或默认命名空间写法的断言,
-// 当前内核验签不通过(已作为跨组问题上报)。
-async function saml2WithoutRecipient(recipient: string | null): Promise<string> {
+// AD FS 风格:默认命名空间写法、断言单独签名后放进 RSTR,SubjectConfirmationData 只有 NotOnOrAfter。
+async function adfsStyleAssertion(recipient: string | null): Promise<string> {
   const now = Date.now()
   const at = (offset: number) => new Date(now + offset).toISOString()
   const recipientAttr = recipient === null ? '' : ` Recipient="${recipient}"`
   const xml = [
-    `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="${SAML2}">`,
-    `<saml:Assertion ID="_adfs1" IssueInstant="${at(0)}" Version="2.0">`,
-    `<saml:Issuer>${ISSUER}</saml:Issuer>`,
-    `<saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${EMAIL}</saml:NameID>`,
-    `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><saml:SubjectConfirmationData NotOnOrAfter="${at(5 * 60_000)}"${recipientAttr}/></saml:SubjectConfirmation></saml:Subject>`,
-    `<saml:Conditions NotBefore="${at(-60_000)}" NotOnOrAfter="${at(60 * 60_000)}"><saml:AudienceRestriction><saml:Audience>${REALM}</saml:Audience></saml:AudienceRestriction></saml:Conditions>`,
-    `<saml:AuthnStatement AuthnInstant="${at(-30_000)}"><saml:AuthnContext><saml:AuthnContextClassRef>urn:federation:authentication:windows</saml:AuthnContextClassRef></saml:AuthnContext></saml:AuthnStatement>`,
-    `</saml:Assertion>`,
-    `</samlp:Response>`,
+    `<Assertion xmlns="${SAML2}" ID="_adfs1" IssueInstant="${at(0)}" Version="2.0">`,
+    `<Issuer>${ISSUER}</Issuer>`,
+    `<Subject><NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${EMAIL}</NameID>`,
+    `<SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><SubjectConfirmationData NotOnOrAfter="${at(5 * 60_000)}"${recipientAttr}/></SubjectConfirmation></Subject>`,
+    `<Conditions NotBefore="${at(-60_000)}" NotOnOrAfter="${at(60 * 60_000)}"><AudienceRestriction><Audience>${REALM}</Audience></AudienceRestriction></Conditions>`,
+    `<AuthnStatement AuthnInstant="${at(-30_000)}"><AuthnContext><AuthnContextClassRef>urn:federation:authentication:windows</AuthnContextClassRef></AuthnContext></AuthnStatement>`,
+    `</Assertion>`,
   ].join('')
   const doc = Parse(xml)
   const signedXml = new SignedXml(doc)
@@ -86,11 +82,10 @@ async function saml2WithoutRecipient(recipient: string | null): Promise<string> 
   })
   const signature = signedXml.GetXml()
   if (!signature) throw new Error('signature missing')
-  const assertion = doc.getElementsByTagNameNS(SAML2, 'Assertion').item(0)
   const issuer = doc.getElementsByTagNameNS(SAML2, 'Issuer').item(0)
-  if (!assertion || !issuer) throw new Error('assertion missing')
-  assertion.insertBefore(signature, issuer.nextSibling)
-  return rstr(requestedToken(rstr(new XMLSerializer().serializeToString(assertion))))
+  if (!issuer) throw new Error('issuer missing')
+  doc.documentElement.insertBefore(signature, issuer.nextSibling)
+  return rstr(Stringify(doc))
 }
 
 async function expectRejected(xml: string, code: string, extra: Record<string, unknown> = {}) {
@@ -116,15 +111,15 @@ describe('verifyWsfedWresult SAML 2.0', () => {
     expect(verified.subject.nameId).toBe(EMAIL)
   })
 
-  it('accepts an AD FS style assertion without SubjectConfirmationData Recipient', async () => {
-    const verified = await verifyWsfedWresult(await saml2WithoutRecipient(null), options())
+  it('accepts a standalone-signed default-namespace AD FS assertion without Recipient', async () => {
+    const verified = await verifyWsfedWresult(await adfsStyleAssertion(null), options())
 
     expect(verified.subject.nameId).toBe(EMAIL)
   })
 
   it('rejects a Recipient that is present but not the reply URL', async () => {
     await expectRejected(
-      await saml2WithoutRecipient('https://other.example/callback'),
+      await adfsStyleAssertion('https://other.example/callback'),
       'recipient_mismatch',
     )
   })
