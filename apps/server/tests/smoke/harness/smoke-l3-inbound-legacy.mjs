@@ -11,7 +11,15 @@ import {
   printResult,
   sqlJson,
   sqlString,
+  collectSetCookie,
 } from './smoke-l3-shared.mjs'
+import {
+  cleanupSwaCredentials,
+  runSwaVaultLaunchFlow,
+  swaPasswordField,
+  swaTargetUrl,
+  swaUsernameField,
+} from './smoke-l3-swa.mjs'
 
 const connectionId = 'conn_l3_legacy'
 
@@ -38,9 +46,7 @@ const legacyConnections = {
   swa: {
     protocol: 'swa',
     mapping: {
-      _legacy: {
-        swaTargetUrl: 'https://app.example.com/login',
-      },
+      _legacy: { swaTargetUrl, swaUsernameField, swaPasswordField },
     },
   },
   header: {
@@ -128,6 +134,7 @@ async function restoreLegacyEnterpriseSso(fixture, originalMetadata) {
 }
 
 async function cleanupLegacyConnection(fixture) {
+  await cleanupSwaCredentials(fixture.tenantId, connectionId)
   await d1(
     `DELETE FROM sso_connections WHERE tenant_id = ${sqlString(fixture.tenantId)} AND id = ${sqlString(connectionId)};`,
     'cleanup legacy connection',
@@ -151,21 +158,15 @@ async function runLegacyFlows(fixture) {
     throw new Error(`LDAP login failed http=${ldap.res.status} body=${ldap.text}`)
   }
   printResult('PASS', 'legacy LDAP login', `http=${ldap.res.status}`)
+  // LDAP JIT 用户已是该组织的 active 成员,复用它的会话走 SWA 成员流程。
+  const memberCookie = collectSetCookie(ldap.res)
 
   await prepareLegacyConnection(fixture, legacyConnections.wsfed, await loadFakeWsfedIdp())
   await runWsfedFlow('saml2')
   await runWsfedFlow('saml11')
 
   await prepareLegacyConnection(fixture, legacyConnections.swa)
-  const swa = await fetchText(`/sso/swa/${connectionId}/authenticate`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'swa.user@example.com', password: 'swa-pass' }),
-  })
-  if (swa.res.status !== 302 || !hasSessionCookie(swa.res)) {
-    throw new Error(`SWA authenticate failed http=${swa.res.status}`)
-  }
-  printResult('PASS', 'legacy SWA authenticate', `http=${swa.res.status}`)
+  await runSwaVaultLaunchFlow(connectionId, memberCookie)
 
   await prepareLegacyConnection(fixture, legacyConnections.header)
   const header = await fetchText(`/sso/header/${connectionId}/authenticate`, {

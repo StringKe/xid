@@ -1,4 +1,4 @@
-// 本地 SWA/密码保管 L3 用假 authenticate 端点。
+// 本地 SWA L3 用的假下游应用登录表单:接收 launch 页自动提交的表单,校验字段名与凭据。
 
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -6,35 +6,11 @@ import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
 import { isDevOrTestEnvironment } from './dev-gate'
 
-export type FakeSwaProfile = {
-  idpId: string
-  email: string | null
-  emailVerified: boolean
-  firstName: string | null
-  lastName: string | null
-  groups: string[]
-  customAttributes: Record<string, unknown>
-}
+const FAKE_SWA_USERNAME_FIELD = 'login_id'
+const FAKE_SWA_PASSWORD_FIELD = 'passcode'
 
-const FAKE_SWA_USERS: Record<string, { password: string; profile: FakeSwaProfile }> = {
-  'swa.user@example.com': {
-    password: 'swa-pass',
-    profile: {
-      idpId: 'swa.user@example.com',
-      email: 'swa.user@example.com',
-      emailVerified: true,
-      firstName: 'SWA',
-      lastName: 'User',
-      groups: [],
-      customAttributes: { protocol: 'swa' },
-    },
-  },
-}
-
-export function fakeSwaAuthenticate(username: string, password: string): FakeSwaProfile | null {
-  const entry = FAKE_SWA_USERS[username]
-  if (!entry || entry.password !== password) return null
-  return entry.profile
+const FAKE_SWA_ACCOUNTS: Record<string, string> = {
+  swauser: 'SwaDownstream42',
 }
 
 function requireHarness(c: Context<XidHonoEnv>): void {
@@ -43,18 +19,20 @@ function requireHarness(c: Context<XidHonoEnv>): void {
   }
 }
 
-async function handleAuthenticate(c: Context<XidHonoEnv>): Promise<Response> {
+async function handleLogin(c: Context<XidHonoEnv>): Promise<Response> {
   requireHarness(c)
-  const body = (await c.req.json().catch(() => ({}))) as { username?: string; password?: string }
-  const username = body.username?.trim() ?? ''
-  const password = body.password ?? ''
-  const profile = fakeSwaAuthenticate(username, password)
-  if (!profile) return c.json({ code: 'invalid_credentials' }, 401)
-  return c.json(profile, 200)
+  const form = await c.req.parseBody()
+  const username = form[FAKE_SWA_USERNAME_FIELD]
+  const password = form[FAKE_SWA_PASSWORD_FIELD]
+  const expected = typeof username === 'string' ? FAKE_SWA_ACCOUNTS[username] : undefined
+  if (expected === undefined || password !== expected) {
+    return c.json({ signedIn: false }, 401)
+  }
+  return c.json({ signedIn: true, username }, 200)
 }
 
 const fakeSwa = new Hono<XidHonoEnv>()
-fakeSwa.post('/authenticate', handleAuthenticate)
+fakeSwa.post('/login', handleLogin)
 
 export function registerFakeSwaRoutes(app: Hono<XidHonoEnv>): void {
   app.route('/test-harness/fake-swa', fakeSwa)

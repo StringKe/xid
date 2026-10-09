@@ -270,6 +270,22 @@ describe('SWA password vault', () => {
     expect(res.status).toBe(404)
   })
 
+  it('accepts a loopback HTTP target only in development and test environments', async () => {
+    const loopbackTarget = 'http://localhost:5173/test-harness/fake-swa/login'
+    tables['ssoConnections'] = [
+      swaConnection({ attributeMapping: { _legacy: { swaTargetUrl: loopbackTarget } } }),
+    ]
+    await saveCredential('alice', 'downstream-pass')
+    const testEnv = { ...env, ENVIRONMENT: 'test' } as unknown as Env
+
+    const production = await launch()
+    const local = await buildApp().request('/sso/swa/conn-swa/launch', {}, testEnv)
+
+    expect(production.status).toBe(404)
+    expect(local.status).toBe(200)
+    expect(await local.text()).toContain(`<form method="post" action="${loopbackTarget}">`)
+  })
+
   it('ignores retired vault data left in attribute_mapping', async () => {
     tables['ssoConnections'] = [
       swaConnection({

@@ -9,8 +9,9 @@ import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { readSessionForTenant } from '../lib/session'
 import type { SessionData, XidHonoEnv } from '../lib/types'
-import { readJsonBody, validateBody } from '../lib/validate'
+import { isLoopbackHttpUrl, readJsonBody, validateBody } from '../lib/validate'
 import { findActiveMembership } from '../me/shared'
+import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import { legacyConfig, resolveLegacyConnection, type LegacyConnection } from './legacy-shared'
 import { isUsableLegacyTargetUrl } from './legacy-target-url'
 import { swaLaunchResponse } from './swa-launch-page'
@@ -96,7 +97,11 @@ async function handleVaultDelete(c: Context<XidHonoEnv>): Promise<Response> {
 async function handleLaunch(c: Context<XidHonoEnv>): Promise<Response> {
   return withSwaMember(c, async ({ connection, session }) => {
     const config = legacyConfig(connection)
-    if (!isUsableLegacyTargetUrl(config.swaTargetUrl)) {
+    const targetUrl = config.swaTargetUrl
+    if (
+      !isUsableLegacyTargetUrl(targetUrl) &&
+      !(isDevOrTestEnvironment(c.env) && targetUrl !== undefined && isLoopbackHttpUrl(targetUrl))
+    ) {
       throw new AppError('connection_not_found', { httpStatus: 404 })
     }
     const credential = await readSwaCredential(c.env, c.get('tenant'), {
@@ -105,7 +110,7 @@ async function handleLaunch(c: Context<XidHonoEnv>): Promise<Response> {
     })
     if (!credential) throw new AppError('not_found', { longMessage: 'swa_credential_not_stored' })
     return swaLaunchResponse({
-      targetUrl: config.swaTargetUrl,
+      targetUrl,
       usernameField: config.swaUsernameField,
       passwordField: config.swaPasswordField,
       credential,
