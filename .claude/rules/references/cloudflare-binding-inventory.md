@@ -86,7 +86,9 @@ registered in `v5`. All use `new_sqlite_classes`.
 and holds one record: `secretHash` and `stateHash` (SHA-256 hex of the grant secret and of the
 target host's `__Host-xid.handoff` state), `tenantId`, `instanceId`, `targetOrigin`, `userId`,
 `continuePath`, `authenticatedAt`, `sessionStatus` (`active` / `pending_mfa` /
-`pending_mfa_setup`), `acr`, `amr`, `aal`, `rememberMe`, `issuedAt` and `expiresAt`. `POST /create`
+`pending_mfa_setup`), `acr`, `amr`, `aal`, `rememberMe`, `stepUp` (`null` or the source session's
+step-up `method`, `issuedAtSec`, `expiresAtSec` and optional `passkeyAssurance`), `issuedAt` and
+`expiresAt`. `POST /create`
 accepts a TTL of at most `SESSION_HANDOFF_TTL_MS` (2 min) and returns `409` while an unexpired
 record exists. `POST /consume` compares both hashes in constant time plus the exact tenant, instance
 and target origin inside a storage transaction, deletes the record and returns it without the two

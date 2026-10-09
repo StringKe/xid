@@ -65,7 +65,9 @@ version below is the full original text of that list.
   be consumed. Consume matches tenant, instance and target origin and atomically deletes the grant;
   the target host then issues a session with the same status (`active`, `pending_mfa` or
   `pending_mfa_setup`), remember-me flag and auth context, so a pending MFA session stays pending.
-  Impersonation sessions are never handed off.
+  A step-up proof of the source session travels with the grant; for an `active` target session the
+  target host re-signs the step-up cookie with the original issue and expiry times and skips it once
+  expired. Impersonation sessions are never handed off.
 - KV caches JWKS public keys (TTL 1h) so JWT verification reads KV instead of going back to origin.
 
 ## Audit Chain
