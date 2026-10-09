@@ -259,7 +259,11 @@ function createRoutingProxy(ports) {
         response.destroy(error instanceof Error ? error : new Error(String(error)))
         return
       }
-      console.error('Three Worker routing proxy failed', error)
+      console.error(
+        'Three Worker routing proxy failed',
+        `${request.method} ${request.headers.host ?? ''}${request.url ?? ''}`,
+        error,
+      )
       response.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' })
       response.end('Bad Gateway')
     }
@@ -998,6 +1002,13 @@ export async function main() {
       await runChecks(`http://127.0.0.1:${ports.proxy}`, ports)
     }
     print('PASS', 'three Worker integration smoke')
+  } catch (error) {
+    for (const state of processes) {
+      process.stderr.write(
+        `[smoke:three-workers] ${state.name} output tail\n${state.output().slice(-8_000)}\n`,
+      )
+    }
+    throw error
   } finally {
     await closeServer(proxy)
     await Promise.all(processes.reverse().map(stopProcess))
