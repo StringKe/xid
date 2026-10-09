@@ -1,5 +1,5 @@
 // 删除后再新建企业 SSO 连接会复用组织唯一的那一行:旧连接的 metadata、刷新错误、证书保留记录、
-// 密钥、落地页与显示名都不能带进新连接。
+// 密钥、落地页与显示名都不能带进新连接;未给出 display_name 时不写入预设的英文默认名。
 
 import { describe, expect, it, vi } from 'vitest'
 import { schema } from '@xid-kit/db'
@@ -150,5 +150,27 @@ describe('re-creating an SSO connection over a deleted one', () => {
       status: 'active',
       jitEnabled: true,
     })
+  })
+})
+
+describe('SSO connection display name', () => {
+  it('stores no display name when a legacy preset is created without one', async () => {
+    const d1 = await seed()
+
+    const res = await createOrgConnection(d1, SWA_BODY)
+
+    expect(res.status).toBe(201)
+    const [row] = await tenantDb(d1).forOrg('t_a').ssoConnections.findMany()
+    expect(row?.displayName).toBeNull()
+  })
+
+  it('stores no display name over a deleted connection that had one', async () => {
+    const d1 = await seed()
+    await seedDeletedSamlConnection(d1)
+
+    const res = await createOrgConnection(d1, SWA_BODY)
+
+    expect(res.status).toBe(201)
+    expect((await readConnection(d1))?.displayName).toBeNull()
   })
 })

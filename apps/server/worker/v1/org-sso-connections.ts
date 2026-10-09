@@ -182,7 +182,7 @@ export function registerOrgSsoConnectionRoutes(app: Hono<XidHonoEnv>): void {
       (legacyPreset ? legacyPreset.roleMapping : samlPreset ? samlPreset.roleMapping : {})
     const patch = {
       protocol,
-      displayName: body.display_name ?? preset?.displayName ?? legacyPreset?.displayName ?? null,
+      displayName: body.display_name ?? null,
       idpEntityId: body.idp_entity_id,
       idpSsoUrl: body.idp_sso_url,
       idpSloUrl: body.idp_slo_url,

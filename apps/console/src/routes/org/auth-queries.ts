@@ -1,6 +1,7 @@
 // 认证设置页(Sign-in & MFA、Social login、Enterprise SSO、SAML apps、Messaging)的读写。
 // 与共享 queries.ts 用同一 query key,保存后共享 hook 的缓存一起失效。
 
+import { useLingui } from '@lingui/react/macro'
 import type {
   UseInfiniteQueryResult,
   UseMutationResult,
@@ -15,6 +16,7 @@ import {
   useApiQuery,
 } from '@xid-kit/web-ui/queries'
 import { useCanManageOrg } from './useOrgTarget'
+import { connectionName } from './auth-format'
 import type {
   OrgAuthPolicy,
   OrgLoginPolicy,
@@ -183,10 +185,14 @@ export function useOrgSsoConnectionsView(
   orgId: string,
 ): UseQueryResult<SsoConnectionView[], XidError> {
   const canManage = useCanManageOrg(orgId)
+  const { i18n } = useLingui()
   return useApiQuery<SsoConnectionView[]>(
     queryKeys.orgSsoConnections(orgId),
     `/v1/organizations/${orgId}/sso-connections`,
-    { enabled: canManage },
+    {
+      enabled: canManage,
+      select: (rows) => rows.map((row) => ({ ...row, name: connectionName(i18n, row) })),
+    },
   )
 }
 

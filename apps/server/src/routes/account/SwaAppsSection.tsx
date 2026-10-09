@@ -18,8 +18,12 @@ import {
 } from './swa-apps-queries'
 import { useActionError } from './use-security-action-error'
 
+// 早期服务端把预设的英文默认名存成显示名,按未命名处理,显示应用的主机名。
+const PRESET_DEFAULT_NAME = 'SWA password vaulting'
+
 function appDisplayName(app: SwaApp): string {
-  return app.name?.trim() || new URL(app.targetOrigin).host
+  const name = app.name?.trim()
+  return name && name !== PRESET_DEFAULT_NAME ? name : new URL(app.targetOrigin).host
 }
 
 function SwaAppRow({ app }: { app: SwaApp }): ReactNode {

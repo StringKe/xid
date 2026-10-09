@@ -1,6 +1,7 @@
 // 入站 SSO 连接表单状态与请求体之间的转换,以及旧协议在 `_legacy` 下的配置字段。
 
 import { msg } from '@lingui/core/macro'
+import { customDisplayName } from './auth-format'
 import type { CreateSsoConnectionInput, SsoConnection, UpdateSsoConnectionInput } from './types'
 
 export type SsoProtocol = CreateSsoConnectionInput['protocol']
@@ -75,7 +76,6 @@ export const LEGACY_PRESETS = [
 ] as const
 
 export const LEGACY_PROTOCOLS = new Set<SsoProtocol>(['ldap', 'wsfed', 'swa', 'header'])
-
 // 切换到旧协议时的非密钥默认值;地址类字段没有默认值,必须由管理员填写真实地址。
 export const LEGACY_DEFAULTS: Partial<Record<SsoProtocol, Record<string, string>>> = {
   ldap: { ldapGatewayUrl: '', bindDnTemplate: '{username}' },
@@ -155,7 +155,7 @@ export function connectionToForm(connection: SsoConnection & SsoConnectionExtras
   const { idpId, ...mapping } = connection.attribute_mapping
   return {
     protocol: connection.type,
-    displayName: connection.display_name ?? '',
+    displayName: customDisplayName(connection.display_name) ?? '',
     idpEntityId: connection.idp_entity_id ?? '',
     idpSsoUrl: connection.idp_sso_url ?? '',
     idpSloUrl: connection.idp_slo_url ?? '',

@@ -5740,7 +5740,7 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     })
   })
 
-  it('SSO connection 显示名默认取预设名并可通过 PATCH 修改', async () => {
+  it('SSO connection 未给显示名时不存预设名、名称回退到预设名，并可通过 PATCH 修改', async () => {
     const {
       token,
       cookieName,
@@ -5791,7 +5791,7 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     )
 
     expect(created.status).toBe(201)
-    expect(createdBody).toMatchObject({ name: 'Okta', display_name: 'Okta' })
+    expect(createdBody).toMatchObject({ name: 'Okta', display_name: null })
     expect(renamed.status).toBe(200)
     await expect(list.json()).resolves.toMatchObject([
       { name: 'Northwind Okta', display_name: 'Northwind Okta' },
