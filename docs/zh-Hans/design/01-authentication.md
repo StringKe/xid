@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=1cf03d43fd66aecb2be77ba635d15e40cd9149c8 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=1f75a308d36d16cd11c89d80df958717931d6a5b -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -35,18 +35,18 @@ credential、不完整 profile 或缺失的必需 Membership。
 
 - `residentKey: required`,`userVerification: required`,确保 discoverable credentials
 - Conditional UI 前调用 `isConditionalMediationAvailable()`,不支持时降级按钮触发。只要浏览器支持 WebAuthn 就显示 passkey 入口;Turnstile 只拦截 verify 提交
-- 租户域上 Conditional UI 无需标识符即可启动。只有尚未解析的实例入口需要先用标识符(或已选组织、client)定位 RPID。conditional 请求在 challenge 过期前、验证失败后重新发起
+- 租户域上 Conditional UI 无需标识符即可启动。只有尚未解析的实例入口需要先用标识符(或已选组织、client)定位 RPID。解析出的组织 rpId 是另一台主机时,challenge 端点不发 challenge,让浏览器到该主机登录(见「仪式主机与会话交接」)。conditional 请求在 challenge 过期前、验证失败后重新发起
 - 所有 passkey 登录都走 `POST /auth/passkey/challenge` 与 `POST /auth/passkey/verify`,并经过登录后的 MFA 门控。会话有效期始终取租户策略,客户端不能指定
 - 账户已有强因子时,新增 passkey 需要 step-up(见第 5 节)。删除 passkey 需要 step-up,同时撤销与之关联的 MFA 因子;删除后账户将没有任何登录方式时拒绝删除
 - challenge 绑定匿名 session,存 Durable Object,验证后销毁,TTL 5-10min
 - sign_count:两值均 0(平台同步 passkey 不递增)直接接受;新值 <= 历史非零值时标记异常触发风险审查而非直接拒绝;存储的 BE 为真的凭证与 aaguid 全零的平台 passkey 跳过比较以避免误报。断言的 BE 与注册时存储的值不一致时拒绝
 - attestation 按租户策略 `hostedAuth.attestationMode` 处理:`none`(默认)不校验;`indirect` 对可校验格式(`packed`、`fido-u2f`、`tpm`、`android-key`、`apple`)校验语句,语句不成立时拒绝注册,证书链抵达已配置的可信根时才把凭证标为 `enterprise_attestation_verified`,`none`、自签名和未知格式按未验证接受;`direct` 要求格式可校验且证书链抵达已配置的可信根,否则拒绝注册,因此 `fmt=none`、自签名和未知格式都被拒绝。`android-safetynet` 在 `indirect` 与 `direct` 下都拒绝
-- attestation 可信根取实例变量 `WEBAUTHN_TRUSTED_ROOTS_PEM` 与租户经 `/v1/webauthn/trusted-roots` 管理的根(KV `webauthn:trusted_roots:{tenantId}`)的并集。两处都没有根时把 `attestationMode` 切换为 `direct` 返回 422,`paramName=hostedAuth.attestationMode`
-- RPID = 具体租户子域(多租户隔离,见 00 章 6.1)
+- attestation 可信根取实例变量 `WEBAUTHN_TRUSTED_ROOTS_PEM` 与租户经 `/v1/webauthn/trusted-roots` 管理的根(KV `webauthn:trusted_roots:{tenantId}`)的并集。两处都没有根时把 `attestationMode` 切换为 `direct` 返回 422,`paramName=hostedAuth.attestationMode`;已经是 `direct` 时保存其他字段不受影响。Console 认证策略页有「Passkey attestation」分节,选项为 Not required / Check when present / Required。没有任何可信根时 Required 不可选,已保存为 Required 的除外,此时页面警告当前无人能登记 passkey。租户可信根由顶层组织的管理员在同一分节维护
+- RPID = `TenantContext.rpId`:多租户下是具体租户子域 `{slug}.{primary_domain}`,或已启用的自定义域名(多租户隔离,见 00 章 6.1)。所有仪式(登记、登录、passkey 第二因子、step-up)只在主机名等于该 rpId 的主机上进行,唯一例外是下文的较早地址入口
 
 ### 数据模型
 
-核心实体 PasskeyCredential(见 08 章):存公钥、aaguid、sign_count、transports、backup 状态、设备名;私钥永不入库。
+核心实体 PasskeyCredential(见 08 章):存公钥、aaguid、sign_count、transports、backup 状态、设备名,以及凭证登记时绑定的 rpId `rp_id`;私钥永不入库。
 
 ### 安全注意
 
@@ -54,6 +54,17 @@ credential、不完整 profile 或缺失的必需 Membership。
 - Conditional UI 不泄露凭证是否存在(结果为空不报错)
 - 域名变更前必须迁移或废弃旧 passkey,否则用户锁定。自定义域名仍需重新注册时,`/auth/config` 下发 `passkeyEntry.reregistrationRequired`;登录页说明原地址的 passkey 在此不可用并把其他登录方式排在前面,账户安全页提供为当前地址添加 passkey 的入口
 - 同步 passkey(BE=1)的 sign_count 可信度低,不单独作安全门控
+
+### 仪式主机与会话交接
+
+- 多租户下实例根域是 issuer 与 Hosted Auth 入口,但不在根域进行任何 passkey 仪式。`__Host-` 会话 cookie 不能跨主机,因此会话在实例根域与组织 rpId 主机之间交接。
+- 从实例入口登录:标识符、已选组织或 client 解析出组织后,`POST /auth/passkey/challenge` 在根域写入 `__Host-xid.handoff` state cookie 并返回 `ceremony: { origin, state }`。浏览器带着 `handoff_state` 与 `organization_id` 打开 rpId 主机上的 `/sign-in`。该次登录要续跑 `/authorize` 且无需 MFA 时,`POST /auth/passkey/verify` 返回一次性 grant 表单,浏览器把它提交到 issuer 主机,由 issuer 主机签发会话并续跑 `/authorize`。仍需 MFA 时先在 rpId 主机完成,`/authorize` 续跑经返回入口进行。
+- 登记 passkey(账户安全页、`/create-passkey`、`/mfa/setup`)、`/mfa` 上的 passkey 第二因子、账户页上的 passkey step-up:在 rpId 主机以外的主机上,`POST /auth/passkey/register/options` 与 `POST /auth/mfa/passkey/options` 返回 `{ handoff: { url } }`。浏览器先到 rpId 主机的 `GET /auth/passkey/handoff/prepare`,它写入 state cookie 后把浏览器送回来源主机的 `GET /auth/passkey/handoff/start`;`start` 凭当前会话签发 grant,并自动提交到 rpId 主机的 `POST /auth/passkey/handoff`。指向 `/authorize` 的 `redirect_to` 改写为 `GET /auth/passkey/handoff/return`,rpId 主机上的流程完成后经它把会话交回 issuer 主机。
+- `SessionHandoffDO`(绑定 `SESSION_HANDOFF`,每个随机 grant id 一个实例)只存 grant secret 与目标主机 state 的 SHA-256,以及租户、实例、目标 origin、用户、续跑路径和会话快照。grant 有效 2 分钟(`SESSION_HANDOFF_TTL_MS`),state cookie 有效 10 分钟(`SESSION_HANDOFF_STATE_MAX_AGE_SEC`)。消费时常量时间比对两个哈希,要求租户、实例、目标 origin 一致,并在同一存储事务里删除记录,grant 只能用一次。state cookie 只在消费成功后清除,伪造的表单不能打断正在进行的交接。
+- grant 只放在 POST 表单正文里,不进 URL,响应带 `no-referrer`,CSP 只允许提交到目标 origin。只在同一租户的主机之间交接:根域只接受 issuer 主机的子域作为来源,组织主机只接受 issuer。续跑路径限于 `/authorize`、`/account*`、`/mfa*`、`/create-passkey*` 和 `/auth/passkey/handoff/return`。会话状态原样携带(`pending_mfa` 交接后仍是 `pending_mfa`),目标主机重新检查用户为 active,代管(impersonation)会话不能发起交接。
+- prepare、start、消费、return 任一步被拒或失败都 302 到 `/sign-in?error=handoff_failed`,登录页提示用户重新登录。
+- 较早地址的凭证:仪式改到组织主机之前在实例根域登记的 passkey 绑定实例主域,`rp_id` 为 NULL。WebAuthn 允许子域 origin 以其上级可注册域名作 rpId,因此在组织 rpId 主机上 `/auth/config` 返回 `earlierPasskeyRpId`(实例主域);其他主机、单租户和自定义域名上为 null。登录页与 `/mfa` 提供「Use a passkey created on {host}」入口,由用户显式选择。服务端不自动切换,因为 `rp_id` 为 NULL 的也可能是该列出现前在组织主机登记的凭证。该入口提交 `earlier: true`,仪式以实例主域为 rpId;`/mfa` 上只列出 `rp_id` 为 NULL 的凭证。
+- 验签时组织 rpId 接受本租户的任意凭证,实例主域只接受 `rp_id` 为 NULL 的凭证,其余 rpId 一律拒绝。`rp_id` 为 NULL 的凭证以组织 rpId 验签通过后写入该 rpId,之后不再走实例主域。账户安全页给较早地址的凭证标出「Earlier address」,提示用户为当前主机创建 passkey 后删除较早的那一个。
 
 ### 实现规格:四验证字节级流程
 
@@ -95,8 +106,9 @@ credentialPublicKey 是 RFC 9052 COSE_Key(CBOR map,整数 label)。按 kty(label
 
 - EC2(kty=2,ES256):读 label -1=crv(必须 P-256 即值 1)、label -2=x(32 字节)、label -3=y(32 字节)。组装 JWK `{kty:"EC", crv:"P-256", x:base64url(x), y:base64url(y)}`,`crypto.subtle.importKey("jwk", jwk, {name:"ECDSA", namedCurve:"P-256"}, false, ["verify"])`。
 - RSA(kty=3,RS256):读 label -1=n(modulus)、label -2=e(exponent)。组装 JWK `{kty:"RSA", n:base64url(n), e:base64url(e)}`,`importKey("jwk", jwk, {name:"RSASSA-PKCS1-v1_5", hash:"SHA-256"}, false, ["verify"])`。
+- OKP(kty=1,EdDSA):label -1=crv 必须为 Ed25519,label -2=x 必须 32 字节。组装 JWK `{kty:"OKP", crv:"Ed25519", x:base64url(x)}`,`importKey("jwk", jwk, {name:"Ed25519"}, false, ["verify"])`。
 
-label 3=alg 校验:首轮允许 ES256=-7 和 RS256=-257;EdDSA(Ed25519)=-8 未实现,注册选项不广告,parser 直接拒绝。alg 不在允许集合直接拒绝。**注册时 server 把规范化后的 COSE public key 字节原样持久化**(PasskeyCredential.publicKey),认证时直接 importKey 复用,不重新协商算法。
+label 3=alg 校验:允许 ES256=-7、RS256=-257 与 EdDSA=-8,注册选项三者都广告。OKP 密钥的 alg 不是 EdDSA,或 alg 不在允许集合,直接拒绝。**注册时 server 把规范化后的 COSE public key 字节原样持久化**(PasskeyCredential.publicKey),认证时直接 importKey 复用,不重新协商算法。
 
 #### clientDataJSON 校验(注册与认证同序)
 
@@ -118,7 +130,7 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 6. attestation 处理按租户 `attestationMode`(见「设计决策」)。`none` 不验 attStmt。`indirect` 与 `direct` 下,可校验格式先验 attStmt 签名,再把证书链逐级验签到已配置的可信根,并检查证书有效期、basicConstraints 和与 authData 一致的 AAGUID 扩展(verification 4 在注册体现为 attestation 签名验证;none 模式无 attStmt 签名,凭证可信度来自后续认证的 signature)。
 7. 唯一性:`credentialId` 在租户内不得已存在(`UNIQUE (tenant_id, credential_id)`),已存在拒绝。
 8. 每账户 passkey 数 < 上限(默认 10),否则拒绝。
-9. 持久化 PasskeyCredential:publicKey(COSE 字节)、aaguid、初始 sign_count(=authData.signCount,通常 0)、transports、`credentialDeviceType`(BE 派生)、`credentialBackedUp`(BS 派生)、设备名。
+9. 持久化 PasskeyCredential:publicKey(COSE 字节)、aaguid、初始 sign_count(=authData.signCount,通常 0)、transports、`credentialDeviceType`(BE 派生)、`credentialBackedUp`(BS 派生)、设备名,以及 `rp_id` = `TenantContext.rpId`。
 10. 销毁 DO 中该 challenge。
 
 #### 认证验证步骤(server,verifyAuthentication)
@@ -127,16 +139,17 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 2. 用 `rawId`(credentialId)在租户内查 PasskeyCredential,查不到:**不报"凭证不存在"**,返回与验签失败相同的模糊响应(Conditional UI 不泄露存在性,枚举防护)。
 3. base64url 解码 `clientDataJSON`,按上节 1-5 校验(type=`webauthn.get`)。verification 1(challenge)、verification 2(origin)在此完成。
 4. base64url 解码 `authenticatorData`(认证时不含 attestedCredentialData,长度通常 37 + 可选 extensions):
-   - verification 3:`rpIdHash == SHA-256(TenantContext.rpId)`,不等拒绝。
+   - verification 3:`rpIdHash` 必须等于 `SHA-256(TenantContext.rpId)`;仅当凭证 `rp_id` 为 NULL 且 `TenantContext.rpId` 是实例主域的子域时,也可等于 `SHA-256(实例主域)`。每个候选都做常量时间比对,都不等则拒绝。
    - flags.UP==1 且 flags.UV==1,否则拒绝。
    - flags.BE 必须等于注册时存储的 backup eligibility(由 `credentialDeviceType` 还原),否则拒绝。
 5. 构造签名输入:`signatureBase = authenticatorData || SHA-256(clientDataJSON)`(authData 原始字节拼接 clientDataJSON 的 SHA-256 摘要 32 字节,共 authData.length + 32 字节)。
 6. verification 4(signature):用存储的 COSE public key importKey 得 CryptoKey,`crypto.subtle.verify(algParams, key, signature, signatureBase)`:
    - ES256:`algParams = {name:"ECDSA", hash:"SHA-256"}`。注意 WebAuthn 的 ECDSA 签名是 **ASN.1 DER 编码的 ECDSA-Sig-Value(SEQUENCE{r,s})**,而 Web Crypto `verify` 要求 **IEEE P1363 raw 格式(r||s 各 32 字节,共 64 字节)**。验签前必须把 DER 签名转成 raw r||s(自研 DER 解析,见 crypto-boundary:格式编解码自研)。
    - RS256:`algParams = {name:"RSASSA-PKCS1-v1_5"}`(hash 已在 importKey 时绑定),签名为原始字节直接传入。
+   - EdDSA:`algParams = {name:"Ed25519"}`,签名为原始字节直接传入。
      verify 返回 false -> 拒绝(模糊响应)。
 7. sign_count 克隆检测(见本节"设计决策"):新 signCount 与历史比较。两值均 0 接受;新值 > 历史值,更新存储;新值 <= 历史非零值,**标记异常触发风险审查**(写审计 + 可选告警),非直接拒绝;存储的 backup eligibility 为真的凭证与 aaguid 全零的平台 passkey 跳过比较,断言自带的 BE 不决定是否跳过。
-8. 更新 PasskeyCredential.sign_count = 新值,`backed_up` = 断言的 BS(即使触发风险审查也更新,避免后续每次都告警)。
+8. 更新 PasskeyCredential.sign_count = 新值,`backed_up` = 断言的 BS;`rp_id` 为 NULL 且命中 `TenantContext.rpId` 时写入该 rpId(即使触发风险审查也更新,避免后续每次都告警)。
 9. 销毁 DO 中该 challenge,签发会话。
 
 #### challenge 的 DO 边界

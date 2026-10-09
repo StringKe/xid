@@ -41,7 +41,9 @@ profile, or a missing required Membership.
   button-triggered flow when it is unsupported. The passkey entry is shown whenever the browser
   supports WebAuthn; Turnstile only gates the verify submission
 - On a tenant host Conditional UI starts without an identifier. Only the unresolved instance entry
-  needs an identifier (or a selected organization or client) to locate the RPID first. The
+  needs an identifier (or a selected organization or client) to locate the RPID first. When the
+  resolved organization's rpId is another host, the challenge endpoint issues no challenge and
+  sends the browser to sign in on that host (see "Ceremony host and session handoff"). The
   conditional request is renewed before the challenge expires and after a failed verification
 - All passkey sign-in goes through `POST /auth/passkey/challenge` and `POST /auth/passkey/verify`,
   which run the post-authentication MFA gate. Session lifetime always comes from tenant policy; the
@@ -55,13 +57,13 @@ profile, or a missing required Membership.
   when the new value is less than or equal to a non-zero historical value, flag it as anomalous and
   trigger a risk review rather than rejecting outright; credentials whose stored BE is set and platform passkeys with an all-zero aaguid skip the comparison to avoid false positives. An assertion whose BE flag differs from the value stored at registration is rejected
 - Attestation follows the tenant policy `hostedAuth.attestationMode`: `none` (default) skips verification; `indirect` verifies a statement in a verifiable format (`packed`, `fido-u2f`, `tpm`, `android-key`, `apple`), rejects the registration when that statement does not verify, and marks the credential `enterprise_attestation_verified` only when the chain reaches a configured root, while `none`, self attestation and unknown formats are accepted unverified; `direct` rejects registration unless the format is verifiable and the chain reaches a configured root, so `fmt=none`, self attestation and unknown formats are rejected. `android-safetynet` is rejected under both `indirect` and `direct`
-- Trusted attestation roots are the union of the instance variable `WEBAUTHN_TRUSTED_ROOTS_PEM` and the tenant roots managed through `/v1/webauthn/trusted-roots` (KV `webauthn:trusted_roots:{tenantId}`). Switching `attestationMode` to `direct` while neither source has a root returns 422 with `paramName=hostedAuth.attestationMode`
-- RPID is the specific tenant subdomain (multi-tenant isolation, see chapter 00 section 6.1)
+- Trusted attestation roots are the union of the instance variable `WEBAUTHN_TRUSTED_ROOTS_PEM` and the tenant roots managed through `/v1/webauthn/trusted-roots` (KV `webauthn:trusted_roots:{tenantId}`). Switching `attestationMode` to `direct` while neither source has a root returns 422 with `paramName=hostedAuth.attestationMode`; saving other fields while `direct` is already set is not blocked. The Console authentication policy page has a "Passkey attestation" section with Not required / Check when present / Required. Required is disabled while no root is configured unless it is already the saved mode, in which case a warning says no one can register a passkey. A manager of the top-level organization manages the tenant roots in the same section
+- RPID is `TenantContext.rpId`: the specific tenant subdomain `{slug}.{primary_domain}` in multi-tenant mode, or an active custom hostname (multi-tenant isolation, see chapter 00 section 6.1). Every ceremony (registration, sign-in, passkey second factor, step-up) runs only on the host whose name equals that rpId; the only exception is the earlier-address entry below
 
 ### Data model
 
 The core entity is PasskeyCredential (see chapter 08): it stores the public key, aaguid, sign_count,
-transports, backup state, and device name. The private key never reaches the database.
+transports, backup state, device name, and `rp_id`, the rpId the credential was registered under. The private key never reaches the database.
 
 ### Security notes
 
@@ -74,6 +76,17 @@ transports, backup state, and device name. The private key never reaches the dat
   passkey for the current address
 - The sign_count of a synced passkey (BE=1) has low reliability and MUST NOT be used as a standalone
   security gate
+
+### Ceremony host and session handoff
+
+- In multi-tenant mode the instance root domain is the issuer and the Hosted Auth entry, but no passkey ceremony runs there. `__Host-` session cookies cannot cross hosts, so the session moves between the instance root domain and the organization rpId host.
+- Sign-in from the instance entry: once the identifier, a selected organization or a client resolves the organization, `POST /auth/passkey/challenge` sets the `__Host-xid.handoff` state cookie on the root domain and returns `ceremony: { origin, state }`. The browser opens `/sign-in` on the rpId host with `handoff_state` and `organization_id`. When that sign-in continues to `/authorize` and needs no MFA step, `POST /auth/passkey/verify` returns a one-time grant form that the browser posts to the issuer host, which issues the session there and resumes `/authorize`. When MFA is still required, it completes on the rpId host and the `/authorize` continuation goes through the return entry.
+- Passkey registration (account security page, `/create-passkey`, `/mfa/setup`), the passkey second factor on `/mfa`, and passkey step-up on account pages: on any host other than the rpId host, `POST /auth/passkey/register/options` and `POST /auth/mfa/passkey/options` return `{ handoff: { url } }`. The browser goes to `GET /auth/passkey/handoff/prepare` on the rpId host, which sets the state cookie and sends the browser back to `GET /auth/passkey/handoff/start` on the source host; `start` mints a grant from the current session and auto-submits it to `POST /auth/passkey/handoff` on the rpId host. A `redirect_to` that points at `/authorize` is rewritten to `GET /auth/passkey/handoff/return`, which carries the session back to the issuer host once the flow on the rpId host finishes.
+- `SessionHandoffDO` (binding `SESSION_HANDOFF`, one instance per random grant id) stores only the SHA-256 of the grant secret and of the target host's state, plus tenant, instance, target origin, user, continuation and a session snapshot. A grant lives 2 minutes (`SESSION_HANDOFF_TTL_MS`) and the state cookie 10 minutes (`SESSION_HANDOFF_STATE_MAX_AGE_SEC`). Consumption compares both hashes in constant time, requires the same tenant, instance and target origin, and deletes the record in the same storage transaction, so a grant is single-use. The state cookie is cleared only after a successful consume, so a forged form cannot break a handoff in progress.
+- The grant travels only in a POST form body, never in a URL, with `no-referrer` and a CSP that allows submission only to the target origin. Only hosts of the same tenant take part: the root domain accepts sources that are subdomains of the issuer host, and an organization host accepts only the issuer. Continuations are limited to `/authorize`, `/account*`, `/mfa*`, `/create-passkey*` and `/auth/passkey/handoff/return`. The session status is carried unchanged (a `pending_mfa` session stays `pending_mfa`), the target host checks again that the user is active, and an impersonation session cannot start a handoff.
+- Any rejected or failed step (prepare, start, consume, return) redirects with 302 to `/sign-in?error=handoff_failed`, and the sign-in page asks the user to sign in again.
+- Earlier-address credentials: passkeys registered on the instance root domain before ceremonies moved to organization hosts are bound to the instance primary domain and have `rp_id` NULL. WebAuthn lets a subdomain origin use its parent registrable domain as rpId, so on the organization rpId host `/auth/config` returns `earlierPasskeyRpId` (the instance primary domain); it is null on any other host, in single-tenant mode and on a custom hostname. The sign-in page and `/mfa` offer "Use a passkey created on {host}" as an explicit choice. The server never switches automatically, because a NULL `rp_id` can also belong to a credential registered on the organization host before the column existed. That entry sends `earlier: true` and the ceremony uses the instance primary domain as rpId; on `/mfa` it lists only NULL-`rp_id` credentials.
+- Verification accepts the organization rpId for any credential of the tenant, and the instance primary domain only for a credential whose `rp_id` is NULL; every other rpId is rejected. A NULL-`rp_id` credential that verifies against the organization rpId has `rp_id` set to it and stops using the instance primary domain. The account security page marks earlier credentials "Earlier address" and asks the user to create a passkey for the current host and then remove the earlier one.
 
 ### Implementation spec: byte-level flow of the four verifications
 
@@ -131,10 +144,13 @@ credentialPublicKey is an RFC 9052 COSE_Key (a CBOR map with integer labels). Br
 - RSA (kty=3, RS256): read label -1 = n (modulus) and label -2 = e (exponent). Assemble the JWK
   `{kty:"RSA", n:base64url(n), e:base64url(e)}` and call
   `importKey("jwk", jwk, {name:"RSASSA-PKCS1-v1_5", hash:"SHA-256"}, false, ["verify"])`.
+- OKP (kty=1, EdDSA): label -1 = crv MUST be Ed25519 and label -2 = x MUST be 32 bytes. Assemble the
+  JWK `{kty:"OKP", crv:"Ed25519", x:base64url(x)}` and call
+  `importKey("jwk", jwk, {name:"Ed25519"}, false, ["verify"])`.
 
-Validation of label 3 = alg: the first release allows ES256 = -7 and RS256 = -257. EdDSA (Ed25519) =
--8 is not implemented, is not advertised in the registration options, and is rejected by the parser
-directly. Any alg outside the allowed set is rejected. **On registration the server persists the
+Validation of label 3 = alg: the allowed set is ES256 = -7, RS256 = -257 and EdDSA = -8, and the
+registration options advertise all three. An OKP key whose alg is not EdDSA, and any alg outside the
+allowed set, is rejected. **On registration the server persists the
 normalized COSE public key bytes verbatim** (PasskeyCredential.publicKey); authentication imports
 that key directly and does not renegotiate the algorithm.
 
@@ -173,7 +189,7 @@ detail goes to the audit log):
 8. The account's passkey count MUST be below the limit (10 by default), otherwise reject.
 9. Persist the PasskeyCredential: publicKey (COSE bytes), aaguid, initial sign_count
    (= authData.signCount, usually 0), transports, `credentialDeviceType` (derived from BE),
-   `credentialBackedUp` (derived from BS), and device name.
+   `credentialBackedUp` (derived from BS), device name, and `rp_id` = `TenantContext.rpId`.
 10. Destroy that challenge in the Durable Object.
 
 #### Authentication verification steps (server, verifyAuthentication)
@@ -187,7 +203,7 @@ detail goes to the audit log):
    Verification 1 (challenge) and verification 2 (origin) complete here.
 4. base64url-decode `authenticatorData` (on authentication it contains no attestedCredentialData, so
    the length is usually 37 plus optional extensions):
-   - Verification 3: `rpIdHash == SHA-256(TenantContext.rpId)`; a mismatch is rejected.
+   - Verification 3: `rpIdHash` MUST equal `SHA-256(TenantContext.rpId)`, or, only for a credential whose `rp_id` is NULL and only when `TenantContext.rpId` is a subdomain of the instance primary domain, `SHA-256(instance primary domain)`. Every candidate is compared in constant time; no match is rejected.
    - flags.UP == 1 and flags.UV == 1, otherwise reject.
    - flags.BE MUST equal the backup eligibility stored at registration (derived from `credentialDeviceType`), otherwise reject.
 5. Build the signature input:
@@ -203,6 +219,7 @@ detail goes to the audit log):
      that format encoding and decoding are built in-house).
    - RS256: `algParams = {name:"RSASSA-PKCS1-v1_5"}` (the hash was bound at importKey time) and the
      signature bytes are passed through unchanged.
+   - EdDSA: `algParams = {name:"Ed25519"}` and the signature bytes are passed through unchanged.
 
    A `verify` result of false rejects the request with an opaque response.
 
@@ -211,7 +228,7 @@ detail goes to the audit log):
    updates storage. A new value less than or equal to a non-zero stored value **flags an anomaly and
    triggers a risk review** (write an audit entry plus an optional alert) rather than rejecting
    outright. Credentials whose stored backup eligibility is set and platform passkeys with an all-zero aaguid skip the comparison; the assertion's own BE flag never decides the skip.
-8. Update `PasskeyCredential.sign_count` to the new value and `backed_up` to the assertion's BS flag. This happens even when a risk review was triggered, so the same alert does not fire on every subsequent sign-in.
+8. Update `PasskeyCredential.sign_count` to the new value and `backed_up` to the assertion's BS flag; a NULL `rp_id` that matched `TenantContext.rpId` is set to that rpId. This happens even when a risk review was triggered, so the same alert does not fire on every subsequent sign-in.
 9. Destroy that challenge in the Durable Object and issue the session.
 
 #### Durable Object boundary for challenges
