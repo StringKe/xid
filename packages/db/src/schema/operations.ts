@@ -388,6 +388,8 @@ export const billingMeterReports = sqliteTable(
     pendingEventName: text('pending_event_name'),
     pendingTimestamp: numCol('pending_timestamp'),
     pendingReservedAt: tsMs('pending_reserved_at'),
+    // 第一次可能被 Stripe 受理的发送时间;Stripe 明确拒绝的请求不计入,去重窗口从这里起算。
+    pendingSentAt: tsMs('pending_sent_at'),
     providerAcceptedAt: tsMs('provider_accepted_at'),
     reconciliationRequiredAt: tsMs('reconciliation_required_at'),
     ...timestamps(),
@@ -399,6 +401,22 @@ export const billingMeterReports = sqliteTable(
       .where(sql`${t.pendingIdentifier} IS NOT NULL`),
     index('billing_meter_reports_period_meter_tenant_idx').on(t.period, t.meterKey, t.tenantId),
   ],
+)
+
+// 每个 Stripe 订阅各自按事件顺序更新;租户计费状态取其订阅中最好的状态,旧订阅的事件不覆盖新订阅。
+export const billingSubscriptions = sqliteTable(
+  'billing_subscriptions',
+  {
+    subscriptionId: text('subscription_id').primaryKey(),
+    tenantId: tenantId(),
+    customerId: text('customer_id').notNull(),
+    status: text('status').notNull(),
+    lastEventId: text('last_event_id').notNull(),
+    lastEventCreated: numCol('last_event_created').notNull(),
+    lastEventPriority: numCol('last_event_priority').notNull(),
+    ...timestamps(),
+  },
+  (t) => [index('billing_subscriptions_tenant_status_idx').on(t.tenantId, t.status)],
 )
 
 // 已停用:XID 不创建 Checkout,表与历史行仅为增量迁移保留,代码不读写。

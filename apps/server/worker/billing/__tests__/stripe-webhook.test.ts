@@ -15,6 +15,7 @@ function subscriptionEvent(
     | 'customer.subscription.deleted',
   created: number,
   status?: string,
+  subscriptionId = 'sub_1',
 ): StripeEvent {
   return {
     id,
@@ -22,6 +23,7 @@ function subscriptionEvent(
     created,
     data: {
       object: {
+        id: subscriptionId,
         customer: 'cus_1',
         status,
         metadata: { xid_tenant_id: 'org_1' },
@@ -31,8 +33,110 @@ function subscriptionEvent(
   }
 }
 
+function accountStatus(d1: ReturnType<typeof createBillingDatabase>): unknown {
+  return d1.database
+    .prepare(`SELECT status FROM organization_plans WHERE tenant_id = 'org_1'`)
+    .get()
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
+})
+
+describe('Stripe webhook with replaced subscriptions', () => {
+  it('keeps the tenant active when the old subscription is deleted after the new one starts', async () => {
+    const d1 = createBillingDatabase()
+    const env = makeBillingEnv(d1)
+    await applyStripeEvent(
+      env,
+      subscriptionEvent('evt_old', 'customer.subscription.created', 100, 'active', 'sub_old'),
+    )
+    await applyStripeEvent(
+      env,
+      subscriptionEvent('evt_new', 'customer.subscription.created', 200, 'active', 'sub_new'),
+    )
+
+    await applyStripeEvent(
+      env,
+      subscriptionEvent(
+        'evt_old_deleted',
+        'customer.subscription.deleted',
+        300,
+        undefined,
+        'sub_old',
+      ),
+    )
+
+    expect(accountStatus(d1)).toEqual({ status: 'active' })
+    expect(
+      d1.database
+        .prepare(
+          `SELECT subscription_id, status FROM billing_subscriptions ORDER BY subscription_id`,
+        )
+        .all(),
+    ).toEqual([
+      { subscription_id: 'sub_new', status: 'active' },
+      { subscription_id: 'sub_old', status: 'canceled' },
+    ])
+    d1.close()
+  })
+
+  it('reactivates the tenant when an older new-subscription event arrives after the old deletion', async () => {
+    const d1 = createBillingDatabase()
+    const env = makeBillingEnv(d1)
+    await applyStripeEvent(
+      env,
+      subscriptionEvent('evt_old', 'customer.subscription.created', 100, 'active', 'sub_old'),
+    )
+    await applyStripeEvent(
+      env,
+      subscriptionEvent(
+        'evt_old_deleted',
+        'customer.subscription.deleted',
+        300,
+        undefined,
+        'sub_old',
+      ),
+    )
+    expect(accountStatus(d1)).toEqual({ status: 'canceled' })
+
+    await applyStripeEvent(
+      env,
+      subscriptionEvent('evt_new', 'customer.subscription.created', 250, 'active', 'sub_new'),
+    )
+
+    expect(accountStatus(d1)).toEqual({ status: 'active' })
+    d1.close()
+  })
+
+  it('cancels the tenant only when its last subscription is deleted', async () => {
+    const d1 = createBillingDatabase()
+    const env = makeBillingEnv(d1)
+    await applyStripeEvent(
+      env,
+      subscriptionEvent('evt_a', 'customer.subscription.created', 100, 'active', 'sub_a'),
+    )
+    await applyStripeEvent(
+      env,
+      subscriptionEvent('evt_b', 'customer.subscription.created', 110, 'past_due', 'sub_b'),
+    )
+    await applyStripeEvent(
+      env,
+      subscriptionEvent('evt_a_deleted', 'customer.subscription.deleted', 200, undefined, 'sub_a'),
+    )
+    expect(accountStatus(d1)).toEqual({ status: 'past_due' })
+
+    await applyStripeEvent(
+      env,
+      subscriptionEvent('evt_b_deleted', 'customer.subscription.deleted', 210, undefined, 'sub_b'),
+    )
+
+    expect(accountStatus(d1)).toEqual({ status: 'canceled' })
+    expect(
+      d1.database.prepare(`SELECT COUNT(*) AS value FROM platform_audit_outbox`).get(),
+    ).toEqual({ value: 4 })
+    d1.close()
+  })
 })
 
 describe('Stripe webhook persistence', () => {
@@ -142,7 +246,12 @@ describe('Stripe webhook persistence', () => {
       type: 'customer.subscription.updated',
       created: 200,
       data: {
-        object: { customer: 'cus_1', status: 'active', metadata: { xid_tenant_id: 'org_2' } },
+        object: {
+          id: 'sub_1',
+          customer: 'cus_1',
+          status: 'active',
+          metadata: { xid_tenant_id: 'org_2' },
+        },
       },
     }
 
