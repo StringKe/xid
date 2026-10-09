@@ -1156,12 +1156,20 @@ msgid "<0>{actor}</0> added <1>{target}</1> as a member"
 msgstr "<0>{actor}</0> a ajouté <1>{target}</1> comme membre"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> added a SAML app"
+msgstr "<0>{actor}</0> a ajouté une application SAML"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added a webhook endpoint"
 msgstr "<0>{actor}</0> a ajouté un point de terminaison webhook"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added an email address to <1>{target}</1>"
 msgstr "<0>{actor}</0> a ajouté une adresse e-mail à <1>{target}</1>"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> changed a SAML app"
+msgstr "<0>{actor}</0> a modifié une application SAML"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed sign-in and MFA settings"
@@ -1198,6 +1206,14 @@ msgstr "<0>{actor}</0> a désactivé <1>{target}</1>"
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted <1>{target}</1>"
 msgstr "<0>{actor}</0> a supprimé <1>{target}</1>"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> deleted a SAML app"
+msgstr "<0>{actor}</0> a supprimé une application SAML"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> deleted the enterprise SSO connection"
+msgstr "<0>{actor}</0> a supprimé la connexion SSO d'entreprise"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted the user <1>{target}</1>"
@@ -3586,6 +3602,14 @@ msgstr "Vérifiez les détails, puis acceptez avec le compte auquel vous êtes c
 msgid "Check the sequence range. It must exist in the chain and stay within 50,000 entries."
 msgstr "Vérifiez la plage de séquence. Elle doit exister dans la chaîne et ne pas dépasser 50 000 entrées."
 
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "Check the settings for {name}"
+msgstr "Vérifier les paramètres de {name}"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Check this value."
+msgstr "Vérifiez cette valeur."
+
 #: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
 msgid "Check when present"
 msgstr "Vérifier si présente"
@@ -5742,6 +5766,7 @@ msgstr "Modifier les quotas de ressources"
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Edit settings…"
 msgstr "Modifier les paramètres…"
 
@@ -6025,6 +6050,10 @@ msgstr "Saisissez un nom pour la clé."
 msgid "Enter a new code"
 msgstr "Saisir un nouveau code"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Enter a secret of at least 32 characters."
+msgstr "Saisissez un secret d'au moins 32 caractères."
+
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Enter a valid email address"
 msgstr "Saisissez une adresse e-mail valide"
@@ -6127,6 +6156,10 @@ msgstr "Saisissez l'adresse e-mail complète du propriétaire."
 #: apps/server/src/routes/account/SwaCredentialDialog.tsx
 msgid "Enter the password again to replace the saved one."
 msgstr "Saisissez à nouveau le mot de passe pour remplacer celui enregistré."
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Enter the real public https:// address."
+msgstr "Saisissez la véritable adresse publique https://."
 
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Enter the service name and the SCIM endpoint."
@@ -6907,6 +6940,7 @@ msgid "functions"
 msgstr "fonctions"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Gateway secret"
 msgstr "Secret de la passerelle"
 
@@ -7147,6 +7181,7 @@ msgstr "Fabrique de gestionnaire d'événements H3 : vérifie le JWT, écriteven
 msgid "Hash break"
 msgstr "Rupture de hachage"
 
+#: apps/console/src/routes/org/auth-format.ts
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Header"
@@ -9450,7 +9485,6 @@ msgstr "Du plus récent au plus ancien, 50 par page. Heures en UTC."
 
 #: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
-#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -9461,6 +9495,11 @@ msgstr "Du plus récent au plus ancien, 50 par page. Heures en UTC."
 #: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Next"
 msgstr "Suivant"
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgctxt "signing certificate status"
+msgid "Next"
+msgstr "Prochain"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Next key ready to make active"
@@ -11854,13 +11893,10 @@ msgstr "Ressource protégée"
 msgid "Protected routes redirect via <0>Response.redirect</0> in middleware before any page handler runs; no client-side JS is required."
 msgstr "Les routes protégées redirigent via <0>Response.redirect</0> dans lemiddleware avant l'exécution de tout gestionnaire de page ; aucun JS côtéclient n'est requis."
 
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocol"
 msgstr "Protocole"
-
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "Protocol for {label}"
-msgstr "Protocole pour {label}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocol requirements"
@@ -16907,6 +16943,7 @@ msgid "Trigger"
 msgstr "Déclencheur"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Trusted proxy secret"
 msgstr "Secret du proxy de confiance"
 
@@ -17004,6 +17041,10 @@ msgstr "Activer"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
 msgstr "Activez un verrouillage d'écran ou une empreinte digitale dans les réglages de votre appareil, puis réessayez."
+
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Turn on an enterprise connection in Enterprise SSO before requiring single sign-on."
+msgstr "Activez une connexion dans SSO d'entreprise avant d'exiger l'authentification unique."
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Turn on text message codes"
@@ -17284,6 +17325,10 @@ msgstr "Téléverser un certificat…"
 msgid "Upload metadata file"
 msgstr "Importer le fichier de métadonnées"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Upload metadata file…"
+msgstr "Importer le fichier de métadonnées…"
+
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
 msgid "Upload signing certificate"
 msgstr "Téléverser le certificat de signature"
@@ -17313,6 +17358,7 @@ msgid "Upstream enterprise OIDC relying party"
 msgstr "Partie de confiance OIDC d'entreprise en amont"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Upstream sign-in URL"
 msgstr "URL de connexion en amont"
 
@@ -18841,6 +18887,10 @@ msgstr "XID stocke le jeton API chiffré et ne l'affiche plus jamais après l'en
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID supports SCIM filter grammar with <0>and</0>, <1>or</1>, <2>not</2>, and comparison operators (<3>eq</3>, <4>ne</4>, <5>co</5>, <6>sw</6>, <7>ew</7>, <8>gt</8>, <9>ge</9>, <10>lt</10>, <11>le</11>, <12>pr</12>). Unsupported expressions return <13>invalidFilter</13>. List responses use SCIM 1-based pagination with <14>startIndex</14>, <15>count</15>, and <16>totalResults</16>, plus optional <17>sortBy</17> and <18>sortOrder</18>."
 msgstr "XID prend en charge la grammaire de filtre SCIM avec <0>and</0>, <1>or</1>, <2>not</2> et les opérateurs de comparaison (<3>eq</3>, <4>ne</4>, <5>co</5>, <6>sw</6>, <7>ew</7>, <8>gt</8>, <9>ge</9>, <10>lt</10>, <11>le</11>, <12>pr</12>). Les expressions non prises en charge renvoient <13>invalidFilter</13>. Les listes utilisent la pagination SCIM base 1 avec <14>startIndex</14>, <15>count</15>, <16>totalResults</16>, plus <17>sortBy</17> et <18>sortOrder</18> optionnels."
+
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "XID uses these addresses and fields when people sign in through {name}."
+msgstr "XID utilise ces adresses et ces champs lorsque des personnes se connectent via {name}."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XidAuthService"

@@ -1156,12 +1156,20 @@ msgid "<0>{actor}</0> added <1>{target}</1> as a member"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 멤버로 추가했습니다"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> added a SAML app"
+msgstr "<0>{actor}</0>님이 SAML 앱을 추가했습니다"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added a webhook endpoint"
 msgstr "<0>{actor}</0>님이 Webhook 엔드포인트를 추가했습니다"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added an email address to <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>에 이메일 주소를 추가했습니다"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> changed a SAML app"
+msgstr "<0>{actor}</0>님이 SAML 앱을 변경했습니다"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed sign-in and MFA settings"
@@ -1198,6 +1206,14 @@ msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 비활성화했습니다"
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 삭제했습니다"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> deleted a SAML app"
+msgstr "<0>{actor}</0>님이 SAML 앱을 삭제했습니다"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> deleted the enterprise SSO connection"
+msgstr "<0>{actor}</0>님이 엔터프라이즈 SSO 연결을 삭제했습니다"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted the user <1>{target}</1>"
@@ -3586,6 +3602,14 @@ msgstr "세부 정보를 확인한 뒤 현재 로그인한 계정으로 수락�
 msgid "Check the sequence range. It must exist in the chain and stay within 50,000 entries."
 msgstr "시퀀스 범위를 확인하세요. 체인에 존재해야 하며 50,000개를 넘을 수 없습니다."
 
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "Check the settings for {name}"
+msgstr "{name} 설정 확인"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Check this value."
+msgstr "이 값을 확인하세요."
+
 #: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
 msgid "Check when present"
 msgstr "제공된 경우 검증"
@@ -5742,6 +5766,7 @@ msgstr "리소스 할당량 편집"
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Edit settings…"
 msgstr "설정 편집…"
 
@@ -6025,6 +6050,10 @@ msgstr "키 이름을 입력하세요."
 msgid "Enter a new code"
 msgstr "새 코드 입력"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Enter a secret of at least 32 characters."
+msgstr "32자 이상의 시크릿을 입력하세요."
+
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Enter a valid email address"
 msgstr "유효한 이메일 주소를 입력하세요"
@@ -6127,6 +6156,10 @@ msgstr "조직 소유자의 전체 이메일 주소를 입력하세요."
 #: apps/server/src/routes/account/SwaCredentialDialog.tsx
 msgid "Enter the password again to replace the saved one."
 msgstr "저장된 비밀번호를 바꾸려면 비밀번호를 다시 입력하세요."
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Enter the real public https:// address."
+msgstr "실제 공개 https:// 주소를 입력하세요."
 
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Enter the service name and the SCIM endpoint."
@@ -6907,6 +6940,7 @@ msgid "functions"
 msgstr "함수"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Gateway secret"
 msgstr "게이트웨이 시크릿"
 
@@ -7147,6 +7181,7 @@ msgstr "H3 이벤트 핸들러 팩토리: JWT를 검증하고 event.context.xidA
 msgid "Hash break"
 msgstr "해시 불일치"
 
+#: apps/console/src/routes/org/auth-format.ts
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Header"
@@ -9450,7 +9485,6 @@ msgstr "최신순, 페이지당 50개. 시간은 UTC 기준입니다."
 
 #: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
-#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -9461,6 +9495,11 @@ msgstr "최신순, 페이지당 50개. 시간은 UTC 기준입니다."
 #: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Next"
 msgstr "다음"
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgctxt "signing certificate status"
+msgid "Next"
+msgstr "다음 인증서"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Next key ready to make active"
@@ -11854,13 +11893,10 @@ msgstr "보호된 리소스"
 msgid "Protected routes redirect via <0>Response.redirect</0> in middleware before any page handler runs; no client-side JS is required."
 msgstr "보호된 라우트는 페이지 핸들러가 실행되기 전에 미들웨어에서 <0>Response.redirect</0>를 통해 리디렉션됩니다. 클라이언트 측 JS가 필요하지 않습니다."
 
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocol"
 msgstr "프로토콜"
-
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "Protocol for {label}"
-msgstr "{label} 프로토콜"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocol requirements"
@@ -16907,6 +16943,7 @@ msgid "Trigger"
 msgstr "트리거"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Trusted proxy secret"
 msgstr "신뢰할 수 있는 프록시 시크릿"
 
@@ -17004,6 +17041,10 @@ msgstr "켜기"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
 msgstr "기기 설정에서 화면 잠금이나 지문을 켠 뒤 다시 시도하세요."
+
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Turn on an enterprise connection in Enterprise SSO before requiring single sign-on."
+msgstr "SSO를 필수로 설정하기 전에 엔터프라이즈 SSO에서 연결을 켜세요."
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Turn on text message codes"
@@ -17284,6 +17325,10 @@ msgstr "인증서 업로드…"
 msgid "Upload metadata file"
 msgstr "메타데이터 파일 업로드"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Upload metadata file…"
+msgstr "메타데이터 파일 업로드…"
+
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
 msgid "Upload signing certificate"
 msgstr "서명 인증서 업로드"
@@ -17313,6 +17358,7 @@ msgid "Upstream enterprise OIDC relying party"
 msgstr "Upstream 엔터프라이즈 OIDC relying party"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Upstream sign-in URL"
 msgstr "업스트림 로그인 URL"
 
@@ -18841,6 +18887,10 @@ msgstr "XID는 API 토큰을 암호화해 저장하며 저장 후에는 다시 �
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID supports SCIM filter grammar with <0>and</0>, <1>or</1>, <2>not</2>, and comparison operators (<3>eq</3>, <4>ne</4>, <5>co</5>, <6>sw</6>, <7>ew</7>, <8>gt</8>, <9>ge</9>, <10>lt</10>, <11>le</11>, <12>pr</12>). Unsupported expressions return <13>invalidFilter</13>. List responses use SCIM 1-based pagination with <14>startIndex</14>, <15>count</15>, and <16>totalResults</16>, plus optional <17>sortBy</17> and <18>sortOrder</18>."
 msgstr "XID는 <0>and</0>, <1>or</1>, <2>not</2> 및 비교 연산자(<3>eq</3>, <4>ne</4>, <5>co</5>, <6>sw</6>, <7>ew</7>, <8>gt</8>, <9>ge</9>, <10>lt</10>, <11>le</11>, <12>pr</12>)를 포함한 SCIM 필터 문법을 지원합니다. 지원되지 않는 식은 <13>invalidFilter</13>를 반환합니다. 목록 응답은 <14>startIndex</14>, <15>count</15>, <16>totalResults</16>를 사용하는 SCIM 1 기반 페이지네이션과 선택적 <17>sortBy</17>, <18>sortOrder</18>를 사용합니다."
+
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "XID uses these addresses and fields when people sign in through {name}."
+msgstr "사용자가 {name}(으)로 로그인할 때 XID가 이 주소와 필드를 사용합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XidAuthService"

@@ -1156,12 +1156,20 @@ msgid "<0>{actor}</0> added <1>{target}</1> as a member"
 msgstr "<0>{actor}</0> が <1>{target}</1> をメンバーに追加しました"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> added a SAML app"
+msgstr "<0>{actor}</0> が SAML アプリを追加しました"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added a webhook endpoint"
 msgstr "<0>{actor}</0> が webhook エンドポイントを追加しました"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added an email address to <1>{target}</1>"
 msgstr "<0>{actor}</0> が <1>{target}</1> にメールアドレスを追加しました"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> changed a SAML app"
+msgstr "<0>{actor}</0> が SAML アプリを変更しました"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed sign-in and MFA settings"
@@ -1198,6 +1206,14 @@ msgstr "<0>{actor}</0> が <1>{target}</1> を無効化しました"
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted <1>{target}</1>"
 msgstr "<0>{actor}</0> が <1>{target}</1> を削除しました"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> deleted a SAML app"
+msgstr "<0>{actor}</0> が SAML アプリを削除しました"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
+msgid "<0>{actor}</0> deleted the enterprise SSO connection"
+msgstr "<0>{actor}</0> がエンタープライズ SSO 接続を削除しました"
 
 #: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted the user <1>{target}</1>"
@@ -3586,6 +3602,14 @@ msgstr "内容を確認し、サインイン中のアカウントで承諾して
 msgid "Check the sequence range. It must exist in the chain and stay within 50,000 entries."
 msgstr "シーケンス範囲を確認してください。チェーン内に存在し、50,000 件以内である必要があります。"
 
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "Check the settings for {name}"
+msgstr "{name} の設定を確認"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Check this value."
+msgstr "この値を確認してください。"
+
 #: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
 msgid "Check when present"
 msgstr "提示された場合に検証"
@@ -5742,6 +5766,7 @@ msgstr "リソースクォータを編集"
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Edit settings…"
 msgstr "設定を編集…"
 
@@ -6025,6 +6050,10 @@ msgstr "キーの名前を入力してください。"
 msgid "Enter a new code"
 msgstr "新しいコードを入力"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Enter a secret of at least 32 characters."
+msgstr "32 文字以上のシークレットを入力してください。"
+
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Enter a valid email address"
 msgstr "有効なメールアドレスを入力してください"
@@ -6127,6 +6156,10 @@ msgstr "組織所有者のメールアドレスをすべて入力してくださ
 #: apps/server/src/routes/account/SwaCredentialDialog.tsx
 msgid "Enter the password again to replace the saved one."
 msgstr "保存済みのパスワードを置き換えるには、パスワードを再入力してください。"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Enter the real public https:// address."
+msgstr "実際の公開 https:// アドレスを入力してください。"
 
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Enter the service name and the SCIM endpoint."
@@ -6907,6 +6940,7 @@ msgid "functions"
 msgstr "関数"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Gateway secret"
 msgstr "ゲートウェイのシークレット"
 
@@ -7147,6 +7181,7 @@ msgstr "H3 イベントハンドラーファクトリー：JWT を検証し、ev
 msgid "Hash break"
 msgstr "ハッシュの不一致"
 
+#: apps/console/src/routes/org/auth-format.ts
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Header"
@@ -8720,7 +8755,7 @@ msgstr "macOS 13+"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "magic link"
-msgstr "マジックリンク"
+msgstr "メールリンク"
 
 #: apps/console/src/routes/org/AuthPolicySections.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -9450,7 +9485,6 @@ msgstr "新しい順、1 ページ 50 件。時刻は UTC です。"
 
 #: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
-#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -9461,6 +9495,11 @@ msgstr "新しい順、1 ページ 50 件。時刻は UTC です。"
 #: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Next"
 msgstr "次へ"
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgctxt "signing certificate status"
+msgid "Next"
+msgstr "次の証明書"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Next key ready to make active"
@@ -11854,13 +11893,10 @@ msgstr "保護されたリソース"
 msgid "Protected routes redirect via <0>Response.redirect</0> in middleware before any page handler runs; no client-side JS is required."
 msgstr "保護されたルートはページハンドラーが実行される前にミドルウェアで <0>Response.redirect</0> 経由でリダイレクトします。クライアントサイド JS は不要です。"
 
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocol"
 msgstr "プロトコル"
-
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "Protocol for {label}"
-msgstr "{label} のプロトコル"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocol requirements"
@@ -16907,6 +16943,7 @@ msgid "Trigger"
 msgstr "トリガー"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Trusted proxy secret"
 msgstr "信頼済みプロキシのシークレット"
 
@@ -17004,6 +17041,10 @@ msgstr "オンにする"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
 msgstr "デバイスの設定で画面ロックまたは指紋を有効にしてから、もう一度お試しください。"
+
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Turn on an enterprise connection in Enterprise SSO before requiring single sign-on."
+msgstr "シングルサインオンを必須にする前に、エンタープライズ SSO で接続を有効にしてください。"
 
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Turn on text message codes"
@@ -17284,6 +17325,10 @@ msgstr "証明書をアップロード…"
 msgid "Upload metadata file"
 msgstr "メタデータファイルをアップロード"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Upload metadata file…"
+msgstr "メタデータファイルをアップロード…"
+
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
 msgid "Upload signing certificate"
 msgstr "署名証明書をアップロード"
@@ -17313,6 +17358,7 @@ msgid "Upstream enterprise OIDC relying party"
 msgstr "上流エンタープライズ OIDC リライングパーティ"
 
 #: apps/console/src/routes/org/SsoConnectionInputs.tsx
+#: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Upstream sign-in URL"
 msgstr "上流のサインイン URL"
 
@@ -18841,6 +18887,10 @@ msgstr "XID は API トークンを暗号化して保存し、保存後は二度
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID supports SCIM filter grammar with <0>and</0>, <1>or</1>, <2>not</2>, and comparison operators (<3>eq</3>, <4>ne</4>, <5>co</5>, <6>sw</6>, <7>ew</7>, <8>gt</8>, <9>ge</9>, <10>lt</10>, <11>le</11>, <12>pr</12>). Unsupported expressions return <13>invalidFilter</13>. List responses use SCIM 1-based pagination with <14>startIndex</14>, <15>count</15>, and <16>totalResults</16>, plus optional <17>sortBy</17> and <18>sortOrder</18>."
 msgstr "XID は <0>and</0>、<1>or</1>、<2>not</2> と比較演算子（<3>eq</3>、<4>ne</4>、<5>co</5>、<6>sw</6>、<7>ew</7>、<8>gt</8>、<9>ge</9>、<10>lt</10>、<11>le</11>、<12>pr</12>）を含む SCIM フィルター文法をサポートします。未サポート式は <13>invalidFilter</13> を返します。一覧応答は <14>startIndex</14>、<15>count</15>、<16>totalResults</16> を使う SCIM 1 始まりのページネーションと、任意の <17>sortBy</17>、<18>sortOrder</18> を使用します。"
+
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "XID uses these addresses and fields when people sign in through {name}."
+msgstr "{name} 経由でサインインするとき、XID はこれらのアドレスとフィールドを使用します。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XidAuthService"
