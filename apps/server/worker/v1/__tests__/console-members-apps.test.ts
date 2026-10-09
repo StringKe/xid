@@ -4,6 +4,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { schema } from '@xid-kit/db'
 import { eq } from 'drizzle-orm'
+import { encryptScimTargetToken } from '../../scim/target-credentials'
 import { registerApplications } from '../applications'
 import { registerInvitationActionRoutes } from '../invitation-actions'
 import { registerInvitationsRoutes } from '../invitations'
@@ -91,6 +92,38 @@ describe('memberships 改角色与最后一位 owner', () => {
     expect(byOwner.status).toBe(200)
     const row = await tenantDb(d1).memberships.findOne(eq(schema.memberships.id, 'mem_member'))
     expect(row?.role).toBe('owner')
+  })
+
+  it('改角色只为该成员入队出站 SCIM 单用户同步', async () => {
+    const d1 = await seedOrgWithPeople()
+    const env = envOf(d1)
+    await tenantDb(d1).scimTargets.insert({
+      id: 'st_1',
+      tenantId: 't_a',
+      orgId: 't_a',
+      provider: 'custom',
+      baseUrl: 'https://downstream.example.com/scim',
+      tokenSecretRef: 'st_1',
+      ...(await encryptScimTargetToken(env as unknown as Env, 'downstream')),
+    })
+
+    const res = await buildApp(registerMembershipsRoutes, {
+      session: sessionFor('user_owner'),
+    }).request(
+      `${BASE}/organizations/t_a/memberships/mem_member`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin' }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(200)
+    await vi.waitFor(() => expect(env.SCIM_QUEUE.send).toHaveBeenCalled())
+    expect(env.SCIM_QUEUE.send).toHaveBeenCalledWith(
+      expect.objectContaining({ targetId: 'st_1', userId: 'user_member' }),
+    )
   })
 
   it('跨租户 membership 返回 404', async () => {

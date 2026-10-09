@@ -12,7 +12,7 @@ import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import { readJsonBody, validateBody } from '../lib/validate'
-import { scheduleOrgScimTargetSyncs } from '../scim/outbound'
+import { scheduleOrgScimTargetSyncs } from '../scim/outbound-enqueue'
 import {
   requireApiKey,
   parsePagination,
@@ -334,7 +334,7 @@ app.patch('/:orgId/memberships/:membershipId', async (c) => {
     event: 'organizationMembership.updated',
     payload: { orgId, membershipId },
   })
-  scheduleOrgScimTargetSyncs(c, orgId)
+  scheduleOrgScimTargetSyncs(c, orgId, row.userId)
   auditMembership(c, { action: 'membership.updated', actorId: auditActorId(auth), row })
   return c.json(toResponse(row))
 })
@@ -372,7 +372,7 @@ app.delete('/:orgId/memberships/:membershipId', async (c) => {
     event: 'organizationMembership.deleted',
     payload: { orgId, membershipId, userId: existing.userId },
   })
-  scheduleOrgScimTargetSyncs(c, orgId)
+  scheduleOrgScimTargetSyncs(c, orgId, existing.userId)
   auditMembership(c, { action: 'membership.removed', actorId: auditActorId(auth), row: existing })
   return new Response(null, { status: 204 })
 })
@@ -420,7 +420,7 @@ app.post('/:orgId/memberships/:membershipId/restore', async (c) => {
     event: 'organizationMembership.restored',
     payload: { orgId, membershipId, userId: existing.userId },
   })
-  scheduleOrgScimTargetSyncs(c, orgId)
+  scheduleOrgScimTargetSyncs(c, orgId, existing.userId)
   auditMembership(c, { action: 'membership.restored', actorId: key.id, row })
   return c.json(toResponse(row))
 })

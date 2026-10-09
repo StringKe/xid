@@ -7,7 +7,7 @@ import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
-import { scheduleOrgScimTargetSyncs } from '../scim/outbound'
+import { scheduleOrgScimTargetSyncs } from '../scim/outbound-enqueue'
 import { mutateMembership } from '../v1/memberships'
 import { emitManagementAuditAsync, emitWebhookAsync } from '../v1/shared'
 import { requireSession } from './shared'
@@ -53,7 +53,7 @@ app.post('/:orgId/leave', async (c) => {
     event: 'organizationMembership.deleted',
     payload: { orgId, membershipId: membership.id, userId: session.userId },
   })
-  scheduleOrgScimTargetSyncs(c, orgId)
+  scheduleOrgScimTargetSyncs(c, orgId, session.userId)
   emitManagementAuditAsync(c, {
     action: 'membership.left',
     actorId: session.userId,

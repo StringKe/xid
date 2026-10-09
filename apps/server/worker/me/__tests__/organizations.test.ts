@@ -1,6 +1,7 @@
 // POST /v1/me/organizations/:orgId/leave:真实 SQLite 验证 owner 保护、active org 清空与租户隔离。
 
 import { describe, expect, it, vi } from 'vitest'
+import { encryptScimTargetToken } from '../../scim/target-credentials'
 import { registerMeOrganizationsRoutes } from '../organizations'
 import { buildApp, makeSession } from './harness'
 import { seedMembership, seedOrganization, seedUser, SqliteD1 } from './sqlite-d1'
@@ -113,6 +114,46 @@ describe('POST /v1/me/organizations/:orgId/leave', () => {
 
     expect(res.status).toBe(204)
     expect(membershipStatus(db, 'm_1')).toBe('inactive')
+  })
+
+  it('queues an outbound SCIM sync for the leaving user only, not a full org run', async () => {
+    const db = seed()
+    seedMembership(db, { id: 'm_1', tenantId: 't_1', orgId: 'org_field', userId: 'u_1' })
+    const kek = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+    const token = await encryptScimTargetToken({ KEK: kek } as unknown as Env, 'downstream')
+    db.insert('scim_targets', {
+      id: 'st_1',
+      tenant_id: 't_1',
+      org_id: 'org_field',
+      provider: 'custom',
+      base_url: 'https://downstream.example.com/scim',
+      token_secret_ref: 'st_1',
+      token_iv: token.tokenIv,
+      token_ciphertext: token.tokenCiphertext,
+      token_tag: token.tokenTag,
+      user_filter: '{}',
+      status: 'active',
+      created_at: NOW,
+      updated_at: NOW,
+    })
+    const scimSend = vi.fn().mockResolvedValue(undefined)
+    const env = { ...makeEnv(db).env, KEK: kek, SCIM_QUEUE: { send: scimSend } } as unknown as Env
+    const app = buildApp({
+      register: registerMeOrganizationsRoutes,
+      session: makeSession({ userId: 'u_1', activeOrgId: 'org_field' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/organizations/org_field/leave',
+      { method: 'POST' },
+      env,
+    )
+
+    expect(res.status).toBe(204)
+    await vi.waitFor(() => expect(scimSend).toHaveBeenCalled())
+    expect(scimSend).toHaveBeenCalledWith(
+      expect.objectContaining({ targetId: 'st_1', orgId: 'org_field', userId: 'u_1' }),
+    )
   })
 
   it('returns 404 for an organization in another tenant', async () => {
