@@ -42,6 +42,32 @@ class FakeD1 {
   }
 }
 
+function configUpdates(db: FakeD1): Prepared[] {
+  return db.runs.filter((run) => run.sql.includes('SET idp_entity_id'))
+}
+
+function failureUpdates(db: FakeD1): Prepared[] {
+  return db.runs.filter((run) => run.sql.includes('SET idp_metadata_last_error = ?'))
+}
+
+function successUpdates(db: FakeD1): Prepared[] {
+  return db.runs.filter((run) => run.sql.includes('SET idp_metadata_refreshed_at = ?'))
+}
+
+function connection(overrides: Row = {}): Row {
+  return {
+    id: 'conn_1',
+    tenant_id: 'tenant_1',
+    org_id: 'org_1',
+    idp_metadata_url: 'https://idp.example.com/metadata.xml',
+    idp_entity_id: null,
+    idp_sso_url: null,
+    idp_slo_url: null,
+    idp_certificates: '[]',
+    ...overrides,
+  }
+}
+
 function idpMetadataXml(
   cert: string,
   ssoUrl = 'https://idp.example.com/sso',
@@ -107,7 +133,7 @@ describe('pollSamlIdpMetadata negative paths', () => {
 
     await pollSamlIdpMetadata(makeEnv(db))
 
-    expect(db.runs.some((run) => run.sql.includes('UPDATE sso_connections'))).toBe(false)
+    expect(configUpdates(db)).toHaveLength(0)
     expect(globalThis.fetch).toHaveBeenCalledWith(
       'https://idp.example.com/metadata.xml',
       expect.objectContaining({
@@ -133,7 +159,7 @@ describe('pollSamlIdpMetadata negative paths', () => {
     await pollSamlIdpMetadata(makeEnv(db))
 
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(db.runs.some((run) => run.sql.includes('UPDATE sso_connections'))).toBe(false)
+    expect(configUpdates(db)).toHaveLength(0)
   })
 
   it('does not persist a non-public SSO URL from otherwise valid metadata', async () => {
@@ -154,7 +180,7 @@ describe('pollSamlIdpMetadata negative paths', () => {
 
     await pollSamlIdpMetadata(makeEnv(db))
 
-    expect(db.runs.some((run) => run.sql.includes('UPDATE sso_connections'))).toBe(false)
+    expect(configUpdates(db)).toHaveLength(0)
   })
 
   it('does not persist a non-public SLO URL from otherwise valid metadata', async () => {
@@ -177,7 +203,7 @@ describe('pollSamlIdpMetadata negative paths', () => {
 
     await pollSamlIdpMetadata(makeEnv(db))
 
-    expect(db.runs.some((run) => run.sql.includes('UPDATE sso_connections'))).toBe(false)
+    expect(configUpdates(db)).toHaveLength(0)
   })
 
   it('skips UPDATE when metadata XML cannot be parsed', async () => {
@@ -196,7 +222,7 @@ describe('pollSamlIdpMetadata negative paths', () => {
 
     await pollSamlIdpMetadata(makeEnv(db))
 
-    expect(db.runs.some((run) => run.sql.includes('UPDATE sso_connections'))).toBe(false)
+    expect(configUpdates(db)).toHaveLength(0)
   })
 
   it('isolates metadata_too_large per connection without blocking siblings', async () => {
@@ -226,9 +252,12 @@ describe('pollSamlIdpMetadata negative paths', () => {
     await pollSamlIdpMetadata(makeEnv(db))
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    const updates = db.runs.filter((run) => run.sql.includes('UPDATE sso_connections'))
+    const updates = configUpdates(db)
     expect(updates).toHaveLength(1)
-    expect(updates[0]?.args[5]).toBe('conn_b')
+    expect(updates[0]?.args.slice(5)).toEqual(['tenant_1', 'conn_b'])
+    expect(failureUpdates(db).map((run) => run.args)).toEqual([
+      ['metadata_too_large', expect.any(Number), 'tenant_1', 'conn_a'],
+    ])
   })
 
   it('paginates active SAML connections in id order', async () => {
@@ -249,7 +278,7 @@ describe('pollSamlIdpMetadata negative paths', () => {
     await pollSamlIdpMetadata(makeEnv(db))
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(51)
-    expect(db.runs.filter((run) => run.sql.includes('UPDATE sso_connections'))).toHaveLength(51)
+    expect(configUpdates(db)).toHaveLength(51)
   })
 
   it('continues polling when one connection fetch throws', async () => {
@@ -280,7 +309,98 @@ describe('pollSamlIdpMetadata negative paths', () => {
     await pollSamlIdpMetadata(makeEnv(db, sent))
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(db.runs.filter((run) => run.sql.includes('UPDATE sso_connections'))).toHaveLength(1)
+    expect(configUpdates(db)).toHaveLength(1)
     expect(sent[0]?.['event']).toBe('connection.saml_certificate_renewed')
+    expect(failureUpdates(db).map((run) => run.args)).toEqual([
+      ['metadata_fetch_failed', expect.any(Number), 'tenant_1', 'conn_fail'],
+    ])
+  })
+})
+
+describe('pollSamlIdpMetadata refresh status', () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
+
+  it('records the HTTP failure on the connection scoped by tenant and logs a warning', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response('', { status: 503 })) as typeof fetch
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const db = new FakeD1([connection()])
+
+    await pollSamlIdpMetadata(makeEnv(db))
+
+    const [failure] = failureUpdates(db)
+    expect(failure?.sql).toContain('WHERE tenant_id = ? AND id = ?')
+    expect(failure?.args).toEqual([
+      'metadata_http_status',
+      expect.any(Number),
+      'tenant_1',
+      'conn_1',
+    ])
+    expect(successUpdates(db)).toHaveLength(0)
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'cron.daily.saml_metadata_refresh_failed',
+        reason: 'metadata_http_status',
+        status: 503,
+      }),
+    )
+  })
+
+  it('records metadata_url_not_allowed for a stored URL that is no longer public', async () => {
+    globalThis.fetch = vi.fn() as typeof fetch
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const db = new FakeD1([connection({ idp_metadata_url: 'https://10.0.0.1/metadata' })])
+
+    await pollSamlIdpMetadata(makeEnv(db))
+
+    expect(failureUpdates(db)[0]?.args[0]).toBe('metadata_url_not_allowed')
+  })
+
+  it('records metadata_invalid when the XML cannot be parsed', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response('<nope/>')) as typeof fetch
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const db = new FakeD1([connection()])
+
+    await pollSamlIdpMetadata(makeEnv(db))
+
+    expect(failureUpdates(db)[0]?.args[0]).toBe('metadata_invalid')
+  })
+
+  it('only marks the refresh time when the metadata matches the stored configuration', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(idpMetadataXml('CERT_SAME'))) as typeof fetch
+    const db = new FakeD1([
+      connection({
+        idp_entity_id: 'https://idp.example.com/metadata',
+        idp_sso_url: 'https://idp.example.com/sso',
+        idp_slo_url: 'https://idp.example.com/slo',
+        idp_certificates: JSON.stringify(['CERT_SAME']),
+      }),
+    ])
+
+    await pollSamlIdpMetadata(makeEnv(db))
+
+    expect(configUpdates(db)).toHaveLength(0)
+    const [success] = successUpdates(db)
+    expect(success?.sql).toContain('idp_metadata_last_error = NULL')
+    expect(success?.args).toEqual([expect.any(Number), 'tenant_1', 'conn_1'])
+  })
+
+  it('binds tenant_id on the configuration update', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(idpMetadataXml('CERT_NEW'))) as typeof fetch
+    const db = new FakeD1([connection({ tenant_id: 'tenant_9', id: 'conn_9' })])
+
+    await pollSamlIdpMetadata(makeEnv(db))
+
+    const [update] = configUpdates(db)
+    expect(update?.sql).toContain('WHERE tenant_id = ? AND id = ?')
+    expect(update?.args.slice(5)).toEqual(['tenant_9', 'conn_9'])
   })
 })

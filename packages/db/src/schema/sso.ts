@@ -16,6 +16,10 @@ export const ssoConnections = sqliteTable(
     idpSsoUrl: text('idp_sso_url'),
     idpSloUrl: text('idp_slo_url'),
     idpMetadataUrl: text('idp_metadata_url'),
+    idpMetadataXml: text('idp_metadata_xml'),
+    idpMetadataRefreshedAt: tsMs('idp_metadata_refreshed_at'),
+    idpMetadataLastError: text('idp_metadata_last_error'),
+    idpMetadataLastErrorAt: tsMs('idp_metadata_last_error_at'),
     idpCertificates: text('idp_certificates', { mode: 'json' })
       .$type<string[]>()
       .notNull()
@@ -65,12 +69,16 @@ export const certStore = sqliteTable(
     notBefore: tsMs('not_before'),
     notAfter: tsMs('not_after'),
     fingerprint: text('fingerprint').notNull(),
+    retireAfter: tsMs('retire_after'),
     ...timestamps(),
   },
   (t) => [
     uniqueIndex('cert_store_tenant_usage_active_unq')
       .on(t.tenantId, t.usage)
       .where(sql`${t.status} = 'active' AND ${t.usage} = 'saml_idp_signing'`),
+    uniqueIndex('cert_store_tenant_usage_next_unq')
+      .on(t.tenantId, t.usage)
+      .where(sql`${t.status} = 'next' AND ${t.usage} = 'saml_idp_signing'`),
     index('cert_store_tenant_usage_status_idx').on(t.tenantId, t.usage, t.status),
     index('cert_store_tenant_usage_status_id_idx').on(t.tenantId, t.usage, t.status, t.id),
   ],

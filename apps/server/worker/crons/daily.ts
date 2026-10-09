@@ -3,14 +3,12 @@
 
 import { generateTenantSigningKey } from '@xid-kit/crypto'
 import { USER_PROVISIONED_BY_ANONYMOUS } from '@xid-kit/db'
-import { parseIdpMetadataXml } from '@xid-kit/saml'
 import type { SigningAlg } from '@xid-kit/types'
 import { decodeKek } from '../oidc/shared'
 import { createPersistedId } from '../lib/persisted-id'
 import { domainVerificationRecord } from '../lib/domain-verification'
 import { sessionDoRevokeAll } from '../lib/session'
 import { GUEST_GC_INACTIVE_DAYS } from '../lib/ttl'
-import { isPublicHttpsUrl } from '../lib/validate'
 import {
   cloudflareForSaasConfigFromEnv,
   type CloudflareForSaasEnv,
@@ -20,6 +18,9 @@ import { maintainCustomHostnames } from './custom-hostnames'
 import { enqueueDuePrivacyRequests, expirePrivacyExports } from './privacy'
 import { enqueueScheduledScimTargetSyncs } from './scim-targets'
 import { reportStripeMauUsage } from '../billing/stripe-metering'
+import { pollSamlIdpMetadata } from './saml-idp-metadata'
+
+export { pollSamlIdpMetadata }
 
 // MeteringDO RPC stub(取最终 MAU 数值)。
 type MeteringCountStub = {
@@ -39,21 +40,10 @@ type InstanceSigningKeyRow = {
   alg: SigningAlg | string
 }
 
-type IdpMetadataConnectionRow = {
-  id: string
-  tenant_id: string
-  org_id: string
-  idp_metadata_url: string
-  idp_certificates: string | string[] | null
-}
-
 const RETIRING_KEY_GRACE_MS = 60 * 60 * 1000
 const ACTIVE_KEY_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000
 const TENANT_PAGE_SIZE = 50
 const DOMAIN_PAGE_SIZE = 50
-const SAML_METADATA_PAGE_SIZE = 50
-const SAML_METADATA_MAX_BYTES = 1024 * 1024
-const SAML_METADATA_FETCH_TIMEOUT_MS = 10_000
 const DNS_TXT_FETCH_TIMEOUT_MS = 5_000
 const METERING_EVICT_PAGE_SIZE = 50
 const KEK_VERSION = 1
@@ -240,130 +230,6 @@ export async function pollDomainVerification(env: Env): Promise<void> {
         row.id,
       )
       .run()
-  }
-}
-
-function parseStoredCertificates(value: string | string[] | null): string[] {
-  if (Array.isArray(value)) return value.filter((cert) => cert.length > 0)
-  if (typeof value !== 'string' || value.length === 0) return []
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed)
-      ? parsed.filter((cert): cert is string => typeof cert === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
-
-function certificateSetChanged(oldCerts: string[], newCerts: string[]): boolean {
-  if (oldCerts.length !== newCerts.length) return true
-  const oldSet = new Set(oldCerts)
-  return newCerts.some((cert) => !oldSet.has(cert))
-}
-
-async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
-  const reader = response.body?.getReader()
-  if (!reader) return ''
-  const chunks: Uint8Array[] = []
-  let total = 0
-  while (true) {
-    const chunk = await reader.read()
-    if (chunk.done) break
-    if (!chunk.value) continue
-    total += chunk.value.byteLength
-    if (total > maxBytes) throw new Error('metadata_too_large')
-    chunks.push(chunk.value)
-  }
-  const bytes = new Uint8Array(total)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-  return new TextDecoder().decode(bytes)
-}
-
-async function refreshIdpMetadata(env: Env, row: IdpMetadataConnectionRow): Promise<void> {
-  if (!isPublicHttpsUrl(row.idp_metadata_url)) return
-  const response = await fetch(row.idp_metadata_url, {
-    headers: { accept: 'application/samlmetadata+xml, application/xml, text/xml' },
-    redirect: 'manual',
-    signal: AbortSignal.timeout(SAML_METADATA_FETCH_TIMEOUT_MS),
-  })
-  if (!response.ok) return
-  const xml = await readBoundedText(response, SAML_METADATA_MAX_BYTES)
-  const parsed = parseIdpMetadataXml(xml)
-  if (
-    !parsed.ok ||
-    !isPublicHttpsUrl(parsed.value.ssoUrl) ||
-    (parsed.value.sloUrl !== null && !isPublicHttpsUrl(parsed.value.sloUrl))
-  ) {
-    return
-  }
-
-  const oldCerts = parseStoredCertificates(row.idp_certificates)
-  const newCerts = parsed.value.certificates
-  const now = Date.now()
-  await env.DB.prepare(
-    `UPDATE sso_connections
-       SET idp_entity_id = ?, idp_sso_url = ?, idp_slo_url = ?,
-           idp_certificates = ?, updated_at = ?
-       WHERE id = ? AND status = 'active' AND protocol = 'saml'`,
-  )
-    .bind(
-      parsed.value.entityId,
-      parsed.value.ssoUrl,
-      parsed.value.sloUrl,
-      JSON.stringify(newCerts),
-      now,
-      row.id,
-    )
-    .run()
-
-  if (certificateSetChanged(oldCerts, newCerts)) {
-    await env.WEBHOOK_QUEUE.send({
-      tenantId: row.tenant_id,
-      event: 'connection.saml_certificate_renewed',
-      payload: {
-        connection_id: row.id,
-        org_id: row.org_id,
-        certificate_count: newCerts.length,
-      },
-    })
-  }
-}
-
-// IdP metadata URL 每日刷新:拉取 active SAML connection 的 metadata,更新 entityID/SSO URL/证书。
-export async function pollSamlIdpMetadata(env: Env): Promise<void> {
-  let cursor: string | null = null
-  while (true) {
-    const where: string = cursor === null ? '' : 'AND id > ?'
-    const params: unknown[] =
-      cursor === null ? [SAML_METADATA_PAGE_SIZE] : [cursor, SAML_METADATA_PAGE_SIZE]
-    const rows: D1Result<IdpMetadataConnectionRow> = await env.DB.prepare(
-      `SELECT id, tenant_id, org_id, idp_metadata_url, idp_certificates
-         FROM sso_connections
-         WHERE protocol = 'saml'
-           AND status = 'active'
-           AND idp_metadata_url IS NOT NULL
-           ${where}
-         ORDER BY id
-         LIMIT ?`,
-    )
-      .bind(...params)
-      .all<IdpMetadataConnectionRow>()
-
-    if (rows.results.length === 0) break
-    for (const row of rows.results) {
-      try {
-        await refreshIdpMetadata(env, row)
-      } catch {
-        // 单个 IdP metadata 拉取失败不阻断整轮 daily Cron。
-      }
-    }
-    cursor = rows.results[rows.results.length - 1]?.id ?? null
-    if (rows.results.length < SAML_METADATA_PAGE_SIZE) break
   }
 }
 
