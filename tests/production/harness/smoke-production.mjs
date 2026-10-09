@@ -33,8 +33,8 @@ const surfaceBaseUrls = {
 // 复用 harness 单一 org id 来源,避免多处字面量在重建库后漂移到不同租户。
 const tenantId = DEFAULT_INSTANCE_ORG_ID
 const defaultEmail = requireProductionEmail('XID_PRODUCTION_EMAIL')
-const defaultSmsPhone = process.env['XID_PRODUCTION_SMS_GATE_PHONE'] ?? '+15555550123'
-const defaultWhatsappPhone = process.env['XID_PRODUCTION_WHATSAPP_GATE_PHONE'] ?? '+15555550124'
+const defaultSmsPhone = process.env['XID_PRODUCTION_SMS_GATE_PHONE'] ?? '+12125550123'
+const defaultWhatsappPhone = process.env['XID_PRODUCTION_WHATSAPP_GATE_PHONE'] ?? '+12125550124'
 
 function emailAlias(email, tag) {
   const index = email.lastIndexOf('@')
