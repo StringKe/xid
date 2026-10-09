@@ -108,6 +108,18 @@ describe('createProviderKeyLoader', () => {
     })
   })
 
+  it('does not refetch on unknown kid right after a cold-cache fetch', async () => {
+    const cache = makeKv()
+    const gFetch = mockFetchJson(jwks('fresh'))
+    const load = createProviderKeyLoader({ cache, jwksUri: JWKS_URI, permitsLoopbackHttp: false })
+
+    await load(false)
+    const refreshed = await load(true)
+
+    expect(refreshed).toBeNull()
+    expect(gFetch).toHaveBeenCalledTimes(1)
+  })
+
   it('forced refresh bypasses the cache once and is throttled afterwards', async () => {
     const cache = makeKv()
     cache.values.set(`provider_jwks:${JWKS_URI}`, JSON.stringify(jwks('old')))

@@ -34,7 +34,11 @@ async function readCachedJwks(cache: KVNamespace, jwksUri: string): Promise<Jwks
   }
 }
 
+// 任何一次回源都记入最短刷新间隔,冷缓存回源后紧接的未知 kid 不会再回源一次。
 async function fetchAndCache(input: ProviderKeyLoaderInput): Promise<JwksResponse> {
+  await input.cache.put(refreshMarkerKey(input.jwksUri), String(Date.now()), {
+    expirationTtl: PROVIDER_JWKS_REFRESH_MIN_INTERVAL_SEC,
+  })
   const jwks = await fetchProviderJwks(input.jwksUri, input.permitsLoopbackHttp)
   await input.cache.put(cacheKey(input.jwksUri), JSON.stringify(jwks), {
     expirationTtl: SSO_OIDC_JWKS_CACHE_TTL_SEC,
@@ -42,19 +46,10 @@ async function fetchAndCache(input: ProviderKeyLoaderInput): Promise<JwksRespons
   return jwks
 }
 
-async function claimRefresh(input: ProviderKeyLoaderInput): Promise<boolean> {
-  const marker = refreshMarkerKey(input.jwksUri)
-  if ((await input.cache.get(marker)) !== null) return false
-  await input.cache.put(marker, String(Date.now()), {
-    expirationTtl: PROVIDER_JWKS_REFRESH_MIN_INTERVAL_SEC,
-  })
-  return true
-}
-
 export function createProviderKeyLoader(input: ProviderKeyLoaderInput): ProviderKeyLoader {
   return async (forceRefresh) => {
     if (forceRefresh) {
-      if (!(await claimRefresh(input))) return null
+      if ((await input.cache.get(refreshMarkerKey(input.jwksUri))) !== null) return null
       return buildProviderKeySet(await fetchAndCache(input))
     }
     const cached = await readCachedJwks(input.cache, input.jwksUri)
