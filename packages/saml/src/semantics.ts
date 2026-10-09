@@ -48,20 +48,32 @@ function checkIssuer(assertion: Element, expected: string): SamlResult<string> {
   return okResult(issuer)
 }
 
-// Conditions 时间窗(上界排他)+ Audience 须含本 SP。
+type TimeWindow = { notBefore: number; notOnOrAfter: number | null }
+
+// 可选时间属性:缺省返回 fallback,存在但非法返回 undefined。
+function optionalInstant(element: Element, name: string, fallback: number | null) {
+  if (!element.hasAttribute(name)) return fallback
+  return parseSamlInstant(element.getAttribute(name)) ?? undefined
+}
+
+// SAML Core 2.5.1:NotBefore/NotOnOrAfter 均可选,上界排他;Audience 须含本 SP。
 function checkConditions(
   assertion: Element,
   expectedAudience: string,
   now: number,
   clockSkewToleranceMs: number,
-): SamlResult<{ notBefore: number; notOnOrAfter: number }> {
+): SamlResult<TimeWindow> {
   const conditions = assertionChild(assertion, A, 'Conditions')
   if (!conditions) return failResult('assertion_expired', 'Conditions missing')
-  const nb = parseSamlInstant(conditions.getAttribute('NotBefore'))
-  const noa = parseSamlInstant(conditions.getAttribute('NotOnOrAfter'))
-  if (nb === null || noa === null) return failResult('assertion_expired', 'Conditions time missing')
+  const issueInstant = parseSamlInstant(assertion.getAttribute('IssueInstant'))
+  if (issueInstant === null) return failResult('assertion_expired', 'IssueInstant invalid')
+  const nb = optionalInstant(conditions, 'NotBefore', issueInstant)
+  const noa = optionalInstant(conditions, 'NotOnOrAfter', null)
+  if (nb === undefined || noa === undefined || nb === null) {
+    return failResult('assertion_expired', 'Conditions time invalid')
+  }
   if (now + clockSkewToleranceMs < nb) return failResult('assertion_expired', 'NotBefore in future')
-  if (now - clockSkewToleranceMs >= noa)
+  if (noa !== null && now - clockSkewToleranceMs >= noa)
     return failResult('assertion_expired', 'NotOnOrAfter passed')
 
   const audiences: string[] = []
@@ -94,10 +106,11 @@ function checkInResponseTo(
   return okResult({})
 }
 
+// SAML Core 2.4.1.2:SubjectConfirmationData 的 NotBefore(可选)与 NotOnOrAfter 限定断言的投递窗口。
 function checkSubjectConfirmation(
   input: SemanticInput,
   clockSkewToleranceMs: number,
-): SamlResult<{ inResponseTo?: string }> {
+): SamlResult<{ inResponseTo?: string; notOnOrAfter: number }> {
   const subject = assertionChild(input.assertion, A, 'Subject')
   const confirmation = subject ? assertionChild(subject, A, 'SubjectConfirmation') : null
   if (!confirmation) return failResult('recipient_mismatch', 'SubjectConfirmation missing')
@@ -117,26 +130,39 @@ function checkSubjectConfirmation(
   if (input.now - clockSkewToleranceMs >= noa) {
     return failResult('assertion_expired', 'SubjectConfirmation NotOnOrAfter passed')
   }
-  return checkInResponseTo(data.getAttribute('InResponseTo'), input.spInitiated)
+  const nb = optionalInstant(data, 'NotBefore', null)
+  if (nb === undefined)
+    return failResult('assertion_expired', 'SubjectConfirmation NotBefore invalid')
+  if (nb !== null && input.now + clockSkewToleranceMs < nb) {
+    return failResult('assertion_expired', 'SubjectConfirmation NotBefore in future')
+  }
+  const inResponseTo = checkInResponseTo(data.getAttribute('InResponseTo'), input.spInitiated)
+  if (!inResponseTo.ok) return failResult(inResponseTo.error.code, inResponseTo.error.reason)
+  return okResult({ ...inResponseTo.value, notOnOrAfter: noa })
 }
 
+// SAML Core 2.7.2:AuthnInstant 是用户实际认证时刻,复用 IdP 会话时早于本断言的 Conditions 属正常,
+// 只拒绝未来时刻;SessionNotOnOrAfter 已过表示 IdP 会话已结束。
 function checkAuthnStatement(
   assertion: Element,
   now: number,
-  freshnessNotBefore: number,
   clockSkewToleranceMs: number,
 ): SamlResult<true> {
   const statements = assertionChildren(assertion, A, 'AuthnStatement')
-  if (statements.length !== 1) {
+  const statement = statements[0]
+  if (statements.length !== 1 || !statement) {
     return failResult('assertion_expired', 'exactly one AuthnStatement is required')
   }
-  const authnInstant = parseSamlInstant(statements[0]?.getAttribute('AuthnInstant') ?? null)
+  const authnInstant = parseSamlInstant(statement.getAttribute('AuthnInstant'))
   if (authnInstant === null) return failResult('assertion_expired', 'AuthnInstant invalid')
   if (authnInstant > now + clockSkewToleranceMs) {
     return failResult('assertion_expired', 'AuthnInstant in future')
   }
-  if (authnInstant < freshnessNotBefore - clockSkewToleranceMs) {
-    return failResult('assertion_expired', 'AuthnInstant predates Assertion freshness window')
+  const sessionEnd = optionalInstant(statement, 'SessionNotOnOrAfter', null)
+  if (sessionEnd === undefined)
+    return failResult('assertion_expired', 'SessionNotOnOrAfter invalid')
+  if (sessionEnd !== null && now - clockSkewToleranceMs >= sessionEnd) {
+    return failResult('assertion_expired', 'SessionNotOnOrAfter passed')
   }
   return okResult(true)
 }
@@ -181,23 +207,24 @@ export function validateAssertionSemantics(input: SemanticInput): SamlResult<Sem
   const confirm = checkSubjectConfirmation(input, clockSkewToleranceMs)
   if (!confirm.ok) return failResult(confirm.error.code, confirm.error.reason)
 
-  const authn = checkAuthnStatement(
-    input.assertion,
-    input.now,
-    cond.value.notBefore,
-    clockSkewToleranceMs,
-  )
+  const authn = checkAuthnStatement(input.assertion, input.now, clockSkewToleranceMs)
   if (!authn.ok) return failResult(authn.error.code, authn.error.reason)
 
   const assertionId = input.assertion.getAttribute('ID') ?? ''
   if (!assertionId) return failResult('signature_invalid', 'Assertion ID missing')
 
+  // 断言可被接受的最晚时刻,供 worker 设置重放集 TTL。
+  const conditionsEnd = cond.value.notOnOrAfter
+  const notOnOrAfter =
+    conditionsEnd === null
+      ? confirm.value.notOnOrAfter
+      : Math.min(conditionsEnd, confirm.value.notOnOrAfter)
   return okResult({
     issuer: issuer.value,
     audience: input.expectedAudience,
     ...(confirm.value.inResponseTo ? { inResponseTo: confirm.value.inResponseTo } : {}),
     assertionId,
     notBefore: cond.value.notBefore,
-    notOnOrAfter: cond.value.notOnOrAfter,
+    notOnOrAfter,
   })
 }
