@@ -22,6 +22,7 @@ const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
 const styles = stylex.create({
   bandLabel: {
     paddingInline: GUTTER,
+    paddingTop: SECTION_PAD,
     // microlabel 与 MetricsBand 顶线 hairline 邻接下限。
     marginBottom: '1.25rem',
   },
