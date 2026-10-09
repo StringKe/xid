@@ -14,7 +14,7 @@ import {
   verifyRedirectBindingSignature,
 } from './logout'
 import type { RedirectBindingSignature } from './logout'
-import { validateSamlAuthnRequestStructure } from './schema'
+import { validateSamlAuthnRequestStructure } from './schema-authn-request'
 import { selectSingleSignature, verifySignedElement } from './structure'
 
 export type AuthnRequestInput = {

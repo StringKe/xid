@@ -1,7 +1,8 @@
 // Response 验签/解密/语义编排。重放与 InResponseTo 消费在 worker DO,本层只产出 assertionId/inResponseTo。
 
 import { parseSecureXml } from './precheck'
-import { validateSamlAssertionStructure, validateSamlResponseStructure } from './schema'
+import { validateSamlResponseStructure } from './schema'
+import { validateSamlAssertionStructure } from './schema-assertion'
 import { loadIdpVerifyKeys } from './cert'
 import type { IdpVerifyKey } from './cert'
 import { selectSingleSignature, loadAndCheckSignature } from './structure'
