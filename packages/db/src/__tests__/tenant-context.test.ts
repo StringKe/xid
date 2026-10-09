@@ -183,3 +183,38 @@ describe('buildPolicy token chain', () => {
     expect(result.token?.sessionTokenTtlSec).toBe(60)
   })
 })
+
+describe('buildPolicy org login columns', () => {
+  const passwordEnabled = { enabled: true, allowLogin: true, allowUserCreation: true }
+  const orgWithPassword = orgRow({ privateMetadata: { hostedAuth: { password: passwordEnabled } } })
+
+  it('keeps hostedAuth unchanged when the columns hold their defaults', () => {
+    const result = buildPolicy(instanceRow(), orgWithPassword, orgPolicyRow())
+
+    expect(result.hostedAuth?.forceSso).toBe(false)
+    expect(result.hostedAuth?.password.allowLogin).toBe(true)
+  })
+
+  it('forces SSO when org_policies.force_sso is set', () => {
+    const result = buildPolicy(instanceRow(), orgWithPassword, orgPolicyRow({ forceSso: true }))
+
+    expect(result.hostedAuth?.forceSso).toBe(true)
+  })
+
+  it('disables password sign-in when org_policies.allow_password_login is false', () => {
+    const result = buildPolicy(
+      instanceRow(),
+      orgWithPassword,
+      orgPolicyRow({ allowPasswordLogin: false }),
+    )
+
+    expect(result.hostedAuth?.password.allowLogin).toBe(false)
+    expect(result.hostedAuth?.password.allowUserCreation).toBe(true)
+  })
+
+  it('does not let allow_password_login re-enable a password method hostedAuth disabled', () => {
+    const result = buildPolicy(instanceRow(), orgRow(), orgPolicyRow({ allowPasswordLogin: true }))
+
+    expect(result.hostedAuth?.password.allowLogin).toBe(false)
+  })
+})

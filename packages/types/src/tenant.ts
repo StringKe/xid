@@ -32,12 +32,6 @@ export type TokenPolicy = {
   refreshAbsoluteTimeoutDays: number
 }
 
-// forceSso 绑定 SSO 后禁密码登录
-export type LoginPolicy = {
-  forceSso: boolean
-  allowPasswordLogin: boolean
-}
-
 export const IDENTIFIER_MODES = [
   'email',
   'username',
@@ -143,7 +137,6 @@ export type TenantPolicy = {
   password?: PasswordPolicy
   session?: SessionPolicy
   token?: TokenPolicy
-  login?: LoginPolicy
   hostedAuth?: HostedAuthPolicy
   socialProviders?: Readonly<Record<string, SocialProviderPolicy>>
   deliveryChannels?: DeliveryChannelsPolicy

@@ -3,6 +3,7 @@
 
 import type {
   ActiveSigningKeySet,
+  HostedAuthPolicy,
   XidError,
   Result,
   SigningAlg,
@@ -141,6 +142,23 @@ function rootResolvedContextOptions(
   }
 }
 
+// org_policies.force_sso / allow_password_login 只能收紧 hostedAuth:强制 SSO 与关闭密码登录统一由
+// hostedAuth 判定,两列与 hostedAuth 任一方要求即生效。
+function applyOrgLoginColumns(
+  hostedAuth: HostedAuthPolicy,
+  policy: typeof schema.orgPolicies.$inferSelect | undefined,
+): HostedAuthPolicy {
+  if (!policy) return hostedAuth
+  return {
+    ...hostedAuth,
+    forceSso: hostedAuth.forceSso || policy.forceSso,
+    password: {
+      ...hostedAuth.password,
+      allowLogin: hostedAuth.password.allowLogin && policy.allowPasswordLogin,
+    },
+  }
+}
+
 // session/token:org_policies 列覆盖 instance JSON,再 clamp 到内置默认(02 章 5、08 章 10.6)。
 export function buildPolicy(
   instance: InstanceRow,
@@ -150,9 +168,6 @@ export function buildPolicy(
   const result: TenantPolicy = {}
   const mfa = policy?.mfaPolicy ?? instance.mfaPolicy
   if (mfa === 'required' || mfa === 'optional' || mfa === 'disabled') result.mfaEnforcement = mfa
-  if (policy) {
-    result.login = { forceSso: policy.forceSso, allowPasswordLogin: policy.allowPasswordLogin }
-  }
   // org 仅有 idle/absolute 列;rememberMeDefault 只在 instance JSON,先 normalize 再逐字段覆盖。
   const instanceSession = normalizeSessionPolicy(instance.sessionPolicy)
   result.session = normalizeSessionPolicy({
@@ -162,7 +177,10 @@ export function buildPolicy(
   })
   result.token = normalizeTokenPolicy(policy?.tokenPolicy ?? instance.tokenPolicy)
   const metadata = isRecord(org.privateMetadata) ? org.privateMetadata : {}
-  result.hostedAuth = normalizeHostedAuthPolicy(metadata['hostedAuth'])
+  result.hostedAuth = applyOrgLoginColumns(
+    normalizeHostedAuthPolicy(metadata['hostedAuth']),
+    policy,
+  )
   const socialProviders = normalizeSocialProviders(metadata['socialProviders'])
   if (socialProviders) result.socialProviders = socialProviders
   const deliveryChannels = normalizeDeliveryChannelsPolicy(metadata['deliveryChannels'])
