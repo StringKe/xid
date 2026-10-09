@@ -7,9 +7,14 @@ import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
-import { AppError } from '../lib/errors'
+import { AppError, isAppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
 import { firstIssuePath, readJsonBody } from '../lib/validate'
+import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
+import { requestIp } from '../me-auth/shared'
+import { requireApiKeyOrOrgManager } from '../v1/shared'
+import { ldapGatewaySecretConfigured } from './ldap-gateway-secret'
+import { isUsableLegacyTargetUrl } from './legacy-target-url'
 import {
   completeLegacyLogin,
   legacyConfig,
@@ -176,6 +181,7 @@ async function handleConnectorValidate(c: Context<XidHonoEnv>): Promise<Response
   return withTenant(c, tenant, async () => {
     const protocol = connector.transport === 'ldap' ? 'ldap' : 'header'
     const connection = await resolveLegacyConnection(c, connectionId, protocol)
+    await requireApiKeyOrOrgManager(c, connection.orgId, 'connections:read')
     const config = legacyConfig(connection)
     return c.json(
       {
@@ -184,25 +190,62 @@ async function handleConnectorValidate(c: Context<XidHonoEnv>): Promise<Response
         tenantId: tenant.tenantId,
         connectionId: connection.id,
         hasTrustedProxySecret: trustedProxySecretConfigured(connection.attributeMapping),
-        hasLdapGateway: Boolean(config.ldapGatewayUrl),
+        hasLdapGateway:
+          isUsableLegacyTargetUrl(config.ldapGatewayUrl) &&
+          ldapGatewaySecretConfigured(connection.attributeMapping),
       },
       200,
     )
   })
 }
 
+const HEADER_AUTH_OPAQUE_CODES: ReadonlySet<string> = new Set([
+  'connection_not_found',
+  'invalid_credentials',
+])
+
+// Every failure before a verified identity is the same 401, so the endpoint does not reveal
+// whether a connection id exists or which check failed.
+async function asHeaderAuthFailure<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (cause) {
+    if (isAppError(cause) && HEADER_AUTH_OPAQUE_CODES.has(cause.code)) {
+      throw new AppError('invalid_credentials', { cause })
+    }
+    throw cause
+  }
+}
+
 async function handleHeaderAuthenticate(c: Context<XidHonoEnv>): Promise<Response> {
   const connectionId = c.req.param('connectionId')
-  if (!connectionId) throw new AppError('invalid_request', { longMessage: 'connectionId required' })
+  if (!connectionId) throw new AppError('invalid_credentials')
 
-  const tenant = await resolveSsoConnectionTenant(c, connectionId)
+  const tenant = await asHeaderAuthFailure(() => resolveSsoConnectionTenant(c, connectionId))
   return withTenant(c, tenant, async () => {
-    const connection = await resolveLegacyConnection(c, connectionId, 'header')
-    const config = legacyConfig(connection)
-    await assertTrustedProxy(c, connection)
-    const profile = profileFromHeaders(c, config)
-    if (!profile)
-      throw new AppError('invalid_credentials', { longMessage: 'header_identity_missing' })
+    // Keyed by connection and source IP and reset on success: a busy reverse proxy keeps
+    // logging users in, while secret guessing from any address is throttled with backoff.
+    const account = `${connectionId}:${requestIp(c) ?? 'unknown'}`
+    await enforceVerifyRateLimit({
+      env: c.env,
+      tenantId: tenant.tenantId,
+      scope: 'sso_header',
+      account,
+      ip: null,
+    })
+    const { connection, profile } = await asHeaderAuthFailure(async () => {
+      const resolved = await resolveLegacyConnection(c, connectionId, 'header')
+      await assertTrustedProxy(c, resolved)
+      const identity = profileFromHeaders(c, legacyConfig(resolved))
+      if (!identity) throw new AppError('invalid_credentials')
+      return { connection: resolved, profile: identity }
+    })
+    await resetVerifyAccountRateLimit({
+      env: c.env,
+      tenantId: tenant.tenantId,
+      scope: 'sso_header',
+      account,
+    })
     return completeLegacyLogin({
       c,
       connection,
