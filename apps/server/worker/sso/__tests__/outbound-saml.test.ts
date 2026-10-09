@@ -148,9 +148,16 @@ vi.mock('@xid-kit/db', () => ({
     users: { findOne: userFindOne },
     userEmails: { findOne: emailFindOne },
     memberships: { findOne: membershipFindOne },
+    managerAssignments: { findOne: vi.fn().mockResolvedValue(undefined) },
     sessions: { findOne: sessionFindOne, update: sessionUpdate },
   })),
   schema: {
+    managerAssignments: {
+      userId: 'userId',
+      managerRole: 'managerRole',
+      scopeType: 'scopeType',
+      scopeId: 'scopeId',
+    },
     samlServiceProviders: { id: 'id' },
     certStore: { id: 'id', usage: 'usage', status: 'status' },
     users: { id: 'id', status: 'status' },
@@ -172,6 +179,7 @@ const testErrorHandler: ErrorHandler<XidHonoEnv> = (err, c) => {
 const SP = {
   id: 'sp_1',
   tenantId: 'tenant_1',
+  orgId: 'org_1',
   spEntityId: 'https://saas.example.com/saml',
   acsUrl: 'https://saas.example.com/acs',
   sloUrl: 'https://saas.example.com/slo',
@@ -289,6 +297,7 @@ describe('outbound SAML SLO', () => {
     })
     spFindOne.mockResolvedValue(SP)
     certFindOne.mockResolvedValue(CERT)
+    membershipFindOne.mockResolvedValue({ role: 'member', status: 'active' })
     decodeSamlBindingPayloadMock.mockResolvedValue({ ok: true, value: '<samlp:LogoutRequest/>' })
     verifySamlLogoutRequestMock.mockResolvedValue({
       ok: true,
@@ -423,6 +432,23 @@ describe('outbound SAML SLO', () => {
     )
     const ttlArg = trackOutboundSamlSessionMock.mock.calls[0]?.[2] as number
     expect(ttlArg).toBeGreaterThan(24 * 60 * 60 * 1000)
+  })
+
+  it('refuses to issue an assertion to a user from another org of the same tenant', async () => {
+    userFindOne.mockResolvedValue({ id: 'user_1', status: 'active', primaryEmailId: 'email_1' })
+    emailFindOne.mockResolvedValue({ email: 'user@example.com' })
+    membershipFindOne.mockResolvedValue(undefined)
+
+    const res = await makeApp(activeSession()).request(
+      'https://acme.xid.dev/sso/outbound/saml/sp_1/sso',
+      {},
+      ENV,
+    )
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ code: 'access_denied' })
+    expect(signSamlResponseMock).not.toHaveBeenCalled()
+    expect(trackOutboundSamlSessionMock).not.toHaveBeenCalled()
   })
 
   it('keeps a POST-binding AuthnRequest across sign-in and answers it after resume', async () => {

@@ -105,8 +105,6 @@ export async function handleSso(c: Context<XidHonoEnv>): Promise<Response> {
     })
   }
   const { inResponseTo, relayState } = request
-  const cert = await loadSigningCert(c, sp)
-  const key = await importSamlSigningKey(cert, c.env.KEK)
   const user = await readAuthenticatedUser(c, session)
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   await assertUserPassesAssignmentGate(db, {
@@ -114,6 +112,8 @@ export async function handleSso(c: Context<XidHonoEnv>): Promise<Response> {
     userId: user.id,
     gate: parseAssignmentGate(sp.attributeMapping as Record<string, unknown>),
   })
+  const cert = await loadSigningCert(c, sp)
+  const key = await importSamlSigningKey(cert, c.env.KEK)
   const email = await primaryEmail(c, user)
   const sessionIndex = session.sessionId
   const signed = await signSamlResponse(

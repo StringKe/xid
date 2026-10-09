@@ -103,10 +103,24 @@ describe('assignment gate membership filter', () => {
   })
 })
 
+function accessDb(input: {
+  membership?: { role: string; status: string } | null
+  orgManager?: boolean
+}) {
+  return {
+    memberships: { findOne: async () => input.membership ?? undefined },
+    managerAssignments: {
+      findOne: async () => (input.orgManager ? { id: 'assignment_1' } : undefined),
+    },
+  }
+}
+
 describe('assertUserPassesAssignmentGate', () => {
-  it('allows any member when mode is all', async () => {
+  it('allows an active member when mode is all', async () => {
+    const db = accessDb({ membership: { role: 'member', status: 'active' } })
+
     await expect(
-      assertUserPassesAssignmentGate({} as never, {
+      assertUserPassesAssignmentGate(db as never, {
         orgId: 'org_1',
         userId: 'user_1',
         gate: { mode: 'all', allowedUserIds: [], allowedRoles: [] },
@@ -114,9 +128,35 @@ describe('assertUserPassesAssignmentGate', () => {
     ).resolves.toBeUndefined()
   })
 
-  it('allows explicit user id when restricted', async () => {
+  it('allows an org manager without membership when mode is all', async () => {
+    const db = accessDb({ membership: null, orgManager: true })
+
     await expect(
-      assertUserPassesAssignmentGate({} as never, {
+      assertUserPassesAssignmentGate(db as never, {
+        orgId: 'org_1',
+        userId: 'user_manager',
+        gate: { mode: 'all', allowedUserIds: [], allowedRoles: [] },
+      }),
+    ).resolves.toBeUndefined()
+  })
+
+  it('rejects a user without membership or grant in the SP org when mode is all', async () => {
+    const db = accessDb({ membership: null })
+
+    await expect(
+      assertUserPassesAssignmentGate(db as never, {
+        orgId: 'org_1',
+        userId: 'user_other_org',
+        gate: { mode: 'all', allowedUserIds: [], allowedRoles: [] },
+      }),
+    ).rejects.toMatchObject({ code: 'access_denied' })
+  })
+
+  it('allows an explicitly listed active member when restricted', async () => {
+    const db = accessDb({ membership: { role: 'member', status: 'active' } })
+
+    await expect(
+      assertUserPassesAssignmentGate(db as never, {
         orgId: 'org_1',
         userId: 'user_allowed',
         gate: { mode: 'restricted', allowedUserIds: ['user_allowed'], allowedRoles: [] },
@@ -124,12 +164,33 @@ describe('assertUserPassesAssignmentGate', () => {
     ).resolves.toBeUndefined()
   })
 
+  it('rejects an explicitly listed user who is not a member of the SP org', async () => {
+    const db = accessDb({ membership: null })
+
+    await expect(
+      assertUserPassesAssignmentGate(db as never, {
+        orgId: 'org_1',
+        userId: 'user_allowed',
+        gate: { mode: 'restricted', allowedUserIds: ['user_allowed'], allowedRoles: [] },
+      }),
+    ).rejects.toMatchObject({ code: 'access_denied' })
+  })
+
+  it('rejects an org manager without membership when restricted', async () => {
+    const db = accessDb({ membership: null, orgManager: true })
+
+    await expect(
+      assertUserPassesAssignmentGate(db as never, {
+        orgId: 'org_1',
+        userId: 'user_manager',
+        gate: { mode: 'restricted', allowedUserIds: ['user_manager'], allowedRoles: [] },
+      }),
+    ).rejects.toMatchObject({ code: 'access_denied' })
+  })
+
   it('allows membership role when restricted', async () => {
-    const db = {
-      memberships: {
-        findOne: async () => ({ role: 'admin', status: 'active' }),
-      },
-    }
+    const db = accessDb({ membership: { role: 'admin', status: 'active' } })
+
     await expect(
       assertUserPassesAssignmentGate(db as never, {
         orgId: 'org_1',
@@ -140,11 +201,8 @@ describe('assertUserPassesAssignmentGate', () => {
   })
 
   it('throws access_denied when restricted and user is not allowed', async () => {
-    const db = {
-      memberships: {
-        findOne: async () => ({ role: 'member', status: 'active' }),
-      },
-    }
+    const db = accessDb({ membership: { role: 'member', status: 'active' } })
+
     await expect(
       assertUserPassesAssignmentGate(db as never, {
         orgId: 'org_1',

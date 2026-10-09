@@ -6,6 +6,7 @@ import type { createTenantDb } from '@xid-kit/db'
 import { and, asc, eq, gt, inArray } from 'drizzle-orm'
 import { AppError } from '../lib/errors'
 import { readAllById } from '../lib/db-pagination'
+import { findOrganizationAccessGrant } from '../lib/organization-access'
 
 export const ASSIGNMENT_GATE_KEY = '_xidAssignmentGate'
 const ASSIGNMENT_GATE_BATCH_SIZE = 100
@@ -76,25 +77,18 @@ export function withoutAssignmentGate(container: Record<string, unknown>): Recor
   return rest
 }
 
+// 先要求用户能在 SP 所属 org 内活动(active Membership 或 org_manager 指派);restricted 模式只放行
+// active 成员,allowedUserIds 与成员关系取交集。
 export async function assertUserPassesAssignmentGate(
   db: TenantDb,
   input: { orgId: string; userId: string; gate: AssignmentGate },
 ): Promise<void> {
+  const grant = await findOrganizationAccessGrant(db, { userId: input.userId, orgId: input.orgId })
+  if (!grant) throw new AppError('access_denied', { httpStatus: 403 })
   if (input.gate.mode !== 'restricted') return
-
+  if (!grant.isMember) throw new AppError('access_denied', { httpStatus: 403 })
   if (input.gate.allowedUserIds.includes(input.userId)) return
-
-  if (input.gate.allowedRoles.length > 0) {
-    const membership = await db.memberships.findOne(
-      and(
-        eq(schema.memberships.orgId, input.orgId),
-        eq(schema.memberships.userId, input.userId),
-        eq(schema.memberships.status, 'active'),
-      ),
-    )
-    if (membership && input.gate.allowedRoles.includes(membership.role)) return
-  }
-
+  if (grant.membershipRole && input.gate.allowedRoles.includes(grant.membershipRole)) return
   throw new AppError('access_denied', { httpStatus: 403 })
 }
 
