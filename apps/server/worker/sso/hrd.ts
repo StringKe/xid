@@ -109,10 +109,11 @@ export async function resolveHrd(
       eq(schema.ssoConnections.status, 'active'),
     ),
   )
-  if (!connection) return null
+  // 只有 SAML 与 OIDC 有可跳转的登录入口;LDAP、WS-Fed、密码代填与请求头连接不参与域名路由。
+  if (connection?.protocol !== 'saml' && connection?.protocol !== 'oidc') return null
   const org = await db.organizations.findOne(eq(schema.organizations.id, domainRow.orgId))
 
-  const protocol = connection.protocol === 'saml' ? 'saml' : 'oidc'
+  const protocol = connection.protocol
   return {
     organizationId: tenant.tenantId,
     connectionId: connection.id,

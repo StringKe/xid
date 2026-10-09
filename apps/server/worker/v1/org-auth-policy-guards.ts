@@ -3,7 +3,7 @@
 import { schema } from '@xid-kit/db'
 import type { createTenantDb } from '@xid-kit/db'
 import type { HostedAuthPolicy } from '@xid-kit/types'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
@@ -26,7 +26,13 @@ export async function assertForceSsoReady(
   turnedOn: { column: boolean; hostedAuth: boolean },
 ): Promise<void> {
   if (!turnedOn.column && !turnedOn.hostedAuth) return
-  const active = await orgDb.ssoConnections.count(eq(schema.ssoConnections.status, 'active'))
+  // 强制 SSO 依赖域名路由,只有 SAML 与 OIDC 连接参与路由。
+  const active = await orgDb.ssoConnections.count(
+    and(
+      eq(schema.ssoConnections.status, 'active'),
+      inArray(schema.ssoConnections.protocol, ['saml', 'oidc']),
+    ),
+  )
   if (active > 0) return
   throw preconditionFailed(turnedOn.column ? 'loginPolicy.forceSso' : 'hostedAuth.forceSso')
 }

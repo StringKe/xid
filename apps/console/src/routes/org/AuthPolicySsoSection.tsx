@@ -148,7 +148,7 @@ export function SingleSignOnSection({
         saved={saved}
         describeError={(error) =>
           error.code === 'validation_failed' && error.meta?.paramName?.endsWith('forceSso') === true
-            ? t`Turn on an enterprise connection in Enterprise SSO before requiring single sign-on.`
+            ? t`Add an active SAML or OpenID Connect connection in Enterprise SSO before requiring single sign-on.`
             : null
         }
       />

@@ -290,6 +290,19 @@ describe('resolveHrd', () => {
     expect(result?.protocol).toBe('saml')
   })
 
+  it.each(['ldap', 'wsfed', 'swa', 'header'])(
+    'does not route a verified domain to a %s connection',
+    async (protocol) => {
+      mockFindOne
+        .mockResolvedValueOnce(makeDomainRow())
+        .mockResolvedValueOnce(makeConnectionRow({ protocol }))
+
+      const result = await resolveHrd(fakeEnv, makeTenant(), 'user@corp.example.com')
+
+      expect(result).toBeNull()
+    },
+  )
+
   it('顶级二段域名(无父域)不触发 wildcard 查询', async () => {
     // example.com 只有 2 段,不尝试 wildcard
     mockFindOne.mockResolvedValueOnce(undefined) // 精确匹配失败

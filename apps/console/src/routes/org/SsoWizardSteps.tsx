@@ -13,6 +13,7 @@ import type { SsoConnectionView } from './auth-queries'
 import { ValueRows } from './AuthDetailParts'
 import { LegacyFields, MetadataXmlField } from './SsoConnectionInputs'
 import { SsoDomainList } from './SsoDomainList'
+import { LegacyEntryRows, LegacyUsageText } from './SsoLegacyUsage'
 import { StepHeading, wizardStyles as styles } from './SsoWizardLayout'
 
 function IdpFields({
@@ -195,19 +196,30 @@ export function SsoDomainsStep({
   connection: SsoConnectionView
   onFinish: () => void
 }): ReactNode {
+  const legacy = LEGACY_PROTOCOLS.has(connection.type)
+  const name = connection.name
   return (
     <div {...stylex.props(styles.frame)}>
-      <StepHeading
-        step={3}
-        title={<Trans>Choose which email domains go to {connection.name}</Trans>}
-        lead={
-          <Trans>
-            Every verified email domain of this organization is routed to the connection. Verify a
-            domain with a DNS record, then people at that domain skip the password step.
-          </Trans>
-        }
-      />
-      <SsoDomainList domains={connection.routedDomains} />
+      {legacy ? (
+        <StepHeading
+          step={3}
+          title={<Trans>How people sign in through {name}</Trans>}
+          lead={<LegacyUsageText connection={connection} />}
+        />
+      ) : (
+        <StepHeading
+          step={3}
+          title={<Trans>Choose which email domains go to {connection.name}</Trans>}
+          lead={
+            <Trans>
+              Every verified email domain of this organization is routed to the connection. Verify a
+              domain with a DNS record, then people at that domain skip the password step.
+            </Trans>
+          }
+        />
+      )}
+      {!legacy ? <SsoDomainList domains={connection.routedDomains} /> : null}
+      {legacy ? <LegacyEntryRows connection={connection} /> : null}
       <div {...stylex.props(styles.footer)}>
         <span />
         <Button type="button" onClick={onFinish}>

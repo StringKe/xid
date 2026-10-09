@@ -15,6 +15,7 @@ import { DetailSection, ValueRows, detailParts } from './AuthDetailParts'
 import type { ValueRow } from './AuthDetailParts'
 import { SaveStatus } from './AuthSettingsControls'
 import { useLegacyFieldLabels } from './SsoConnectionInputs'
+import { LegacyUsageSection } from './SsoLegacyUsage'
 import { LEGACY_DEFAULTS, LEGACY_PROTOCOLS, LEGACY_SECRET_KEY } from './sso-connection-form'
 import type { SsoConnectionExtras } from './sso-connection-form'
 
@@ -207,22 +208,25 @@ export function SsoSettingsPanel({
   const handoff = spRows(connection, t)
   return (
     <>
-      <DetailSection
-        title={<Trans>Domain routing</Trans>}
-        description={
-          <Trans>
-            When someone types an email at a verified domain, Hosted Auth skips the password step
-            and opens {name}.
-          </Trans>
-        }
-        action={
-          <Button type="button" variant="secondary" onClick={() => navigate(DOMAINS_PATH)}>
-            <Trans>Add domain…</Trans>
-          </Button>
-        }
-      >
-        <SsoDomainList domains={connection.routedDomains} />
-      </DetailSection>
+      {isLegacy ? <LegacyUsageSection connection={connection} /> : null}
+      {isLegacy ? null : (
+        <DetailSection
+          title={<Trans>Domain routing</Trans>}
+          description={
+            <Trans>
+              When someone types an email at a verified domain, Hosted Auth skips the password step
+              and opens {name}.
+            </Trans>
+          }
+          action={
+            <Button type="button" variant="secondary" onClick={() => navigate(DOMAINS_PATH)}>
+              <Trans>Add domain…</Trans>
+            </Button>
+          }
+        >
+          <SsoDomainList domains={connection.routedDomains} />
+        </DetailSection>
+      )}
       <DetailSection
         title={<Trans>{name} details</Trans>}
         description={<Trans>The values XID uses to trust sign-ins from {name}.</Trans>}

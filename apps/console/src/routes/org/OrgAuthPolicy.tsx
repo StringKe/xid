@@ -162,7 +162,9 @@ export default function OrgAuthPolicyPage(): ReactNode {
                 policy={policy}
                 insights={insights}
                 orgName={orgName}
-                connection={connections?.[0] ?? null}
+                connection={
+                  connections?.find((item) => item.type === 'saml' || item.type === 'oidc') ?? null
+                }
               />
               <AttestationSection orgId={orgId} policy={policy} />
               <SignUpSection orgId={orgId} policy={policy} />

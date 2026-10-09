@@ -46,12 +46,12 @@ async function seedOwner(): Promise<D1> {
   return d1
 }
 
-async function seedSsoConnection(d1: D1, status: string): Promise<void> {
+async function seedSsoConnection(d1: D1, status: string, protocol = 'saml'): Promise<void> {
   await tenantDb(d1).forOrg('t_a').ssoConnections.insert({
     id: 'conn_a',
     tenantId: 't_a',
     orgId: 't_a',
-    protocol: 'saml',
+    protocol,
     status,
   })
 }
@@ -99,6 +99,16 @@ describe('auth-policy loginPolicy', () => {
     expect(res.status).toBe(422)
     expect((await json(res))['meta']).toEqual({ paramName: 'loginPolicy.forceSso' })
     expect(await tenantDb(d1).forOrg('t_a').orgPolicies.findOne()).toBeUndefined()
+  })
+
+  it('rejects requiring SSO when the only active connection is not routed by email domain', async () => {
+    const d1 = await seedOwner()
+    await seedSsoConnection(d1, 'active', 'swa')
+
+    const res = await patch(envOf(d1), { loginPolicy: { forceSso: true } })
+
+    expect(res.status).toBe(422)
+    expect((await json(res))['meta']).toEqual({ paramName: 'loginPolicy.forceSso' })
   })
 
   it('rejects turning on hostedAuth.forceSso when the organization has no active connection', async () => {
