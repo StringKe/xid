@@ -32,6 +32,7 @@ import { auditPolicyDeniedError } from './hosted-audit'
 import { activateSessionAfterMfaSetup, resolvePostAuthMfaGate } from '../lib/mfa-session'
 import { loadUserCredentialLabel, requireSession, type SessionRequirement } from '../me/shared'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
+import { trustedRootsKvKey } from '../v1/webauthn-trusted-roots'
 
 const passkey = new Hono<XidHonoEnv>()
 
@@ -68,21 +69,15 @@ function resolveAttestationPreference(tenant: TenantVar): 'none' | 'indirect' | 
   return 'none'
 }
 
-function splitPemCertificates(pem: string): string[] {
-  return pem
-    .split('-----END CERTIFICATE-----')
-    .filter(Boolean)
-    .map((part) => `${part}-----END CERTIFICATE-----`)
-}
-
+// 实例级根(Workers 变量)与租户在 Management API 配置的根都可用;注册仪式按证书逐级验签到其中之一。
 async function loadTrustedAttestationRoots(
   c: Context<XidHonoEnv>,
   tenantId: string,
 ): Promise<string[]> {
-  const fromEnv = c.env.WEBAUTHN_TRUSTED_ROOTS_PEM
-  if (fromEnv) return splitPemCertificates(fromEnv)
-  const cached = c.env.CACHE ? await c.env.CACHE.get(`webauthn:trusted_roots:${tenantId}`) : null
-  return cached ? splitPemCertificates(cached) : []
+  const tenantRoots = await c.env.CACHE.get(trustedRootsKvKey(tenantId))
+  return [c.env.WEBAUTHN_TRUSTED_ROOTS_PEM, tenantRoots].filter(
+    (pem): pem is string => typeof pem === 'string' && pem.length > 0,
+  )
 }
 
 async function assertResolvedWebAuthnTenant(
