@@ -1,24 +1,28 @@
 // LDAP direct bind upstream authentication (enterprise legacy protocol).
-// Workers cannot open native LDAP sockets; production bind uses an HTTP LDAP gateway URL
-// configured per connection. Local L3 uses the fake LDAP harness in development/test only.
+// Workers cannot open native LDAP sockets; production bind uses an HTTP LDAP gateway URL and a
+// bearer secret, both configured per connection. Local L3 uses the fake LDAP harness in
+// development/test only.
 
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
-import { publicHttpsUrlSchema, readJsonBody } from '../lib/validate'
+import { readJsonBody } from '../lib/validate'
 import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
 import { requestIp, verifyTurnstile } from '../me-auth/shared'
 import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import { fakeLdapBind } from '../test-harness/fake-ldap'
 import { readBoundedJson } from './bounded-json'
+import { readLdapGatewaySecret } from './ldap-gateway-secret'
 import {
   completeLegacyLogin,
   legacyConfig,
   resolveLegacyConnection,
+  type LegacyConnection,
   type LegacyProfile,
 } from './legacy-shared'
+import { isUsableLegacyTargetUrl } from './legacy-target-url'
 import { resolveSsoConnectionTenant, withTenant } from './tenant'
 
 // LDAP 登录 body。形状失败统一按 credentials_required 处理(凭证类端点不区分"形状错误"与
@@ -81,24 +85,21 @@ async function gatewayLdapBind(
 
 export async function ldapDirectBind(
   c: Context<XidHonoEnv>,
-  username: string,
-  password: string,
-  gatewayUrl?: string,
+  connection: LegacyConnection,
+  credentials: { username: string; password: string },
 ): Promise<LegacyProfile | null> {
   if (isDevOrTestEnvironment(c.env)) {
-    return fakeLdapBind(username, password)
+    return fakeLdapBind(credentials.username, credentials.password)
   }
-  if (gatewayUrl) {
-    if (!v.safeParse(publicHttpsUrlSchema, gatewayUrl).success) {
-      throw new AppError('internal_error', { longMessage: 'ldap_gateway_url_invalid' })
-    }
-    const gatewaySecret = c.env.LDAP_GATEWAY_SHARED_SECRET?.trim()
-    if (!gatewaySecret) {
-      throw new AppError('internal_error', { longMessage: 'ldap_gateway_secret_not_configured' })
-    }
-    return gatewayLdapBind(gatewaySecret, gatewayUrl, username, password)
+  const gatewayUrl = legacyConfig(connection).ldapGatewayUrl
+  if (!isUsableLegacyTargetUrl(gatewayUrl)) {
+    throw new AppError('internal_error', { longMessage: 'ldap_gateway_not_configured' })
   }
-  throw new AppError('internal_error', { longMessage: 'ldap_gateway_not_configured' })
+  const gatewaySecret = await readLdapGatewaySecret(c.env, connection.attributeMapping)
+  if (!gatewaySecret) {
+    throw new AppError('internal_error', { longMessage: 'ldap_gateway_secret_not_configured' })
+  }
+  return gatewayLdapBind(gatewaySecret, gatewayUrl, credentials.username, credentials.password)
 }
 
 async function handleLdapLogin(c: Context<XidHonoEnv>): Promise<Response> {
@@ -128,8 +129,7 @@ async function handleLdapLogin(c: Context<XidHonoEnv>): Promise<Response> {
       ip: requestIp(c),
     })
     const connection = await resolveLegacyConnection(c, connectionId, 'ldap')
-    const config = legacyConfig(connection)
-    const profile = await ldapDirectBind(c, username, password, config.ldapGatewayUrl)
+    const profile = await ldapDirectBind(c, connection, { username, password })
     if (!profile) throw new AppError('invalid_credentials')
     await resetVerifyAccountRateLimit({
       env: c.env,
