@@ -250,6 +250,15 @@ attribute updates; it cannot deprovision, so it MUST be paired with SCIM.
 - After the user enters an email on the sign-in page: look up the domain -> find the active connection
   -> redirect to the IdP
 - Multiple domains per org; unverified domains do not trigger SSO routing
+- Only SAML and OIDC connections are routed. LDAP, WS-Federation, SWA and header-based connections
+  have no redirect entry, so HRD ignores them and requiring SSO needs an active SAML or OIDC
+  connection. SWA members save credentials on the account security page and open the app from
+  "App sign-ins"
+- An org keeps one connection row. Creating a connection after deleting one reuses that row and
+  resets every column the new request does not set, so no metadata, refresh error, retained
+  certificate, secret, landing page or display name of the deleted connection carries over. A
+  connection created without `display_name` stores none; Console shows the localized preset or
+  protocol name
 - When no connection matches, `/sso/hrd` returns `connectionId: null` and the Hosted UI tells the
   user that the Email domain does not use enterprise SSO and to choose another sign-in method
 - During an invitation flow `/sso/hrd` returns `connectionId: null` without discovery; invitations

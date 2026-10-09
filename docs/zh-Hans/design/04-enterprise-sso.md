@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=bed9cc4b54787f9f8c7c977ac9417f25c5562ae8 -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=9caedd65c5112b11881b379bd78bf47b94101c1b -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -170,6 +170,8 @@ JIT 新建用户打 `provisioned_by: jit_sso` 标记。约束:JIT 仅处理上�
 - 一个 domain 只能被一个 org 认领,支持 wildcard 子域。通配行覆盖任意层级的子域:HRD 先找完全相同、已验证、有效且未删除的域名行,再由近到远逐级检查父域(至少保留两段标签)是否有这样一行且标记为通配。JIT 的可信邮箱判断使用同一覆盖规则
 - 登录页输入 email 后:查域名 -> 找 active connection -> 重定向 IdP
 - 多 domain per org;未验证域名不触发 SSO 路由
+- 只有 SAML 与 OIDC 连接参与路由。LDAP、WS-Federation、SWA 与请求头连接没有可跳转的登录入口,HRD 忽略它们,要求 SSO 也需要一个 active 的 SAML 或 OIDC 连接。SWA 成员在账户安全页保存凭据,再从「应用登录信息」打开应用
+- 每个 org 只有一行连接。删除后新建会复用该行,并把新请求未给出的列全部重置,旧连接的 metadata、刷新错误、保留证书、密钥、落地页与显示名都不会延续。未给出 `display_name` 时不存显示名,Console 显示本地化的预设名或协议名
 - 没有匹配的 connection 时 `/sso/hrd` 返回 `connectionId: null`,Hosted UI 提示该邮箱域名未启用企业 SSO,请改用其他登录方式
 - 邀请流程中 `/sso/hrd` 不做发现,直接返回 `connectionId: null`;邀请只能通过 Email claim 接受(01 章)
 
