@@ -537,8 +537,10 @@ Aggregation architecture:
 
 - After a successful authentication, the login Worker writes a metering event
   `{tenant_id, user_id, ts}` to Queues
-- The metering consumer deduplicates and writes daily rows into the D1 `usage_daily` table
-- The daily `0 2 * * *` Cron snapshots the current month's MAU into `usage_monthly`. On the first
+- The metering consumer deduplicates and writes the exact day and month counts into the D1
+  `usage_daily` and `usage_monthly` tables in one batch, so the current month's MAU never trails
+  that day's DAU
+- The daily `0 2 * * *` Cron also snapshots the current month's MAU into `usage_monthly`. On the first
   UTC day of a month, the same daily path also archives and evicts the previous month's
   `MeteringDO` keys. The Stripe MAU reporting phase runs daily only while usage billing is enabled
 
@@ -622,7 +624,9 @@ input gate, so membership reads, count updates, and deletions are serialized.
 `recordUser` reads only the current user's two membership keys and two counts. A new membership and
 its corresponding count are written inside a single `storage.put`; if the write fails, the Durable
 Object storage transaction rolls back and a retry does not double-count. A duplicate Queue message
-reads the membership and simply returns the existing DAU snapshot. The full user set always stays in
+reads the membership and simply returns the existing DAU and MAU snapshot. The consumer upserts both
+snapshots into D1 with `MAX(stored, snapshot)`, and the daily Cron snapshot uses the same monotonic
+upsert, so a Queue redelivery or a racing Cron run never lowers a stored count. The full user set always stays in
 storage, and a Durable Object restart reads only the counts or the current user key.
 
 #### 7.1.2 Daily snapshots, month-start archiving, and cleanup

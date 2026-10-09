@@ -370,7 +370,7 @@ async function upsertUsageMonthly(env: Env, input: UsageMonthlyInput): Promise<v
   await env.DB.prepare(
     `INSERT INTO usage_monthly (tenant_id, year_month, mau, archived_at)
      VALUES (?, ?, ?, ?)
-     ON CONFLICT (tenant_id, year_month) DO UPDATE SET mau = excluded.mau, archived_at = excluded.archived_at`,
+     ON CONFLICT (tenant_id, year_month) DO UPDATE SET mau = MAX(usage_monthly.mau, excluded.mau), archived_at = excluded.archived_at`,
   )
     .bind(input.tenantId, input.yearMonth, input.mau, input.archivedAt)
     .run()

@@ -1,4 +1,4 @@
-// Metering Queue Consumer:认证成功事件去重 + MAU 聚合 + 按天写 usage_daily。
+// Metering Queue Consumer:认证成功事件去重 + MAU 聚合 + 写 usage_daily 与当月 usage_monthly。
 // 见 docs/design/07-platform-operations.md 第 7 节、7.1.2。
 // - 按 tenant_id 分组,路由到 MeteringDO(metering:{tenantId})串行去重,解决 KV RMW 竞态。
 // - DAU:由 MeteringDO 返回精确日快照，D1 只做单调覆盖，Queue 重投不重复累计。
@@ -21,12 +21,14 @@ type MeteringStub = {
     userId: string,
     yearMonth: string,
     day: string,
-  ): Promise<MeteringSnapshot>
+  ): Promise<{ dau: number; mau: number }>
 }
 
 type MeteringSnapshot = {
   day: string
+  yearMonth: string
   dau: number
+  mau: number
 }
 
 // ts(Unix 毫秒)-> "YYYY-MM"(UTC)。
@@ -107,23 +109,43 @@ async function handleStripeMessages(
   }
 }
 
-// 将 DO 返回的按日精确快照单调覆盖到 D1。D1 成功而 ack 失败时，重投只会覆盖同一值。
-async function upsertDailyUsage(
+function maxBy(
+  snapshots: ReadonlyArray<MeteringSnapshot>,
+  key: 'day' | 'yearMonth',
+  value: 'dau' | 'mau',
+): Map<string, number> {
+  const latest = new Map<string, number>()
+  for (const snapshot of snapshots) {
+    latest.set(snapshot[key], Math.max(latest.get(snapshot[key]) ?? 0, snapshot[value]))
+  }
+  return latest
+}
+
+// DO 返回的日、月精确快照在同一个 D1 batch 里单调覆盖，当月 MAU 不会落后于当日 DAU。
+// D1 成功而 ack 失败时，重投只会覆盖同一值。
+async function upsertUsage(
   env: Env,
   tenantId: string,
   snapshots: ReadonlyArray<MeteringSnapshot>,
 ): Promise<void> {
-  const latestByDay = new Map<string, number>()
-  for (const snapshot of snapshots) {
-    latestByDay.set(snapshot.day, Math.max(latestByDay.get(snapshot.day) ?? 0, snapshot.dau))
-  }
-  const statements = Array.from(latestByDay.entries()).map(([day, dau]) =>
+  const now = Date.now()
+  const archivedAt = new Date(now).toISOString()
+  const dailyStatements = Array.from(maxBy(snapshots, 'day', 'dau')).map(([day, dau]) =>
     env.DB.prepare(
       `INSERT INTO usage_daily (tenant_id, day, dau, api_calls, email_count, created_at, updated_at)
        VALUES (?, ?, ?, 0, 0, ?, ?)
        ON CONFLICT (tenant_id, day) DO UPDATE SET dau = MAX(usage_daily.dau, excluded.dau), updated_at = excluded.updated_at`,
-    ).bind(tenantId, day, dau, Date.now(), Date.now()),
+    ).bind(tenantId, day, dau, now, now),
   )
+  const monthlyStatements = Array.from(maxBy(snapshots, 'yearMonth', 'mau')).map(
+    ([yearMonth, mau]) =>
+      env.DB.prepare(
+        `INSERT INTO usage_monthly (tenant_id, year_month, mau, archived_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (tenant_id, year_month) DO UPDATE SET mau = MAX(usage_monthly.mau, excluded.mau), archived_at = excluded.archived_at`,
+      ).bind(tenantId, yearMonth, mau, archivedAt),
+  )
+  const statements = [...dailyStatements, ...monthlyStatements]
   if (statements.length > 0) {
     await env.DB.batch(statements)
   }
@@ -153,13 +175,18 @@ export async function handleMeteringBatch(
         const yearMonth = toYearMonth(message.body.ts)
         const day = toDay(message.body.ts)
         const snapshot = await stub.recordUser(tenantId, message.body.userId, yearMonth, day)
-        snapshots.push({ day, dau: snapshot.dau })
+        snapshots.push({ day, yearMonth, dau: snapshot.dau, mau: snapshot.mau })
       }
-      await upsertDailyUsage(env, tenantId, snapshots)
+      await upsertUsage(env, tenantId, snapshots)
       for (const message of messages) {
         message.ack()
       }
-    } catch {
+    } catch (cause) {
+      logWorkerError('metering.record_failed', cause, {
+        component: 'metering-queue',
+        operation: 'record_user',
+        outcome: 'queue_retry',
+      })
       for (const message of messages) {
         message.retry()
       }

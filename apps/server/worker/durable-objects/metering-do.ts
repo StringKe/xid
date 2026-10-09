@@ -13,6 +13,7 @@ const EVICT_PAGE_SIZE = 1000
 
 export type MeteringSnapshot = {
   dau: number
+  mau: number
 }
 
 type RecordUserBody = {
@@ -84,7 +85,10 @@ export class MeteringDO extends DurableObject<Env> {
       await this.ctx.storage.put(updates)
     }
 
-    return { dau: (updates[dayCount] as number | undefined) ?? storedDayCount ?? 0 }
+    return {
+      dau: (updates[dayCount] as number | undefined) ?? storedDayCount ?? 0,
+      mau: (updates[monthCount] as number | undefined) ?? storedMonthCount ?? 0,
+    }
   }
 
   async getMau(_tenantId: string, yearMonth: string): Promise<number> {

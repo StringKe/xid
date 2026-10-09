@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=151daf64d674e694b02ab0877c66a2a14745daba -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=5a790cf7da93cc6476362d851bba825471289ec9 -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -452,8 +452,9 @@ Turnstile + `RateLimitStore`;账号枚举工作量通过 constant-time compariso
 统计架构:
 
 - Login Worker 认证成功后向 Queues 写计量事件 `{tenant_id, user_id, ts}`
-- Metering Consumer 去重 + 按天写 D1 `usage_daily`
-- 每日 `0 2 * * *` Cron 把当月 MAU snapshot 写入 `usage_monthly`。UTC 每月第 1 天,同一
+- Metering Consumer 去重后，在同一个 batch 里把精确的日、月计数写入 D1 `usage_daily` 与
+  `usage_monthly`,当月 MAU 不会落后于当日 DAU
+- 每日 `0 2 * * *` Cron 也把当月 MAU snapshot 写入 `usage_monthly`。UTC 每月第 1 天,同一
   daily path 还会归档并清理上月 `MeteringDO` key。Stripe MAU 上报 phase 只在按量计费开启时
   每日运行
 
@@ -520,7 +521,7 @@ DO 名称:`metering:{tenant_id}`。同 tenant 的事件进入同一 DO input gat
 - 月 count:`count:month:{YYYY-MM}` -> `number`
 - 日 count:`count:day:{YYYY-MM-DD}` -> `number`
 
-`recordUser` 只读取当前 user 的两个 membership 和两个 count。新 membership 与对应 count 在一次 `storage.put` 内写入;写失败时 DO storage 事务回滚，重试不会重复计数。重复 Queue 消息读到 membership 后只返回既有 DAU 快照。用户全集始终留在 storage,DO 重启只读取 count 或当前 user key。
+`recordUser` 只读取当前 user 的两个 membership 和两个 count。新 membership 与对应 count 在一次 `storage.put` 内写入;写失败时 DO storage 事务回滚，重试不会重复计数。重复 Queue 消息读到 membership 后只返回既有 DAU 与 MAU 快照。Consumer 用 `MAX(已存值, 快照)` 把两个快照写入 D1,每日 Cron 快照也用同样的单调 upsert,Queue 重投或并发的 Cron 都不会把已存计数调低。用户全集始终留在 storage,DO 重启只读取 count 或当前 user key。
 
 #### 7.1.2 每日 snapshot、月初归档与清理
 

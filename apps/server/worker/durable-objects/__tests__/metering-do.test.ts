@@ -78,15 +78,28 @@ describe('MeteringDO', () => {
 
     await expect(do_.recordUser('tenant_1', 'user_1', '2025-01', '2025-01-15')).resolves.toEqual({
       dau: 1,
+      mau: 1,
     })
     await expect(do_.recordUser('tenant_1', 'user_1', '2025-01', '2025-01-16')).resolves.toEqual({
       dau: 1,
+      mau: 1,
     })
     await expect(do_.recordUser('tenant_1', 'user_1', '2025-01', '2025-01-16')).resolves.toEqual({
       dau: 1,
+      mau: 1,
     })
 
     expect(await do_.getMau('tenant_1', '2025-01')).toBe(1)
+  })
+
+  it('新租户首日首个用户返回的当月 MAU 不低于当日 DAU', async () => {
+    const do_ = makeDO(storage)
+
+    const first = await do_.recordUser('tenant_new', 'owner', '2026-10', '2026-10-09')
+    const second = await do_.recordUser('tenant_new', 'member', '2026-10', '2026-10-09')
+
+    expect(first).toEqual({ dau: 1, mau: 1 })
+    expect(second).toEqual({ dau: 2, mau: 2 })
   })
 
   it('storage.put 失败后不写 membership 或 count，重试和重启后保持精确一致', async () => {
@@ -102,12 +115,12 @@ describe('MeteringDO', () => {
 
     await expect(
       firstInstance.recordUser('tenant_1', 'user_1', '2025-01', '2025-01-15'),
-    ).resolves.toEqual({ dau: 1 })
+    ).resolves.toEqual({ dau: 1, mau: 1 })
 
     const restartedInstance = makeDO(storage)
     await expect(
       restartedInstance.recordUser('tenant_1', 'user_1', '2025-01', '2025-01-15'),
-    ).resolves.toEqual({ dau: 1 })
+    ).resolves.toEqual({ dau: 1, mau: 1 })
     expect(await restartedInstance.getMau('tenant_1', '2025-01')).toBe(1)
   })
 
