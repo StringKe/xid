@@ -5,7 +5,7 @@ packages:
 # 统一第三方依赖版本,各包用 "catalog:" 引用,避免多版本漂移
 catalog:
   '@astrojs/check': 0.9.10
-  '@astrojs/react': 6.0.2
+  '@astrojs/react': 7.0.1
   '@base-ui/react': ^1.8.0
   '@cloudflare/nimbus-docs': 0.9.0
   '@cloudflare/vite-plugin': ^1.62.5
