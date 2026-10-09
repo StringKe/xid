@@ -18,8 +18,8 @@ section 8. Binding names are declared in `apps/server/wrangler.jsonc` and typed 
 ## Selection rules (MUST)
 
 - **Strong consistency, replay protection, serialization -> Durable Objects**: challenges, OAuth
-  state/nonce/PKCE, PAR, device flow, session revocation sets, rate limiting, audit sequence,
-  metering. Short-lived strongly consistent data MUST NOT go into D1 tables.
+  state/nonce/PKCE, PAR, device flow, handoff grants, session revocation sets, rate limiting, audit
+  sequence, metering. Short-lived strongly consistent data MUST NOT go into D1 tables.
 - **Read-heavy caching -> KV**: JWKS, discovery and protected-resource metadata, branding, upstream
   provider JWKS, trust anchors. TTL constants live in
   `apps/server/worker/lib/ttl.ts` -- never an inline literal.

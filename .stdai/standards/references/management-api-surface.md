@@ -47,7 +47,24 @@ custom-hostnames, audit-events), `/v1/organizations/:orgId/memberships`,
 `/v1/organizations/:orgId/invitations`,
 `/v1/sessions`, `/v1/applications`, `/v1/connections` (SSO), `/v1/directories` (SCIM), `/v1/projects`,
 `/v1/roles`, `/v1/permissions`, `/v1/role-permissions`, `/v1/manager-assignments`, `/v1/webhooks`,
-`/v1/api-keys`, `/v1/project-grants`, `/v1/user-grants`.
+`/v1/api-keys`, `/v1/project-grants`, `/v1/user-grants`, `/v1/webauthn/trusted-roots`.
+
+`DELETE /v1/users/:id/passkeys/:passkeyId` (module `v1/user-passkeys.ts`, `users:write` through
+`requireApiKeyOrTopLevelOrgManager`) revokes one passkey of a tenant user: it sets `revoked_at`
+without deleting the row (`404` when the passkey does not exist, belongs to another user or is
+already revoked), retires supplementary MFA factors left without a strong factor, then revokes every
+session and token of that user. It records the audit action `user.passkey_revoked`, emits the
+`user.updated` webhook, and returns `204`.
+
+`/v1/webauthn/trusted-roots` (module `v1/webauthn-trusted-roots.ts`, tenant-level, guarded by
+`requireApiKeyOrTopLevelOrgManager`) manages the tenant's passkey attestation trusted roots in KV
+`webauthn:trusted_roots:{tenantId}`. `GET` (`organizations:read`) returns `{ configured, data }`:
+`data` lists only the tenant's roots as SHA-256 fingerprint, `notBefore` and `notAfter`, never the
+certificate body; `configured` is true when tenant roots exist or the instance
+`WEBAUTHN_TRUSTED_ROOTS_PEM` is set. `PUT { pem }` (`organizations:write`) replaces the bundle with 1
+to 20 currently valid CA certificates of at most 64 KiB, otherwise `422` with `paramName=pem`.
+`DELETE` (`organizations:write`) returns `204`. Both writes record the audit action
+`organization.webauthn_trusted_roots.updated`; no webhook is emitted.
 
 Projects provide tenant-scoped CRUD plus soft delete and restore. Role-permission mappings provide
 list/create/read/update/delete for active Role and Permission records in the same active Project.
@@ -71,9 +88,21 @@ Console read models under `/v1/organizations/:id` (all `organizations:read` thro
 - `attention`, `sign-in-activity?days=1..28`, `setup-progress` (module `v1/org-overview.ts`).
 - `auth-policy/insights`, `sso-connections/:connectionId/activity`,
   `outbound-saml-apps/:appId/activity` (module `v1/org-auth-insights.ts`). The auth policy also
-  carries `mfaPolicy` / `effectiveMfaPolicy`; delivery channels add `failures24h` without recipient
-  or payload.
+  carries `mfaPolicy` / `effectiveMfaPolicy`, `loginPolicy` (`forceSso`, default false;
+  `allowPasswordLogin`, default true; stored in `org_policies.force_sso` / `allow_password_login`)
+  and `attestationRootsConfigured` (instance or tenant trusted roots exist); delivery channels add
+  `failures24h` without recipient or payload.
 - `audit-events` accepts `actor_id`, `q` (exact target ID or IP), and a `*` suffix on `event_type`.
+
+`PATCH /v1/organizations/:id/auth-policy` (`organizations:write`, module `v1/org-auth-policy.ts`)
+accepts `loginPolicy` / `login_policy` with keys `forceSso` / `force_sso` and `allowPasswordLogin` /
+`allow_password_login`. A non-boolean value is `422` with `paramName=loginPolicy.<field>`; a
+non-object or an object with neither key is `422` with `paramName=loginPolicy`. Turning `forceSso`
+on in the request, through `loginPolicy` or `hostedAuth.forceSso`, requires at least one `active`
+SSO connection of the organization, otherwise `422` with `paramName=loginPolicy.forceSso` or
+`hostedAuth.forceSso`; a value that is already on is not rechecked. Switching
+`hostedAuth.attestationMode` to `direct` requires instance or tenant trusted roots, otherwise `422`
+with `paramName=hostedAuth.attestationMode` (`v1/org-auth-policy-guards.ts`).
 
 Branding is draft-then-publish: `PATCH /:id/branding` and `PUT /:id/logo?variant=` write the draft,
 `POST /:id/branding/publish` enforces 4.5:1 text and 3:1 focus-ring contrast (`422`,

@@ -45,7 +45,7 @@ Crypto       Web Crypto (crypto.subtle) for primitives; @noble/hashes for Argon2
 ORM/DB       Drizzle ORM + D1 (relational data), binding DB
 Strong cons. Durable Objects: SessionDO, ChallengeStore, OAuthFlowDO, ParStore, DeviceFlowStore,
              RateLimitStore, AuditSeqDO, MeteringDO, GuestStore, CibaStore,
-             ImpersonationGrantDO
+             ImpersonationGrantDO, SessionHandoffDO
 Cache        KV, binding CACHE (JWKS / discovery / branding config)
 Objects      R2, binding STORAGE (organization logos / email locale packs / private privacy
              exports / immutable compliance evidence)

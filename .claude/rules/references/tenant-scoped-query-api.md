@@ -32,7 +32,7 @@ Implementation: `packages/db/src/tenant-db.ts` and `packages/db/src/schema/`. De
 
 - Business entities are isolated by tenant (Organization); org-level entities are further scoped by org.
 - Platform-level entities (`instances`, `platform_admins`) carry no `tenant_id` and are reached through the separate management path.
-- Short-lived strongly-consistent state (WebAuthn challenges, OAuth state / nonce, PAR request_uri, device flow, session revocation sets, rate-limit counters, audit sequence, metering) lives in Durable Objects, not in relational tables.
+- Short-lived strongly-consistent state (WebAuthn challenges, OAuth state / nonce, PAR request_uri, device flow, impersonation and passkey session handoff grants, session revocation sets, rate-limit counters, audit sequence, metering) lives in Durable Objects, not in relational tables.
 
 ## Per-tenant unique constraints
 

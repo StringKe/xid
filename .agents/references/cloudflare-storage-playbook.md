@@ -18,8 +18,8 @@ version below is the full original text of that list.
 ## Selection Rules (MUST follow)
 
 - **Strong consistency, replay protection, serialization -> Durable Objects**: challenges, OAuth
-  state/nonce/PKCE, PAR, device flow, impersonation handoff grants, session revocation sets, rate
-  limiting, audit sequence, metering. Short-lived strongly consistent data MUST NOT go into D1
+  state/nonce/PKCE, PAR, device flow, impersonation handoff grants, passkey session handoff grants,
+  session revocation sets, rate limiting, audit sequence, metering. Short-lived strongly consistent data MUST NOT go into D1
   relational tables.
 - **Read-heavy caching -> KV**: JWKS (`jwks:{issuer}:{active_kid}`, TTL 3600s), discovery and
   protected-resource metadata (TTL 3600s), branding (`brand:{tenant_id}:{org_id}`), upstream
@@ -60,6 +60,15 @@ version below is the full original text of that list.
   deletes the grant. The resulting 15-minute session is fixed to one active Organization, marks
   `isImpersonation`, and may only call `GET` / `HEAD` / `OPTIONS` below `/v1/*` or explicitly end
   impersonation. Token exchange, protocol, auth, SSO, and every mutation path fail closed.
+- `SessionHandoffDO` (per random grant id, `handoff:{grantId}`) moves a session between the instance
+  root domain and an organization rpId host in either direction, because `__Host-` session cookies
+  cannot cross hosts and multi-tenant passkey ceremonies run only on the organization host. It
+  stores only the SHA-256 of the grant secret and of the `__Host-xid.handoff` state cookie that the
+  target host wrote, for at most two minutes, so a grant minted for another browser or host cannot
+  be consumed. Consume matches tenant, instance and target origin and atomically deletes the grant;
+  the target host then issues a session with the same status (`active`, `pending_mfa` or
+  `pending_mfa_setup`), remember-me flag and auth context, so a pending MFA session stays pending.
+  Impersonation sessions are never handed off.
 - KV caches JWKS public keys (TTL 1h) so JWT verification reads KV instead of going back to origin.
 
 ## Audit Chain

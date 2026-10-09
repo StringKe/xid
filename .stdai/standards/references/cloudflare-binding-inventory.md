@@ -1,7 +1,7 @@
 ---
 type: references
 name: cloudflare-binding-inventory
-description: The exact binding names declared in wrangler.jsonc - D1, the eleven Durable Object classes, the eight queues with their consumer settings and message shapes, and the two cron expressions with their job lists
+description: The exact binding names declared in wrangler.jsonc - D1, the twelve Durable Object classes, the eight queues with their consumer settings and message shapes, and the two cron expressions with their job lists
 ---
 
 # Cloudflare binding inventory
@@ -26,7 +26,7 @@ judgment calls about which service to pick for a given job stay in the `cloudfla
 | Nimbus Site Worker  | `apps/site`, `ASSETS` only                                                                                             | Static apex documentation plus www canonical redirect; no business API or Core binding                                  |
 | Console Worker      | `apps/console`, `ASSETS` only                                                                                          | Static management SPA and narrow redirects; same-host API calls continue to Core                                        |
 | D1                  | `DB` (`xid-db`)                                                                                                        | Users, applications, credential metadata, authorization codes, refresh tokens, audit, tenants, key ciphertext, sessions |
-| Durable Objects     | 11 bindings (see table below)                                                                                          | Strong consistency, replay protection, serialized writes                                                                |
+| Durable Objects     | 12 bindings (see table below)                                                                                          | Strong consistency, replay protection, serialized writes                                                                |
 | KV                  | `CACHE`                                                                                                                | JWKS / discovery / branding config                                                                                      |
 | R2                  | `STORAGE`                                                                                                              | Org logos, email locale packs, private privacy exports, and immutable compliance evidence                               |
 | Queues              | 8 producers + 8 source-specific dead letter queues + 8 persistence-failure quarantine queues                           | Email, SMS, WhatsApp, audit persistence, webhook delivery, metering, outbound SCIM, privacy export and erasure          |
@@ -73,10 +73,22 @@ billing switched off.
 | `GUEST_STORE`          | `GuestStore`           | Per-anonymous-session guest mint deduplication                                                                                        |
 | `CIBA_STATE`           | `CibaStore`            | Per-`auth_req_id` CIBA state, poll throttling and atomic redemption                                                                   |
 | `IMPERSONATION_GRANTS` | `ImpersonationGrantDO` | Two-minute, secret-hash-only, exact-target-host impersonation handoff consumed once                                                   |
+| `SESSION_HANDOFF`      | `SessionHandoffDO`     | Two-minute passkey session handoff grant between the root domain and an org rpId host, bound to a state cookie hash, consumed once    |
 
 The first eight classes are registered in migration `v1`; `GuestStore` is registered in `v2` and
-`CibaStore` in `v3`; `ImpersonationGrantDO` is registered in `v4`. All use
-`new_sqlite_classes`.
+`CibaStore` in `v3`; `ImpersonationGrantDO` is registered in `v4`; `SessionHandoffDO` is
+registered in `v5`. All use `new_sqlite_classes`.
+
+`SessionHandoffDO` is addressed as `handoff:{grantId}` (`apps/server/worker/me-auth/passkey-handoff.ts`)
+and holds one record: `secretHash` and `stateHash` (SHA-256 hex of the grant secret and of the
+target host's `__Host-xid.handoff` state), `tenantId`, `instanceId`, `targetOrigin`, `userId`,
+`continuePath`, `authenticatedAt`, `sessionStatus` (`active` / `pending_mfa` /
+`pending_mfa_setup`), `acr`, `amr`, `aal`, `rememberMe`, `issuedAt` and `expiresAt`. `POST /create`
+accepts a TTL of at most `SESSION_HANDOFF_TTL_MS` (2 min) and returns `409` while an unexpired
+record exists. `POST /consume` compares both hashes in constant time plus the exact tenant, instance
+and target origin inside a storage transaction, deletes the record and returns it without the two
+hashes; a mismatch returns `404 grant_invalid`, an expired record `410 grant_invalid`. An alarm
+deletes expired records.
 
 ## Queues
 
