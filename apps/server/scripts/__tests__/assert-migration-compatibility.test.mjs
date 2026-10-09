@@ -302,6 +302,20 @@ END;`,
     ).toThrow('migration compatibility requires approved additive DDL only')
   })
 
+  it('accepts only the exact meter report send-time backfill', () => {
+    const exact =
+      'UPDATE `billing_meter_reports` SET `pending_sent_at` = `pending_reserved_at` WHERE `pending_identifier` IS NOT NULL AND `provider_accepted_at` IS NULL;'
+
+    expect(() =>
+      assertMigrationCompatibility(migrationSet('0027_billing.sql', exact)),
+    ).not.toThrow()
+    expect(() =>
+      assertMigrationCompatibility(
+        migrationSet('0027_billing.sql', exact.replace(' AND `provider_accepted_at` IS NULL', '')),
+      ),
+    ).toThrow('migration compatibility requires approved additive DDL only')
+  })
+
   it('accepts only the exact redundant instance-manager deduplication', () => {
     const exact = `DELETE FROM \`manager_assignments\`
 WHERE \`manager_role\` = 'instance_manager'

@@ -394,6 +394,15 @@ function isSafeScimPasswordScrub(statement) {
   )
 }
 
+// Backfills only the new nullable send timestamp for reports already in flight.
+function isSafeMeterReportSentBackfill(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  return (
+    normalized ===
+    'UPDATE `billing_meter_reports` SET `pending_sent_at` = `pending_reserved_at` WHERE `pending_identifier` IS NOT NULL AND `provider_accepted_at` IS NULL'
+  )
+}
+
 function isSafeOrganizationHierarchyTrigger(statement) {
   const normalized = statement.replace(/\s+/gu, ' ').trim()
   const insertTrigger = [
@@ -473,7 +482,8 @@ function isApprovedAdditiveStatement(statement) {
     isSafeInvitationEmailClaimCutover(statement) ||
     isSafeInstanceManagerDeduplication(statement) ||
     isSafeSamlCertificateUniquenessCutover(statement) ||
-    isSafeScimPasswordScrub(statement)
+    isSafeScimPasswordScrub(statement) ||
+    isSafeMeterReportSentBackfill(statement)
   )
 }
 
