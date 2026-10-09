@@ -49,6 +49,8 @@ export function activitySentence(
       return i18n._(msg`${actor} reset two-step verification for ${subject}.`)
     case 'user.sessions_revoked':
       return i18n._(msg`${actor} signed ${subject} out everywhere.`)
+    case 'user.passkey_revoked':
+      return i18n._(msg`${actor} removed a passkey from ${subject}.`)
     case 'session.revoked':
       return i18n._(msg`${actor} ended one session of ${subject}.`)
     case 'membership.created':
