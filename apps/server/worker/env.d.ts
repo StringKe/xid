@@ -75,8 +75,6 @@ type WorkerBindings = {
   // 两者都未配置时 dev/test 跳过;只配置任一项时认证配置与校验均 fail closed。
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET?: string
-  // LDAP HTTP gateway bearer;缺省时生产 bind fail-closed。
-  LDAP_GATEWAY_SHARED_SECRET?: string
   // 可选按用量计费;三项全配置才开启,全不配置即关闭,只配一部分时 fail closed。
   STRIPE_SECRET_KEY?: string
   STRIPE_WEBHOOK_SECRET?: string

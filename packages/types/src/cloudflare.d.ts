@@ -60,7 +60,6 @@ export type Env = CloudflareForSaasEnv & {
   BOOTSTRAP_TOKEN?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET?: string
-  LDAP_GATEWAY_SHARED_SECRET?: string
   WHATSAPP_PROVIDER?: WhatsappProviderName
   WHATSAPP_FROM?: string
   WHATSAPP_META_PHONE_NUMBER_ID?: string
