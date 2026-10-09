@@ -15,6 +15,7 @@ import { logWorkerError } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
 import { billingEnabled } from '../lib/usage-billing'
 import { readJsonBody, validateBody } from '../lib/validate'
+import { billingMeterReportRoutes } from './billing-meter-reports'
 import { managementDb, requireInstanceManager } from './shared'
 
 const app = new Hono<XidHonoEnv>()
@@ -89,6 +90,8 @@ app.post('/portal', async (c) => {
     throw new AppError('service_unavailable', { httpStatus: 503, cause })
   }
 })
+
+app.route('/meter-reports', billingMeterReportRoutes)
 
 export function registerStripeBillingRoutes(parent: Hono<XidHonoEnv>): void {
   parent.route('/v1/platform/billing', app)

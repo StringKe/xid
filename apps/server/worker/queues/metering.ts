@@ -13,6 +13,15 @@ import { handleStripeMeteringQueueMessage } from '../billing/stripe-metering'
 import { logWorkerError } from '../lib/safe-log'
 
 const STRIPE_PROVIDER_CONCURRENCY = 10
+// xid-metering 的 max_retries 为 5:30 分钟起翻倍,五次重试共约 15.5 小时,都落在 Stripe
+// 24 小时去重窗口内,短暂故障不会让结果不明的上报进入人工对账。
+const STRIPE_RETRY_BASE_SECONDS = 30 * 60
+const QUEUE_MAX_RETRY_DELAY_SECONDS = 12 * 60 * 60
+
+export function stripeRetryDelaySeconds(attempts: number): number {
+  const exponent = Number.isSafeInteger(attempts) && attempts > 1 ? attempts - 1 : 0
+  return Math.min(STRIPE_RETRY_BASE_SECONDS * 2 ** exponent, QUEUE_MAX_RETRY_DELAY_SECONDS)
+}
 
 // MeteringDO RPC stub 形状(见 metering-do.ts)。
 type MeteringStub = {
@@ -84,7 +93,7 @@ async function handleStripeMessage(
       operation: message.body.type,
       outcome: 'queue_retry',
     })
-    message.retry()
+    message.retry({ delaySeconds: stripeRetryDelaySeconds(message.attempts) })
   }
 }
 

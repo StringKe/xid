@@ -1,8 +1,10 @@
 import type { StripeMeteringQueueMessage } from '@xid-kit/types'
-import { createStripeMeterEvent } from './stripe-client'
+import { createStripeMeterEvent, StripeApiError } from './stripe-client'
 import {
+  clearMeterSendAfterRejection,
   finalizeMeterDelta,
   markMeterProviderAccepted,
+  markMeterSendStarted,
   METER_KEY,
   meterRetryAllowed,
   reserveMeterDelta,
@@ -44,16 +46,35 @@ async function reportTarget(
   const cursorKey = { tenantId: target.tenantId, period, pending, now: now.getTime() }
   if (!(await meterRetryAllowed(env, cursorKey))) return
   if (pending.providerAcceptedAt === null) {
-    await createStripeMeterEvent(env, {
-      eventName: pending.eventName,
-      identifier: pending.identifier,
-      customerId: pending.customerId,
-      value: pending.value,
-      timestampSeconds: pending.timestampSeconds,
-    })
+    await markMeterSendStarted(env, cursorKey)
+    try {
+      await createStripeMeterEvent(env, {
+        eventName: pending.eventName,
+        identifier: pending.identifier,
+        customerId: pending.customerId,
+        value: pending.value,
+        timestampSeconds: pending.timestampSeconds,
+      })
+    } catch (cause) {
+      if (pending.sentAt === null && isDefinitiveStripeRejection(cause)) {
+        await clearMeterSendAfterRejection(env, cursorKey)
+      }
+      throw cause
+    }
     await markMeterProviderAccepted(env, cursorKey)
   }
   await finalizeMeterDelta(env, cursorKey)
+}
+
+// 4xx 表示 Stripe 没有处理这次请求;409 是同一 Idempotency-Key 的请求仍在处理,结果不明。
+// 网络错误、超时和 5xx 都可能已经入账。
+function isDefinitiveStripeRejection(cause: unknown): boolean {
+  return (
+    cause instanceof StripeApiError &&
+    cause.status >= 400 &&
+    cause.status < 500 &&
+    cause.status !== 409
+  )
 }
 
 async function loadMeterTargets(
