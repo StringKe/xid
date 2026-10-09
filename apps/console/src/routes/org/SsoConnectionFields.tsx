@@ -2,9 +2,10 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Button, Checkbox, Field, Input, Textarea } from '@xid-kit/web-ui/ui'
-import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import { LEGACY_ATTRIBUTE_TEMPLATES, LEGACY_PROTOCOLS } from './sso-connection-form'
+import { LEGACY_PROTOCOLS, withLegacyDefaults } from './sso-connection-form'
 import type { ConnectionForm, SsoProtocol } from './sso-connection-form'
+import { LegacyFields, MetadataXmlField } from './SsoConnectionInputs'
+import type { SsoFieldsProps as FieldsProps } from './SsoConnectionInputs'
 
 export const ssoFormStyles = stylex.create({
   formGrid: {
@@ -38,11 +39,6 @@ export const ssoFormStyles = stylex.create({
   },
 })
 
-type FieldsProps = {
-  form: ConnectionForm
-  onChange: (value: ConnectionForm) => void
-}
-
 function ProtocolSwitch({
   form,
   onChange,
@@ -58,12 +54,9 @@ function ProtocolSwitch({
     { protocol: 'header', label: t`Header` },
   ]
   function select(protocol: SsoProtocol): void {
-    const template = LEGACY_ATTRIBUTE_TEMPLATES[protocol]
-    onChange({
-      ...form,
-      protocol,
-      ...(template ? { attributeMapping: JSON.stringify({ _legacy: template }, null, 2) } : {}),
-    })
+    onChange(
+      LEGACY_PROTOCOLS.has(protocol) ? withLegacyDefaults(form, protocol) : { ...form, protocol },
+    )
   }
   return (
     <div {...stylex.props(ssoFormStyles.fullSpan, ssoFormStyles.protocolRow)}>
@@ -79,31 +72,6 @@ function ProtocolSwitch({
         </Button>
       ))}
     </div>
-  )
-}
-
-function LegacyFields({ form, onChange }: FieldsProps): ReactNode {
-  const { t } = useLingui()
-  return (
-    <>
-      <Field label={<Trans>Upstream SSO URL</Trans>}>
-        <Input
-          value={form.idpSsoUrl}
-          onChange={(event) => onChange({ ...form, idpSsoUrl: event.target.value })}
-          placeholder={t`https://idp.example.com/login`}
-        />
-      </Field>
-      <div {...stylex.props(ssoFormStyles.fullSpan)}>
-        <p {...stylex.props(consoleShell.sectionDescription)}>
-          <Trans>
-            Configure protocol-specific fields under{' '}
-            <code {...stylex.props(consoleShell.mono)}>_legacy</code> in attribute mapping. SWA
-            vaulted credentials are stored via the authenticated{' '}
-            <code {...stylex.props(consoleShell.mono)}>/sso/swa/:connectionId/vault</code> API.
-          </Trans>
-        </p>
-      </div>
-    </>
   )
 }
 
@@ -134,7 +102,10 @@ function SamlFields({ form, onChange }: FieldsProps): ReactNode {
         />
       </Field>
       <div {...stylex.props(ssoFormStyles.fullSpan)}>
-        <Field label={<Trans>Metadata URL</Trans>}>
+        <Field
+          label={<Trans>Metadata URL</Trans>}
+          hint={<Trans>XID reads it when you save and refreshes it every day.</Trans>}
+        >
           <Input
             value={form.idpMetadataUrl}
             onChange={(event) => patch({ idpMetadataUrl: event.target.value })}
@@ -142,6 +113,27 @@ function SamlFields({ form, onChange }: FieldsProps): ReactNode {
           />
         </Field>
       </div>
+      <div {...stylex.props(ssoFormStyles.fullSpan)}>
+        <MetadataXmlField form={form} onChange={onChange} />
+      </div>
+      <Field
+        label={<Trans>Stable user ID attribute</Trans>}
+        hint={<Trans>Optional. Leave blank to use the NameID.</Trans>}
+      >
+        <Input
+          value={form.idpIdAttribute}
+          onChange={(event) => patch({ idpIdAttribute: event.target.value })}
+        />
+      </Field>
+      <Field
+        label={<Trans>Landing page after IdP-initiated sign-in</Trans>}
+        hint={<Trans>Optional. A path on this XID domain, for example /account.</Trans>}
+      >
+        <Input
+          value={form.relayStateUrl}
+          onChange={(event) => patch({ relayStateUrl: event.target.value })}
+        />
+      </Field>
       <div {...stylex.props(ssoFormStyles.fullSpan)}>
         <Field label={<Trans>Signing certificates</Trans>}>
           <Textarea

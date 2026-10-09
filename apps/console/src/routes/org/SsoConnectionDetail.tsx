@@ -5,7 +5,16 @@ import { Plural, Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Badge, Breadcrumb, Button, Dropdown, Icon, TabPanel, Tabs } from '@xid-kit/web-ui/ui'
+import {
+  Alert,
+  Badge,
+  Breadcrumb,
+  Button,
+  Dropdown,
+  Icon,
+  TabPanel,
+  Tabs,
+} from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { detail } from '../../components/page/detail-styles'
@@ -18,6 +27,7 @@ import { CERTIFICATE_WARNING_DAYS, daysUntil, earliestExpiry, protocolLabel } fr
 import { ActivityList, ExpiryNotice, detailParts } from './AuthDetailParts'
 import { SsoCertificateDialog, SsoSettingsDialog } from './SsoConnectionDialogs'
 import { SsoAttributePanel, SsoSettingsPanel } from './SsoConnectionPanels'
+import type { SsoConnectionExtras } from './sso-connection-form'
 
 const styles = stylex.create({
   headerActions: {
@@ -61,6 +71,9 @@ export function SsoConnectionDetail({
   const protocol = protocolLabel(connection.type)
   const expiryDate = formatDate(i18n, expiring?.notAfter ?? null)
   const signInUrl = `${globalThis.location?.origin ?? ''}/sign-in`
+  const extras: SsoConnectionView & SsoConnectionExtras = connection
+  const metadataError = extras.idp_metadata_last_error ?? null
+  const metadataErrorDate = formatDate(i18n, extras.idp_metadata_last_error_at ?? null)
 
   return (
     <div {...stylex.props(consoleShell.root)}>
@@ -155,6 +168,14 @@ export function SsoConnectionDetail({
         >
           <TabPanel value="settings">
             <div {...stylex.props(detailParts.column)}>
+              {metadataError ? (
+                <Alert tone="error">
+                  <Trans>
+                    The daily metadata refresh failed on {metadataErrorDate}. Sign-in keeps using
+                    the last saved certificates. Check that the metadata URL is still reachable.
+                  </Trans>
+                </Alert>
+              ) : null}
               {showExpiry && expiring ? (
                 <ExpiryNotice
                   isExpired={days <= 0}
