@@ -12,7 +12,13 @@ export { setSamlEngine, resetSamlEngine } from './engine'
 export { SAML_ERROR_CODES, samlFail, failResult, okResult } from './errors'
 export type { SamlError, SamlErrorCode, SamlResult, SamlVerifiedAssertion } from './errors'
 
-export { decodeBase64Xml, securityPrecheck, parseSecureXml } from './precheck'
+export {
+  SAML1_ASSERTION_NS,
+  SAML_ASSERTION_NS,
+  decodeBase64Xml,
+  securityPrecheck,
+  parseSecureXml,
+} from './precheck'
 
 export {
   DEFAULT_SAML_CLOCK_SKEW_MS,
@@ -26,6 +32,9 @@ export type { CertificateValidityOptions, GeneratedSamlCertificate, IdpVerifyKey
 export { verifySamlResponse, readAssertionId } from './verify'
 export type { VerifySamlOptions } from './verify'
 export type { SamlDecryptKeyProvider, SamlOaepHash } from './oaep'
+
+export { verifySaml11Assertion } from './saml11'
+export type { VerifySaml11Options } from './saml11'
 
 export { validateAssertionSemantics } from './semantics'
 export type { SemanticInput, SemanticOk } from './semantics'

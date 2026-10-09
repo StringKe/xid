@@ -33,18 +33,23 @@ function isKnownNameIdFormat(fmt: string): fmt is SamlNameIdFormat {
   return (SAML_NAMEID_FORMATS as readonly string[]).includes(fmt)
 }
 
+export function normalizeNameIdFormat(rawFormat: string | null): SamlNameIdFormat {
+  const format = rawFormat ?? 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified'
+  return isKnownNameIdFormat(format)
+    ? format
+    : 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified'
+}
+
 // 未知 NameID format 回退 unspecified,主键仍用 NameID 值。
 export function extractSubject(assertion: Element): SamlSubject | null {
   const subject = childByName(assertion, A, 'Subject')
   if (!subject) return null
   const nameId = childByName(subject, A, 'NameID')
   if (!nameId || !nameId.textContent) return null
-  const rawFmt =
-    nameId.getAttribute('Format') ?? 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified'
-  const nameIdFormat: SamlNameIdFormat = isKnownNameIdFormat(rawFmt)
-    ? rawFmt
-    : 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified'
-  return { nameId: nameId.textContent.trim(), nameIdFormat }
+  return {
+    nameId: nameId.textContent.trim(),
+    nameIdFormat: normalizeNameIdFormat(nameId.getAttribute('Format')),
+  }
 }
 
 function rawAttributes(assertion: Element): Record<string, string[]> {
@@ -83,7 +88,13 @@ function firstValue(raw: Record<string, string[]>, key: string): string | undefi
 }
 
 export function mapAttributes(assertion: Element, mapping: AttributeMapping): SamlAttributes {
-  const raw = rawAttributes(assertion)
+  return mapRawAttributes(rawAttributes(assertion), mapping)
+}
+
+export function mapRawAttributes(
+  raw: Record<string, string[]>,
+  mapping: AttributeMapping,
+): SamlAttributes {
   const m = { ...DEFAULT_MAPPING, ...mapping }
   const email = firstValue(raw, m.email)
   const firstName = firstValue(raw, m.firstName)

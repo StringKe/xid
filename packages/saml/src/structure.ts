@@ -74,12 +74,13 @@ function checkReferenceTarget(
   doc: Document,
   signedElement: Element,
   uri: string,
+  idAttribute: string,
 ): SamlResult<true> {
   if (!uri.startsWith('#') || uri.length < 2) {
     return failResult('signature_invalid', `Reference URI must be #id, got "${uri}"`)
   }
   const id = uri.slice(1)
-  const targets = findElementsById(doc, id)
+  const targets = findElementsById(doc, id, idAttribute)
   if (targets.length !== 1) {
     return failResult('signature_invalid', `id "${id}" not unique (count=${targets.length})`)
   }
@@ -89,13 +90,13 @@ function checkReferenceTarget(
   return okResult(true)
 }
 
-// 仅扫无命名空间 ID 属性并计数,防 namespace-agnostic 绕过(SAML 固定用 "ID")。
-function findElementsById(doc: Document, id: string): Element[] {
+// 仅扫无命名空间 ID 属性并计数,防 namespace-agnostic 绕过(SAML 2.0 用 "ID",SAML 1.1 用 "AssertionID")。
+function findElementsById(doc: Document, id: string, idAttribute: string): Element[] {
   const matched: Element[] = []
   const all = doc.getElementsByTagName('*')
   for (let i = 0; i < all.length; i += 1) {
     const el = all.item(i)
-    if (el && el.getAttribute('ID') === id) matched.push(el)
+    if (el && el.getAttribute(idAttribute) === id) matched.push(el)
   }
   return matched
 }
@@ -104,6 +105,7 @@ export function loadAndCheckSignature(
   doc: Document,
   signature: Element,
   signedElement: Element,
+  options: { idAttribute?: string } = {},
 ): SamlResult<SignedXml> {
   const signedXml = new SignedXml(doc)
   try {
@@ -113,7 +115,12 @@ export function loadAndCheckSignature(
   }
   const shape = checkReferenceShape(signedXml)
   if (!shape.ok) return failResult(shape.error.code, shape.error.reason)
-  const target = checkReferenceTarget(doc, signedElement, shape.value.uri)
+  const target = checkReferenceTarget(
+    doc,
+    signedElement,
+    shape.value.uri,
+    options.idAttribute ?? 'ID',
+  )
   if (!target.ok) return failResult(target.error.code, target.error.reason)
   return okResult(signedXml)
 }

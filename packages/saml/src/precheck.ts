@@ -6,6 +6,7 @@ import type { SamlResult } from './errors'
 
 export const SAMLP_NS = 'urn:oasis:names:tc:SAML:2.0:protocol'
 export const SAML_ASSERTION_NS = 'urn:oasis:names:tc:SAML:2.0:assertion'
+export const SAML1_ASSERTION_NS = 'urn:oasis:names:tc:SAML:1.0:assertion'
 export const DS_NS = 'http://www.w3.org/2000/09/xmldsig#'
 export const XENC_NS = 'http://www.w3.org/2001/04/xmlenc#'
 
@@ -49,7 +50,12 @@ export function securityPrecheck(xml: string): SamlResult<true> {
   return okResult(true)
 }
 
-export function parseSecureXml(xml: string, expectedRootLocalName: string): SamlResult<Document> {
+// 默认按根元素名推断 SAML 2.0 命名空间;SAML 1.1 断言(WS-Fed)显式传 SAML1_ASSERTION_NS。
+export function parseSecureXml(
+  xml: string,
+  expectedRootLocalName: string,
+  expectedNamespace?: string,
+): SamlResult<Document> {
   const pre = securityPrecheck(xml)
   if (!pre.ok) return failResult(pre.error.code, pre.error.reason)
 
@@ -65,7 +71,8 @@ export function parseSecureXml(xml: string, expectedRootLocalName: string): Saml
     return failResult('malformed_xml', `expected root <${expectedRootLocalName}>`)
   }
   const protocolRoots = new Set(['Response', 'AuthnRequest', 'LogoutRequest', 'LogoutResponse'])
-  const expectedNs = protocolRoots.has(expectedRootLocalName) ? SAMLP_NS : SAML_ASSERTION_NS
+  const expectedNs =
+    expectedNamespace ?? (protocolRoots.has(expectedRootLocalName) ? SAMLP_NS : SAML_ASSERTION_NS)
   if (root.namespaceURI !== expectedNs) {
     return failResult('malformed_xml', `root namespace mismatch for <${expectedRootLocalName}>`)
   }
