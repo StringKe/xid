@@ -14,6 +14,15 @@ import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { publicHttpsUrlSchema, readJsonBody, validateBody } from '../lib/validate'
 import {
+  assertConnectionInput,
+  idpMetadataXmlSchema,
+  relayStatePatch,
+  relayStateUrlSchema,
+  samlMetadataPatch,
+} from '../sso/connection-input'
+import { internalMappingKeys, visibleMappingKeys } from '../sso/config-input'
+import { ldapGatewaySecretConfigured } from '../sso/ldap-gateway-secret'
+import {
   INBOUND_SSO_PROTOCOLS,
   prepareLegacyAttributeMapping,
   trustedProxySecretConfigured,
@@ -39,6 +48,7 @@ const createConnectionBodySchema = v.object({
   idp_sso_url: v.optional(publicHttpsUrlSchema),
   idp_slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
   idp_metadata_url: v.optional(publicHttpsUrlSchema),
+  idp_metadata_xml: v.optional(idpMetadataXmlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
   oidc_client_secret: oidcClientSecretInputSchema,
@@ -51,6 +61,7 @@ const createConnectionBodySchema = v.object({
   saml_clock_skew_ms: v.optional(
     v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_SAML_CLOCK_SKEW_MS)),
   ),
+  relay_state_url: v.optional(relayStateUrlSchema),
 })
 
 const patchConnectionBodySchema = v.object({
@@ -70,15 +81,16 @@ const patchConnectionBodySchema = v.object({
   saml_clock_skew_ms: v.optional(
     v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_SAML_CLOCK_SKEW_MS)),
   ),
+  relay_state_url: v.optional(relayStateUrlSchema),
+  idp_metadata_xml: v.optional(idpMetadataXmlSchema),
   status: v.optional(v.string()),
 })
 
-// attributeMapping 里 `_` 前缀键(_swaVault / _swaVaultEnvelope / _legacy 等)是内部配置:
-// SWA vault 存信封加密的凭证材料,下发管理响应即泄露密文结构,一律剔除(写路径不受影响)。
+// attributeMapping 里 `_` 前缀键(信封密文、预设标记、_legacy 等)是内部配置,管理响应一律剔除。
 export function stripInternalAttributeMapping(
   mapping: Record<string, unknown>,
 ): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(mapping).filter(([key]) => !key.startsWith('_')))
+  return visibleMappingKeys(mapping)
 }
 
 function toResponse(row: typeof schema.ssoConnections.$inferSelect) {
@@ -90,6 +102,9 @@ function toResponse(row: typeof schema.ssoConnections.$inferSelect) {
     idp_sso_url: row.idpSsoUrl,
     idp_slo_url: row.idpSloUrl,
     idp_metadata_url: row.idpMetadataUrl,
+    idp_metadata_refreshed_at: row.idpMetadataRefreshedAt,
+    idp_metadata_last_error: row.idpMetadataLastError,
+    idp_metadata_last_error_at: row.idpMetadataLastErrorAt,
     idp_certificates: row.idpCertificates,
     oidc_client_id: row.oidcClientId,
     oidc_discovery_url: row.oidcDiscoveryUrl,
@@ -99,6 +114,8 @@ function toResponse(row: typeof schema.ssoConnections.$inferSelect) {
     saml_clock_skew_ms: row.samlClockSkewMs,
     attribute_mapping: stripInternalAttributeMapping(row.attributeMapping),
     trusted_proxy_secret_configured: trustedProxySecretConfigured(row.attributeMapping),
+    ldap_gateway_secret_configured: ldapGatewaySecretConfigured(row.attributeMapping),
+    relay_state_url: row.relayStateUrl,
     role_mapping: row.roleMapping,
     jit_enabled: row.jitEnabled,
     status: row.status,
@@ -136,15 +153,24 @@ app.post('/', async (c) => {
 
   const orgId = body.org_id
   const protocol = body.protocol
+  // org_id 必须属于当前 TenantContext 的 tenant(requireOrg 走查询层注入 tenant_id;跨租户/不存在 -> 404)。
+  await requireOrg(c, orgId)
+  assertConnectionInput(body)
   const attributeMapping = await prepareLegacyAttributeMapping(
     protocol,
     body.attribute_mapping ?? {},
     null,
     c.env,
   )
-
-  // org_id 必须属于当前 TenantContext 的 tenant(requireOrg 走查询层注入 tenant_id;跨租户/不存在 -> 404)。
-  await requireOrg(c, orgId)
+  const endpoints = {
+    idpEntityId: body.idp_entity_id,
+    idpSsoUrl: body.idp_sso_url,
+    idpSloUrl: body.idp_slo_url,
+    idpMetadataUrl: body.idp_metadata_url,
+    idpCertificates: body.idp_certificates ?? [],
+    ...(await samlMetadataPatch(protocol, body)),
+    relayStateUrl: relayStatePatch(tenant.issuer, body).relayStateUrl ?? null,
+  }
 
   // 每 org 只允许一条 SSO 连接(唯一约束 sso_connections_org_unq)。
   const existing = await db.ssoConnections.findOne(eq(schema.ssoConnections.orgId, orgId))
@@ -152,11 +178,7 @@ app.post('/', async (c) => {
     const updated = await db.ssoConnections.update(
       {
         protocol,
-        idpEntityId: body.idp_entity_id,
-        idpSsoUrl: body.idp_sso_url,
-        idpSloUrl: body.idp_slo_url,
-        idpMetadataUrl: body.idp_metadata_url,
-        idpCertificates: body.idp_certificates ?? [],
+        ...endpoints,
         oidcClientId: body.oidc_client_id,
         oidcDiscoveryUrl: body.oidc_discovery_url,
         oidcClientSecretCiphertext: null,
@@ -181,11 +203,7 @@ app.post('/', async (c) => {
     tenantId: tenant.tenantId,
     orgId,
     protocol,
-    idpEntityId: body.idp_entity_id,
-    idpSsoUrl: body.idp_sso_url,
-    idpSloUrl: body.idp_slo_url,
-    idpMetadataUrl: body.idp_metadata_url,
-    idpCertificates: body.idp_certificates ?? [],
+    ...endpoints,
     oidcClientId: body.oidc_client_id,
     oidcDiscoveryUrl: body.oidc_discovery_url,
     ...(await oidcClientSecretPatch(c.env, body.oidc_client_secret)),
@@ -230,6 +248,7 @@ app.patch('/:id', async (c) => {
   )
   const existing = await db.ssoConnections.findOne(where)
   if (!existing) throw new AppError('not_found')
+  assertConnectionInput(body)
 
   const patch: Partial<typeof schema.ssoConnections.$inferInsert> = {}
   if (body.idp_entity_id !== undefined) patch.idpEntityId = body.idp_entity_id
@@ -239,11 +258,14 @@ app.patch('/:id', async (c) => {
   if (body.idp_certificates !== undefined) patch.idpCertificates = body.idp_certificates
   if (body.oidc_client_id !== undefined) patch.oidcClientId = body.oidc_client_id
   if (body.oidc_discovery_url !== undefined) patch.oidcDiscoveryUrl = body.oidc_discovery_url
+  Object.assign(patch, await samlMetadataPatch(existing.protocol, body))
+  Object.assign(patch, relayStatePatch(tenant.issuer, body))
   Object.assign(patch, await oidcClientSecretPatch(c.env, body.oidc_client_secret))
   if (body.attribute_mapping !== undefined) {
+    // 客户端看不到内部键,回写时保留服务端已有的内部键,请求里的 `_legacy` 覆盖旧值。
     patch.attributeMapping = await prepareLegacyAttributeMapping(
       existing.protocol,
-      body.attribute_mapping,
+      { ...internalMappingKeys(existing.attributeMapping), ...body.attribute_mapping },
       existing.attributeMapping,
       c.env,
     )

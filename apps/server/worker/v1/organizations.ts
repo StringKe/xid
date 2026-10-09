@@ -27,6 +27,7 @@ import { registerOrgDeliveryChannelRoutes } from './org-delivery-channels'
 import { registerOrgDomainsRoutes } from './org-domains'
 import { registerOrgMembersRoutes } from './org-members'
 import { registerOrgOutboundSamlAppRoutes } from './org-outbound-saml-apps'
+import { registerOrgOutboundSamlCertificateRoutes } from './org-outbound-saml-certificates'
 import { toOrganizationResponse } from './org-shared'
 import { registerOrgSocialProviderRoutes } from './org-social-providers'
 import { registerOrgSsoConnectionRoutes } from './org-sso-connections'
@@ -365,4 +366,5 @@ export function registerOrganizationsRoutes(honoApp: Hono<XidHonoEnv>): void {
   registerOrgDomainsRoutes(honoApp)
   registerOrgBrandingRoutes(honoApp)
   registerOrgAuditRoutes(honoApp)
+  registerOrgOutboundSamlCertificateRoutes(honoApp)
 }

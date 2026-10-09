@@ -20,7 +20,7 @@ export const OUTBOUND_CONSOLE_PRESETS: readonly OutboundConsolePreset[] = [
   {
     key: 'github-enterprise',
     label: 'GitHub Enterprise',
-    entityId: 'https://github.com/enterprises/{enterprise}/saml/metadata',
+    entityId: 'https://github.com/enterprises/{enterprise}',
     acsUrl: 'https://github.com/enterprises/{enterprise}/saml/consume',
     protocol: 'saml',
   },
@@ -35,8 +35,8 @@ export const OUTBOUND_CONSOLE_PRESETS: readonly OutboundConsolePreset[] = [
   {
     key: 'atlassian',
     label: 'Atlassian Guard',
-    entityId: 'https://{orgId}.atlassian.com',
-    acsUrl: 'https://id.atlassian.com/login/saml/acs',
+    entityId: 'https://auth.atlassian.com/saml/{connectionId}',
+    acsUrl: 'https://auth.atlassian.com/login/callback?connection=saml-{connectionId}',
     protocol: 'saml',
   },
   {

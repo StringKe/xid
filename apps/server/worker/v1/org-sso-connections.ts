@@ -2,7 +2,6 @@
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { DEFAULT_SAML_CLOCK_SKEW_MS, MAX_SAML_CLOCK_SKEW_MS } from '@xid-kit/saml'
-import type { TenantContext } from '@xid-kit/types'
 import { ORGANIZATION_MEMBERSHIP_ROLES } from '@xid-kit/types'
 import { and, asc, eq, gt } from 'drizzle-orm'
 import type { Hono } from 'hono'
@@ -11,32 +10,32 @@ import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { publicHttpsUrlSchema, readJsonBody, validateBody } from '../lib/validate'
+import { internalMappingKeys } from '../sso/config-input'
+import {
+  assertConnectionInput,
+  idpMetadataXmlSchema,
+  relayStatePatch,
+  relayStateUrlSchema,
+  samlMetadataPatch,
+} from '../sso/connection-input'
 import {
   assertHeaderConnectionConfig,
   assertInboundSsoProtocol,
-  isInboundSsoProtocol,
   isLegacySsoProtocol,
   prepareLegacyAttributeMapping,
 } from '../sso/legacy-shared'
-import {
-  oidcClientSecretConfigured,
-  oidcClientSecretInputSchema,
-  oidcClientSecretPatch,
-} from '../sso/oidc-client-secret'
+import { oidcClientSecretInputSchema, oidcClientSecretPatch } from '../sso/oidc-client-secret'
 import {
   INBOUND_IDP_PRESETS,
   LEGACY_INBOUND_PRESETS,
-  inboundPresetDisplayName,
-  presetKeyFromAttributeMapping,
   withPresetAttributeMapping,
   type InboundIdpPresetKey,
   type LegacyInboundPresetKey,
 } from '../sso/provider-presets'
-import { acsUrl, sloUrl, spEntityId } from '../sso/saml-connection'
 import { parseCertificates, ssoConnectionInsights } from './org-auth-insights'
-import { assertOptionalPublicHttpsUrl } from './org-policy-fields'
 import { assertOrgSelfServiceEditable } from './org-self-service'
-import { ORG_LIST_BATCH_SIZE, auditOrgMutation, readAllById, toIso } from './org-shared'
+import { ORG_LIST_BATCH_SIZE, auditOrgMutation, readAllById } from './org-shared'
+import { toConsoleSsoConnection } from './org-sso-connection-view'
 import { requireApiKeyOrOrgManager, requireOrg } from './shared'
 
 const metadataRecordSchema = v.record(v.string(), v.unknown())
@@ -60,6 +59,7 @@ const createSsoConnectionBodySchema = v.object({
   idp_sso_url: v.optional(publicHttpsUrlSchema),
   idp_slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
   idp_metadata_url: v.optional(publicHttpsUrlSchema),
+  idp_metadata_xml: v.optional(idpMetadataXmlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
   oidc_client_secret: oidcClientSecretInputSchema,
@@ -72,6 +72,7 @@ const createSsoConnectionBodySchema = v.object({
   saml_clock_skew_ms: v.optional(
     v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_SAML_CLOCK_SKEW_MS)),
   ),
+  relay_state_url: v.optional(relayStateUrlSchema),
 })
 
 const patchSsoConnectionBodySchema = v.object({
@@ -80,6 +81,7 @@ const patchSsoConnectionBodySchema = v.object({
   idp_sso_url: v.optional(publicHttpsUrlSchema),
   idp_slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
   idp_metadata_url: v.optional(publicHttpsUrlSchema),
+  idp_metadata_xml: v.optional(idpMetadataXmlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
   oidc_client_secret: oidcClientSecretInputSchema,
@@ -92,73 +94,8 @@ const patchSsoConnectionBodySchema = v.object({
   saml_clock_skew_ms: v.optional(
     v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_SAML_CLOCK_SKEW_MS)),
   ),
+  relay_state_url: v.optional(relayStateUrlSchema),
 })
-
-// IdP 侧要填写的本端地址。OIDC callback 跟随用户发起登录的 origin(oidc-rp.ts),
-// 因此列出实例 issuer、租户主机和 Hosted Auth origin,管理员需要全部登记到 IdP。
-function ssoServiceProviderEndpoints(
-  tenant: TenantContext,
-  row: typeof schema.ssoConnections.$inferSelect,
-) {
-  if (row.protocol === 'saml') {
-    return {
-      sp_entity_id: spEntityId(tenant, row.id),
-      acs_url: acsUrl(tenant, row.id),
-      sp_metadata_url: `${tenant.issuer}/sso/saml/${row.id}/metadata`,
-      slo_url: sloUrl(tenant, row.id),
-    }
-  }
-  if (row.protocol !== 'oidc') return {}
-  const origins = new Set([
-    new URL(tenant.issuer).origin,
-    `https://${tenant.rpId}`,
-    ...(tenant.hostedAuthOrigin ? [new URL(tenant.hostedAuthOrigin).origin] : []),
-  ])
-  return {
-    oidc_callback_urls: [...origins].map((origin) => `${origin}/sso/oidc/${row.id}/callback`),
-  }
-}
-
-function toConsoleSsoConnection(
-  tenant: TenantContext,
-  row: typeof schema.ssoConnections.$inferSelect,
-) {
-  // attributeMapping 里 `_` 前缀键(_swaVault / _swaVaultEnvelope)存 SWA vault 信封加密的凭证材料,
-  // 与 v1/connections.ts stripInternalAttributeMapping 同一约定:响应一律剔除,写路径不受影响。
-  const attributeMapping = Object.fromEntries(
-    Object.entries(row.attributeMapping).filter(([key]) => !key.startsWith('_')),
-  )
-  const presetName = inboundPresetDisplayName(presetKeyFromAttributeMapping(row.attributeMapping))
-  return {
-    id: row.id,
-    name:
-      row.displayName ??
-      presetName ??
-      row.idpEntityId ??
-      row.oidcDiscoveryUrl ??
-      row.protocol.toUpperCase(),
-    display_name: row.displayName,
-    type: isInboundSsoProtocol(row.protocol) ? row.protocol : 'saml',
-    domain: row.idpSsoUrl ?? row.oidcDiscoveryUrl ?? '',
-    idp_entity_id: row.idpEntityId,
-    idp_sso_url: row.idpSsoUrl,
-    idp_slo_url: row.idpSloUrl,
-    idp_metadata_url: row.idpMetadataUrl,
-    idp_certificates: row.idpCertificates,
-    oidc_client_id: row.oidcClientId,
-    oidc_discovery_url: row.oidcDiscoveryUrl,
-    oidc_client_secret_configured: oidcClientSecretConfigured(row),
-    want_authn_response_signed: row.wantAuthnResponseSigned,
-    want_assertions_signed: row.wantAssertionsSigned,
-    saml_clock_skew_ms: row.samlClockSkewMs,
-    attribute_mapping: attributeMapping,
-    role_mapping: row.roleMapping,
-    jit_enabled: row.jitEnabled,
-    status: row.status === 'active' ? 'active' : 'inactive',
-    ...ssoServiceProviderEndpoints(tenant, row),
-    createdAt: toIso(row.createdAt) ?? '',
-  }
-}
 
 export function registerOrgSsoConnectionRoutes(app: Hono<XidHonoEnv>): void {
   // GET /v1/organizations/:id/sso-connections
@@ -207,14 +144,23 @@ export function registerOrgSsoConnectionRoutes(app: Hono<XidHonoEnv>): void {
     const legacyPreset = presetKey
       ? LEGACY_INBOUND_PRESETS[presetKey as LegacyInboundPresetKey]
       : undefined
-    const protocolRaw =
-      body.protocol ??
-      legacyPreset?.protocol ??
-      (preset?.protocol === 'oidc' ? 'oidc' : preset ? 'saml' : undefined)
+    if (presetKey !== undefined && !preset && !legacyPreset) {
+      throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'preset' } })
+    }
+    const protocolRaw = body.protocol ?? legacyPreset?.protocol ?? preset?.protocol
     if (!protocolRaw) {
       throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'protocol' } })
     }
     const protocol = assertInboundSsoProtocol(protocolRaw)
+    // 入站预设只有 SAML 一种;OIDC 连接走通用 discovery,不套用 SAML 属性名。
+    const samlPreset = protocol === 'saml' ? preset : undefined
+    if (preset && !samlPreset) {
+      throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'protocol' } })
+    }
+    if (legacyPreset && legacyPreset.protocol !== protocol) {
+      throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'protocol' } })
+    }
+    assertConnectionInput(body)
     const existing = await db.forOrg(id).ssoConnections.findOne()
     if (existing && existing.status !== 'deleted') {
       throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'protocol' } })
@@ -223,8 +169,8 @@ export function registerOrgSsoConnectionRoutes(app: Hono<XidHonoEnv>): void {
       body.attribute_mapping ??
       (legacyPreset
         ? { ...legacyPreset.attributeMapping, _xidPreset: legacyPreset.key }
-        : preset
-          ? withPresetAttributeMapping(preset.key, preset.attributeMapping)
+        : samlPreset
+          ? withPresetAttributeMapping(samlPreset.key, samlPreset.attributeMapping)
           : {})
     const attributeMapping = isLegacySsoProtocol(protocol)
       ? await prepareLegacyAttributeMapping(protocol, requestedMapping, null, c.env)
@@ -232,33 +178,28 @@ export function registerOrgSsoConnectionRoutes(app: Hono<XidHonoEnv>): void {
     assertHeaderConnectionConfig(protocol, attributeMapping)
     const roleMapping =
       body.role_mapping ??
-      (legacyPreset ? legacyPreset.roleMapping : preset ? preset.roleMapping : {})
-    const idpSsoUrl = body.idp_sso_url ?? legacyPreset?.idpSsoUrl ?? preset?.idpSsoUrl
-    const idpSloUrl = body.idp_slo_url
-    const idpMetadataUrl = body.idp_metadata_url ?? preset?.idpMetadataUrl
-    const oidcDiscoveryUrl = body.oidc_discovery_url ?? preset?.oidcDiscoveryUrl
-    assertOptionalPublicHttpsUrl(idpSsoUrl, 'idp_sso_url')
-    assertOptionalPublicHttpsUrl(idpSloUrl, 'idp_slo_url')
-    assertOptionalPublicHttpsUrl(idpMetadataUrl, 'idp_metadata_url')
-    assertOptionalPublicHttpsUrl(oidcDiscoveryUrl, 'oidc_discovery_url')
+      (legacyPreset ? legacyPreset.roleMapping : samlPreset ? samlPreset.roleMapping : {})
     const patch = {
       protocol,
       displayName: body.display_name ?? preset?.displayName ?? legacyPreset?.displayName ?? null,
-      idpEntityId: body.idp_entity_id ?? preset?.idpEntityId,
-      idpSsoUrl,
-      idpSloUrl,
-      idpMetadataUrl,
+      idpEntityId: body.idp_entity_id,
+      idpSsoUrl: body.idp_sso_url,
+      idpSloUrl: body.idp_slo_url,
+      idpMetadataUrl: body.idp_metadata_url,
       idpCertificates: body.idp_certificates ?? [],
+      ...(await samlMetadataPatch(protocol, body)),
       oidcClientId: body.oidc_client_id,
-      oidcDiscoveryUrl,
+      oidcDiscoveryUrl: body.oidc_discovery_url,
       oidcClientSecretCiphertext: null,
       ...(await oidcClientSecretPatch(c.env, body.oidc_client_secret)),
       attributeMapping,
       roleMapping,
       jitEnabled: body.jit_enabled ?? legacyPreset?.jitEnabled ?? preset?.jitEnabled ?? true,
-      wantAuthnResponseSigned: body.want_authn_response_signed ?? preset?.wantAuthnResponseSigned,
-      wantAssertionsSigned: body.want_assertions_signed ?? preset?.wantAssertionsSigned,
+      wantAuthnResponseSigned:
+        body.want_authn_response_signed ?? samlPreset?.wantAuthnResponseSigned,
+      wantAssertionsSigned: body.want_assertions_signed ?? samlPreset?.wantAssertionsSigned,
       samlClockSkewMs: body.saml_clock_skew_ms ?? DEFAULT_SAML_CLOCK_SKEW_MS,
+      relayStateUrl: relayStatePatch(tenant.issuer, body).relayStateUrl ?? null,
       status: 'active',
     } satisfies Partial<typeof schema.ssoConnections.$inferInsert>
     const row =
@@ -303,6 +244,7 @@ export function registerOrgSsoConnectionRoutes(app: Hono<XidHonoEnv>): void {
     )
     const existing = await orgDb.ssoConnections.findOne(where)
     if (!existing) throw new AppError('not_found', { httpStatus: 404 })
+    assertConnectionInput(body)
 
     const patch: Partial<typeof schema.ssoConnections.$inferInsert> = {}
     if (body.display_name !== undefined) patch.displayName = body.display_name
@@ -313,13 +255,15 @@ export function registerOrgSsoConnectionRoutes(app: Hono<XidHonoEnv>): void {
     if (body.idp_certificates !== undefined) patch.idpCertificates = body.idp_certificates
     if (body.oidc_client_id !== undefined) patch.oidcClientId = body.oidc_client_id
     if (body.oidc_discovery_url !== undefined) patch.oidcDiscoveryUrl = body.oidc_discovery_url
+    Object.assign(patch, await samlMetadataPatch(existing.protocol, body))
+    Object.assign(patch, relayStatePatch(tenant.issuer, body))
     Object.assign(patch, await oidcClientSecretPatch(c.env, body.oidc_client_secret))
     if (body.attribute_mapping !== undefined) {
-      // 响应剔除了 `_` 前缀的内部键(预设标记、SWA vault 信封),回写时保留请求未带的内部键。
-      const internal = Object.fromEntries(
-        Object.entries(existing.attributeMapping).filter(([key]) => key.startsWith('_')),
-      )
-      const merged = { ...internal, ...body.attribute_mapping }
+      // 响应剔除了 `_` 前缀的内部键,回写时保留服务端已有的内部键,请求里的 `_legacy` 覆盖旧值。
+      const merged = {
+        ...internalMappingKeys(existing.attributeMapping),
+        ...body.attribute_mapping,
+      }
       const attributeMapping = isLegacySsoProtocol(existing.protocol)
         ? await prepareLegacyAttributeMapping(
             existing.protocol,

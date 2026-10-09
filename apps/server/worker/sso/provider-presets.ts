@@ -1,6 +1,7 @@
 // Enterprise IdP and downstream SaaS preset definitions for console wizards and L3 smoke fixtures.
-// Presets pre-fill SP/IdP metadata, attribute mapping, and NameID policy; real admin L4 is still required
-// before production-supported claims.
+// Values follow each vendor's public documentation. `{...}` segments are templates shown to the
+// admin; they are never stored, and every write path rejects a value that still contains one.
+// Real admin L4 is still required before production-supported claims.
 
 export type InboundIdpPresetKey =
   | 'okta'
@@ -28,21 +29,19 @@ export type LegacyInboundPreset = {
   key: LegacyInboundPresetKey
   displayName: string
   protocol: LegacyInboundPresetKey
-  idpSsoUrl?: string
   attributeMapping: Record<string, unknown>
   roleMapping: Record<string, string>
   jitEnabled: boolean
   runbookPath: string
 }
 
+// Every inbound preset is SAML only. OIDC connections use the generic discovery flow.
 export type InboundIdpPreset = {
   key: InboundIdpPresetKey
   displayName: string
-  protocol: 'saml' | 'oidc'
-  idpEntityId?: string
-  idpSsoUrl?: string
-  idpMetadataUrl?: string
-  oidcDiscoveryUrl?: string
+  protocol: 'saml'
+  // Undefined when the vendor only offers a metadata file download; the admin uploads the XML.
+  idpMetadataUrlTemplate?: string
   attributeMapping: Record<string, string>
   roleMapping: Record<string, string>
   jitEnabled: boolean
@@ -66,17 +65,21 @@ export type OutboundSaasPreset = {
 
 const DEFAULT_ROLE_MAPPING: Record<string, string> = {}
 
+const EMAIL_ADDRESS_NAMEID = 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress'
+
+const WS_CLAIMS = {
+  email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+  firstName: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname',
+  lastName: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname',
+} as const
+
+// Legacy presets carry only non-secret defaults; gateway, target and realm URLs must be entered.
 export const LEGACY_INBOUND_PRESETS: Record<LegacyInboundPresetKey, LegacyInboundPreset> = {
   ldap: {
     key: 'ldap',
     displayName: 'LDAP direct bind',
     protocol: 'ldap',
-    attributeMapping: {
-      _legacy: {
-        ldapGatewayUrl: 'https://ldap-gw.example.com/bind',
-        bindDnTemplate: '{username}',
-      },
-    },
+    attributeMapping: { _legacy: { bindDnTemplate: '{username}' } },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
     runbookPath: 'docs/protocols/README.md',
@@ -85,13 +88,7 @@ export const LEGACY_INBOUND_PRESETS: Record<LegacyInboundPresetKey, LegacyInboun
     key: 'wsfed',
     displayName: 'WS-Federation',
     protocol: 'wsfed',
-    idpSsoUrl: 'https://adfs.example.com/adfs/ls/',
-    attributeMapping: {
-      _legacy: {
-        wsfedRealm: 'https://tenant.example.com',
-        wsfedReplyUrl: 'https://tenant.example.com/sso/wsfed/{connectionId}/callback',
-      },
-    },
+    attributeMapping: { _legacy: {} },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
     runbookPath: 'docs/protocols/README.md',
@@ -100,12 +97,7 @@ export const LEGACY_INBOUND_PRESETS: Record<LegacyInboundPresetKey, LegacyInboun
     key: 'swa',
     displayName: 'SWA password vaulting',
     protocol: 'swa',
-    attributeMapping: {
-      _legacy: {
-        swaTargetUrl: 'https://app.example.com/login',
-        vaultCredentialRef: 'primary',
-      },
-    },
+    attributeMapping: { _legacy: { swaUsernameField: 'username', swaPasswordField: 'password' } },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
     runbookPath: 'docs/protocols/README.md',
@@ -127,18 +119,16 @@ export const LEGACY_INBOUND_PRESETS: Record<LegacyInboundPresetKey, LegacyInboun
   },
 }
 
+// Signature layers follow each IdP's default: most sign only the Assertion, Keycloak signs only
+// the document (Response). Okta and PingOne keep both flags, which accepts a valid signature on
+// either layer, until a live tenant confirms their defaults.
 export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> = {
   okta: {
     key: 'okta',
     displayName: 'Okta',
     protocol: 'saml',
-    idpMetadataUrl: 'https://{oktaDomain}/app/{appId}/sso/saml/metadata',
-    attributeMapping: {
-      email: 'email',
-      firstName: 'firstName',
-      lastName: 'lastName',
-      idpId: 'nameID',
-    },
+    idpMetadataUrlTemplate: 'https://{oktaDomain}/app/{appId}/sso/saml/metadata',
+    attributeMapping: { email: 'email', firstName: 'firstName', lastName: 'lastName' },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
     wantAuthnResponseSigned: true,
@@ -149,17 +139,16 @@ export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> 
     key: 'microsoft-entra',
     displayName: 'Microsoft Entra ID',
     protocol: 'saml',
-    idpMetadataUrl:
-      'https://login.microsoftonline.com/{tenantId}/federationmetadata/2007-06/federationmetadata.xml',
+    // App-scoped metadata: the enterprise application signing certificate is configured per app.
+    idpMetadataUrlTemplate:
+      'https://login.microsoftonline.com/{tenantId}/federationmetadata/2007-06/federationmetadata.xml?appid={appId}',
     attributeMapping: {
-      email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-      firstName: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname',
-      lastName: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname',
+      ...WS_CLAIMS,
       idpId: 'http://schemas.microsoft.com/identity/claims/objectidentifier',
     },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
-    wantAuthnResponseSigned: true,
+    wantAuthnResponseSigned: false,
     wantAssertionsSigned: true,
     runbookPath: 'docs/protocols/runbooks/microsoft-entra-id.md',
   },
@@ -167,16 +156,10 @@ export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> 
     key: 'google-workspace',
     displayName: 'Google Workspace',
     protocol: 'saml',
-    idpMetadataUrl: 'https://accounts.google.com/o/saml2/idp?idpid={idpId}',
-    attributeMapping: {
-      email: 'email',
-      firstName: 'firstName',
-      lastName: 'lastName',
-      idpId: 'nameID',
-    },
+    attributeMapping: { email: 'email', firstName: 'firstName', lastName: 'lastName' },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
-    wantAuthnResponseSigned: true,
+    wantAuthnResponseSigned: false,
     wantAssertionsSigned: true,
     runbookPath: 'docs/protocols/runbooks/google-workspace.md',
   },
@@ -184,16 +167,15 @@ export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> 
     key: 'onelogin',
     displayName: 'OneLogin',
     protocol: 'saml',
-    idpMetadataUrl: 'https://app.onelogin.com/saml/metadata/{connectorId}',
+    idpMetadataUrlTemplate: 'https://app.onelogin.com/saml/metadata/{appId}',
     attributeMapping: {
       email: 'User.email',
       firstName: 'User.FirstName',
       lastName: 'User.LastName',
-      idpId: 'User.username',
     },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
-    wantAuthnResponseSigned: true,
+    wantAuthnResponseSigned: false,
     wantAssertionsSigned: true,
     runbookPath: 'docs/protocols/runbooks/onelogin.md',
   },
@@ -201,16 +183,10 @@ export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> 
     key: 'jumpcloud',
     displayName: 'JumpCloud',
     protocol: 'saml',
-    idpMetadataUrl: 'https://sso.jumpcloud.com/saml2/{appId}',
-    attributeMapping: {
-      email: 'email',
-      firstName: 'firstname',
-      lastName: 'lastname',
-      idpId: 'nameID',
-    },
+    attributeMapping: { email: 'email', firstName: 'firstname', lastName: 'lastname' },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
-    wantAuthnResponseSigned: true,
+    wantAuthnResponseSigned: false,
     wantAssertionsSigned: true,
     runbookPath: 'docs/protocols/runbooks/jumpcloud.md',
   },
@@ -218,13 +194,8 @@ export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> 
     key: 'pingone',
     displayName: 'PingOne',
     protocol: 'saml',
-    idpMetadataUrl: 'https://auth.pingone.com/{envId}/saml20/metadata',
-    attributeMapping: {
-      email: 'email',
-      firstName: 'givenName',
-      lastName: 'surname',
-      idpId: 'sub',
-    },
+    idpMetadataUrlTemplate: 'https://auth.pingone.com/{envId}/saml20/metadata/{appId}',
+    attributeMapping: { email: 'email', firstName: 'givenName', lastName: 'surname' },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
     wantAuthnResponseSigned: true,
@@ -235,16 +206,11 @@ export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> 
     key: 'pingfederate',
     displayName: 'PingFederate',
     protocol: 'saml',
-    idpMetadataUrl: 'https://{host}/pf/federation_metadata.ping',
-    attributeMapping: {
-      email: 'email',
-      firstName: 'givenName',
-      lastName: 'surname',
-      idpId: 'nameID',
-    },
+    idpMetadataUrlTemplate: 'https://{host}/pf/federation_metadata.ping',
+    attributeMapping: { email: 'email', firstName: 'givenName', lastName: 'surname' },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
-    wantAuthnResponseSigned: true,
+    wantAuthnResponseSigned: false,
     wantAssertionsSigned: true,
     runbookPath: 'docs/protocols/runbooks/pingfederate.md',
   },
@@ -252,16 +218,11 @@ export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> 
     key: 'adfs',
     displayName: 'AD FS',
     protocol: 'saml',
-    idpMetadataUrl: 'https://{host}/FederationMetadata/2007-06/FederationMetadata.xml',
-    attributeMapping: {
-      email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-      firstName: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname',
-      lastName: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname',
-      idpId: 'http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname',
-    },
+    idpMetadataUrlTemplate: 'https://{host}/FederationMetadata/2007-06/FederationMetadata.xml',
+    attributeMapping: { ...WS_CLAIMS },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
-    wantAuthnResponseSigned: true,
+    wantAuthnResponseSigned: false,
     wantAssertionsSigned: true,
     runbookPath: 'docs/protocols/runbooks/adfs.md',
   },
@@ -269,16 +230,11 @@ export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> 
     key: 'shibboleth',
     displayName: 'Shibboleth',
     protocol: 'saml',
-    idpMetadataUrl: 'https://{host}/idp/shibboleth',
-    attributeMapping: {
-      email: 'mail',
-      firstName: 'givenName',
-      lastName: 'sn',
-      idpId: 'eduPersonPrincipalName',
-    },
+    idpMetadataUrlTemplate: 'https://{host}/idp/shibboleth',
+    attributeMapping: { email: 'mail', firstName: 'givenName', lastName: 'sn' },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
-    wantAuthnResponseSigned: true,
+    wantAuthnResponseSigned: false,
     wantAssertionsSigned: true,
     runbookPath: 'docs/protocols/runbooks/shibboleth.md',
   },
@@ -286,17 +242,12 @@ export const INBOUND_IDP_PRESETS: Record<InboundIdpPresetKey, InboundIdpPreset> 
     key: 'keycloak',
     displayName: 'Keycloak',
     protocol: 'saml',
-    idpMetadataUrl: 'https://{host}/realms/{realm}/protocol/saml/descriptor',
-    attributeMapping: {
-      email: 'email',
-      firstName: 'firstName',
-      lastName: 'lastName',
-      idpId: 'nameID',
-    },
+    idpMetadataUrlTemplate: 'https://{host}/realms/{realm}/protocol/saml/descriptor',
+    attributeMapping: { email: 'email', firstName: 'firstName', lastName: 'lastName' },
     roleMapping: DEFAULT_ROLE_MAPPING,
     jitEnabled: true,
     wantAuthnResponseSigned: true,
-    wantAssertionsSigned: true,
+    wantAssertionsSigned: false,
     runbookPath: 'docs/protocols/runbooks/keycloak.md',
   },
 }
@@ -316,22 +267,17 @@ export const OUTBOUND_SAAS_PRESETS: Record<OutboundSaasPresetKey, OutboundSaasPr
       lastName: 'last_name',
       displayName: 'display_name',
     },
-    nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+    nameIdFormat: EMAIL_ADDRESS_NAMEID,
     runbookPath: 'docs/protocols/runbooks/slack-downstream-saml.md',
   },
   'github-enterprise': {
     key: 'github-enterprise',
     displayName: 'GitHub Enterprise Cloud',
     protocol: 'saml',
-    spEntityId: 'https://github.com/enterprises/{enterprise}/saml/metadata',
+    spEntityId: 'https://github.com/enterprises/{enterprise}',
     acsUrlPlaceholder: 'https://github.com/enterprises/{enterprise}/saml/consume',
-    attributeMapping: {
-      email: 'email',
-      firstName: 'firstName',
-      lastName: 'lastName',
-      displayName: 'displayName',
-    },
-    nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+    attributeMapping: { email: 'emails', displayName: 'full_name' },
+    nameIdFormat: EMAIL_ADDRESS_NAMEID,
     runbookPath: 'docs/protocols/runbooks/github-enterprise-downstream-saml.md',
   },
   'microsoft-enterprise-app': {
@@ -347,22 +293,21 @@ export const OUTBOUND_SAAS_PRESETS: Record<OutboundSaasPresetKey, OutboundSaasPr
       lastName: 'family_name',
       displayName: 'name',
     },
-    nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+    nameIdFormat: EMAIL_ADDRESS_NAMEID,
     runbookPath: 'docs/protocols/runbooks/microsoft-enterprise-app-downstream.md',
   },
   atlassian: {
     key: 'atlassian',
     displayName: 'Atlassian Guard',
     protocol: 'saml',
-    spEntityId: 'https://{orgId}.atlassian.com',
-    acsUrlPlaceholder: 'https://id.atlassian.com/login/saml/acs',
+    spEntityId: 'https://auth.atlassian.com/saml/{connectionId}',
+    acsUrlPlaceholder: 'https://auth.atlassian.com/login/callback?connection=saml-{connectionId}',
     attributeMapping: {
-      email: 'email',
-      firstName: 'firstName',
-      lastName: 'lastName',
-      displayName: 'displayName',
+      email: WS_CLAIMS.email,
+      firstName: WS_CLAIMS.firstName,
+      lastName: WS_CLAIMS.lastName,
     },
-    nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+    nameIdFormat: EMAIL_ADDRESS_NAMEID,
     runbookPath: 'docs/protocols/runbooks/atlassian-downstream-saml.md',
   },
   salesforce: {
@@ -379,7 +324,7 @@ export const OUTBOUND_SAAS_PRESETS: Record<OutboundSaasPresetKey, OutboundSaasPr
       lastName: 'lastName',
       displayName: 'displayName',
     },
-    nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+    nameIdFormat: EMAIL_ADDRESS_NAMEID,
     runbookPath: 'docs/protocols/runbooks/salesforce-downstream-saml-oidc.md',
   },
   zoom: {
@@ -395,7 +340,7 @@ export const OUTBOUND_SAAS_PRESETS: Record<OutboundSaasPresetKey, OutboundSaasPr
       lastName: 'lastName',
       displayName: 'displayName',
     },
-    nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+    nameIdFormat: EMAIL_ADDRESS_NAMEID,
     runbookPath: 'docs/protocols/runbooks/zoom-downstream-saml-oidc.md',
   },
 }

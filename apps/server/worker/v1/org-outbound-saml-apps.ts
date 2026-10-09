@@ -1,121 +1,34 @@
 // /v1/organizations/:id/outbound-saml-apps:XID 作为 SAML IdP 为下游 SaaS 签发断言的应用配置。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { loadIdpVerifyKeys, setSamlEngine } from '@xid-kit/saml'
-import type { TenantContext } from '@xid-kit/types'
 import { and, asc, eq, gt } from 'drizzle-orm'
 import type { Hono } from 'hono'
-import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
-import { publicHttpsUrlSchema, readJsonBody, validateBody } from '../lib/validate'
-import {
-  assignmentGateFromBody,
-  parseAssignmentGate,
-  serializeAssignmentGate,
-  withAssignmentGate,
-} from '../sso/assignment-gate'
-import { outboundSamlIdpEndpoints } from '../sso/outbound-saml'
+import { readJsonBody, validateBody } from '../lib/validate'
+import { assignmentGateFromBody, withAssignmentGate } from '../sso/assignment-gate'
+import { assertNoTemplatePlaceholders, internalMappingKeys } from '../sso/config-input'
 import {
   OUTBOUND_SAAS_PRESETS,
-  presetKeyFromAttributeMapping,
   withPresetAttributeMapping,
   type OutboundSaasPresetKey,
 } from '../sso/provider-presets'
 import { resolveOrProvisionOutboundSamlSigningCertificate } from '../sso/signing-certificate'
+import { importSpMetadata } from '../sso/sp-metadata'
 import { outboundLastSignIns, outboundSigningCertificates } from './org-auth-insights'
+import {
+  assertOutboundInput,
+  assertOutboundSloConfiguration,
+  assertValidOutboundSpCertificates,
+  createOutboundSamlAppBodySchema,
+  patchOutboundSamlAppBodySchema,
+  toConsoleOutboundSamlApp,
+} from './org-outbound-saml-input'
 import { assertOptionalPublicHttpsUrl } from './org-policy-fields'
 import { assertOrgSelfServiceEditable } from './org-self-service'
-import { ORG_LIST_BATCH_SIZE, auditOrgMutation, readAllById, toIso } from './org-shared'
+import { ORG_LIST_BATCH_SIZE, auditOrgMutation, readAllById } from './org-shared'
 import { emitWebhookAsync, requireApiKeyOrOrgManager, requireOrg } from './shared'
-
-const metadataRecordSchema = v.record(v.string(), v.unknown())
-// assignment_gate 的字段级校验在 assignmentGateFromBody(paramName 契约已固定),schema 只放行键存在性。
-const assignmentGateFieldSchema = v.optional(v.unknown())
-const outboundSamlCertificatesSchema = v.pipe(
-  v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(64 * 1024))),
-  v.maxLength(10),
-)
-const outboundSloBindingSchema = v.picklist(['redirect', 'post'])
-
-const createOutboundSamlAppBodySchema = v.object({
-  preset: v.optional(v.string()),
-  sp_entity_id: v.optional(v.string()),
-  acs_url: v.optional(publicHttpsUrlSchema),
-  slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
-  slo_binding: v.optional(outboundSloBindingSchema),
-  sp_certificates: v.optional(outboundSamlCertificatesSchema),
-  name_id_format: v.optional(v.string()),
-  idp_signing_cert_id: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
-  attribute_mapping: v.optional(metadataRecordSchema),
-  assignment_gate: assignmentGateFieldSchema,
-  assignmentGate: assignmentGateFieldSchema,
-})
-
-const patchOutboundSamlAppBodySchema = v.object({
-  sp_entity_id: v.optional(v.string()),
-  acs_url: v.optional(publicHttpsUrlSchema),
-  slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
-  slo_binding: v.optional(outboundSloBindingSchema),
-  sp_certificates: v.optional(outboundSamlCertificatesSchema),
-  name_id_format: v.optional(v.string()),
-  idp_signing_cert_id: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
-  attribute_mapping: v.optional(metadataRecordSchema),
-  assignment_gate: assignmentGateFieldSchema,
-  assignmentGate: assignmentGateFieldSchema,
-})
-
-async function assertValidOutboundSpCertificates(certificates: readonly string[]): Promise<void> {
-  if (certificates.length === 0) return
-  setSamlEngine(globalThis.crypto)
-  const verified = await loadIdpVerifyKeys(certificates)
-  if (!verified.ok) {
-    throw new AppError('validation_failed', {
-      httpStatus: 422,
-      meta: { paramName: 'sp_certificates' },
-    })
-  }
-}
-
-function assertOutboundSloConfiguration(
-  sloUrl: string | null | undefined,
-  certificates: readonly string[],
-): void {
-  if (sloUrl && certificates.length === 0) {
-    throw new AppError('validation_failed', {
-      httpStatus: 422,
-      meta: { paramName: 'sp_certificates' },
-    })
-  }
-}
-
-function toConsoleOutboundSamlApp(
-  tenant: TenantContext,
-  row: typeof schema.samlServiceProviders.$inferSelect,
-) {
-  const mapping = row.attributeMapping as Record<string, unknown>
-  const gate = parseAssignmentGate(mapping)
-  const idp = outboundSamlIdpEndpoints(tenant.issuer, row.id)
-  return {
-    id: row.id,
-    provider: presetKeyFromAttributeMapping(mapping) ?? 'custom',
-    spEntityId: row.spEntityId,
-    acsUrl: row.acsUrl,
-    sloUrl: row.sloUrl,
-    sloBinding: row.sloBinding ?? 'redirect',
-    spCertificates: row.spCertificates ?? [],
-    idpSigningCertId: row.idpSigningCertId,
-    attributeMapping: mapping,
-    assignmentGate: serializeAssignmentGate(gate),
-    nameIdFormat: row.nameIdFormat,
-    idpEntityId: idp.entityId,
-    idpMetadataUrl: idp.metadataUrl,
-    idpSsoUrl: idp.ssoUrl,
-    idpSloUrl: idp.sloUrl,
-    createdAt: toIso(row.createdAt) ?? '',
-  }
-}
 
 export function registerOrgOutboundSamlAppRoutes(app: Hono<XidHonoEnv>): void {
   // GET /v1/organizations/:id/outbound-saml-apps
@@ -163,22 +76,33 @@ export function registerOrgOutboundSamlAppRoutes(app: Hono<XidHonoEnv>): void {
     const body = validateBody(createOutboundSamlAppBodySchema, json.value)
     const presetKey = body.preset
     const preset = presetKey ? OUTBOUND_SAAS_PRESETS[presetKey as OutboundSaasPresetKey] : undefined
-    const spEntityId = body.sp_entity_id ?? preset?.spEntityId
+    if (presetKey !== undefined && !preset) {
+      throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'preset' } })
+    }
+    assertOutboundInput(body)
+    const imported = await importSpMetadata({
+      url: body.sp_metadata_url,
+      xml: body.sp_metadata_xml,
+    })
+    // 预设的 Entity ID 是模板,只有管理员给出真实值或 metadata 时才能保存。
+    const spEntityId = body.sp_entity_id ?? imported?.entityId ?? preset?.spEntityId
+    assertNoTemplatePlaceholders({ sp_entity_id: spEntityId })
     if (!spEntityId) {
       throw new AppError('validation_failed', {
         httpStatus: 422,
         meta: { paramName: 'sp_entity_id' },
       })
     }
-    const acsUrl = body.acs_url
+    const acsUrl = body.acs_url ?? imported?.acsUrl
     if (!acsUrl) {
       throw new AppError('validation_failed', {
         httpStatus: 422,
         meta: { paramName: 'acs_url' },
       })
     }
-    const sloUrl = body.slo_url !== undefined ? body.slo_url : (preset?.sloUrl ?? null)
-    const spCertificates = body.sp_certificates ?? []
+    const sloUrl =
+      body.slo_url !== undefined ? body.slo_url : (imported?.sloUrl ?? preset?.sloUrl ?? null)
+    const spCertificates = body.sp_certificates ?? imported?.certificates ?? []
     assertOptionalPublicHttpsUrl(acsUrl, 'acs_url')
     assertOptionalPublicHttpsUrl(sloUrl, 'slo_url')
     await assertValidOutboundSpCertificates(spCertificates)
@@ -199,7 +123,7 @@ export function registerOrgOutboundSamlAppRoutes(app: Hono<XidHonoEnv>): void {
       spEntityId,
       acsUrl,
       sloUrl,
-      sloBinding: body.slo_binding ?? 'redirect',
+      sloBinding: body.slo_binding ?? imported?.sloBinding ?? 'redirect',
       spCertificates,
       attributeMapping,
       nameIdFormat:
@@ -240,6 +164,21 @@ export function registerOrgOutboundSamlAppRoutes(app: Hono<XidHonoEnv>): void {
     )
     const existing = await db.samlServiceProviders.findOne(where)
     if (!existing) throw new AppError('not_found', { httpStatus: 404 })
+    assertOutboundInput(body)
+    const imported = await importSpMetadata({
+      url: body.sp_metadata_url,
+      xml: body.sp_metadata_xml,
+    })
+    const metadataFields = imported
+      ? {
+          sp_entity_id: body.sp_entity_id ?? imported.entityId,
+          acs_url: body.acs_url ?? imported.acsUrl,
+          slo_url: body.slo_url !== undefined ? body.slo_url : imported.sloUrl,
+          slo_binding: body.slo_binding ?? imported.sloBinding,
+          sp_certificates: body.sp_certificates ?? imported.certificates,
+        }
+      : {}
+    Object.assign(body, metadataFields)
     const nextSloUrl = body.slo_url === undefined ? existing.sloUrl : body.slo_url
     const nextSpCertificates = body.sp_certificates ?? existing.spCertificates ?? []
     if (body.sp_certificates !== undefined || nextSloUrl) {
@@ -266,11 +205,11 @@ export function registerOrgOutboundSamlAppRoutes(app: Hono<XidHonoEnv>): void {
     }
     const gate = assignmentGateFromBody(body)
     if (body.attribute_mapping !== undefined) {
-      // 预设标记与分配门槛存于 `_` 前缀内部键,请求未带时沿用已有值。
-      const internal = Object.fromEntries(
-        Object.entries(existing.attributeMapping).filter(([key]) => key.startsWith('_')),
-      )
-      patch.attributeMapping = { ...internal, ...body.attribute_mapping }
+      // 预设标记与分配门槛存于 `_` 前缀内部键,只由服务端维护,回写时沿用已有值。
+      patch.attributeMapping = {
+        ...internalMappingKeys(existing.attributeMapping),
+        ...body.attribute_mapping,
+      }
     }
     if (gate) {
       const base = (patch.attributeMapping ?? existing.attributeMapping) as Record<string, unknown>
