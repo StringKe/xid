@@ -722,6 +722,8 @@ describe('GET /auth/config', () => {
       configEnv({
         WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
         WHATSAPP_META_ACCESS_TOKEN: 'meta-token',
+        WHATSAPP_TEMPLATE_NAME: 'xid_otp',
+        WHATSAPP_TEMPLATE_LANGUAGE: 'en_US',
         TWILIO_ACCOUNT_SID: 'AC123',
         TWILIO_AUTH_TOKEN: 'token',
         SMS_FROM: '+15550000000',
