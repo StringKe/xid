@@ -2,12 +2,11 @@
 
 import { verifyJwt } from '@xid-kit/crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { appleClientSecret, appleSigningState } from '../apple-client-secret'
 import {
   APPLE_CLIENT_SECRET_LIFETIME_SEC,
   APPLE_CLIENT_SECRET_REFRESH_MARGIN_SEC,
-  appleClientSecret,
-  appleSigningState,
-} from '../apple-client-secret'
+} from '../../lib/ttl'
 import { exchangeCode, getProviderConfig, hasProviderSecret } from '../social-providers'
 import type { SocialProviderPolicy, TenantContext } from '@xid-kit/types'
 

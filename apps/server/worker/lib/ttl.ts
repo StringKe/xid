@@ -67,8 +67,11 @@ export const DISCOVERY_CACHE_TTL_SEC = 3600
 export const SOCIAL_JWKS_CACHE_TTL_SEC = 3600
 // 企业 OIDC 连接上游 JWKS KV 缓存 TTL 1h(KV key 与社交登录共用 provider_jwks:{jwks_uri})
 export const SSO_OIDC_JWKS_CACHE_TTL_SEC = 3600
-// 遇到未知 kid 时强制刷新上游 JWKS 的最短间隔;KV expirationTtl 下限 60s
-export const PROVIDER_JWKS_REFRESH_MIN_INTERVAL_SEC = 60
+// 同一 jwks_uri 遇到未知 kid 时强制回源的最短间隔,社交登录与企业 OIDC 共用 provider_jwks_refresh:{jwks_uri}
+export const PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC = 300
+// Sign in with Apple client_secret JWT 的有效期,以及到期前多久重新签发
+export const APPLE_CLIENT_SECRET_LIFETIME_SEC = 3600
+export const APPLE_CLIENT_SECRET_REFRESH_MARGIN_SEC = 300
 // federation trust anchors KV 缓存 TTL 1d
 export const FEDERATION_ANCHORS_CACHE_TTL_SEC = 86400
 // guest GC:最后活跃(无 session 按 created_at,有 session 按最新 last_active_at)满 30 天软删。

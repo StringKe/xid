@@ -4,14 +4,14 @@
 import { importJwkForVerify, verifyJwt } from '@xid-kit/crypto'
 import type { PublicJwk, VerifiedJwt, VerifyKeySet } from '@xid-kit/crypto'
 import { AppError } from '../lib/errors'
-import { SOCIAL_JWKS_CACHE_TTL_SEC } from '../lib/ttl'
+import {
+  PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC,
+  SOCIAL_JWKS_CACHE_TTL_SEC,
+} from '../lib/ttl'
 import { isPublicHttpsUrl } from '../lib/validate'
 import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import { HostedAuthPolicyError } from './hosted-policy-core'
 import { SOCIAL_PROVIDER_TIMEOUT_MS } from './social-providers'
-
-// KV expirationTtl 下限是 60s;Microsoft 建议遇到未知 kid 时限速刷新。
-export const SOCIAL_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC = 300
 
 type ProviderJwk = JsonWebKey & { kid?: string; alg?: string; kty?: string; use?: string }
 
@@ -78,7 +78,7 @@ async function claimForcedRefresh(env: Env, jwksUri: string): Promise<boolean> {
   const marker = jwksRefreshMarkerKey(jwksUri)
   if (await env.CACHE.get(marker)) return false
   await env.CACHE.put(marker, String(Date.now()), {
-    expirationTtl: SOCIAL_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC,
+    expirationTtl: PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC,
   })
   return true
 }

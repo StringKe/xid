@@ -136,7 +136,7 @@ describe('createProviderKeyLoader', () => {
       `provider_jwks_refresh:${JWKS_URI}`,
       expect.any(String),
       {
-        expirationTtl: 60,
+        expirationTtl: 300,
       },
     )
   })

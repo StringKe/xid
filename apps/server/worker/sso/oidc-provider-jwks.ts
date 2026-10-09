@@ -1,7 +1,10 @@
 // 企业 OIDC 上游 JWKS 的 KV 缓存(provider_jwks:{jwks_uri})与未知 kid 时的限速强制刷新。
 
 import type { VerifyKeySet } from '@xid-kit/crypto'
-import { PROVIDER_JWKS_REFRESH_MIN_INTERVAL_SEC, SSO_OIDC_JWKS_CACHE_TTL_SEC } from '../lib/ttl'
+import {
+  PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC,
+  SSO_OIDC_JWKS_CACHE_TTL_SEC,
+} from '../lib/ttl'
 import { buildProviderKeySet, fetchProviderJwks, parseProviderJwks } from './oidc-upstream'
 import type { JwksResponse } from './oidc-upstream'
 
@@ -37,7 +40,7 @@ async function readCachedJwks(cache: KVNamespace, jwksUri: string): Promise<Jwks
 // 任何一次回源都记入最短刷新间隔,冷缓存回源后紧接的未知 kid 不会再回源一次。
 async function fetchAndCache(input: ProviderKeyLoaderInput): Promise<JwksResponse> {
   await input.cache.put(refreshMarkerKey(input.jwksUri), String(Date.now()), {
-    expirationTtl: PROVIDER_JWKS_REFRESH_MIN_INTERVAL_SEC,
+    expirationTtl: PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC,
   })
   const jwks = await fetchProviderJwks(input.jwksUri, input.permitsLoopbackHttp)
   await input.cache.put(cacheKey(input.jwksUri), JSON.stringify(jwks), {

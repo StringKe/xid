@@ -4,9 +4,10 @@
 
 import { signJwt } from '@xid-kit/crypto'
 import { AppError } from '../lib/errors'
-
-export const APPLE_CLIENT_SECRET_LIFETIME_SEC = 3600
-export const APPLE_CLIENT_SECRET_REFRESH_MARGIN_SEC = 300
+import {
+  APPLE_CLIENT_SECRET_LIFETIME_SEC,
+  APPLE_CLIENT_SECRET_REFRESH_MARGIN_SEC,
+} from '../lib/ttl'
 
 const APPLE_AUDIENCE = 'https://appleid.apple.com'
 
