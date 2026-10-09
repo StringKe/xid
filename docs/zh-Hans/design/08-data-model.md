@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=5daba0aa6ea99356f607490675828f948c9f987a -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=1f5b5ec228225c67e739d86dc5a4b78d41591e1c -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -131,6 +131,8 @@ User -> Session -> Token
 | DirectoryUser / DirectoryGroup | 目录同步的用户(绑定 XID User)与组                   |
 | SamlServiceProvider            | 下游 SAML SP 注册(XID 作 IdP 时)                    |
 | SamlSessionBinding             | SAML SLO SessionIndex/NameID -> session 映射        |
+| SamlPersistentNameId           | 按出站 SAML 应用与用户生成的成对 persistent NameID  |
+| SwaCredential                  | 成员为某个下游应用保存的加密 SWA 用户名和密码       |
 | ScimTarget                     | 出站 SCIM target(XID 作 SCIM client 推下游 SaaS)    |
 | ScimTargetResource             | 单个 SCIM target 的本地到下游 User/Group 稳定映射   |
 
@@ -144,25 +146,26 @@ User -> Session -> Token
 
 ### 平台运营
 
-| 实体                      | 职责                                   |
-| ------------------------- | -------------------------------------- |
-| AuditLog                  | append-only 审计事件(链式 hash 防篡改) |
-| Usage(daily/monthly)      | DAU/MAU 及用量计量                     |
-| Webhook / WebhookDelivery | 订阅与投递记录(重试/死信)              |
-| ApiKey                    | API 密钥(scoped,哈希存储)              |
-| PlatformAdmin             | 平台管理员(平台级)                     |
-| BillingAccount / Quota    | 可选的按量计费账户关联与运营方配额     |
-| PlatformAnnouncement      | 定时、显式定向的运营公告               |
-| StatusIncident / Update   | 公开服务状态事件及时间线               |
-| PrivacyRequest            | 用户导出与延迟擦除工作流状态           |
-| ComplianceDocument        | 版本化合规产物与接受元数据             |
-| PlatformAuditOutbox       | 平台 mutation 的持久脱敏审计交接       |
+| 实体                      | 职责                                          |
+| ------------------------- | --------------------------------------------- |
+| AuditLog                  | append-only 审计事件(链式 hash 防篡改)        |
+| Usage(daily/monthly)      | DAU/MAU 及用量计量                            |
+| Webhook / WebhookDelivery | 订阅与投递记录(重试/死信)                     |
+| ApiKey                    | API 密钥(scoped,哈希存储)                     |
+| PlatformAdmin             | 平台管理员(平台级)                            |
+| BillingAccount / Quota    | 可选的按量计费账户关联与运营方配额            |
+| BillingSubscription       | 按 webhook 事件顺序维护的单个 Stripe 订阅状态 |
+| PlatformAnnouncement      | 定时、显式定向的运营公告                      |
+| StatusIncident / Update   | 公开服务状态事件及时间线                      |
+| PrivacyRequest            | 用户导出与延迟擦除工作流状态                  |
+| ComplianceDocument        | 版本化合规产物与接受元数据                    |
+| PlatformAuditOutbox       | 平台 mutation 的持久脱敏审计交接              |
 
 ---
 
 # 字段级 Drizzle schema 实现规格
 
-以下章节是 `packages/db`(Drizzle schema)与 `packages/types`(TypeScript 类型)的**唯一真相源**。每个核心实体给出完整字段表 + 索引声明 + 外键 ON DELETE 策略。字段名/物理类型确定后实现层不得偏离;字段增删改先改本章再改实现。当前共 71 张 D1 表(与 `packages/db/src/schema`、`packages/db/drizzle` migration 一致);device_codes / par_requests 是 DO 内逻辑结构,不占表数。
+以下章节是 `packages/db`(Drizzle schema)与 `packages/types`(TypeScript 类型)的**唯一真相源**。每个核心实体给出完整字段表 + 索引声明 + 外键 ON DELETE 策略。字段名/物理类型确定后实现层不得偏离;字段增删改先改本章再改实现。当前共 78 张 D1 表(与 `packages/db/src/schema`、`packages/db/drizzle` migration 一致);device_codes / par_requests 是 DO 内逻辑结构,不占表数。
 
 ## 9. 通用约定(所有表共享)
 
@@ -221,24 +224,26 @@ D1 默认外键约束**不强制启用**(SQLite `PRAGMA foreign_keys`);Drizzle m
 
 所有"租户内唯一"用复合 UNIQUE,**第一列必为 tenant_id**,确保跨租户同值不冲突:
 
-| 表                   | UNIQUE 约束                                                                          | 说明                                                                      |
-| -------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| user_emails          | `UNIQUE (tenant_id, email)`                                                          | 邮箱租户内唯一(见 05 章 1)                                                |
-| user_phones          | `UNIQUE (tenant_id, phone)`                                                          | 手机租户内唯一                                                            |
-| users                | `UNIQUE (tenant_id, external_id)`                                                    | external_id 租户内唯一,允许多 null(SQLite UNIQUE 允许多个 NULL)           |
-| users                | `UNIQUE (tenant_id, username)`                                                       | username 租户内唯一,允许 null                                             |
-| user_identities      | `UNIQUE (tenant_id, provider, provider_user_id)`                                     | 社交绑定租户内唯一(见 01 章 3)                                            |
-| passkey_credentials  | `UNIQUE (tenant_id, credential_id)`                                                  | 凭证 ID 租户内唯一(见 01 章注册步骤 7)                                    |
-| organizations        | `UNIQUE (tenant_id, slug)`                                                           | org slug 在租户内唯一(顶层 org 的 tenant_id=自身 id)                      |
-| organizations        | `UNIQUE (instance_id, slug)`                                                         | host 解析与 self-service 顶层 Tenant 创建要求 Instance 内唯一             |
-| organization_domains | `UNIQUE (domain)`                                                                    | 域名全局唯一(一个域只能被一个 org 认领,见 04 章 5),非租户内               |
-| refresh_tokens       | `UNIQUE (token_hash)`                                                                | hash 全局唯一(见 03 章 11.1)                                              |
-| roles                | `UNIQUE (tenant_id, project_id, key)`                                                | role key 在 project 内唯一                                                |
-| permissions          | `UNIQUE (tenant_id, project_id, key)`                                                | permission key 在 project 内唯一                                          |
-| org_units            | `UNIQUE (tenant_id, org_id, parent_unit_id, slug)`                                   | unit slug 同级唯一(parent 为 NULL 的根行不参与 SQLite NULL 比较,见 10.2b) |
-| org_units            | `UNIQUE (tenant_id, path)`                                                           | 物化路径租户内唯一(并发创建兜底,见 10.2b)                                 |
-| org_unit_members     | partial `UNIQUE (tenant_id, org_id, user_id) WHERE is_primary = 1`                   | 每 user 每 org 至多一个主岗(见 10.2c)                                     |
-| access_requests      | partial `UNIQUE (tenant_id, project_id, requester_user_id) WHERE status = 'pending'` | 同 (user, project) 至多一个 pending(见 13.6)                              |
+| 表                       | UNIQUE 约束                                                                          | 说明                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| user_emails              | `UNIQUE (tenant_id, email)`                                                          | 邮箱租户内唯一(见 05 章 1)                                                |
+| user_phones              | `UNIQUE (tenant_id, phone)`                                                          | 手机租户内唯一                                                            |
+| users                    | `UNIQUE (tenant_id, external_id)`                                                    | external_id 租户内唯一,允许多 null(SQLite UNIQUE 允许多个 NULL)           |
+| users                    | `UNIQUE (tenant_id, username)`                                                       | username 租户内唯一,允许 null                                             |
+| user_identities          | `UNIQUE (tenant_id, provider, provider_user_id)`                                     | 社交绑定租户内唯一(见 01 章 3)                                            |
+| passkey_credentials      | `UNIQUE (tenant_id, credential_id)`                                                  | 凭证 ID 租户内唯一(见 01 章注册步骤 7)                                    |
+| organizations            | `UNIQUE (tenant_id, slug)`                                                           | org slug 在租户内唯一(顶层 org 的 tenant_id=自身 id)                      |
+| organizations            | `UNIQUE (instance_id, slug)`                                                         | host 解析与 self-service 顶层 Tenant 创建要求 Instance 内唯一             |
+| organization_domains     | `UNIQUE (domain)`                                                                    | 域名全局唯一(一个域只能被一个 org 认领,见 04 章 5),非租户内               |
+| refresh_tokens           | `UNIQUE (token_hash)`                                                                | hash 全局唯一(见 03 章 11.1)                                              |
+| roles                    | `UNIQUE (tenant_id, project_id, key)`                                                | role key 在 project 内唯一                                                |
+| permissions              | `UNIQUE (tenant_id, project_id, key)`                                                | permission key 在 project 内唯一                                          |
+| org_units                | `UNIQUE (tenant_id, org_id, parent_unit_id, slug)`                                   | unit slug 同级唯一(parent 为 NULL 的根行不参与 SQLite NULL 比较,见 10.2b) |
+| org_units                | `UNIQUE (tenant_id, path)`                                                           | 物化路径租户内唯一(并发创建兜底,见 10.2b)                                 |
+| org_unit_members         | partial `UNIQUE (tenant_id, org_id, user_id) WHERE is_primary = 1`                   | 每 user 每 org 至多一个主岗(见 10.2c)                                     |
+| access_requests          | partial `UNIQUE (tenant_id, project_id, requester_user_id) WHERE status = 'pending'` | 同 (user, project) 至多一个 pending(见 13.6)                              |
+| saml_persistent_name_ids | `UNIQUE (tenant_id, sp_id, name_id)`                                                 | persistent NameID 在每个出站 SAML 应用内唯一(见 16.9a)                    |
+| swa_credentials          | `UNIQUE (tenant_id, connection_id, user_id)`                                         | 每个成员在每个连接上只有一份 SWA 凭据(见 16.13)                           |
 
 > SQLite UNIQUE 索引把多个 NULL 视为互异(不冲突),故 external_id/username 可空且约束生效。
 
@@ -1188,31 +1193,35 @@ access token 明文不入库,只保存本 issuer 已验签 JWT 的 `jti`。`/rev
 
 ### 16.1 sso_connections(per-org 上游 IdP 连接,1:1 org,见 04 章 1)
 
-| 字段                          | 类型            | 约束                                               | 默认           | 说明                                                                                |
-| ----------------------------- | --------------- | -------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------- |
-| id                            | text            | PK                                                 | `conn_`+nanoid |                                                                                     |
-| tenant_id                     | text            | NOT NULL, FK -> organizations.id                   | --             |                                                                                     |
-| org_id                        | text            | NOT NULL, FK -> organizations.id ON DELETE cascade | --             | connection 与 org 1:1,不跨租户复用(见 04 章 1)                                      |
-| protocol                      | text            | NOT NULL                                           | --             | `saml`/`oidc`                                                                       |
-| display_name                  | text            | null                                               | null           | Hosted Auth 跳转过渡页显示的 IdP 名称(如 "Okta");为 null 时显示通用的身份提供方文案 |
-| idp_entity_id                 | text            | null                                               | null           | SAML IdP EntityID(Issuer 精确匹配,见 04 章 9.7 step 1)                              |
-| idp_sso_url                   | text            | null                                               | null           | SAML SSO / OIDC authorization_endpoint                                              |
-| idp_slo_url                   | text            | null                                               | null           | SAML IdP SingleLogoutService URL,必须 public HTTPS 且不从 SSO URL 推导              |
-| idp_metadata_url              | text            | null                                               | null           | 每 24h 后台轮询刷新(见 04 章 1)                                                     |
-| idp_certificates              | text json       | NOT NULL                                           | `[]`           | IdP X.509 验签证书(base64 DER 数组,轮换期新旧并存,见 04 章 9.5 step 1)              |
-| oidc_client_id                | text            | null                                               | null           | OIDC RP client_id                                                                   |
-| oidc_client_secret_ciphertext | blob buffer     | null                                               | null           | AES-256-GCM 加密(`version\|\|iv\|\|ciphertext\|\|tag`)                              |
-| oidc_discovery_url            | text            | null                                               | null           | OIDC Discovery                                                                      |
-| sp_cert_id                    | text            | FK -> cert_store.id ON DELETE set null, null       | null           | SP 签名/解密证书(见 16.2 + 04 章 1)                                                 |
-| want_authn_response_signed    | integer boolean | NOT NULL                                           | `1`            | 要求 Response 被签(见 04 章 9.3)                                                    |
-| want_assertions_signed        | integer boolean | NOT NULL                                           | `1`            | 要求 Assertion 被签                                                                 |
-| saml_clock_skew_ms            | integer         | NOT NULL,`0..300000`                               | `180000`       | IdP 证书和 Assertion 有效期校验的 connection 容忍值                                 |
-| attribute_mapping             | text json       | NOT NULL                                           | `{}`           | IdP 属性 -> XID 字段(email/firstName/lastName/groups,见 04 章 1)                    |
-| role_mapping                  | text json       | NOT NULL                                           | `{}`           | IdP groups -> org_role(见 04 章 4)                                                  |
-| jit_enabled                   | integer boolean | NOT NULL                                           | `1`            | JIT provisioning 开关(部分企业仅 SCIM,见 04 章 4)                                   |
-| relay_state_url               | text            | null                                               | null           | IdP-initiated 跳转(见 04 章 1)                                                      |
-| status                        | text            | NOT NULL                                           | `'active'`     | `active`/`inactive`                                                                 |
-| created_at / updated_at       | integer ts_ms   | NOT NULL                                           | 见 9.3         |                                                                                     |
+| 字段                          | 类型            | 约束                                               | 默认           | 说明                                                                                                                                                                                       |
+| ----------------------------- | --------------- | -------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| id                            | text            | PK                                                 | `conn_`+nanoid |                                                                                                                                                                                            |
+| tenant_id                     | text            | NOT NULL, FK -> organizations.id                   | --             |                                                                                                                                                                                            |
+| org_id                        | text            | NOT NULL, FK -> organizations.id ON DELETE cascade | --             | connection 与 org 1:1,不跨租户复用(见 04 章 1)                                                                                                                                             |
+| protocol                      | text            | NOT NULL                                           | --             | `saml`/`oidc`                                                                                                                                                                              |
+| display_name                  | text            | null                                               | null           | Hosted Auth 跳转过渡页显示的 IdP 名称(如 "Okta");为 null 时显示通用的身份提供方文案                                                                                                        |
+| idp_entity_id                 | text            | null                                               | null           | SAML IdP EntityID(Issuer 精确匹配,见 04 章 9.7 step 1)                                                                                                                                     |
+| idp_sso_url                   | text            | null                                               | null           | SAML SSO / OIDC authorization_endpoint                                                                                                                                                     |
+| idp_slo_url                   | text            | null                                               | null           | SAML IdP SingleLogoutService URL,必须 public HTTPS 且不从 SSO URL 推导                                                                                                                     |
+| idp_metadata_url              | text            | null                                               | null           | 每 24h 后台轮询刷新(见 04 章 1)                                                                                                                                                            |
+| idp_metadata_xml              | text            | null                                               | null           | 上传的 IdP metadata XML;与 `idp_metadata_url` 二选一(保存其一时清空另一个),cron 不刷新                                                                                                     |
+| idp_metadata_refreshed_at     | integer ts_ms   | null                                               | null           | 最近一次成功导入 metadata 的时间,保存时的同步导入与每日刷新都会写入                                                                                                                        |
+| idp_metadata_last_error       | text            | null                                               | null           | 每日刷新最近一次失败的错误码(`metadata_url_not_allowed`/`metadata_http_status`/`metadata_too_large`/`metadata_invalid`/`metadata_endpoint_not_allowed`/`metadata_fetch_failed`),成功时清空 |
+| idp_metadata_last_error_at    | integer ts_ms   | null                                               | null           | `idp_metadata_last_error` 的时间,成功时清空                                                                                                                                                |
+| idp_certificates              | text json       | NOT NULL                                           | `[]`           | IdP X.509 验签证书(base64 DER 数组,轮换期新旧并存,见 04 章 9.5 step 1)                                                                                                                     |
+| oidc_client_id                | text            | null                                               | null           | OIDC RP client_id                                                                                                                                                                          |
+| oidc_client_secret_ciphertext | blob buffer     | null                                               | null           | AES-256-GCM 加密(`version\|\|iv\|\|ciphertext\|\|tag`)                                                                                                                                     |
+| oidc_discovery_url            | text            | null                                               | null           | OIDC Discovery                                                                                                                                                                             |
+| sp_cert_id                    | text            | FK -> cert_store.id ON DELETE set null, null       | null           | SP 签名/解密证书(见 16.2 + 04 章 1)                                                                                                                                                        |
+| want_authn_response_signed    | integer boolean | NOT NULL                                           | `1`            | 要求 Response 被签(见 04 章 9.3)                                                                                                                                                           |
+| want_assertions_signed        | integer boolean | NOT NULL                                           | `1`            | 要求 Assertion 被签                                                                                                                                                                        |
+| saml_clock_skew_ms            | integer         | NOT NULL,`0..300000`                               | `180000`       | IdP 证书和 Assertion 有效期校验的 connection 容忍值                                                                                                                                        |
+| attribute_mapping             | text json       | NOT NULL                                           | `{}`           | IdP 属性 -> XID 字段(email/firstName/lastName/groups,见 04 章 1)                                                                                                                           |
+| role_mapping                  | text json       | NOT NULL                                           | `{}`           | IdP groups -> org_role(见 04 章 4)                                                                                                                                                         |
+| jit_enabled                   | integer boolean | NOT NULL                                           | `1`            | JIT provisioning 开关(部分企业仅 SCIM,见 04 章 4)                                                                                                                                          |
+| relay_state_url               | text            | null                                               | null           | IdP-initiated 跳转(见 04 章 1)                                                                                                                                                             |
+| status                        | text            | NOT NULL                                           | `'active'`     | `active`/`inactive`                                                                                                                                                                        |
+| created_at / updated_at       | integer ts_ms   | NOT NULL                                           | 见 9.3         |                                                                                                                                                                                            |
 
 索引:`UNIQUE(org_id)`、`INDEX(tenant_id)`、`INDEX(tenant_id, status)`。SsoProfile(单次认证结果 idp_id/claims)不持久化(瞬时),如需审计走 audit_events;DirectoryUser 双向绑定见 16.6。
 
@@ -1220,24 +1229,27 @@ access token 明文不入库,只保存本 issuer 已验签 JWT 的 `jti`。`/rev
 
 SP 端(对上游 IdP)与 XID-as-IdP 端(下游 SP)签名/解密证书统一存此,**与 OIDC 签名密钥分开**(见 signing-keys rule SAML 证书)。
 
-| 字段                    | 类型           | 约束                             | 默认           | 说明                                                                  |
-| ----------------------- | -------------- | -------------------------------- | -------------- | --------------------------------------------------------------------- |
-| id                      | text           | PK                               | `cert_`+nanoid |                                                                       |
-| tenant_id               | text           | NOT NULL, FK -> organizations.id | --             |                                                                       |
-| usage                   | text           | NOT NULL                         | --             | `saml_sp_signing`/`saml_sp_encryption`/`saml_idp_signing`(XID 作 IdP) |
-| certificate             | text           | NOT NULL                         | --             | X.509 公钥证书(base64 DER)                                            |
-| private_key_iv          | blob buffer    | NOT NULL                         | --             | AES-256-GCM IV(12 字节)                                               |
-| private_key_ciphertext  | blob buffer    | NOT NULL                         | --             | 信封加密私钥密文(KEK 解密载入,私钥明文永不入库)                       |
-| private_key_tag         | blob buffer    | NOT NULL                         | --             | GCM tag(16 字节)                                                      |
-| kek_version             | integer number | NOT NULL                         | --             | KEK 版本(轮换兼容)                                                    |
-| status                  | text           | NOT NULL                         | `'active'`     | `active`/`retiring`(轮换期新旧并存,见 04 章 1)                        |
-| not_before              | integer ts_ms  | null                             | null           | 证书有效期下界                                                        |
-| not_after               | integer ts_ms  | null                             | null           | 上界                                                                  |
-| fingerprint             | text           | NOT NULL                         | --             | SHA-256 指纹(事故响应,见 04 章 9.5 step 3)                            |
-| created_at / updated_at | integer ts_ms  | NOT NULL                         | 见 9.3         |                                                                       |
+| 字段                    | 类型           | 约束                             | 默认           | 说明                                                                                                                      |
+| ----------------------- | -------------- | -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| id                      | text           | PK                               | `cert_`+nanoid |                                                                                                                           |
+| tenant_id               | text           | NOT NULL, FK -> organizations.id | --             |                                                                                                                           |
+| usage                   | text           | NOT NULL                         | --             | `saml_sp_signing`/`saml_sp_encryption`/`saml_idp_signing`(XID 作 IdP)                                                     |
+| certificate             | text           | NOT NULL                         | --             | X.509 公钥证书(base64 DER)                                                                                                |
+| private_key_iv          | blob buffer    | NOT NULL                         | --             | AES-256-GCM IV(12 字节)                                                                                                   |
+| private_key_ciphertext  | blob buffer    | NOT NULL                         | --             | 信封加密私钥密文(KEK 解密载入,私钥明文永不入库)                                                                           |
+| private_key_tag         | blob buffer    | NOT NULL                         | --             | GCM tag(16 字节)                                                                                                          |
+| kek_version             | integer number | NOT NULL                         | --             | KEK 版本(轮换兼容)                                                                                                        |
+| status                  | text           | NOT NULL                         | `'active'`     | SP usage:`active`/`retiring`(轮换期新旧并存,见 04 章 1)。`saml_idp_signing`:`next` -> `active` -> `retiring` -> `retired` |
+| not_before              | integer ts_ms  | null                             | null           | 证书有效期下界                                                                                                            |
+| not_after               | integer ts_ms  | null                             | null           | 上界                                                                                                                      |
+| fingerprint             | text           | NOT NULL                         | --             | SHA-256 指纹(事故响应,见 04 章 9.5 step 3)                                                                                |
+| retire_after            | integer ts_ms  | null                             | null           | 出站 IdP 签名证书转为 `retiring` 时写入:切换时间 + 7 天与 `not_after` 中较早者                                            |
+| created_at / updated_at | integer ts_ms  | NOT NULL                         | 见 9.3         |                                                                                                                           |
 
 索引:`UNIQUE(tenant_id, usage) WHERE status='active' AND usage='saml_idp_signing'`(并发自动
-provisioning winner,明确排除两种 SP usage)、`INDEX(tenant_id, usage, status)`。
+provisioning winner,明确排除两种 SP usage)、`UNIQUE(tenant_id, usage) WHERE status='next' AND usage='saml_idp_signing'`(每个租户最多一张待切换证书)、`INDEX(tenant_id, usage, status)`、`INDEX(tenant_id, usage, status, id)`。
+
+出站 IdP 签名证书轮换(`saml_idp_signing`,每个租户一套,所有出站 SAML 应用共用):`active` 证书 60 天内到期时每日 cron 发布一张 `next` 证书,30 天内到期时写审计 `outbound_saml_signing_certificate.expiring`。管理员也可以手动准备 `next` 证书。IdP metadata 同时发布 `next`、`active`、`retiring`。`next` 升为 `active` 只能由管理员显式操作;同一个 D1 batch 把原 `active` 转为 `retiring`,并把租户内所有 `saml_service_providers.idp_signing_cert_id` 指向新证书。`retire_after` 或 `not_after` 到期后 cron 把 `retiring` 转为 `retired`。断言只用 `active` 或 `retiring` 证书签名。
 
 > 决策:SAML 私钥与 OIDC 签名私钥采用**相同信封加密结构但分表存**。CertStore 把 iv / ciphertext / tag **拆三个 blob 字段**(便于按字段读取与 KEK 解密),不用单 JSON blob。InstanceSigningKey(16.3)同结构。
 
@@ -1298,7 +1310,7 @@ provisioning winner,明确排除两种 SP usage)、`INDEX(tenant_id, usage, stat
 | deleted_at              | integer ts_ms   | null                                             | null           | SCIM DELETE 软删除标记                                     |
 | created_at / updated_at | integer ts_ms   | NOT NULL                                         | 见 9.3         |                                                            |
 
-索引:`UNIQUE(directory_id, user_name)`、`UNIQUE(directory_id, external_id)`、`INDEX(tenant_id, directory_id)`、`INDEX(user_id)`。
+索引:`UNIQUE(directory_id, user_name)` 与 `UNIQUE(directory_id, external_id)`,都是 `WHERE status <> 'deleted' AND deleted_at IS NULL` 的部分索引,已删除的资源不再占用 userName 和 externalId(RFC 7644 3.6;未删除资源之间冲突返回 409)、`INDEX(tenant_id, directory_id)`、`INDEX(user_id)`。
 
 ### 16.7 directory_groups(SCIM 同步组,见 04 章 6)
 
@@ -1314,7 +1326,7 @@ Group-to-role 映射未实现。D1 中保留可空的旧列 `mapped_role`,迁移
 | deleted_at              | integer ts_ms | null                                             | null           | SCIM DELETE 软删除标记 |
 | created_at / updated_at | integer ts_ms | NOT NULL                                         | 见 9.3         |                        |
 
-索引:`UNIQUE(directory_id, display_name)`、`INDEX(tenant_id, directory_id)`。
+索引:`UNIQUE(directory_id, display_name) WHERE status <> 'deleted' AND deleted_at IS NULL`(已删除的组不再占用名称)、`INDEX(tenant_id, directory_id)`。
 
 ### 16.8 directory_group_members + directory_pending_members(见 04 章 10.1.1)
 
@@ -1344,24 +1356,38 @@ directory_pending_members(unknown member 幂等占位,OneLogin quirk,见 04 章 
 
 ### 16.9 saml_service_providers(XID 作 IdP 时下游 SP 注册,见 04 章 2)
 
-出站 SAML IdP 已落地(worker/sso/outbound-saml.ts + 本表 + console 页面):package 级 XML 签名测试、Worker route L2、fake SaaS SP L3 已覆盖;真实 SaaS admin L4、SaaS 模板 UI、app assignment gate 未做(见 04 章 2 当前决策)。
+出站 SAML IdP 已落地(worker/sso/outbound-saml.ts + 本表 + console 页面):package 级 XML 签名测试、Worker route L2、fake SaaS SP L3 已覆盖;SaaS 预设与 app assignment gate(存于 `attribute_mapping` 中由服务端维护的 `_xidAssignmentGate` 键)已实现;真实 SaaS admin L4 未做(见 04 章 2 当前决策)。
 
-| 字段                    | 类型          | 约束                                               | 默认                                                       | 说明                                           |
-| ----------------------- | ------------- | -------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
-| id                      | text          | PK                                                 | `sp_`+nanoid                                               |                                                |
-| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --                                                         |                                                |
-| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --                                                         | SP 归属 org                                    |
-| sp_entity_id            | text          | NOT NULL                                           | --                                                         | per-SP EntityID(见 04 章 2)                    |
-| acs_url                 | text          | NOT NULL                                           | --                                                         | SP ACS URL                                     |
-| slo_url                 | text          | null                                               | null                                                       | SP SLO 接收端点                                |
-| slo_binding             | text          | NOT NULL                                           | `'redirect'`                                               | SLO binding(`redirect`/`post`)                 |
-| sp_certificates         | text json     | NOT NULL                                           | `[]`                                                       | SP X.509 证书(base64 DER 数组,SLO 验签/加密用) |
-| attribute_mapping       | text json     | NOT NULL                                           | `{}`                                                       | assertion 字段映射                             |
-| name_id_format          | text          | NOT NULL                                           | `'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress'` |                                                |
-| idp_signing_cert_id     | text          | FK -> cert_store.id ON DELETE set null, null       | null                                                       | XID IdP 签名证书(`usage=saml_idp_signing`)     |
-| created_at / updated_at | integer ts_ms | NOT NULL                                           | 见 9.3                                                     |                                                |
+| 字段                    | 类型          | 约束                                               | 默认                                                       | 说明                                                                                                                                                 |
+| ----------------------- | ------------- | -------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                      | text          | PK                                                 | `sp_`+nanoid                                               |                                                                                                                                                      |
+| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --                                                         |                                                                                                                                                      |
+| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --                                                         | SP 归属 org                                                                                                                                          |
+| sp_entity_id            | text          | NOT NULL                                           | --                                                         | per-SP EntityID(见 04 章 2)                                                                                                                          |
+| acs_url                 | text          | NOT NULL                                           | --                                                         | SP ACS URL                                                                                                                                           |
+| slo_url                 | text          | null                                               | null                                                       | SP SLO 接收端点                                                                                                                                      |
+| slo_binding             | text          | NOT NULL                                           | `'redirect'`                                               | SLO binding(`redirect`/`post`)                                                                                                                       |
+| sp_certificates         | text json     | NOT NULL                                           | `[]`                                                       | SP X.509 证书(base64 DER 数组,SLO 验签/加密用)                                                                                                       |
+| attribute_mapping       | text json     | NOT NULL                                           | `{}`                                                       | assertion 字段映射                                                                                                                                   |
+| name_id_format          | text          | NOT NULL                                           | `'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress'` | SAML 1.1 `emailAddress`/`unspecified`、SAML 2.0 `persistent`/`transient`,以及 SAML 2.0 命名空间下的 `emailAddress`/`unspecified` 别名;其他值返回 422 |
+| idp_signing_cert_id     | text          | FK -> cert_store.id ON DELETE set null, null       | null                                                       | XID IdP 签名证书(`usage=saml_idp_signing`);切换 `next` 证书时租户内所有行改指新证书                                                                  |
+| created_at / updated_at | integer ts_ms | NOT NULL                                           | 见 9.3                                                     |                                                                                                                                                      |
 
 索引:`UNIQUE(tenant_id, org_id, sp_entity_id)`、`INDEX(tenant_id, org_id)`。
+
+### 16.9a saml_persistent_name_ids(出站 SAML 成对 persistent NameID,见 04 章 2)
+
+`persistent` NameID 是按 (租户, 出站 SAML 应用, 用户) 生成的成对假名:32 字节随机数的 base64url,首次签发时生成并持久化。同一 SP 稳定,不同 SP 之间不可关联,也不暴露内部 user id。
+
+| 字段       | 类型          | 约束                             | 默认   | 说明                          |
+| ---------- | ------------- | -------------------------------- | ------ | ----------------------------- |
+| tenant_id  | text          | NOT NULL, FK -> organizations.id | --     |                               |
+| sp_id      | text          | NOT NULL                         | --     | `saml_service_providers.id`   |
+| user_id    | text          | NOT NULL                         | --     |                               |
+| name_id    | text          | NOT NULL                         | --     | 不透明的 persistent NameID 值 |
+| created_at | integer ts_ms | NOT NULL                         | 见 9.3 |                               |
+
+键:`PRIMARY KEY(tenant_id, sp_id, user_id)`、`UNIQUE(tenant_id, sp_id, name_id)`。删除出站 SAML 应用时删除其所有行。擦除用户时删除该用户的行,自助隐私导出包含这些行。
 
 ### 16.10 saml_session_bindings(SAML SLO SessionIndex/NameID -> session 映射,见 04 章 2)
 
@@ -1401,6 +1427,7 @@ directory_pending_members(unknown member 幂等占位,OneLogin quirk,见 04 章 
 | last_run_status                         | text          | null                                               | null         | `succeeded` / `retrying` / `failed`,由 queue consumer 写入                                                                        |
 | last_run_error                          | text          | null                                               | null         | 原因码,可带下游 HTTP 状态(`downstream_http:401`);不含响应体或 token                                                               |
 | last_run_at                             | integer ts_ms | null                                               | null         | 最近一次运行状态的记录时间                                                                                                        |
+| full_sync_queued_at                     | integer ts_ms | null                                               | null         | 自动触发的全量同步已入队且尚未开始时写入;非空期间同一 target 不再重复入队                                                         |
 | created_at / updated_at                 | integer ts_ms | NOT NULL                                           | 见 9.3       |                                                                                                                                   |
 
 索引:`INDEX(tenant_id, org_id)`、`INDEX(tenant_id, status)`。
@@ -1427,6 +1454,23 @@ directory_pending_members(unknown member 幂等占位,OneLogin quirk,见 04 章 
 `INDEX(tenant_id, org_id, target_id, status, id)`。
 两个 unique key 都必须以 `tenant_id` 开头。deprovision 只读取当前
 `(tenant_id, org_id, target_id)` 的 mapping,并且只在本轮全部 upsert 成功后执行。
+
+### 16.13 swa_credentials(SWA 密码保管库,见 04 章)
+
+成员为某个 SWA 连接背后的下游应用保存的用户名和密码。凭据整体封装为一个 KEK 信封(AES-256-GCM),明文里同时带 `connectionId` 与 `userId`;读取时封装的绑定与行上的 `connection_id`、`user_id` 不一致即失败,复制到其他行的信封不能使用。明文不入 D1,任何 API 响应都不返回密码;成员的 SWA 应用列表只返回已保存的用户名。
+
+| 字段                                       | 类型           | 约束                             | 默认   | 说明                            |
+| ------------------------------------------ | -------------- | -------------------------------- | ------ | ------------------------------- |
+| id                                         | text           | PK                               | UUID   |                                 |
+| tenant_id                                  | text           | NOT NULL, FK -> organizations.id | --     |                                 |
+| org_id                                     | text           | NOT NULL                         | --     | 拥有该 SWA 连接的 Organization  |
+| connection_id                              | text           | NOT NULL                         | --     | SWA 连接的 `sso_connections.id` |
+| user_id                                    | text           | NOT NULL                         | --     | 凭据所属成员                    |
+| secret_iv / secret_ciphertext / secret_tag | text           | NOT NULL                         | --     | KEK 信封三段(base64)            |
+| kek_version                                | integer number | NOT NULL                         | --     |                                 |
+| created_at / updated_at                    | integer ts_ms  | NOT NULL                         | 见 9.3 |                                 |
+
+索引:`UNIQUE(tenant_id, connection_id, user_id)`、`INDEX(tenant_id, user_id)`。保存是一条绑定租户的 `INSERT ... ON CONFLICT (tenant_id, connection_id, user_id) DO UPDATE`,并发保存只留一行。删除凭据即硬删该行。SWA 凭据不存放在 `sso_connections.attribute_mapping` 中;每次写连接时都会去掉 `_swaCredentials`、`_swaVault`、`_swaVaultEnvelope` 键。
 
 ## 17. 会话与平台运营实体
 
@@ -1573,7 +1617,22 @@ organization_plans(SQL 表名保持不变,Drizzle 导出名为 `organizationBill
 
 索引:非 null 的 `external_customer_id` partial UNIQUE、`INDEX(plan, status, tenant_id)`。日批
 MAU 上报只选择 `status` 为 `active` 或 `trialing` 且带 `external_customer_id` 的 row。Console
-把 `past_due` 显示为欠费,其他状态都显示为正常。
+把 `past_due` 显示为欠费,其他状态都显示为正常。`status` 由 `billing_subscriptions` 推导:取租户所有订阅中最好的状态,顺序为 active > trialing > past_due > canceled。
+
+billing_subscriptions(每个 Stripe 订阅一行,只由 Stripe webhook 写入):
+
+| 字段                    | 类型           | 约束     | 默认   | 说明                                                                                                                                                 |
+| ----------------------- | -------------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| subscription_id         | text           | PK       | --     | Stripe subscription id                                                                                                                               |
+| tenant_id               | text           | NOT NULL | --     | 经订阅 metadata `xid_tenant_id` 绑定的顶层 organization id                                                                                           |
+| customer_id             | text           | NOT NULL | --     | Stripe customer id                                                                                                                                   |
+| status                  | text           | NOT NULL | --     | `active`/`trialing`/`past_due`/`canceled`;Stripe 的 `canceled`、`incomplete_expired`、`paused` 映射为 `canceled`,其他非 active 状态映射为 `past_due` |
+| last_event_id           | text           | NOT NULL | --     | 已应用状态对应的 Stripe event id                                                                                                                     |
+| last_event_created      | integer number | NOT NULL | --     | 已应用事件的 Stripe `created`(秒)                                                                                                                    |
+| last_event_priority     | integer number | NOT NULL | --     | `customer.subscription.deleted` = 40,created/updated = 30                                                                                            |
+| created_at / updated_at | integer ts_ms  | NOT NULL | 见 9.3 |                                                                                                                                                      |
+
+索引:`INDEX(tenant_id, status)`。事件只在 `(last_event_created, last_event_priority, last_event_id)` 比已存元组更新且该行属于同一租户时更新自己的订阅行,旧事件或已被替换订阅的事件不会覆盖新状态,旧订阅的 `deleted` 也不会把仍有有效订阅的租户标为 canceled。
 
 organization_quotas:
 
@@ -1600,31 +1659,30 @@ tenant(包含 child organization)内 distinct active `memberships.user_id`。`se
 
 billing_meter_reports:
 
-| 字段                       | 类型           | 约束             | 默认   | 说明                                            |
-| -------------------------- | -------------- | ---------------- | ------ | ----------------------------------------------- |
-| tenant_id                  | text           | 复合 PK          | --     | 顶层 organization id                            |
-| meter_key                  | text           | 复合 PK          | --     | provider meter identity                         |
-| period                     | text           | 复合 PK          | --     | accounting period,例如 `YYYY-MM`                |
-| reported_value             | integer number | NOT NULL         | `0`    | provider 已确认的 cumulative target             |
-| pending_identifier         | text           | null,全局 UNIQUE | null   | 稳定的 provider idempotency identifier          |
-| pending_value              | integer number | null             | null   | pending report 已预留 delta                     |
-| pending_target             | integer number | null             | null   | provider 确认后提交的 cumulative target         |
-| pending_customer_id        | text           | null             | null   | 预留 pending report 时冻结的 customer           |
-| pending_event_name         | text           | null             | null   | 预留 pending report 时冻结的 meter event name   |
-| pending_timestamp          | integer number | null             | null   | 与 report 一起冻结的 provider payload timestamp |
-| pending_reserved_at        | integer ts_ms  | null             | null   | provider 幂等重试窗口起点                       |
-| provider_accepted_at       | integer ts_ms  | null             | null   | 本地 finalize 前持久化 provider acceptance      |
-| reconciliation_required_at | integer ts_ms  | null             | null   | 需要 operator 对账,禁止再次调用 provider        |
-| created_at / updated_at    | integer ts_ms  | NOT NULL         | 见 9.3 |                                                 |
+| 字段                       | 类型           | 约束             | 默认   | 说明                                                                                                                     |
+| -------------------------- | -------------- | ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| tenant_id                  | text           | 复合 PK          | --     | 顶层 organization id                                                                                                     |
+| meter_key                  | text           | 复合 PK          | --     | provider meter identity                                                                                                  |
+| period                     | text           | 复合 PK          | --     | accounting period,例如 `YYYY-MM`                                                                                         |
+| reported_value             | integer number | NOT NULL         | `0`    | provider 已确认的 cumulative target                                                                                      |
+| pending_identifier         | text           | null,全局 UNIQUE | null   | 稳定的 provider idempotency identifier                                                                                   |
+| pending_value              | integer number | null             | null   | pending report 已预留 delta                                                                                              |
+| pending_target             | integer number | null             | null   | provider 确认后提交的 cumulative target                                                                                  |
+| pending_customer_id        | text           | null             | null   | 预留 pending report 时冻结的 customer                                                                                    |
+| pending_event_name         | text           | null             | null   | 预留 pending report 时冻结的 meter event name                                                                            |
+| pending_timestamp          | integer number | null             | null   | 与 report 一起冻结的 provider payload timestamp                                                                          |
+| pending_reserved_at        | integer ts_ms  | null             | null   | 预留 pending report 的时间                                                                                               |
+| pending_sent_at            | integer ts_ms  | null             | null   | 第一次可能被 provider 受理的发送时间,24 小时去重窗口从这里起算;provider 明确拒绝(409 以外的 4xx)的发送撤回自己写入的标记 |
+| provider_accepted_at       | integer ts_ms  | null             | null   | 本地 finalize 前持久化 provider acceptance                                                                               |
+| reconciliation_required_at | integer ts_ms  | null             | null   | 需要 operator 对账,禁止再次调用 provider                                                                                 |
+| created_at / updated_at    | integer ts_ms  | NOT NULL         | 见 9.3 |                                                                                                                          |
 
 主键:`PRIMARY KEY(tenant_id, meter_key, period)`。索引:非 null 的
 `pending_identifier` partial UNIQUE、`INDEX(period, meter_key, tenant_id)`。reporter 在调用
 provider 前持久化全部 pending fields,每次重试复用包含 identifier、customer、event name、
 value 与 timestamp 的完整首次 payload;仅在 provider 确认后推进 `reported_value` 并清空
 pending fields。provider 成功响应后先持久化 `provider_accepted_at`;带此 marker 的重试只做
-本地 finalize,不再调用 provider。acceptance 未能持久化时,只允许在 provider 的 24 小时
-deduplication window 内重试;超过边界则设置 `reconciliation_required_at` 并 fail closed,
-避免重复计费。
+本地 finalize,不再调用 provider。每次调用 provider 前写入 `pending_sent_at`,并保留第一次的值。acceptance 未能持久化时,只允许在 `pending_sent_at` 起 24 小时内重试;超过边界则设置 `reconciliation_required_at` 并 fail closed,避免重复计费。日批跳过该 row,直到 Instance Manager 通过平台 API 对账(`mark_reported`,或 `report_again` 换新 identifier 重报),对账写审计。Stripe 只接受 35 天内的 meter event timestamp,更早的增量只能标记为已上报。
 
 `stripe_checkout_reservations` 连同已有 row 保留在 schema 中,但没有代码读写它:XID 不创建
 Checkout Session。运营方通过 Stripe subscription metadata `xid_tenant_id` 绑定 customer(见
@@ -1866,7 +1924,7 @@ Queue 短暂不可用时持久化待重派;recipient 与 payload 均以 KEK 信�
 
 ### 17.10 notification_delivery_failures(provider 拒绝/结果不确定投递记录)
 
-provider 的明确拒绝和调用结果不确定均单独持久化;Queue retry 只能依据此记录人工处置不确定投递,不能把未知结果重发外部 provider。
+provider 的明确拒绝和调用结果不确定均单独持久化。provider 响应的分类在 `apps/server/worker/queues/notification-provider-error.ts`:429(outcome `rejected`)和 5xx(outcome `indeterminate`)可重试。outbox 行回到 `pending`,按 `Retry-After`(限定在 1-600 秒)或从 15 秒起每次翻倍、上限 600 秒的指数退避重发。累计 `PROVIDER_SEND_ATTEMPT_LIMIT` = 5 次后按 outcome 写入本表。5xx 重试接受 provider 可能已经受理的风险,收件人可能收到重复消息。其余非 2xx 记为 `rejected`,超时、408 或响应无法解析记为 `indeterminate`,这些直接记录、不重发;Queue retry 只能依据此记录人工处置不确定投递。
 
 | 字段                    | 类型           | 约束                             | 默认   | 说明                                                      |
 | ----------------------- | -------------- | -------------------------------- | ------ | --------------------------------------------------------- |

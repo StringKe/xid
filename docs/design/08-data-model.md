@@ -140,6 +140,8 @@ User -> Session -> Token
 | DirectoryUser / DirectoryGroup | Directory-synced users (bound to XID Users) and groups                              |
 | SamlServiceProvider            | Downstream SAML SP registration (when XID acts as the IdP)                          |
 | SamlSessionBinding             | SAML SLO SessionIndex/NameID to session mapping                                     |
+| SamlPersistentNameId           | Pairwise persistent NameID per outbound SAML app and user                           |
+| SwaCredential                  | A member's encrypted SWA username and password for one downstream application       |
 | ScimTarget                     | Outbound SCIM target (XID acting as a SCIM client pushing to downstream SaaS)       |
 | ScimTargetResource             | Stable local-to-downstream User/Group identity mapping for one SCIM target          |
 
@@ -161,6 +163,7 @@ User -> Session -> Token
 | ApiKey                    | API keys (scoped, hashed storage)                             |
 | PlatformAdmin             | Platform administrator (platform-level)                       |
 | BillingAccount / Quota    | Optional usage-billing account link and operator quotas       |
+| BillingSubscription       | Per-Stripe-subscription status ordered by webhook events      |
 | PlatformAnnouncement      | Scheduled, explicitly targeted operator announcements         |
 | StatusIncident / Update   | Public service-status incidents and their timeline            |
 | PrivacyRequest            | User export and delayed-erasure workflow state                |
@@ -175,7 +178,7 @@ The sections below are the **single source of truth** for `packages/db` (the Dri
 `packages/types` (the TypeScript types). Each core entity gets a complete field table plus index
 declarations plus foreign key ON DELETE policies. Once a field name and physical type are settled, the
 implementation MUST NOT deviate; adding, removing, or changing a field means changing this chapter
-first and the implementation second. There are currently 71 D1 tables (matching
+first and the implementation second. There are currently 78 D1 tables (matching
 `packages/db/src/schema` and the `packages/db/drizzle` migrations); device_codes and par_requests are
 logical structures inside Durable Objects and do not count as tables.
 
@@ -250,24 +253,26 @@ automatically).
 Everything that is "unique within a tenant" uses a composite UNIQUE whose **first column MUST be
 tenant_id**, so the same value in different tenants does not collide:
 
-| Table                | UNIQUE constraint                                                                    | Notes                                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| user_emails          | `UNIQUE (tenant_id, email)`                                                          | Email unique within the tenant (see chapter 05 section 1)                                                       |
-| user_phones          | `UNIQUE (tenant_id, phone)`                                                          | Phone unique within the tenant                                                                                  |
-| users                | `UNIQUE (tenant_id, external_id)`                                                    | external_id unique within the tenant, allowing many nulls (SQLite UNIQUE permits multiple NULLs)                |
-| users                | `UNIQUE (tenant_id, username)`                                                       | username unique within the tenant, nullable                                                                     |
-| user_identities      | `UNIQUE (tenant_id, provider, provider_user_id)`                                     | Social binding unique within the tenant (see chapter 01 section 3)                                              |
-| passkey_credentials  | `UNIQUE (tenant_id, credential_id)`                                                  | Credential ID unique within the tenant (see registration step 7 in chapter 01)                                  |
-| organizations        | `UNIQUE (tenant_id, slug)`                                                           | Org slug unique within the tenant (a top-level org's tenant_id equals its own id)                               |
-| organizations        | `UNIQUE (instance_id, slug)`                                                         | Host resolution and self-service top-level Tenant creation require an Instance-wide slug namespace              |
-| organization_domains | `UNIQUE (domain)`                                                                    | Globally unique domain (one domain can be claimed by only one org, see chapter 04 section 5); not tenant-scoped |
-| refresh_tokens       | `UNIQUE (token_hash)`                                                                | Globally unique hash (see chapter 03 section 11.1)                                                              |
-| roles                | `UNIQUE (tenant_id, project_id, key)`                                                | Role key unique within the project                                                                              |
-| permissions          | `UNIQUE (tenant_id, project_id, key)`                                                | Permission key unique within the project                                                                        |
-| org_units            | `UNIQUE (tenant_id, org_id, parent_unit_id, slug)`                                   | Unit slug unique among siblings (root rows with NULL parent fall outside SQLite NULL comparison, see 10.2b)     |
-| org_units            | `UNIQUE (tenant_id, path)`                                                           | Materialized path unique within the tenant (concurrent-create backstop, see 10.2b)                              |
-| org_unit_members     | partial `UNIQUE (tenant_id, org_id, user_id) WHERE is_primary = 1`                   | One primary post per user per org (see 10.2c)                                                                   |
-| access_requests      | partial `UNIQUE (tenant_id, project_id, requester_user_id) WHERE status = 'pending'` | At most one pending request per user and project (see 13.6)                                                     |
+| Table                    | UNIQUE constraint                                                                    | Notes                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| user_emails              | `UNIQUE (tenant_id, email)`                                                          | Email unique within the tenant (see chapter 05 section 1)                                                       |
+| user_phones              | `UNIQUE (tenant_id, phone)`                                                          | Phone unique within the tenant                                                                                  |
+| users                    | `UNIQUE (tenant_id, external_id)`                                                    | external_id unique within the tenant, allowing many nulls (SQLite UNIQUE permits multiple NULLs)                |
+| users                    | `UNIQUE (tenant_id, username)`                                                       | username unique within the tenant, nullable                                                                     |
+| user_identities          | `UNIQUE (tenant_id, provider, provider_user_id)`                                     | Social binding unique within the tenant (see chapter 01 section 3)                                              |
+| passkey_credentials      | `UNIQUE (tenant_id, credential_id)`                                                  | Credential ID unique within the tenant (see registration step 7 in chapter 01)                                  |
+| organizations            | `UNIQUE (tenant_id, slug)`                                                           | Org slug unique within the tenant (a top-level org's tenant_id equals its own id)                               |
+| organizations            | `UNIQUE (instance_id, slug)`                                                         | Host resolution and self-service top-level Tenant creation require an Instance-wide slug namespace              |
+| organization_domains     | `UNIQUE (domain)`                                                                    | Globally unique domain (one domain can be claimed by only one org, see chapter 04 section 5); not tenant-scoped |
+| refresh_tokens           | `UNIQUE (token_hash)`                                                                | Globally unique hash (see chapter 03 section 11.1)                                                              |
+| roles                    | `UNIQUE (tenant_id, project_id, key)`                                                | Role key unique within the project                                                                              |
+| permissions              | `UNIQUE (tenant_id, project_id, key)`                                                | Permission key unique within the project                                                                        |
+| org_units                | `UNIQUE (tenant_id, org_id, parent_unit_id, slug)`                                   | Unit slug unique among siblings (root rows with NULL parent fall outside SQLite NULL comparison, see 10.2b)     |
+| org_units                | `UNIQUE (tenant_id, path)`                                                           | Materialized path unique within the tenant (concurrent-create backstop, see 10.2b)                              |
+| org_unit_members         | partial `UNIQUE (tenant_id, org_id, user_id) WHERE is_primary = 1`                   | One primary post per user per org (see 10.2c)                                                                   |
+| access_requests          | partial `UNIQUE (tenant_id, project_id, requester_user_id) WHERE status = 'pending'` | At most one pending request per user and project (see 13.6)                                                     |
+| saml_persistent_name_ids | `UNIQUE (tenant_id, sp_id, name_id)`                                                 | Persistent NameID unique per outbound SAML app (see 16.9a)                                                      |
+| swa_credentials          | `UNIQUE (tenant_id, connection_id, user_id)`                                         | One SWA credential per member and connection (see 16.13)                                                        |
 
 > A SQLite UNIQUE index treats multiple NULLs as distinct (no collision), which is why external_id and
 > username can be nullable and still constrained.
@@ -1308,31 +1313,35 @@ Indexes: `UNIQUE(tenant_id, audience)`, `INDEX(tenant_id)`.
 
 ### 16.1 sso_connections (per-org upstream IdP connection, 1:1 with an org, see chapter 04 section 1)
 
-| Field                         | Type            | Constraints                                        | Default        | Notes                                                                                                                                |
-| ----------------------------- | --------------- | -------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| id                            | text            | PK                                                 | `conn_`+nanoid |                                                                                                                                      |
-| tenant_id                     | text            | NOT NULL, FK -> organizations.id                   | --             |                                                                                                                                      |
-| org_id                        | text            | NOT NULL, FK -> organizations.id ON DELETE cascade | --             | A connection is 1:1 with an org and is never reused across tenants (see chapter 04 section 1)                                        |
-| protocol                      | text            | NOT NULL                                           | --             | `saml`/`oidc`                                                                                                                        |
-| display_name                  | text            | nullable                                           | null           | IdP name shown on the Hosted Auth redirect transition ("Okta"); null falls back to a generic identity provider label                 |
-| idp_entity_id                 | text            | nullable                                           | null           | The SAML IdP EntityID (matched exactly against the Issuer, see chapter 04 section 9.7 step 1)                                        |
-| idp_sso_url                   | text            | nullable                                           | null           | The SAML SSO URL or the OIDC authorization_endpoint                                                                                  |
-| idp_slo_url                   | text            | nullable                                           | null           | The SAML IdP SingleLogoutService URL; public HTTPS and never inferred from the SSO URL                                               |
-| idp_metadata_url              | text            | nullable                                           | null           | Polled and refreshed every 24 hours (see chapter 04 section 1)                                                                       |
-| idp_certificates              | text json       | NOT NULL                                           | `[]`           | IdP X.509 verification certificates (an array of base64 DER; old and new coexist during rotation, see chapter 04 section 9.5 step 1) |
-| oidc_client_id                | text            | nullable                                           | null           | The OIDC RP client_id                                                                                                                |
-| oidc_client_secret_ciphertext | blob buffer     | nullable                                           | null           | AES-256-GCM encrypted (`version\|\|iv\|\|ciphertext\|\|tag`)                                                                         |
-| oidc_discovery_url            | text            | nullable                                           | null           | OIDC Discovery                                                                                                                       |
-| sp_cert_id                    | text            | FK -> cert_store.id ON DELETE set null, nullable   | null           | The SP signing/decryption certificate (see 16.2 and chapter 04 section 1)                                                            |
-| want_authn_response_signed    | integer boolean | NOT NULL                                           | `1`            | Require the Response to be signed (see chapter 04 section 9.3)                                                                       |
-| want_assertions_signed        | integer boolean | NOT NULL                                           | `1`            | Require the Assertion to be signed                                                                                                   |
-| saml_clock_skew_ms            | integer         | NOT NULL, `0..300000`                              | `180000`       | Connection tolerance for IdP certificate and Assertion validity checks                                                               |
-| attribute_mapping             | text json       | NOT NULL                                           | `{}`           | IdP attributes to XID fields (email/firstName/lastName/groups, see chapter 04 section 1)                                             |
-| role_mapping                  | text json       | NOT NULL                                           | `{}`           | IdP groups to org_role (see chapter 04 section 4)                                                                                    |
-| jit_enabled                   | integer boolean | NOT NULL                                           | `1`            | The JIT provisioning switch (some enterprises want SCIM only, see chapter 04 section 4)                                              |
-| relay_state_url               | text            | nullable                                           | null           | The IdP-initiated landing page (see chapter 04 section 1)                                                                            |
-| status                        | text            | NOT NULL                                           | `'active'`     | `active`/`inactive`                                                                                                                  |
-| created_at / updated_at       | integer ts_ms   | NOT NULL                                           | See 9.3        |                                                                                                                                      |
+| Field                         | Type            | Constraints                                        | Default        | Notes                                                                                                                                                                                                   |
+| ----------------------------- | --------------- | -------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                            | text            | PK                                                 | `conn_`+nanoid |                                                                                                                                                                                                         |
+| tenant_id                     | text            | NOT NULL, FK -> organizations.id                   | --             |                                                                                                                                                                                                         |
+| org_id                        | text            | NOT NULL, FK -> organizations.id ON DELETE cascade | --             | A connection is 1:1 with an org and is never reused across tenants (see chapter 04 section 1)                                                                                                           |
+| protocol                      | text            | NOT NULL                                           | --             | `saml`/`oidc`                                                                                                                                                                                           |
+| display_name                  | text            | nullable                                           | null           | IdP name shown on the Hosted Auth redirect transition ("Okta"); null falls back to a generic identity provider label                                                                                    |
+| idp_entity_id                 | text            | nullable                                           | null           | The SAML IdP EntityID (matched exactly against the Issuer, see chapter 04 section 9.7 step 1)                                                                                                           |
+| idp_sso_url                   | text            | nullable                                           | null           | The SAML SSO URL or the OIDC authorization_endpoint                                                                                                                                                     |
+| idp_slo_url                   | text            | nullable                                           | null           | The SAML IdP SingleLogoutService URL; public HTTPS and never inferred from the SSO URL                                                                                                                  |
+| idp_metadata_url              | text            | nullable                                           | null           | Polled and refreshed every 24 hours (see chapter 04 section 1)                                                                                                                                          |
+| idp_metadata_xml              | text            | nullable                                           | null           | Uploaded IdP metadata XML; mutually exclusive with `idp_metadata_url` (saving one clears the other), never refreshed by the cron                                                                        |
+| idp_metadata_refreshed_at     | integer ts_ms   | nullable                                           | null           | Last successful metadata import, written by a synchronous import on save and by the daily refresh                                                                                                       |
+| idp_metadata_last_error       | text            | nullable                                           | null           | Last daily refresh failure code (`metadata_url_not_allowed`/`metadata_http_status`/`metadata_too_large`/`metadata_invalid`/`metadata_endpoint_not_allowed`/`metadata_fetch_failed`); cleared on success |
+| idp_metadata_last_error_at    | integer ts_ms   | nullable                                           | null           | Time of `idp_metadata_last_error`; cleared on success                                                                                                                                                   |
+| idp_certificates              | text json       | NOT NULL                                           | `[]`           | IdP X.509 verification certificates (an array of base64 DER; old and new coexist during rotation, see chapter 04 section 9.5 step 1)                                                                    |
+| oidc_client_id                | text            | nullable                                           | null           | The OIDC RP client_id                                                                                                                                                                                   |
+| oidc_client_secret_ciphertext | blob buffer     | nullable                                           | null           | AES-256-GCM encrypted (`version\|\|iv\|\|ciphertext\|\|tag`)                                                                                                                                            |
+| oidc_discovery_url            | text            | nullable                                           | null           | OIDC Discovery                                                                                                                                                                                          |
+| sp_cert_id                    | text            | FK -> cert_store.id ON DELETE set null, nullable   | null           | The SP signing/decryption certificate (see 16.2 and chapter 04 section 1)                                                                                                                               |
+| want_authn_response_signed    | integer boolean | NOT NULL                                           | `1`            | Require the Response to be signed (see chapter 04 section 9.3)                                                                                                                                          |
+| want_assertions_signed        | integer boolean | NOT NULL                                           | `1`            | Require the Assertion to be signed                                                                                                                                                                      |
+| saml_clock_skew_ms            | integer         | NOT NULL, `0..300000`                              | `180000`       | Connection tolerance for IdP certificate and Assertion validity checks                                                                                                                                  |
+| attribute_mapping             | text json       | NOT NULL                                           | `{}`           | IdP attributes to XID fields (email/firstName/lastName/groups, see chapter 04 section 1)                                                                                                                |
+| role_mapping                  | text json       | NOT NULL                                           | `{}`           | IdP groups to org_role (see chapter 04 section 4)                                                                                                                                                       |
+| jit_enabled                   | integer boolean | NOT NULL                                           | `1`            | The JIT provisioning switch (some enterprises want SCIM only, see chapter 04 section 4)                                                                                                                 |
+| relay_state_url               | text            | nullable                                           | null           | The IdP-initiated landing page (see chapter 04 section 1)                                                                                                                                               |
+| status                        | text            | NOT NULL                                           | `'active'`     | `active`/`inactive`                                                                                                                                                                                     |
+| created_at / updated_at       | integer ts_ms   | NOT NULL                                           | See 9.3        |                                                                                                                                                                                                         |
 
 Indexes: `UNIQUE(org_id)`, `INDEX(tenant_id)`, `INDEX(tenant_id, status)`. SsoProfile (the idp_id and
 claims from a single authentication) is not persisted (it is transient); when an audit trail is
@@ -1344,25 +1353,29 @@ Both the SP side (facing an upstream IdP) and the XID-as-IdP side (facing downst
 signing and decryption certificates here, **separate from the OIDC signing keys** (see SAML
 certificates in the signing-keys rule).
 
-| Field                   | Type           | Constraints                      | Default        | Notes                                                                                                                               |
-| ----------------------- | -------------- | -------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| id                      | text           | PK                               | `cert_`+nanoid |                                                                                                                                     |
-| tenant_id               | text           | NOT NULL, FK -> organizations.id | --             |                                                                                                                                     |
-| usage                   | text           | NOT NULL                         | --             | `saml_sp_signing`/`saml_sp_encryption`/`saml_idp_signing` (XID as the IdP)                                                          |
-| certificate             | text           | NOT NULL                         | --             | The X.509 public certificate (base64 DER)                                                                                           |
-| private_key_iv          | blob buffer    | NOT NULL                         | --             | The AES-256-GCM IV (12 bytes)                                                                                                       |
-| private_key_ciphertext  | blob buffer    | NOT NULL                         | --             | The envelope-encrypted private key ciphertext (decrypted with the KEK on load; the plaintext private key never enters the database) |
-| private_key_tag         | blob buffer    | NOT NULL                         | --             | The GCM tag (16 bytes)                                                                                                              |
-| kek_version             | integer number | NOT NULL                         | --             | The KEK version (for rotation compatibility)                                                                                        |
-| status                  | text           | NOT NULL                         | `'active'`     | `active`/`retiring` (old and new coexist during rotation, see chapter 04 section 1)                                                 |
-| not_before              | integer ts_ms  | nullable                         | null           | The certificate validity lower bound                                                                                                |
-| not_after               | integer ts_ms  | nullable                         | null           | The upper bound                                                                                                                     |
-| fingerprint             | text           | NOT NULL                         | --             | The SHA-256 fingerprint (for incident response, see chapter 04 section 9.5 step 3)                                                  |
-| created_at / updated_at | integer ts_ms  | NOT NULL                         | See 9.3        |                                                                                                                                     |
+| Field                   | Type           | Constraints                      | Default        | Notes                                                                                                                                                             |
+| ----------------------- | -------------- | -------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                      | text           | PK                               | `cert_`+nanoid |                                                                                                                                                                   |
+| tenant_id               | text           | NOT NULL, FK -> organizations.id | --             |                                                                                                                                                                   |
+| usage                   | text           | NOT NULL                         | --             | `saml_sp_signing`/`saml_sp_encryption`/`saml_idp_signing` (XID as the IdP)                                                                                        |
+| certificate             | text           | NOT NULL                         | --             | The X.509 public certificate (base64 DER)                                                                                                                         |
+| private_key_iv          | blob buffer    | NOT NULL                         | --             | The AES-256-GCM IV (12 bytes)                                                                                                                                     |
+| private_key_ciphertext  | blob buffer    | NOT NULL                         | --             | The envelope-encrypted private key ciphertext (decrypted with the KEK on load; the plaintext private key never enters the database)                               |
+| private_key_tag         | blob buffer    | NOT NULL                         | --             | The GCM tag (16 bytes)                                                                                                                                            |
+| kek_version             | integer number | NOT NULL                         | --             | The KEK version (for rotation compatibility)                                                                                                                      |
+| status                  | text           | NOT NULL                         | `'active'`     | SP usages: `active`/`retiring` (old and new coexist during rotation, see chapter 04 section 1). `saml_idp_signing`: `next` -> `active` -> `retiring` -> `retired` |
+| not_before              | integer ts_ms  | nullable                         | null           | The certificate validity lower bound                                                                                                                              |
+| not_after               | integer ts_ms  | nullable                         | null           | The upper bound                                                                                                                                                   |
+| fingerprint             | text           | NOT NULL                         | --             | The SHA-256 fingerprint (for incident response, see chapter 04 section 9.5 step 3)                                                                                |
+| retire_after            | integer ts_ms  | nullable                         | null           | Set when an outbound IdP signing certificate becomes `retiring`: the earlier of activation time + 7 days and `not_after`                                          |
+| created_at / updated_at | integer ts_ms  | NOT NULL                         | See 9.3        |                                                                                                                                                                   |
 
 Indexes: `UNIQUE(tenant_id, usage) WHERE status='active' AND usage='saml_idp_signing'` (the
 concurrent auto-provisioning winner; it intentionally excludes both SP usages),
-`INDEX(tenant_id, usage, status)`.
+`UNIQUE(tenant_id, usage) WHERE status='next' AND usage='saml_idp_signing'` (at most one prepared certificate per tenant),
+`INDEX(tenant_id, usage, status)`, `INDEX(tenant_id, usage, status, id)`.
+
+Outbound IdP signing certificate rotation (`saml_idp_signing`, one set per tenant shared by every outbound SAML app): the daily cron publishes a `next` certificate when the `active` one expires within 60 days and writes `outbound_saml_signing_certificate.expiring` when it expires within 30 days. An administrator can also prepare a `next` certificate. IdP metadata publishes `next`, `active`, and `retiring` together. Only an explicit administrator action promotes `next` to `active`; the same D1 batch moves the previous `active` to `retiring` and points every `saml_service_providers.idp_signing_cert_id` in the tenant at the new certificate. The cron moves `retiring` to `retired` once `retire_after` or `not_after` has passed. Assertions are signed only with `active` or `retiring` certificates.
 
 > Decision: the SAML private key and the OIDC signing private key use the **same envelope encryption
 > structure but live in separate tables**. CertStore splits iv, ciphertext, and tag into **three blob
@@ -1431,7 +1444,7 @@ Indexes: `INDEX(tenant_id, org_id)`. SCIM queries MUST inject
 | deleted_at              | integer ts_ms   | nullable                                         | null           | The SCIM DELETE soft delete marker                                                    |
 | created_at / updated_at | integer ts_ms   | NOT NULL                                         | See 9.3        |                                                                                       |
 
-Indexes: `UNIQUE(directory_id, user_name)`, `UNIQUE(directory_id, external_id)`,
+Indexes: `UNIQUE(directory_id, user_name)` and `UNIQUE(directory_id, external_id)`, both partial `WHERE status <> 'deleted' AND deleted_at IS NULL` so a deleted resource frees its userName and externalId (RFC 7644 section 3.6; a conflict among live resources returns 409),
 `INDEX(tenant_id, directory_id)`, `INDEX(user_id)`.
 
 ### 16.7 directory_groups (SCIM-synced groups, see chapter 04 section 6)
@@ -1449,7 +1462,7 @@ the migration needs no destructive DDL; no code reads or writes it.
 | deleted_at              | integer ts_ms | nullable                                         | null           | The SCIM DELETE soft delete marker |
 | created_at / updated_at | integer ts_ms | NOT NULL                                         | See 9.3        |                                    |
 
-Indexes: `UNIQUE(directory_id, display_name)`, `INDEX(tenant_id, directory_id)`.
+Indexes: `UNIQUE(directory_id, display_name) WHERE status <> 'deleted' AND deleted_at IS NULL` (a deleted group frees its name), `INDEX(tenant_id, directory_id)`.
 
 ### 16.8 directory_group_members + directory_pending_members (see chapter 04 section 10.1.1)
 
@@ -1482,26 +1495,38 @@ pending rows, see chapter 04 section 10.1.1).
 ### 16.9 saml_service_providers (downstream SP registration when XID acts as the IdP, see chapter 04 section 2)
 
 The outbound SAML IdP has shipped (worker/sso/outbound-saml.ts plus this table plus the console page):
-package-level XML signature tests, Worker route L2, and a fake SaaS SP at L3 are covered. Real SaaS
-admin L4, SaaS template UI, and the app assignment gate are not done (see the current decisions in
-chapter 04 section 2).
+package-level XML signature tests, Worker route L2, and a fake SaaS SP at L3 are covered. SaaS presets and the app assignment gate (stored under the server-maintained `_xidAssignmentGate` key of `attribute_mapping`) are implemented. Real SaaS admin L4 is not done (see the current decisions in chapter 04 section 2).
 
-| Field                   | Type          | Constraints                                        | Default                                                    | Notes                                                                                              |
-| ----------------------- | ------------- | -------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| id                      | text          | PK                                                 | `sp_`+nanoid                                               |                                                                                                    |
-| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --                                                         |                                                                                                    |
-| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --                                                         | The org the SP belongs to                                                                          |
-| sp_entity_id            | text          | NOT NULL                                           | --                                                         | The per-SP EntityID (see chapter 04 section 2)                                                     |
-| acs_url                 | text          | NOT NULL                                           | --                                                         | The SP ACS URL                                                                                     |
-| slo_url                 | text          | nullable                                           | null                                                       | The SP SLO receiving endpoint                                                                      |
-| slo_binding             | text          | NOT NULL                                           | `'redirect'`                                               | The SLO binding (`redirect`/`post`)                                                                |
-| sp_certificates         | text json     | NOT NULL                                           | `[]`                                                       | SP X.509 certificates (an array of base64 DER, used for SLO signature verification and encryption) |
-| attribute_mapping       | text json     | NOT NULL                                           | `{}`                                                       | Assertion field mapping                                                                            |
-| name_id_format          | text          | NOT NULL                                           | `'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress'` |                                                                                                    |
-| idp_signing_cert_id     | text          | FK -> cert_store.id ON DELETE set null, nullable   | null                                                       | The XID IdP signing certificate (`usage=saml_idp_signing`)                                         |
-| created_at / updated_at | integer ts_ms | NOT NULL                                           | See 9.3                                                    |                                                                                                    |
+| Field                   | Type          | Constraints                                        | Default                                                    | Notes                                                                                                                                                                            |
+| ----------------------- | ------------- | -------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                      | text          | PK                                                 | `sp_`+nanoid                                               |                                                                                                                                                                                  |
+| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --                                                         |                                                                                                                                                                                  |
+| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --                                                         | The org the SP belongs to                                                                                                                                                        |
+| sp_entity_id            | text          | NOT NULL                                           | --                                                         | The per-SP EntityID (see chapter 04 section 2)                                                                                                                                   |
+| acs_url                 | text          | NOT NULL                                           | --                                                         | The SP ACS URL                                                                                                                                                                   |
+| slo_url                 | text          | nullable                                           | null                                                       | The SP SLO receiving endpoint                                                                                                                                                    |
+| slo_binding             | text          | NOT NULL                                           | `'redirect'`                                               | The SLO binding (`redirect`/`post`)                                                                                                                                              |
+| sp_certificates         | text json     | NOT NULL                                           | `[]`                                                       | SP X.509 certificates (an array of base64 DER, used for SLO signature verification and encryption)                                                                               |
+| attribute_mapping       | text json     | NOT NULL                                           | `{}`                                                       | Assertion field mapping                                                                                                                                                          |
+| name_id_format          | text          | NOT NULL                                           | `'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress'` | SAML 1.1 `emailAddress`/`unspecified`, SAML 2.0 `persistent`/`transient`, plus the SAML 2.0-namespace `emailAddress`/`unspecified` aliases; any other value is rejected with 422 |
+| idp_signing_cert_id     | text          | FK -> cert_store.id ON DELETE set null, nullable   | null                                                       | The XID IdP signing certificate (`usage=saml_idp_signing`); activating a `next` certificate repoints every row in the tenant                                                     |
+| created_at / updated_at | integer ts_ms | NOT NULL                                           | See 9.3                                                    |                                                                                                                                                                                  |
 
 Indexes: `UNIQUE(tenant_id, org_id, sp_entity_id)`, `INDEX(tenant_id, org_id)`.
+
+### 16.9a saml_persistent_name_ids (pairwise persistent NameID for outbound SAML, see chapter 04 section 2)
+
+A `persistent` NameID is a pairwise pseudonym per (tenant, outbound SAML app, user): 32 random bytes, base64url, generated on first issuance and persisted. It is stable for one SP, unlinkable across SPs, and never exposes the internal user id.
+
+| Field      | Type          | Constraints                      | Default | Notes                              |
+| ---------- | ------------- | -------------------------------- | ------- | ---------------------------------- |
+| tenant_id  | text          | NOT NULL, FK -> organizations.id | --      |                                    |
+| sp_id      | text          | NOT NULL                         | --      | `saml_service_providers.id`        |
+| user_id    | text          | NOT NULL                         | --      |                                    |
+| name_id    | text          | NOT NULL                         | --      | The opaque persistent NameID value |
+| created_at | integer ts_ms | NOT NULL                         | See 9.3 |                                    |
+
+Keys: `PRIMARY KEY(tenant_id, sp_id, user_id)`, `UNIQUE(tenant_id, sp_id, name_id)`. Deleting an outbound SAML app deletes its rows. User erasure deletes the user's rows, and the self-service privacy export includes them.
 
 ### 16.10 saml_session_bindings (SAML SLO SessionIndex/NameID to session mapping, see chapter 04 section 2)
 
@@ -1543,6 +1568,7 @@ Indexes: `UNIQUE(tenant_id, direction, scope_id, session_index)`,
 | last_run_status                         | text          | nullable                                           | null         | `succeeded` / `retrying` / `failed`, written by the queue consumer                                                                                                                       |
 | last_run_error                          | text          | nullable                                           | null         | Reason code with an optional downstream HTTP status (`downstream_http:401`); never a response body or token                                                                              |
 | last_run_at                             | integer ts_ms | nullable                                           | null         | When the last run state was recorded                                                                                                                                                     |
+| full_sync_queued_at                     | integer ts_ms | nullable                                           | null         | Set when an automatically triggered full sync is enqueued and not yet started; while non-null the same target is not enqueued again                                                      |
 | created_at / updated_at                 | integer ts_ms | NOT NULL                                           | See 9.3      |                                                                                                                                                                                          |
 
 Indexes: `INDEX(tenant_id, org_id)`, `INDEX(tenant_id, status)`.
@@ -1570,6 +1596,23 @@ Indexes:
 The leading `tenant_id` on both unique keys is mandatory because D1 has no RLS. Deprovision reads
 only mappings for the current `(tenant_id, org_id, target_id)` and runs only after the current run's
 complete upsert phase succeeds.
+
+### 16.13 swa_credentials (SWA password vault, see chapter 04)
+
+A member's username and password for one downstream application behind one SWA connection. The credential is sealed as a single KEK envelope (AES-256-GCM) whose plaintext also carries `connectionId` and `userId`; a read whose sealed binding differs from the row's `connection_id` and `user_id` fails, so an envelope copied to another row cannot be used. Plaintext never reaches D1, and no API response returns the password; the member SWA app list returns only the stored username.
+
+| Field                                      | Type           | Constraints                      | Default | Notes                                         |
+| ------------------------------------------ | -------------- | -------------------------------- | ------- | --------------------------------------------- |
+| id                                         | text           | PK                               | UUID    |                                               |
+| tenant_id                                  | text           | NOT NULL, FK -> organizations.id | --      |                                               |
+| org_id                                     | text           | NOT NULL                         | --      | The Organization that owns the SWA connection |
+| connection_id                              | text           | NOT NULL                         | --      | `sso_connections.id` of the SWA connection    |
+| user_id                                    | text           | NOT NULL                         | --      | The member who owns the credential            |
+| secret_iv / secret_ciphertext / secret_tag | text           | NOT NULL                         | --      | The KEK envelope triple (base64 segments)     |
+| kek_version                                | integer number | NOT NULL                         | --      |                                               |
+| created_at / updated_at                    | integer ts_ms  | NOT NULL                         | See 9.3 |                                               |
+
+Indexes: `UNIQUE(tenant_id, connection_id, user_id)`, `INDEX(tenant_id, user_id)`. A save is one tenant-bound `INSERT ... ON CONFLICT (tenant_id, connection_id, user_id) DO UPDATE`, so concurrent saves leave one row. Deleting a credential hard-deletes the row. SWA credentials are never stored in `sso_connections.attribute_mapping`; the keys `_swaCredentials`, `_swaVault`, and `_swaVaultEnvelope` are dropped on every connection write.
 
 ## 17. Session and platform operations entities
 
@@ -1738,7 +1781,22 @@ the Stripe webhook writes it, and only while usage billing is enabled.
 Indexes: partial `UNIQUE(external_customer_id)` when non-null,
 `INDEX(plan, status, tenant_id)`. The daily MAU reporter selects rows whose `status` is `active` or
 `trialing` and that carry an `external_customer_id`. The Console treats `past_due` as overdue and
-every other status as OK.
+every other status as OK. `status` is derived from `billing_subscriptions`: the best status among the tenant's subscriptions, in the order active > trialing > past_due > canceled.
+
+billing_subscriptions (one row per Stripe subscription, written only by the Stripe webhook):
+
+| Field                   | Type           | Constraints | Default | Notes                                                                                                                                                     |
+| ----------------------- | -------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| subscription_id         | text           | PK          | --      | Stripe subscription id                                                                                                                                    |
+| tenant_id               | text           | NOT NULL    | --      | Top-level organization id bound through subscription metadata `xid_tenant_id`                                                                             |
+| customer_id             | text           | NOT NULL    | --      | Stripe customer id                                                                                                                                        |
+| status                  | text           | NOT NULL    | --      | `active`/`trialing`/`past_due`/`canceled`; Stripe `canceled`, `incomplete_expired`, and `paused` map to `canceled`, other non-active states to `past_due` |
+| last_event_id           | text           | NOT NULL    | --      | Stripe event id of the applied state                                                                                                                      |
+| last_event_created      | integer number | NOT NULL    | --      | Stripe `created` (seconds) of the applied event                                                                                                           |
+| last_event_priority     | integer number | NOT NULL    | --      | `customer.subscription.deleted` = 40, created/updated = 30                                                                                                |
+| created_at / updated_at | integer ts_ms  | NOT NULL    | See 9.3 |                                                                                                                                                           |
+
+Index: `INDEX(tenant_id, status)`. An event updates its own subscription row only when `(last_event_created, last_event_priority, last_event_id)` is newer than the stored tuple and the row belongs to the same tenant, so an older event or an event for a superseded subscription never overwrites a newer state, and a `deleted` event for an old subscription does not cancel a tenant that still has a valid subscription.
 
 organization_quotas:
 
@@ -1768,22 +1826,23 @@ triggers and sets every `seats` row to `observe` without changing its `limit`.
 
 billing_meter_reports:
 
-| Field                      | Type           | Constraints               | Default | Notes                                                     |
-| -------------------------- | -------------- | ------------------------- | ------- | --------------------------------------------------------- |
-| tenant_id                  | text           | composite PK              | --      | Top-level organization id                                 |
-| meter_key                  | text           | composite PK              | --      | Provider meter identity                                   |
-| period                     | text           | composite PK              | --      | Accounting period such as `YYYY-MM`                       |
-| reported_value             | integer number | NOT NULL                  | `0`     | Provider-acknowledged cumulative target                   |
-| pending_identifier         | text           | nullable, globally UNIQUE | null    | Stable provider idempotency identifier                    |
-| pending_value              | integer number | nullable                  | null    | Delta reserved for the pending report                     |
-| pending_target             | integer number | nullable                  | null    | Cumulative target committed after provider acknowledgment |
-| pending_customer_id        | text           | nullable                  | null    | Customer frozen when the pending report is reserved       |
-| pending_event_name         | text           | nullable                  | null    | Meter event name frozen when the report is reserved       |
-| pending_timestamp          | integer number | nullable                  | null    | Provider payload timestamp frozen with the report         |
-| pending_reserved_at        | integer ts_ms  | nullable                  | null    | Start of the provider idempotency retry window            |
-| provider_accepted_at       | integer ts_ms  | nullable                  | null    | Provider acceptance persisted before local finalization   |
-| reconciliation_required_at | integer ts_ms  | nullable                  | null    | Operator reconciliation required; provider resend blocked |
-| created_at / updated_at    | integer ts_ms  | NOT NULL                  | See 9.3 |                                                           |
+| Field                      | Type           | Constraints               | Default | Notes                                                                                                                                                                 |
+| -------------------------- | -------------- | ------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| tenant_id                  | text           | composite PK              | --      | Top-level organization id                                                                                                                                             |
+| meter_key                  | text           | composite PK              | --      | Provider meter identity                                                                                                                                               |
+| period                     | text           | composite PK              | --      | Accounting period such as `YYYY-MM`                                                                                                                                   |
+| reported_value             | integer number | NOT NULL                  | `0`     | Provider-acknowledged cumulative target                                                                                                                               |
+| pending_identifier         | text           | nullable, globally UNIQUE | null    | Stable provider idempotency identifier                                                                                                                                |
+| pending_value              | integer number | nullable                  | null    | Delta reserved for the pending report                                                                                                                                 |
+| pending_target             | integer number | nullable                  | null    | Cumulative target committed after provider acknowledgment                                                                                                             |
+| pending_customer_id        | text           | nullable                  | null    | Customer frozen when the pending report is reserved                                                                                                                   |
+| pending_event_name         | text           | nullable                  | null    | Meter event name frozen when the report is reserved                                                                                                                   |
+| pending_timestamp          | integer number | nullable                  | null    | Provider payload timestamp frozen with the report                                                                                                                     |
+| pending_reserved_at        | integer ts_ms  | nullable                  | null    | When the pending report was reserved                                                                                                                                  |
+| pending_sent_at            | integer ts_ms  | nullable                  | null    | First send the provider may have accepted; start of the 24-hour deduplication window. A send the provider explicitly rejects (4xx other than 409) clears its own mark |
+| provider_accepted_at       | integer ts_ms  | nullable                  | null    | Provider acceptance persisted before local finalization                                                                                                               |
+| reconciliation_required_at | integer ts_ms  | nullable                  | null    | Operator reconciliation required; provider resend blocked                                                                                                             |
+| created_at / updated_at    | integer ts_ms  | NOT NULL                  | See 9.3 |                                                                                                                                                                       |
 
 Primary key: `PRIMARY KEY(tenant_id, meter_key, period)`. Indexes: partial
 `UNIQUE(pending_identifier)` when non-null, `INDEX(period, meter_key, tenant_id)`. A reporter
@@ -1791,9 +1850,9 @@ persists every pending field before the provider call and reuses the complete fi
 including the identifier, customer, event name, value, and timestamp, on every retry. It advances
 `reported_value` and clears the pending fields only after provider acknowledgment. A successful
 provider response first persists `provider_accepted_at`; a retry with that marker performs only the
-local finalization and never calls the provider again. When acceptance could not be persisted,
-provider retries are allowed only inside the 24-hour provider deduplication window. Crossing that
-boundary sets `reconciliation_required_at` and fails closed instead of risking a duplicate charge.
+local finalization and never calls the provider again. `pending_sent_at` is written before each provider call and keeps its first value. When acceptance could not be persisted,
+provider retries are allowed only within 24 hours of `pending_sent_at`. Crossing that
+boundary sets `reconciliation_required_at` and fails closed instead of risking a duplicate charge; the daily job skips the row until an Instance Manager reconciles it through the platform API (`mark_reported` or `report_again` with a new identifier), which is audited. Stripe accepts meter event timestamps only within 35 days, so an older delta can only be marked as reported.
 
 `stripe_checkout_reservations` remains in the schema with its existing rows, but no code reads or
 writes it: XID creates no Checkout Session. Operators bind customers through Stripe subscription
@@ -2045,9 +2104,7 @@ Indexes: `UNIQUE(tenant_id, delivery_key)`, `UNIQUE(tenant_id, delivery_identity
 
 ### 17.10 notification_delivery_failures (provider rejections and indeterminate delivery records)
 
-Both an explicit provider rejection and an indeterminate call result are persisted separately. A Queue
-retry can only escalate an indeterminate delivery to manual handling based on this record; an unknown
-result MUST NOT be resent to the external provider.
+Both an explicit provider rejection and an indeterminate call result are persisted separately. Provider responses are classified in `apps/server/worker/queues/notification-provider-error.ts`: a 429 (outcome `rejected`) and a 5xx (outcome `indeterminate`) are retryable. The outbox row returns to `pending` and the send is retried after `Retry-After` (clamped to 1-600 seconds) or an exponential backoff of 15 seconds doubled per attempt, capped at 600 seconds. After `PROVIDER_SEND_ATTEMPT_LIMIT` = 5 attempts the failure is recorded here with its outcome. A 5xx retry accepts the risk that the provider already accepted the message, so the recipient may receive a duplicate. Every other non-2xx is `rejected`, while a timeout, a 408, or an unparseable response is `indeterminate`; these are recorded without a resend, and a Queue retry can only escalate an indeterminate delivery to manual handling based on this record.
 
 | Field                   | Type           | Constraints                      | Default | Notes                                                                                      |
 | ----------------------- | -------------- | -------------------------------- | ------- | ------------------------------------------------------------------------------------------ |

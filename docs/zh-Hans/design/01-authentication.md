@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=718f5bd2e82fa727c85c71614ff673306dd45b68 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=1cf03d43fd66aecb2be77ba635d15e40cd9149c8 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -26,9 +26,9 @@ credential、不完整 profile 或缺失的必需 Membership。
 - 多设备 passkey(平台同步:iCloud Keychain、Google Password Manager)
 - 跨平台漫游 authenticator(硬件密钥,FIDO2 roaming)
 - Passkey 作为主凭证,或在非 passkey 登录后作为 MFA 第二因子
-- Progressive enrollment(密码用户登录时提示升级 passkey)**尚未实现**;用户在账户安全页自行添加 passkey
+- Progressive enrollment:非 passkey、非 guest 的登录完成后,落点不是 `/mfa` 且不是注册流程,并且租户允许 passkey 登录时,Hosted Auth 在原落点之前插入可选的 `/create-passkey` 页。只有 `/v1/me` 返回 `passkeyEnrollmentEligible`(用户没有未吊销的 passkey)且浏览器支持 WebAuthn 时才展示。注册只由显式按钮发起,不使用 Conditional Create(`mediation: 'conditional'`):它返回的 UP 与 UV 都是 false,而服务端要求 UV。「暂不」只记在当前浏览器。用户也可在账户安全页添加 passkey
 - 每账户上限 10 个 passkey;注册时凭证名取账户主邮箱(没有时取用户名),排除用户已注册的凭证,设备名默认取浏览器与操作系统
-- Attestation 可选(默认 none,金融/医疗可开 direct)
+- Attestation 可选(默认 none,租户可选 indirect 或 direct,direct 要求至少配置一个可信根)
 - sign_count 追踪与克隆检测
 
 ### 设计决策
@@ -39,8 +39,9 @@ credential、不完整 profile 或缺失的必需 Membership。
 - 所有 passkey 登录都走 `POST /auth/passkey/challenge` 与 `POST /auth/passkey/verify`,并经过登录后的 MFA 门控。会话有效期始终取租户策略,客户端不能指定
 - 账户已有强因子时,新增 passkey 需要 step-up(见第 5 节)。删除 passkey 需要 step-up,同时撤销与之关联的 MFA 因子;删除后账户将没有任何登录方式时拒绝删除
 - challenge 绑定匿名 session,存 Durable Object,验证后销毁,TTL 5-10min
-- sign_count:两值均 0(平台同步 passkey 不递增)直接接受;新值 <= 历史非零值时标记异常触发风险审查而非直接拒绝;按 aaguid 区分固定为 0 的平台 passkey 避免误报
-- attestation 默认 none,租户开 enterprise 时切 indirect 并解析 AAGUID 供事故响应
+- sign_count:两值均 0(平台同步 passkey 不递增)直接接受;新值 <= 历史非零值时标记异常触发风险审查而非直接拒绝;存储的 BE 为真的凭证与 aaguid 全零的平台 passkey 跳过比较以避免误报。断言的 BE 与注册时存储的值不一致时拒绝
+- attestation 按租户策略 `hostedAuth.attestationMode` 处理:`none`(默认)不校验;`indirect` 对可校验格式(`packed`、`fido-u2f`、`tpm`、`android-key`、`apple`)校验语句,语句不成立时拒绝注册,证书链抵达已配置的可信根时才把凭证标为 `enterprise_attestation_verified`,`none`、自签名和未知格式按未验证接受;`direct` 要求格式可校验且证书链抵达已配置的可信根,否则拒绝注册,因此 `fmt=none`、自签名和未知格式都被拒绝。`android-safetynet` 在 `indirect` 与 `direct` 下都拒绝
+- attestation 可信根取实例变量 `WEBAUTHN_TRUSTED_ROOTS_PEM` 与租户经 `/v1/webauthn/trusted-roots` 管理的根(KV `webauthn:trusted_roots:{tenantId}`)的并集。两处都没有根时把 `attestationMode` 切换为 `direct` 返回 422,`paramName=hostedAuth.attestationMode`
 - RPID = 具体租户子域(多租户隔离,见 00 章 6.1)
 
 ### 数据模型
@@ -114,7 +115,7 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 3. CBOR 解码 `attestationObject` 得 `{fmt, attStmt, authData}`。
 4. 解析 authData:校验 `rpIdHash == SHA-256(TenantContext.rpId)`(verification 1)、`origin` 已在步骤 2 校验(verification 2 落在 clientDataJSON)、`rpIdHash` 即 verification 3、flags.UP==1 且 flags.UV==1、flags.AT==1。
 5. 解析 attestedCredentialData 得 aaguid、credentialId、credentialPublicKey。`credentialIdLength <= 1023`。
-6. attestation 处理:fmt=`none` 默认直接接受(不验 attStmt)。租户开 enterprise 时 fmt 为 `packed`/`tpm`/`apple` 等,验 attStmt 签名链并解析 aaguid(verification 4 在注册体现为 attestation 签名验证;none 模式无 attStmt 签名,凭证可信度来自后续认证的 signature)。
+6. attestation 处理按租户 `attestationMode`(见「设计决策」)。`none` 不验 attStmt。`indirect` 与 `direct` 下,可校验格式先验 attStmt 签名,再把证书链逐级验签到已配置的可信根,并检查证书有效期、basicConstraints 和与 authData 一致的 AAGUID 扩展(verification 4 在注册体现为 attestation 签名验证;none 模式无 attStmt 签名,凭证可信度来自后续认证的 signature)。
 7. 唯一性:`credentialId` 在租户内不得已存在(`UNIQUE (tenant_id, credential_id)`),已存在拒绝。
 8. 每账户 passkey 数 < 上限(默认 10),否则拒绝。
 9. 持久化 PasskeyCredential:publicKey(COSE 字节)、aaguid、初始 sign_count(=authData.signCount,通常 0)、transports、`credentialDeviceType`(BE 派生)、`credentialBackedUp`(BS 派生)、设备名。
@@ -128,13 +129,14 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 4. base64url 解码 `authenticatorData`(认证时不含 attestedCredentialData,长度通常 37 + 可选 extensions):
    - verification 3:`rpIdHash == SHA-256(TenantContext.rpId)`,不等拒绝。
    - flags.UP==1 且 flags.UV==1,否则拒绝。
+   - flags.BE 必须等于注册时存储的 backup eligibility(由 `credentialDeviceType` 还原),否则拒绝。
 5. 构造签名输入:`signatureBase = authenticatorData || SHA-256(clientDataJSON)`(authData 原始字节拼接 clientDataJSON 的 SHA-256 摘要 32 字节,共 authData.length + 32 字节)。
 6. verification 4(signature):用存储的 COSE public key importKey 得 CryptoKey,`crypto.subtle.verify(algParams, key, signature, signatureBase)`:
    - ES256:`algParams = {name:"ECDSA", hash:"SHA-256"}`。注意 WebAuthn 的 ECDSA 签名是 **ASN.1 DER 编码的 ECDSA-Sig-Value(SEQUENCE{r,s})**,而 Web Crypto `verify` 要求 **IEEE P1363 raw 格式(r||s 各 32 字节,共 64 字节)**。验签前必须把 DER 签名转成 raw r||s(自研 DER 解析,见 crypto-boundary:格式编解码自研)。
    - RS256:`algParams = {name:"RSASSA-PKCS1-v1_5"}`(hash 已在 importKey 时绑定),签名为原始字节直接传入。
      verify 返回 false -> 拒绝(模糊响应)。
-7. sign_count 克隆检测(见本节"设计决策"):新 signCount 与历史比较。两值均 0 接受;新值 > 历史值,更新存储;新值 <= 历史非零值,**标记异常触发风险审查**(写审计 + 可选告警),非直接拒绝;按 aaguid 判定固定为 0 的平台 passkey 跳过比较。
-8. 更新 PasskeyCredential.sign_count = 新值(即使触发风险审查也更新,避免后续每次都告警)。
+7. sign_count 克隆检测(见本节"设计决策"):新 signCount 与历史比较。两值均 0 接受;新值 > 历史值,更新存储;新值 <= 历史非零值,**标记异常触发风险审查**(写审计 + 可选告警),非直接拒绝;存储的 backup eligibility 为真的凭证与 aaguid 全零的平台 passkey 跳过比较,断言自带的 BE 不决定是否跳过。
+8. 更新 PasskeyCredential.sign_count = 新值,`backed_up` = 断言的 BS(即使触发风险审查也更新,避免后续每次都告警)。
 9. 销毁 DO 中该 challenge,签发会话。
 
 #### challenge 的 DO 边界
@@ -224,8 +226,11 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 
 - state 防 CSRF,nonce 防重放,全 provider 强制 PKCE
 - GitHub 非 OIDC:调 `/user`,email 为空时 fallback `/user/emails`
-- Apple 仅首次返回 email/姓名,callback 时必须持久化
-- account linking 仅对已验证 email 生效,未验证不自动合并(防社工)
+- Apple 只在首次授权时通过 form_post 的 `user` 字段返回姓名,回调用它作为新建账号的显示姓名
+- account linking 仅对已验证 email 生效,未验证不自动合并(防社工)。provider 邮箱比较和存储前去除首尾空白并转小写,空串视为没有邮箱,也不算已验证
+- Microsoft 不发 `email_verified`,其 `email` 声明可由 Entra 租户管理员随意设置。只有可选声明 `xms_edov` 为 `true` 时 Microsoft 邮箱才算已验证,否则视为未验证。已绑定的身份按 `provider_user_id` 识别,不要求已验证邮箱
+- 邮箱域名规则:租户与 provider 的黑名单对 provider 声称的任何邮箱生效。租户与 provider 的白名单只认已验证邮箱:配置了白名单而拿不到已验证邮箱时拒绝建号,已绑定身份的登录不因缺少已验证邮箱被拦。provider 的 `requireVerifiedEmail` 只限制建号
+- Sign in with Apple 凭据:`APPLE_TEAM_ID`、`APPLE_KEY_ID`、`APPLE_PRIVATE_KEY`(`.p8` PKCS#8 PEM)三项都配置时,XID 按需签发短期 ES256 `client_secret` JWT(`iss` = Team ID,`sub` = client_id,`aud` = `https://appleid.apple.com`,有效期 `APPLE_CLIENT_SECRET_LIFETIME_SEC` = 3600 秒,到期前 300 秒重签,按 isolate 缓存)。三项都没有时使用静态 `APPLE_CLIENT_SECRET`。只配一部分是配置错误:provider 视为未配置(`/auth/config` 不返回,发起授权被拒绝),仍走到 token 端点的 code exchange 以 `server_error` 失败,不回落到静态 secret
 - 租户可以选择 provider、client id、endpoint、scope 与 claim mapping,但不能选择任意
   Workers Env key。内置 provider 使用部署固定的 secret binding;自定义 provider binding
   只能由部署运营方配置
@@ -256,7 +261,7 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 2. 取 `state`,在 OAuthFlowDO 查找:不存在/已过期/已消费 -> 拒绝(`state_invalid`),记审计。命中后立即删除(一次性消费)。校验 DO 中 `tenant_id` 与当前 Host 解析的 TenantContext 一致,不一致拒绝(防跨租户 state 重放)。
 3. **code exchange**:POST `token_endpoint`,body `grant_type=authorization_code`、`code`、`redirect_uri`(与发起时精确一致)、`client_id`、`client_secret`(confidential provider)或 `code_verifier`(PKCE)。`Content-Type: application/x-www-form-urlencoded`。失败(非 2xx 或返回 OAuth error)-> 拒绝,记审计。
 4. 解析 token 响应得 `access_token` / `refresh_token`(可选)/ `id_token`(OIDC)/ `expires_in`。
-5. OIDC provider:验证 `id_token` 签名(用 provider JWKS,缓存于 KV)、`iss` == provider issuer、`aud` == client_id、`exp` 未过、`nonce` == DO 中存的 nonce。提取 `sub`(= idp_user_id)、`email`、`email_verified`、`name` 等。
+5. OIDC provider:验证 `id_token` 签名(用 provider JWKS,缓存于 KV `provider_jwks:{jwks_uri}`,TTL 1h;遇到未知 `kid` 时绕过缓存重拉一次,同一 `jwks_uri` 每 `PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC` = 300 秒最多一次)、`iss` == provider issuer、`aud` == client_id、`exp` 未过、`nonce` == DO 中存的 nonce。提取 `sub`(= idp_user_id)、`email`、`email_verified`、`name` 等。
 6. non-OIDC provider(无 id_token,如 GitHub):见下"GitHub fallback",用 access_token 调 provider userinfo/REST API 取 idp_user_id 与 email、email_verified。
 7. 进入 account linking 判断树(见下)。
 8. Social callback 不核销 invitation,也不创建其 Membership。未认证 invitation holder 必须先完成下文的专用 Email claim。Hosted UI 处于邀请流程(带 `invitation_token`,或回跳目标是 `/accept-invitation`)时,`/auth/config` 不返回 social provider 并关闭企业 SSO,`/sso/hrd` 返回 `connectionId: null`,登录页两种入口都不显示。
@@ -285,11 +290,12 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 - DEK 派生:**用 account 级 KEK**(env.KEK,存 Workers Secrets,见 signing-keys / crypto-boundary),不另起单独 secret。理由:平台只有一个 account 级 KEK,provider token 与其他敏感数据共用同一信封加密体系,密钥轮换随 KEK 版本统一管理。
 - 每条记录独立随机 12 字节 IV,GCM tag 16 字节,密文格式 `version || iv || ciphertext || tag`,version 标识 KEK 版本支持轮换兼容。
 
-#### Apple 首次 email 持久化
+#### Apple 首次授权姓名的保存
 
-- Apple 仅在**首次授权**时在 `id_token` 与回调 form_post body(`user` 字段 JSON)中返回 `email` 与 `name`,后续登录不再返回。
-- callback 步骤 5 解析 id_token 后:若是新建/首次绑定,**立即把 email、name 持久化到 user / SocialConnection**;后续登录 id_token 无 email 时,从已存数据取,不报错。
-- Apple 私密转发邮箱(`@privaterelay.appleid.com`):按 provider 提供的 email 原样存,`email_verified` 取 id_token 的 `email_verified` claim(Apple 为字符串 `"true"`,需归一化为布尔)。
+- Apple 的 `id_token` 不含姓名。姓名只在**首次授权**时通过回调 form_post body 的 `user` 字段(JSON `{ "name": { "firstName", "lastName" } }`)返回,后续登录不再返回。
+- 回调把 `user` 当作不可信输入:最长 4096 字符,每个姓名部分去除首尾空白后最长 128 字符。格式不对时视为没有,不导致登录失败。姓名不参与身份判定。
+- id_token 已带姓名时以 id_token 为准,`user` 中的姓名只补缺。回调新建账号(分支 D)时,`firstName`、`lastName` 及拼接后的显示姓名写入用户的名、姓和显示姓名。
+- Apple 私密转发邮箱(`@privaterelay.appleid.com`):与其他 provider 邮箱一样去除首尾空白并转小写后存储,`email_verified` 取 id_token 的 `email_verified` claim(Apple 为字符串 `"true"`,需归一化为布尔)。
 - Apple 回调用 `response_mode=form_post`(POST 而非 GET),callback handler 须同时支持 GET(多数 provider)与 POST(Apple)。
 
 #### GitHub non-OIDC fallback
@@ -303,7 +309,7 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 #### Provider profile 来源
 
 - OIDC provider 用配置的 `jwksUri` 验 `id_token`。JWKS key 不带 `alg` 时,只有 `kid` 存在且 `use` 缺省或为 `sig` 才接受;RSA key 按 RS256,P-256 EC key 按 ES256。token header 的 `alg` 仍必须等于 key 的 `alg`。
-- Microsoft 多租户登录保存 issuer 模板 `https://login.microsoftonline.com/{tenantid}/v2.0`。验签后用 `tid` claim(GUID)替换 `{tenantid}`,结果必须与 `iss` 精确相等。
+- Microsoft 多租户登录保存 issuer 模板 `https://login.microsoftonline.com/{tenantid}/v2.0`。验签后用 `tid` claim(GUID)替换 `{tenantid}`,结果必须与 `iss` 精确相等。Microsoft 的 `email_verified` 只取 `xms_edov === true`;其他 OIDC provider 取 `email_verified` 为 `true`、`"true"` 或 `1`。
 - 没有 `id_token` 的自定义 provider 用 access token 读取 `userInfoEndpoint`。`sub` 必填,只有 `email_verified` 为布尔 `true` 时 email 才算已验证。配置了 `issuer` 或 `jwksUri` 的 provider(以及 `github_emu`)是 OIDC provider:token 响应缺 `id_token` 时直接拒绝,不降级到 userinfo,nonce 绑定不能被跳过。
 - management API 拒绝保存既无 `issuer` + `jwksUri`、又无 `userInfoEndpoint` 的启用 provider(`github` 除外),也拒绝含 `{` 的端点或 issuer,Microsoft 的 `{tenantid}` 模板除外。GitHub EMU 模板的 issuer 为空,管理员必须填入自己租户的 issuer。
 
@@ -313,12 +319,14 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 
 - Email magic link:单次有效,15min,可选"相同设备+浏览器"校验
 - Email OTP:6 位,10min,最多 5 次错误后作废
-- WhatsApp OTP:6 位,5min,国家白名单 `+1`(US/CA),phone OTP 首选通道
-- SMS OTP:6 位,5min,国家白名单 `+1`(US/CA),phone OTP 兜底通道。未实现租户级白名单。
+- WhatsApp OTP:6 位,5min,号码白名单见下,phone OTP 首选通道
+- SMS OTP:6 位,5min,号码白名单见下,phone OTP 兜底通道。未实现租户级白名单。
+- 手机 OTP 号码白名单:只放行区号属于美国(50 州加 DC)或加拿大在用地理区号的 `+1` 号码(`apps/server/worker/auth/phone-otp-regions.ts`,数据取自 NANPA 区号报告与 CNAC Canadian Dial Plan)。其他 `+1` 号码(加勒比各国与美国海外领地 AS、CNMI、GU、PR、VI)是短信话费欺诈(SMS pumping)的常见目标,一律拒绝。新区号启用后需要补入列表
 - 所有手机号(OTP target、phone identifier、profile phone、login hint)在租户解析、限流、
   查库和建号之前统一规范化为 E.164:去掉空格、横杠、点和括号。无法规范化的输入按该端点的
   不透明凭证错误拒绝。
 - 请求限流:同一邮箱/手机每分钟最多 1 次,每小时最多 5 次
+- 手机 OTP 发送(passwordless 短信与 WhatsApp OTP、联系方式手机验证、MFA 短信)另外占用来源 IP 预算每小时 10 次、每天 30 次,以及租户预算每小时 500 次、每天 5000 次(`apps/server/worker/auth/phone-otp-budget.ts`)。请求没有来源 IP 时只检查租户预算。任一预算超限都返回统一的 `rate_limited`
 
 ### 设计决策
 
@@ -427,7 +435,7 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 - 强制 MFA 策略:platform / tenant / org 三层继承
 - Step-up authentication(敏感操作二次验证,带 acr scope)
 - Per-org MFA 要求(企业客户可强制全员)
-- MFA 登记提醒(progressive enrollment)**尚未实现**;强制 MFA 走下文的 `pending_mfa_setup` 流程
+- 登录后提示登记 TOTP 或短信 MFA 因子的流程**尚未实现**;强制 MFA 走下文的 `pending_mfa_setup` 流程。第 1 节的 passkey 插页是独立的可选步骤
 
 ### 设计决策
 
@@ -489,11 +497,13 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 
 ### 登录限流
 
-| 维度       | 阈值                 | 锁定       |
-| ---------- | -------------------- | ---------- |
-| 账户级失败 | 10 次 / 15 分钟      | 指数退避   |
-| IP 级失败  | 50 次 / 分钟         | 1 小时     |
-| OTP 发送   | 1 次 / 分钟 / 接收方 | 429,不报错 |
+| 维度                 | 阈值                       | 锁定       |
+| -------------------- | -------------------------- | ---------- |
+| 账户级失败           | 10 次 / 15 分钟            | 指数退避   |
+| IP 级失败            | 50 次 / 分钟               | 1 小时     |
+| OTP 发送             | 1 次 / 分钟 / 接收方       | 429,不报错 |
+| 手机 OTP 发送 / IP   | 10 次 / 小时,30 次 / 天    | 429,不报错 |
+| 手机 OTP 发送 / 租户 | 500 次 / 小时,5000 次 / 天 | 429,不报错 |
 
 业务计数器存放在 `RATE_LIMITER` `RateLimitStore` Durable Object,不存 KV。每次尝试只对 DO
 执行一次原子的 check-and-increment,并由 DO 的 expiry window 重置计数。KV 只承担读密集缓存,

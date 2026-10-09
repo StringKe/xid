@@ -27,12 +27,11 @@ profile, or a missing required Membership.
 - Multi-device passkeys (platform sync via iCloud Keychain, Google Password Manager)
 - Cross-platform roaming authenticators (hardware keys, FIDO2 roaming)
 - Passkey as the primary credential, or as a second MFA factor after a non-passkey sign-in
-- Progressive enrollment (prompt password users to upgrade to a passkey when they sign in) is
-  **not implemented**; users add passkeys from the account security page
+- Progressive enrollment: after a non-passkey, non-guest sign-in that does not end on `/mfa` and is not a sign-up, Hosted Auth inserts the optional `/create-passkey` page before the original destination when the tenant allows passkey sign-in. The page is shown only when `/v1/me` reports `passkeyEnrollmentEligible` (the user has no unrevoked passkey) and the browser supports WebAuthn. Registration starts only from an explicit button; Conditional Create (`mediation: 'conditional'`) is not used, because it returns UP and UV as false and the server requires UV. "Not now" is remembered in the current browser only. Users can also add passkeys from the account security page
 - A per-account passkey limit of 10; registration names the credential after the account's primary
   email (or username), excludes credentials the user already registered, and defaults the device
   name to the browser and operating system
-- Optional attestation (`none` by default; finance and healthcare tenants can enable `direct`)
+- Optional attestation (`none` by default; tenants can choose `indirect` or `direct`, and `direct` requires at least one configured trusted root)
 - sign_count tracking and clone detection
 
 ### Design decisions
@@ -54,10 +53,9 @@ profile, or a missing required Membership.
   verification, with a TTL of 5-10 minutes
 - sign_count: when both values are 0 (platform-synced passkeys do not increment), accept directly;
   when the new value is less than or equal to a non-zero historical value, flag it as anomalous and
-  trigger a risk review rather than rejecting outright; use the aaguid to identify platform passkeys
-  that are permanently 0 and avoid false positives
-- Attestation defaults to `none`; when a tenant enables enterprise attestation, switch to `indirect`
-  and parse the AAGUID for incident response
+  trigger a risk review rather than rejecting outright; credentials whose stored BE is set and platform passkeys with an all-zero aaguid skip the comparison to avoid false positives. An assertion whose BE flag differs from the value stored at registration is rejected
+- Attestation follows the tenant policy `hostedAuth.attestationMode`: `none` (default) skips verification; `indirect` verifies a statement in a verifiable format (`packed`, `fido-u2f`, `tpm`, `android-key`, `apple`), rejects the registration when that statement does not verify, and marks the credential `enterprise_attestation_verified` only when the chain reaches a configured root, while `none`, self attestation and unknown formats are accepted unverified; `direct` rejects registration unless the format is verifiable and the chain reaches a configured root, so `fmt=none`, self attestation and unknown formats are rejected. `android-safetynet` is rejected under both `indirect` and `direct`
+- Trusted attestation roots are the union of the instance variable `WEBAUTHN_TRUSTED_ROOTS_PEM` and the tenant roots managed through `/v1/webauthn/trusted-roots` (KV `webauthn:trusted_roots:{tenantId}`). Switching `attestationMode` to `direct` while neither source has a root returns 422 with `paramName=hostedAuth.attestationMode`
 - RPID is the specific tenant subdomain (multi-tenant isolation, see chapter 00 section 6.1)
 
 ### Data model
@@ -169,11 +167,7 @@ detail goes to the audit log):
    then check flags.UP == 1, flags.UV == 1, and flags.AT == 1.
 5. Parse attestedCredentialData to obtain aaguid, credentialId, and credentialPublicKey. Enforce
    `credentialIdLength <= 1023`.
-6. Attestation handling: fmt = `none` is accepted directly by default (attStmt is not verified). When
-   a tenant enables enterprise attestation, fmt is `packed`/`tpm`/`apple` and so on, so verify the
-   attStmt signature chain and parse the aaguid. Verification 4 manifests as attestation signature
-   verification during registration; in `none` mode there is no attStmt signature, and credential
-   trust comes from the signature verified during subsequent authentications.
+6. Attestation handling follows the tenant `attestationMode` (see "Design decisions"). Under `none` the attStmt is not verified. Under `indirect` and `direct`, a verifiable format has its attStmt signature verified, and its certificate chain is verified signature by signature to a configured trusted root, with certificate validity, basicConstraints, and the AAGUID extension checked against authData. Verification 4 manifests as attestation signature verification during registration; in `none` mode there is no attStmt signature, and credential trust comes from the signature verified during subsequent authentications.
 7. Uniqueness: `credentialId` MUST NOT already exist within the tenant
    (`UNIQUE (tenant_id, credential_id)`); a duplicate is rejected.
 8. The account's passkey count MUST be below the limit (10 by default), otherwise reject.
@@ -195,6 +189,7 @@ detail goes to the audit log):
    the length is usually 37 plus optional extensions):
    - Verification 3: `rpIdHash == SHA-256(TenantContext.rpId)`; a mismatch is rejected.
    - flags.UP == 1 and flags.UV == 1, otherwise reject.
+   - flags.BE MUST equal the backup eligibility stored at registration (derived from `credentialDeviceType`), otherwise reject.
 5. Build the signature input:
    `signatureBase = authenticatorData || SHA-256(clientDataJSON)` -- the raw authData bytes
    concatenated with the 32-byte SHA-256 digest of clientDataJSON, for a total of
@@ -215,9 +210,8 @@ detail goes to the audit log):
    against the stored value. Both values 0 means accept. A new value greater than the stored value
    updates storage. A new value less than or equal to a non-zero stored value **flags an anomaly and
    triggers a risk review** (write an audit entry plus an optional alert) rather than rejecting
-   outright. Platform passkeys identified by aaguid as permanently 0 skip the comparison.
-8. Update `PasskeyCredential.sign_count` to the new value. This happens even when a risk review was
-   triggered, so the same alert does not fire on every subsequent sign-in.
+   outright. Credentials whose stored backup eligibility is set and platform passkeys with an all-zero aaguid skip the comparison; the assertion's own BE flag never decides the skip.
+8. Update `PasskeyCredential.sign_count` to the new value and `backed_up` to the assertion's BS flag. This happens even when a risk review was triggered, so the same alert does not fire on every subsequent sign-in.
 9. Destroy that challenge in the Durable Object and issue the session.
 
 #### Durable Object boundary for challenges
@@ -336,9 +330,12 @@ Box, Notion, HubSpot, LINE, TikTok, Coinbase, and others.
 
 - `state` for CSRF defense, `nonce` for replay defense, and mandatory PKCE for every provider
 - GitHub is not OIDC: call `/user`, and when the email is empty fall back to `/user/emails`
-- Apple returns the email and name only on the first authorization, so the callback MUST persist them
+- Apple returns the name only on the first authorization, in the form_post `user` field; the callback uses it as the display name of a newly created account
 - Account linking applies only to verified emails; unverified emails are never merged automatically
-  (social engineering defense)
+  (social engineering defense). Provider emails are trimmed and lowercased before comparison and storage; an empty email counts as absent and never as verified
+- Microsoft sends no `email_verified`, and its `email` claim can be set freely by the Entra tenant administrator. A Microsoft email counts as verified only when the optional claim `xms_edov` is `true`; otherwise the email is unverified. Already linked identities are recognized by `provider_user_id` and do not need a verified email
+- Email domain rules: the tenant and provider blocklists apply to any email the provider asserts. The tenant and provider allowlists only accept a verified email: creating an account with an allowlist configured and no verified email is rejected, while sign-in of an already linked identity is not blocked for lacking a verified email. A provider's `requireVerifiedEmail` restricts account creation only
+- Sign in with Apple credentials: when `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and `APPLE_PRIVATE_KEY` (the `.p8` PKCS#8 PEM) are all set, XID signs a short-lived ES256 `client_secret` JWT on demand (`iss` = Team ID, `sub` = client_id, `aud` = `https://appleid.apple.com`, lifetime `APPLE_CLIENT_SECRET_LIFETIME_SEC` = 3600 s, re-signed 300 s before expiry, cached per isolate). With none of the three set, the static `APPLE_CLIENT_SECRET` is used. Setting only some of the three is a configuration error: the provider counts as unconfigured (absent from `/auth/config`, authorization refused), and a code exchange that still reaches the token endpoint fails closed with `server_error` instead of falling back to the static secret
 - A tenant may select the provider, client id, endpoints, scopes, and claim mapping, but it MUST NOT
   select an arbitrary Workers Env key. Built-in providers use deployment-fixed secret bindings;
   operators register custom provider bindings through the deployment configuration
@@ -405,7 +402,7 @@ ignored and a mismatched value is rejected by the management API.
    is rejected and audited.
 4. Parse the token response to obtain `access_token`, optional `refresh_token`, `id_token` (OIDC), and
    `expires_in`.
-5. OIDC providers: verify the `id_token` signature (using the provider JWKS cached in KV), that `iss`
+5. OIDC providers: verify the `id_token` signature (using the provider JWKS cached in KV under `provider_jwks:{jwks_uri}` for 1 hour; an unknown `kid` bypasses the cache and refetches once, at most once per `jwks_uri` every `PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC` = 300 s), that `iss`
    equals the provider issuer, that `aud` equals the client_id, that `exp` has not passed, and that
    `nonce` equals the nonce stored in the Durable Object. Extract `sub` (the idp_user_id), `email`,
    `email_verified`, `name`, and so on.
@@ -479,15 +476,12 @@ audited as `connection.unlinked`. Step-up for this deletion is not implemented.
   `version || iv || ciphertext || tag`, where the version identifies the KEK version for rotation
   compatibility.
 
-#### Persisting Apple's first-authorization email
+#### Persisting Apple's first-authorization name
 
-- Apple returns `email` and `name` in the `id_token` and in the callback form_post body (the `user`
-  field, as JSON) **only on the first authorization**; subsequent sign-ins omit them.
-- After parsing the id_token in callback step 5: if this is a new user or a first binding,
-  **persist the email and name to the user and SocialConnection immediately**. On subsequent sign-ins
-  where the id_token has no email, read the stored data instead of erroring.
-- Apple private relay addresses (`@privaterelay.appleid.com`) are stored verbatim as the provider
-  supplied them. `email_verified` comes from the id_token's `email_verified` claim, which Apple sends
+- Apple's `id_token` carries no name. The name arrives **only on the first authorization**, in the callback form_post body as the `user` field (JSON `{ "name": { "firstName", "lastName" } }`); subsequent sign-ins omit it.
+- The callback reads `user` as untrusted input: at most 4096 characters, each name part trimmed and at most 128 characters. A malformed value is treated as absent and never fails the sign-in. The name never takes part in identity matching.
+- A name already present in the id_token takes precedence; the `user` name only fills the gap. When the callback creates a new account (branch D), `firstName`, `lastName`, and the joined display name become the user's first name, last name, and display name.
+- Apple private relay addresses (`@privaterelay.appleid.com`) are stored like any other provider email, trimmed and lowercased. `email_verified` comes from the id_token's `email_verified` claim, which Apple sends
   as the string `"true"` and which MUST be normalized to a boolean.
 - Apple's callback uses `response_mode=form_post` (POST rather than GET), so the callback handler MUST
   support both GET (most providers) and POST (Apple).
@@ -514,7 +508,7 @@ audited as `connection.unlinked`. Step-up for this deletion is not implemented.
   RS256 and P-256 EC keys as ES256. The token header `alg` must still equal the key `alg`.
 - Microsoft multi-tenant sign-in stores the issuer template
   `https://login.microsoftonline.com/{tenantid}/v2.0`. After signature verification the `tid` claim
-  (a GUID) replaces `{tenantid}` and the result must equal `iss` exactly.
+  (a GUID) replaces `{tenantid}` and the result must equal `iss` exactly. `email_verified` for Microsoft comes only from `xms_edov === true`; for other OIDC providers it is `email_verified` as `true`, `"true"`, or `1`.
 - A custom provider without an `id_token` reads its `userInfoEndpoint` with the access token. `sub`
   is required, and the email counts as verified only when `email_verified` is the boolean `true`.
   A provider configured with `issuer` or `jwksUri` (and `github_emu`) is an OIDC provider: a token
@@ -531,15 +525,16 @@ audited as `connection.unlinked`. Step-up for this deletion is not implemented.
 
 - Email magic link: single use, 15 minutes, with optional "same device and browser" checking
 - Email OTP: 6 digits, 10 minutes, invalidated after at most 5 wrong attempts
-- WhatsApp OTP: 6 digits, 5 minutes, country allowlist `+1` (US/CA); the preferred phone OTP
-  channel
-- SMS OTP: 6 digits, 5 minutes, country allowlist `+1` (US/CA); the fallback phone OTP channel.
+- WhatsApp OTP: 6 digits, 5 minutes, phone allowlist below; the preferred phone OTP channel
+- SMS OTP: 6 digits, 5 minutes, phone allowlist below; the fallback phone OTP channel.
   A per-tenant allowlist is not implemented.
+- Phone OTP allowlist: only `+1` numbers whose area code is an in-service geographic area code of the United States (50 states plus DC) or Canada (`apps/server/worker/auth/phone-otp-regions.ts`, from the NANPA area code report and the CNAC Canadian Dial Plan). Other `+1` numbers (Caribbean countries and US territories AS, CNMI, GU, PR, VI) are refused because they are common SMS pumping targets. A newly activated area code must be added to the list
 - Every phone number (OTP target, phone identifier, profile phone, login hint) is normalized to
   E.164 by removing spaces, dashes, dots, and parentheses before Tenant resolution, rate limiting,
   lookup, and account creation. Input that cannot be normalized is rejected with the opaque
   credential error of that endpoint.
 - Request rate limiting: at most 1 per minute and 5 per hour per email address or phone number
+- Phone OTP sends (passwordless SMS and WhatsApp OTP, contact phone verification, and MFA SMS) additionally reserve a source IP budget of 10 per hour and 30 per day and a tenant budget of 500 per hour and 5000 per day (`apps/server/worker/auth/phone-otp-budget.ts`). When the request has no source IP, only the tenant budget applies. Exceeding any budget returns the uniform `rate_limited`
 
 ### Design decisions
 
@@ -682,8 +677,7 @@ short lifetimes.
 - Mandatory MFA policy inherited across three levels: platform, tenant, and org
 - Step-up authentication (re-verification for sensitive operations, carrying an acr scope)
 - Per-org MFA requirements (enterprise customers can enforce it for everyone)
-- MFA enrollment prompts (progressive enrollment) are **not implemented**; mandatory MFA uses the
-  `pending_mfa_setup` flow below
+- A post-sign-in prompt to enroll a TOTP or SMS MFA factor is **not implemented**; mandatory MFA uses the `pending_mfa_setup` flow below. The optional passkey page in section 1 is a separate step
 
 ### Design decisions
 
@@ -770,11 +764,13 @@ and validity window.
 
 ### Sign-in rate limits
 
-| Dimension              | Threshold                  | Lockout                       |
-| ---------------------- | -------------------------- | ----------------------------- |
-| Account-level failures | 10 per 15 minutes          | Exponential backoff           |
-| IP-level failures      | 50 per minute              | 1 hour                        |
-| OTP sends              | 1 per minute per recipient | 429, without an error message |
+| Dimension                  | Threshold                  | Lockout                       |
+| -------------------------- | -------------------------- | ----------------------------- |
+| Account-level failures     | 10 per 15 minutes          | Exponential backoff           |
+| IP-level failures          | 50 per minute              | 1 hour                        |
+| OTP sends                  | 1 per minute per recipient | 429, without an error message |
+| Phone OTP sends per IP     | 10 per hour, 30 per day    | 429, without an error message |
+| Phone OTP sends per tenant | 500 per hour, 5000 per day | 429, without an error message |
 
 Business counters live in the `RATE_LIMITER` `RateLimitStore` Durable Object, not KV. Each attempt
 performs exactly one atomic check-and-increment against the DO; its expiry window resets the

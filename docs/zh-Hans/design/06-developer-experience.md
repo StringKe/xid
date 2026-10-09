@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=working-tree source-blob=73d50d7ab0e0056c5acca52cd259ff6f3eb0793a -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=working-tree source-blob=ad636a2c26741e9f81ded1e8e8028e40c0e4c85a -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -383,32 +383,48 @@ JWT handoff。Core 浏览器 session 必须先完成一次同源 cookie-to-JWT e
 
 下表是当前已实现 surface,不是 roadmap:
 
-| 资源                 | 操作                                                                                                                                                                              |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| users                | CRUD(含主邮箱与手机号)、搜索与筛选及状态计数、ban/unban、bulk metadata、NDJSON/CSV export、soft delete、restore、登录方式、组织成员关系、相关审计事件、发送重置密码邮件、重置 MFA |
-| organizations        | CRUD、logo、域名验证、branding/policy、嵌套 enterprise resources、restore                                                                                                         |
-| memberships          | list/create/update role/delete/restore;移除或降级最后一位 owner 返回 `last_owner`                                                                                                 |
-| invitations          | create、bulk(逐条结果,限速)、resend、revoke、list                                                                                                                                 |
-| sessions             | list/get/revoke/revoke all(字段白名单,不含指纹与 token 哈希)                                                                                                                      |
-| applications/clients | CRUD(含名称、logo、所属 Project、登出元数据)、secret rotate、delete、restore                                                                                                      |
-| connections(SSO)     | CRUD、delete、restore                                                                                                                                                             |
-| directories(SCIM)    | CRUD、token rotate、delete、restore                                                                                                                                               |
-| projects             | CRUD、soft delete、restore、active/deleted/all list                                                                                                                               |
-| roles/permissions    | CRUD、delete、restore                                                                                                                                                             |
-| role-permissions     | list/create/update/delete,校验同一 Project 与 ABAC                                                                                                                                |
-| manager-assignments  | tenant-scoped list/provision/revoke;instance manager 走独立 platform path                                                                                                         |
-| org-units            | 树 CRUD、move、archive 与成员放置(见下文)                                                                                                                                         |
-| access-requests      | Organization 内 list/get,支持 status 与 project 过滤(见下文)                                                                                                                      |
-| project-grants       | list/get/create/revoke/delete                                                                                                                                                     |
-| user-grants          | list(按 Project,或租户管理员按用户跨 Project)/get/create/reactivate/revoke/delete                                                                                                 |
-| webhooks             | CRUD、delete、restore;`active` / `disabled` 状态,带状态筛选的投递记录,近 7 天投递统计                                                                                             |
-| apiKeys              | create/list/revoke,记录创建者,返回调用方可授予的 scope                                                                                                                            |
+| 资源                   | 操作                                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| users                  | CRUD(含主邮箱与手机号)、搜索与筛选及状态计数、ban/unban、bulk metadata、NDJSON/CSV export、soft delete、restore、登录方式、组织成员关系、相关审计事件、发送重置密码邮件、重置 MFA |
+| organizations          | CRUD、logo、域名验证、branding/policy、嵌套 enterprise resources、restore                                                                                                         |
+| memberships            | list/create/update role/delete/restore;移除或降级最后一位 owner 返回 `last_owner`                                                                                                 |
+| invitations            | create、bulk(逐条结果,限速)、resend、revoke、list                                                                                                                                 |
+| sessions               | list/get/revoke/revoke all(字段白名单,不含指纹与 token 哈希)                                                                                                                      |
+| applications/clients   | CRUD(含名称、logo、所属 Project、登出元数据)、secret rotate、delete、restore                                                                                                      |
+| connections(SSO)       | CRUD、delete、restore                                                                                                                                                             |
+| directories(SCIM)      | CRUD、token rotate、delete、restore                                                                                                                                               |
+| projects               | CRUD、soft delete、restore、active/deleted/all list                                                                                                                               |
+| roles/permissions      | CRUD、delete、restore                                                                                                                                                             |
+| role-permissions       | list/create/update/delete,校验同一 Project 与 ABAC                                                                                                                                |
+| manager-assignments    | tenant-scoped list/provision/revoke;instance manager 走独立 platform path                                                                                                         |
+| org-units              | 树 CRUD、move、archive 与成员放置(见下文)                                                                                                                                         |
+| access-requests        | Organization 内 list/get,支持 status 与 project 过滤(见下文)                                                                                                                      |
+| project-grants         | list/get/create/revoke/delete                                                                                                                                                     |
+| user-grants            | list(按 Project,或租户管理员按用户跨 Project)/get/create/reactivate/revoke/delete                                                                                                 |
+| webhooks               | CRUD、delete、restore;`active` / `disabled` 状态,带状态筛选的投递记录,近 7 天投递统计                                                                                             |
+| apiKeys                | create/list/revoke,记录创建者,返回调用方可授予的 scope                                                                                                                            |
+| webauthn/trusted-roots | get/put/delete 租户的 passkey attestation 可信根(见下文)                                                                                                                          |
 
 认证使用 `Authorization: Bearer sk_live_xxx` 或 `sk_test_xxx`。M2M Client 在根 token endpoint
 `POST /token` 使用 `client_credentials`;不存在 `/oauth/token` route。分页只支持 cursor,
 response 为 `{ data, next_cursor, has_more }`,默认和最大 page size 均为 100。Bulk invitation 通过
 `RATE_LIMITER` 限制为 50/hour。Metadata PATCH 10/10s/user 仍是未实现设计目标,不得对外声称。
 版本化使用 `/v1/` 前缀。
+
+企业 SSO 写入规则(`/v1/connections` 与 `/v1/organizations/:id/sso-connections`、`/v1/organizations/:id/outbound-saml-apps`):
+
+- 入站 SAML 连接接受 `idp_metadata_url` 或 `idp_metadata_xml`(最大 1 MiB),两者不能同时提供。保存时服务端同步拉取 URL(公网 HTTPS,不跟随重定向,10 秒超时)或解析 XML;拉取失败、文档超限、metadata 无法解析或 SSO/SLO 端点不是公网地址时返回 422,`meta.paramName` 为提交的字段。请求里显式给出的字段优先于导入值。保存 XML 时清空 URL,每日刷新随之停止;保存 URL 时清空已存的 XML。
+- 响应新增 `idp_metadata_source`(`xml`/`url`/null,组织路由)、`idp_metadata_refreshed_at`、`idp_metadata_last_error`、`idp_metadata_last_error_at`、`relay_state_url`、`trusted_proxy_secret_configured`、`ldap_gateway_secret_configured`。旧协议连接在组织路由上另外返回去掉密钥和摘要的 `legacy_config`。
+- `relay_state_url`(IdP 发起登录的落地页)必须解析到实例 issuer 同源;相对路径按该源存为绝对地址,其他值返回 422。
+- 拒绝模板占位符:entity id、SSO/SLO URL、metadata URL、discovery URL,以及出站 `sp_entity_id`、`acs_url`、`slo_url` 含 `{` 或 `}` 时返回 422,`paramName` 为该字段。预设只是模板。
+- `attribute_mapping` 中以 `_` 开头的键由服务端维护(预设标记、分配门槛、封装的密钥)。客户端提交 `_` 键返回 422,`paramName=attribute_mapping.<key>`;入站旧协议连接只能提交 `_legacy` 容器。管理响应从不返回 `_` 键。
+- 出站 SAML 应用接受 `sp_metadata_url` 或 `sp_metadata_xml`,导入 SP entity id、ACS、SLO、binding 与证书,同样按上述规则同步返回 422。`name_id_format` 接受 SAML 1.1 `emailAddress`、`unspecified`,SAML 2.0 `persistent`、`transient`,以及 SAML 2.0 命名空间下的 `emailAddress`、`unspecified` 别名;其他值返回 422。`persistent` 为每个应用和用户签发稳定的成对假名,`transient` 每次断言随机生成。
+
+出站 SAML 签名证书按租户统一管理,所有出站 SAML 应用共用:`GET /v1/organizations/:id/outbound-saml-signing-certificates` 列出 `next`、`active`、`retiring` 证书(`connections:read`);`POST` 准备一张 `next` 证书(已存在时返回 409);`POST .../:certificateId/activate` 把 `next` 升为 `active`,原证书转为 `retiring`,并让所有出站应用改用新证书(不存在 404,已过期 422,并发切换 409)。两个写操作需要 `connections:write` 且必须作用于租户的顶层组织(否则 403)。审计 action:API 写入 `outbound_saml_signing_certificate.prepared` 与 `.activated`;每日 cron 写入 `outbound_saml_signing_certificate.next_published`(active 证书到期前 60 天生成 `next` 证书)与 `.expiring`(30 天内到期)。
+
+投递渠道与社交登录保存(`PATCH /v1/organizations/:id/delivery-channels`、`.../social-providers`)在保存时校验:未知的投递 provider,或 `secretRefs` 与该 provider 固定绑定不一致时返回 422(`paramName` 为 `<channel>.provider` 或 `secretRefs`)。发送方 `from` 只对读取它的 provider 校验(WhatsApp:Twilio;SMS:Twilio、Vonage、Infobip):WhatsApp 接受 `+E.164`,可带 `whatsapp:` 前缀;SMS 接受 `+E.164` 或最多 11 位字母数字 sender,否则返回 422,`paramName=<channel>.from`。Meta 与 Bird 用配置的电话号码或 channel id 发送,不读取 `from`;`from` 为空表示未配置。多租户实例上只有 Instance Manager 的 Console 会话能修改发送方,其他调用方返回 403,`paramName=<channel>.from`。部署方没有为某个社交 provider 声明凭据绑定时,保存该 provider 返回 422,`paramName=provider`;`clientSecretRef` 与部署绑定不一致时返回 422,`paramName=clientSecretRef`。响应带 `credentialsReady`。
+
+`/v1/webauthn/trusted-roots` 管理租户的 passkey attestation 可信根,存于 KV `webauthn:trusted_roots:{tenantId}`。`GET`(`organizations:read`)返回 `{ configured, data }`,每个根只给 SHA-256 指纹和有效期,不回显证书正文。`PUT { pem }`(`organizations:write`)整体替换:1 到 20 张当前有效的 CA 证书,最大 64 KiB,否则返回 422,`paramName=pem`。`DELETE` 删除。两个写操作都记审计 `organization.webauthn_trusted_roots.updated`。注册仪式把这些根与实例的 `WEBAUTHN_TRUSTED_ROOTS_PEM` 合并使用(见 01 章第 1 节)。
 
 Project resources 还通过精确 ManagerAssignment boundary 支持同源 Console cookie session。
 `project_manager` 只能修改被分配的 Project。`project_grant_manager` 只能读取其精确 active
@@ -484,7 +500,7 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform 用
 - organizationDomain:created/updated/deleted/verified/verification_failed
 - authentication:password*succeeded/failed、passkey*\_、mfa\__、oauth\*\*、sso*_、magic*auth*\_、email*verification*\*、radar_risk_detected
 - connection(SSO):activated/deactivated/deleted/saml_certificate_renewed/renewal_required
-- dsync(目录同步):activated/deleted、user.created/updated/deleted、group.created/updated/deleted、group.user_added/removed
+- dsync(目录同步):activated/deleted、user.created/updated/deleted、group.created/updated/deleted、group.user_added/removed。`dsync.*` 事件都没有发出。入站 SCIM 只发出 `user.created`、`user.deactivated`、`user.deleted`;SCIM Group 的创建、PATCH 和删除不发 webhook,也不发 `organization.updated`
 - role/permission:created/updated/deleted
 - access_request:created/approved/denied/cancelled/expired
 - project:access_policy_changed
