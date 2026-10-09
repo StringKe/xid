@@ -72,8 +72,9 @@ export function UsageBillingSection({
         ) : (
           <p {...stylex.props(styles.copy)}>
             <Trans>
-              This organization has no Stripe customer yet. Create one in Stripe with the metadata
-              key xid_tenant_id set to this organization ID.
+              This organization has no Stripe customer yet. In Stripe, create a customer and a
+              metered subscription, and set the subscription metadata key xid_tenant_id to this
+              organization ID.
             </Trans>
           </p>
         )}
