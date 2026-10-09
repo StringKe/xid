@@ -10,7 +10,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import * as v from 'valibot'
-import { issueStepUpCookie } from '../lib/step-up'
+import { reissueStepUpCookie } from '../lib/step-up'
 import type {
   ConsumedSessionHandoff,
   HandoffSessionStatus,
@@ -256,15 +256,9 @@ export async function completeSessionHandoff(
       ip: requestIp(c),
       userAgent: requestUserAgent(c),
     })
-    // step-up token 绑定会话 id,目标主机为新会话重新签发;只对已认证会话有效。
+    // step-up token 绑定会话 id,目标主机为新会话重签;到期时间沿用原值,只对已认证会话有效。
     if (grant.stepUp && issued.session.status === 'active') {
-      await issueStepUpCookie(c, {
-        session: issued.session,
-        method: grant.stepUp.method,
-        ...(grant.stepUp.passkeyAssurance
-          ? { passkeyAssurance: grant.stepUp.passkeyAssurance }
-          : {}),
-      })
+      await reissueStepUpCookie(c, { session: issued.session, proof: grant.stepUp })
     }
   })
   return grant.continuePath

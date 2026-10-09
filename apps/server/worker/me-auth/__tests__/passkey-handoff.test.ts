@@ -181,6 +181,11 @@ function cookieValue(response: Response, name: string): string {
   return match[1]
 }
 
+function stepUpPayload(token: string): Record<string, unknown> {
+  const body = token.split('.')[1] ?? ''
+  return JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as Record<string, unknown>
+}
+
 function formFromHtml(html: string): HandoffForm {
   const action = /action="([^"]+)"/.exec(html)?.[1] ?? ''
   const fields: Record<string, string> = {}
@@ -575,12 +580,15 @@ describe('root sessions handed to the organization host for passkey ceremonies',
     })
     const mfaPage = new URL(onOrg.headers.get('location')!, ACME)
 
-    // 组织主机上完成 passkey step-up 后,MFA 页导航到 redirect_to(返回入口)。
+    // 组织主机上一分钟前完成了 passkey step-up,MFA 页随后导航到 redirect_to(返回入口)。
+    const nowSec = Math.floor(Date.now() / 1000)
+    const window = { issuedAtSec: nowSec - 60, expiresAtSec: nowSec + 240 }
     const { token } = await issueStepUpToken({
       userId: active.userId,
       sessionId: active.sessionId,
       method: 'passkey',
       pepperRaw: env.PEPPER,
+      window,
     })
     const returned = await hostApp(ACME_TENANT, active).request(
       `${ACME}${mfaPage.searchParams.get('redirect_to')!}`,
@@ -607,7 +615,56 @@ describe('root sessions handed to the organization host for passkey ceremonies',
     expect(mfaPage.searchParams.get('method')).toBe('passkey')
     expect(onRoot.status).toBe(303)
     expect(onRoot.headers.get('location')).toBe('/account/security?stepped_up=1')
-    expect(onRoot.headers.get('set-cookie')).toContain('__Host-xid.acr=')
+    const reissued = stepUpPayload(cookieValue(onRoot, '__Host-xid.acr'))
+    const rootSessionId = sessionsInsert.mock.lastCall?.[0]?.['id']
+    expect(reissued).toMatchObject({
+      iat: window.issuedAtSec,
+      exp: window.expiresAtSec,
+      sid: rootSessionId,
+      method: 'passkey',
+    })
+    expect(reissued['sid']).not.toBe(active.sessionId)
+  })
+
+  it('does not reissue a step-up that expires before the root consumes the handoff', async () => {
+    const env = multiHostEnv()
+    const active = sessionWith('active')
+    const nowSec = Math.floor(Date.now() / 1000)
+    const { token } = await issueStepUpToken({
+      userId: active.userId,
+      sessionId: active.sessionId,
+      method: 'passkey',
+      pepperRaw: env.PEPPER,
+      window: { issuedAtSec: nowSec - 299, expiresAtSec: nowSec + 1 },
+    })
+    const returned = await hostApp(ACME_TENANT, active).request(
+      `${ACME}/auth/passkey/handoff/return?continue=${encodeURIComponent('/account/security?stepped_up=1')}`,
+      {},
+      env,
+      execCtx,
+    )
+    const toRoot = await followPrepare(env, {
+      prepareUrl: returned.headers.get('location')!,
+      target: ROOT_ENTRY,
+      source: ACME_TENANT,
+      session: active,
+      sourceCookie: `__Host-xid.acr=${token}`,
+    })
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 5_000 })
+
+    try {
+      const onRoot = await consume(env, {
+        tenant: ROOT_ENTRY,
+        origin: ROOT,
+        form: toRoot.form,
+        cookie: toRoot.state,
+      })
+
+      expect(onRoot.status).toBe(303)
+      expect(onRoot.headers.get('set-cookie')).not.toContain('__Host-xid.acr=')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not carry a step-up to the root when the organization session has none', async () => {

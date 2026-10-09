@@ -38,6 +38,27 @@ export async function issueStepUpCookie(
   setStepUpCookie(c, { token, maxAgeSec: STEP_UP_TTL_SEC })
 }
 
+// 跨主机会话交接:为目标主机的新会话重签 step-up,验证时间与到期时间沿用原值;已到期则不签发。
+export async function reissueStepUpCookie(
+  c: Context<XidHonoEnv>,
+  input: {
+    session: SessionData
+    proof: StepUpProof
+  },
+): Promise<void> {
+  const remainingSec = input.proof.expiresAtSec - Math.floor(Date.now() / 1000)
+  if (remainingSec <= 0) return
+  const { token } = await issueStepUpToken({
+    userId: input.session.userId,
+    sessionId: input.session.sessionId,
+    method: input.proof.method,
+    pepperRaw: c.env.PEPPER,
+    ...(input.proof.passkeyAssurance ? { passkeyAssurance: input.proof.passkeyAssurance } : {}),
+    window: { issuedAtSec: input.proof.issuedAtSec, expiresAtSec: input.proof.expiresAtSec },
+  })
+  setStepUpCookie(c, { token, maxAgeSec: remainingSec })
+}
+
 async function readStepUpPayload(
   c: Context<XidHonoEnv>,
   session: SessionData,
@@ -52,15 +73,24 @@ async function readStepUpPayload(
   return verified.payload
 }
 
+export type StepUpProof = {
+  method: StepUpPayload['method']
+  issuedAtSec: number
+  expiresAtSec: number
+  passkeyAssurance?: StepUpPasskeyAssurance
+}
+
 // 当前会话有效的 step-up 证明;跨主机会话交接时随会话一起带到目标主机。
 export async function readStepUpProof(
   c: Context<XidHonoEnv>,
   session: SessionData,
-): Promise<{ method: StepUpPayload['method']; passkeyAssurance?: StepUpPasskeyAssurance } | null> {
+): Promise<StepUpProof | null> {
   const payload = await readStepUpPayload(c, session)
   if (!payload) return null
   return {
     method: payload.method,
+    issuedAtSec: payload.iat,
+    expiresAtSec: payload.exp,
     ...(payload.passkeyAssurance ? { passkeyAssurance: payload.passkeyAssurance } : {}),
   }
 }

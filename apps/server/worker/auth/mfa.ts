@@ -360,11 +360,13 @@ export async function issueStepUpToken(opts: {
   method: 'totp' | 'backup' | 'sms' | 'passkey'
   pepperRaw: string
   passkeyAssurance?: StepUpPasskeyAssurance
+  // 跨主机会话交接时沿用原 step-up 的验证时间与到期时间,不重新起算有效期
+  window?: { issuedAtSec: number; expiresAtSec: number }
 }): Promise<IssueStepUpResult> {
   const { userId, sessionId, method, pepperRaw, passkeyAssurance } = opts
   const jti = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
-  const iat = Math.floor(Date.now() / 1000)
-  const exp = iat + STEP_UP_TTL_SEC
+  const iat = opts.window?.issuedAtSec ?? Math.floor(Date.now() / 1000)
+  const exp = opts.window?.expiresAtSec ?? iat + STEP_UP_TTL_SEC
   const payload: StepUpPayload = {
     sub: userId,
     acr: 'step-up',

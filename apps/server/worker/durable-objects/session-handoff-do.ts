@@ -13,9 +13,11 @@ export type HandoffSessionStatus = (typeof HANDOFF_SESSION_STATUSES)[number]
 
 const STEP_UP_METHODS = ['totp', 'backup', 'sms', 'passkey'] as const
 
-// 来源会话刚完成的 step-up;目标主机为新会话重新签发 step-up cookie。
+// 来源会话刚完成的 step-up;目标主机为新会话重签,验证时间与到期时间不变。
 export type HandoffStepUp = {
   method: (typeof STEP_UP_METHODS)[number]
+  issuedAtSec: number
+  expiresAtSec: number
   passkeyAssurance?: {
     userVerified: boolean
     credentialBackedUp: boolean
@@ -109,6 +111,8 @@ function isStepUp(value: unknown): boolean {
   if (!isRecord(value)) return false
   return (
     (STEP_UP_METHODS as readonly unknown[]).includes(value['method']) &&
+    isFiniteNumber(value['issuedAtSec']) &&
+    isFiniteNumber(value['expiresAtSec']) &&
     isPasskeyAssurance(value['passkeyAssurance'])
   )
 }
