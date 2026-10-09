@@ -84,10 +84,10 @@ describe('test harness production gate', () => {
   })
 
   it('returns 404 for fake-swa routes in production', async () => {
-    const res = await requestHarness('/test-harness/fake-swa/authenticate', 'production', {
+    const res = await requestHarness('/test-harness/fake-swa/login', 'production', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username: 'swa.user@example.com', password: 'swa-pass' }),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'login_id=swa.user%40example.com&passcode=swa-pass',
     })
     expect(res.status).toBe(404)
     const body = (await res.json()) as { code?: string }
