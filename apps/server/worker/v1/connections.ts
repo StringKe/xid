@@ -18,6 +18,7 @@ import {
   idpMetadataXmlSchema,
   relayStatePatch,
   relayStateUrlSchema,
+  reusedConnectionColumns,
   samlMetadataPatch,
 } from '../sso/connection-input'
 import { internalMappingKeys, visibleMappingKeys } from '../sso/config-input'
@@ -176,12 +177,11 @@ app.post('/', async (c) => {
   const existing = await db.ssoConnections.findOne(eq(schema.ssoConnections.orgId, orgId))
   if (existing && existing.status === 'deleted') {
     const updated = await db.ssoConnections.update(
-      {
+      reusedConnectionColumns({
         protocol,
         ...endpoints,
         oidcClientId: body.oidc_client_id,
         oidcDiscoveryUrl: body.oidc_discovery_url,
-        oidcClientSecretCiphertext: null,
         ...(await oidcClientSecretPatch(c.env, body.oidc_client_secret)),
         attributeMapping,
         roleMapping: body.role_mapping ?? {},
@@ -190,7 +190,7 @@ app.post('/', async (c) => {
         wantAssertionsSigned: body.want_assertions_signed ?? true,
         samlClockSkewMs: body.saml_clock_skew_ms ?? DEFAULT_SAML_CLOCK_SKEW_MS,
         status: 'active',
-      },
+      }),
       eq(schema.ssoConnections.id, existing.id),
     )
     return c.json(toResponse(updated[0]!), 201)

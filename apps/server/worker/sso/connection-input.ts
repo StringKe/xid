@@ -1,6 +1,7 @@
 // 入站 SSO 连接写入(组织路由与 /v1/connections 共用):占位符、内部键、metadata 同步导入与落地页。
 
 import type { schema } from '@xid-kit/db'
+import { DEFAULT_SAML_CLOCK_SKEW_MS } from '@xid-kit/saml'
 import * as v from 'valibot'
 import {
   assertClientMappingKeys,
@@ -34,6 +35,38 @@ export type ConnectionInput = {
   oidc_discovery_url?: string | undefined
   attribute_mapping?: Record<string, unknown> | undefined
   relay_state_url?: string | null | undefined
+}
+
+// 每个组织只有一行连接,删除后再新建会复用该行;未在新请求中给出的列一律回到新建时的值,
+// 旧连接的 metadata、刷新错误、证书保留记录、密钥与落地页不能延续到新连接。
+const FRESH_CONNECTION_COLUMNS = {
+  displayName: null,
+  idpEntityId: null,
+  idpSsoUrl: null,
+  idpSloUrl: null,
+  idpMetadataUrl: null,
+  idpMetadataXml: null,
+  idpMetadataRefreshedAt: null,
+  idpMetadataLastError: null,
+  idpMetadataLastErrorAt: null,
+  idpCertificates: [],
+  idpCertificateRetirements: null,
+  oidcClientId: null,
+  oidcClientSecretCiphertext: null,
+  oidcDiscoveryUrl: null,
+  spCertId: null,
+  wantAuthnResponseSigned: true,
+  wantAssertionsSigned: true,
+  samlClockSkewMs: DEFAULT_SAML_CLOCK_SKEW_MS,
+  attributeMapping: {},
+  roleMapping: {},
+  jitEnabled: true,
+  relayStateUrl: null,
+} satisfies ConnectionPatch
+
+export function reusedConnectionColumns(patch: ConnectionPatch): ConnectionPatch {
+  const given = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined))
+  return { ...FRESH_CONNECTION_COLUMNS, ...given }
 }
 
 // `_legacy` 是 legacy 协议的配置容器;其余 `_` 前缀键(预设标记、信封密文)只由服务端写入。

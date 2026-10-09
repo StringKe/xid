@@ -16,6 +16,7 @@ import {
   idpMetadataXmlSchema,
   relayStatePatch,
   relayStateUrlSchema,
+  reusedConnectionColumns,
   samlMetadataPatch,
 } from '../sso/connection-input'
 import {
@@ -206,7 +207,7 @@ export function registerOrgSsoConnectionRoutes(app: Hono<XidHonoEnv>): void {
       existing?.status === 'deleted'
         ? (
             await db.ssoConnections.update(
-              { ...patch, status: 'active' },
+              reusedConnectionColumns(patch),
               eq(schema.ssoConnections.id, existing.id),
             )
           )[0]
