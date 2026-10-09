@@ -2,12 +2,10 @@
 
 ## Console steps
 
-1. Open **Console -> Organization -> Inbound enterprise SSO**.
-2. Click **Add Okta template** to pre-fill metadata URL, attribute mapping, and JIT defaults.
-3. Replace `{oktaDomain}` and `{appId}` placeholders with your Okta org domain and SAML app id.
-4. Paste the Okta IdP signing certificate from metadata into **IdP certificates**.
-5. Download XID SP metadata from `/sso/saml/{connectionId}/metadata` and upload to the Okta SAML app.
-6. Set ACS URL to `https://{tenant}/sso/saml/{connectionId}/acs`.
+1. Open **Console -> Organization -> Enterprise SSO** and choose **Add connection**.
+2. Pick **Okta** and **SAML 2.0**. The preset sets the attribute mapping (`email`, `firstName`, `lastName`) and JIT, and accepts a valid signature on either the Response or the Assertion; every signature that is present must verify.
+3. Enter the Okta app metadata URL, in the form `https://<okta-domain>/app/<app-id>/sso/saml/metadata`. XID fetches and parses it when the connection is saved and fills Entity ID, sign-in URL, and signing certificates. A fetch or parse failure returns 422 on `idp_metadata_url`, and a value that still contains `{` or `}` is rejected.
+4. Copy the **ACS URL** and **Entity ID** shown in the wizard into the Okta SAML app, or give Okta the SP metadata from `/sso/saml/{connectionId}/metadata`.
 
 ## Local L3 evidence
 

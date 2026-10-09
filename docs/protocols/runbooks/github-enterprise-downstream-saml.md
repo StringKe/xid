@@ -2,11 +2,11 @@
 
 ## Console steps
 
-1. Open **Console -> Organization -> Outbound enterprise SSO**.
-2. Click **Add GitHub Enterprise template** to pre-fill SP entity ID, ACS URL, and attribute mapping.
-3. Replace placeholder tokens in SP entity ID and ACS URL fields.
-4. Copy XID outbound metadata and SSO paths from the app row into the downstream SaaS admin UI.
-5. Upload the copied XID metadata to the downstream SaaS SAML admin UI and verify ACS POST round-trip in staging.
+1. Open **Console -> Organization -> SAML apps** and choose **Add SAML app**.
+2. Pick **GitHub Enterprise Cloud** under **App**. The preset sets the attribute mapping (`emails`, `full_name`) and the `emailAddress` NameID format, and sets no single logout URL.
+3. Set **Entity ID** to `https://github.com/enterprises/<enterprise>` and **Assertion consumer URL** to `https://github.com/enterprises/<enterprise>/saml/consume`, using the enterprise slug shown in GitHub's SAML settings. A value that still contains `{` or `}` returns 422.
+4. From **Give these to GitHub Enterprise Cloud** on the app page, copy the Issuer and Sign-in URL into the GitHub enterprise SAML settings and paste the signing certificate from the downloaded IdP metadata.
+5. Limit **Who can sign in** if needed, then test the SAML configuration from GitHub and confirm the ACS POST round-trip in staging.
 
 ## Local L3 evidence
 

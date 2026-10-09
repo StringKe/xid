@@ -2,11 +2,11 @@
 
 ## Console steps
 
-1. Open **Console -> Organization -> Outbound enterprise SSO**.
-2. Click **Add Atlassian template** to pre-fill SP entity ID, ACS URL, and attribute mapping.
-3. Replace placeholder tokens in SP entity ID and ACS URL fields.
-4. Copy XID outbound metadata and SSO paths from the app row into the downstream SaaS admin UI.
-5. Upload the copied XID metadata to the downstream SaaS SAML admin UI and verify ACS POST round-trip in staging.
+1. Open **Console -> Organization -> SAML apps** and choose **Add SAML app**.
+2. Pick **Atlassian Guard** under **App**. The preset sends `emailaddress`, `givenname`, and `surname` claims plus `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name` carrying the XID user ID, an immutable value that does not change when the email changes. The NameID format is `emailAddress`.
+3. Import the SP metadata that Atlassian shows for the SAML configuration under **App metadata** (URL or XML), or set **Entity ID** to `https://auth.atlassian.com/saml/<connection-id>` and **Assertion consumer URL** to `https://auth.atlassian.com/login/callback?connection=saml-<connection-id>`. A value that still contains `{` or `}` returns 422.
+4. From **Give these to Atlassian Guard** on the app page, copy the Issuer and Sign-in URL into the Atlassian identity provider settings and paste the signing certificate from the downloaded IdP metadata.
+5. Limit **Who can sign in** if needed, then confirm the ACS POST round-trip in staging.
 
 ## Local L3 evidence
 

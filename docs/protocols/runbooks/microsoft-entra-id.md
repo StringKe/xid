@@ -2,11 +2,10 @@
 
 ## Console steps
 
-1. Open **Console -> Organization -> Inbound enterprise SSO**.
-2. Click **Add Microsoft Entra ID template** to pre-fill metadata URL, attribute mapping, and JIT defaults.
-3. Replace placeholder tokens in the IdP metadata URL and paste the IdP signing certificate into **IdP certificates**.
-4. Paste the upstream IdP signing certificate into **IdP certificates** (inbound) or configure SP ACS URL and entity ID (outbound).
-5. Download XID metadata from the console copy paths and upload to the upstream IdP or downstream SaaS admin UI.
+1. Open **Console -> Organization -> Enterprise SSO** and choose **Add connection**.
+2. Pick **Microsoft Entra ID** and **SAML 2.0**. The preset maps the `emailaddress`, `givenname`, and `surname` claims, takes the stable user ID from `http://schemas.microsoft.com/identity/claims/objectidentifier`, enables JIT, and requires a signed Assertion (Entra signs the Assertion by default).
+3. Enter the app-scoped federation metadata URL `https://login.microsoftonline.com/<tenant-id>/federationmetadata/2007-06/federationmetadata.xml?appid=<application-id>`. The `appid` parameter makes Entra return the enterprise application's own signing certificate. XID fetches and parses the URL when the connection is saved; a fetch or parse failure returns 422 on `idp_metadata_url`, and a value that still contains `{` or `}` is rejected.
+4. Copy the **ACS URL** and **Entity ID** shown in the wizard into the Entra enterprise application's Basic SAML Configuration, or upload the SP metadata from `/sso/saml/{connectionId}/metadata`.
 
 ## Local L3 evidence
 

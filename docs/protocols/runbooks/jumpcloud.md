@@ -2,11 +2,10 @@
 
 ## Console steps
 
-1. Open **Console -> Organization -> Inbound enterprise SSO**.
-2. Click **Add JumpCloud template** to pre-fill metadata URL, attribute mapping, and JIT defaults.
-3. Replace placeholder tokens in the IdP metadata URL and paste the IdP signing certificate into **IdP certificates**.
-4. Paste the upstream IdP signing certificate into **IdP certificates** (inbound) or configure SP ACS URL and entity ID (outbound).
-5. Download XID metadata from the console copy paths and upload to the upstream IdP or downstream SaaS admin UI.
+1. Open **Console -> Organization -> Enterprise SSO** and choose **Add connection**.
+2. Pick **JumpCloud** and **SAML 2.0**. The preset sets the attribute mapping (`email`, `firstname`, `lastname`) and JIT, and requires a signed Assertion.
+3. Export the IdP metadata file of the JumpCloud SSO application and upload it in **Metadata XML**. JumpCloud offers the metadata as a file export, so the preset has no metadata URL. XID parses the XML when the connection is saved and fills Entity ID, sign-in URL, and signing certificates; XML that is not IdP metadata returns 422 on `idp_metadata_xml`.
+4. Copy the **ACS URL** and **Entity ID** shown in the wizard into the JumpCloud SSO application, or give JumpCloud the SP metadata from `/sso/saml/{connectionId}/metadata`.
 
 ## Local L3 evidence
 

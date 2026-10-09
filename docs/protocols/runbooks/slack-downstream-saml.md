@@ -2,11 +2,11 @@
 
 ## Console steps
 
-1. Open **Console -> Organization -> Outbound enterprise SSO**.
-2. Click **Add Slack template** to pre-fill SP entity ID, ACS URL, and attribute mapping.
-3. Replace placeholder tokens in SP entity ID and ACS URL fields.
-4. Copy XID outbound metadata and SSO paths from the app row into the downstream SaaS admin UI.
-5. Upload the copied XID metadata to the downstream SaaS SAML admin UI and verify ACS POST round-trip in staging.
+1. Open **Console -> Organization -> SAML apps** and choose **Add SAML app**.
+2. Pick **Slack** under **App**. The preset sets Entity ID `https://slack.com`, the attribute mapping (`email`, `User.Email`, `first_name`, `last_name`, `display_name`), the `emailAddress` NameID format, and no single logout URL, because Slack does not support Single Logout.
+3. Set **Assertion consumer URL** to `https://<workspace>.slack.com/sso/saml`. A value that still contains `{` or `}` returns 422.
+4. From **Give these to Slack** on the app page, copy the Sign-in URL and Issuer into the Slack SAML settings and paste the signing certificate from the downloaded IdP metadata.
+5. Limit **Who can sign in** if needed, then confirm the ACS POST round-trip in staging.
 
 ## Local L3 evidence
 

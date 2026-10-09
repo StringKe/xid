@@ -2,11 +2,11 @@
 
 ## Console steps
 
-1. Open **Console -> Organization -> Outbound enterprise SSO**.
-2. Click **Add Microsoft enterprise app template** to pre-fill SP entity ID, ACS URL, and attribute mapping.
-3. Replace placeholder tokens in SP entity ID and ACS URL fields.
-4. Copy XID outbound metadata and SSO paths from the app row into the downstream SaaS admin UI.
-5. For SAML/OIDC presets, configure the OIDC redirect URI placeholder shown in the console in the downstream SaaS OIDC app registration.
+1. Open **Console -> Organization -> SAML apps** and choose **Add SAML app**.
+2. Pick **Microsoft custom enterprise app** under **App**. The preset sets the attribute mapping (`email`, `given_name`, `family_name`, `name`) and the `emailAddress` NameID format.
+3. Set **Entity ID** to `https://sts.windows.net/<tenant-id>/` and **Assertion consumer URL** to `https://login.microsoftonline.com/<tenant-id>/saml2`, or import the SP metadata under **App metadata**. A value that still contains `{` or `}` returns 422.
+4. From **Give these to Microsoft custom enterprise app** on the app page, copy the Issuer and Sign-in URL into the Entra federation settings and upload the signing certificate from the downloaded IdP metadata.
+5. For OIDC sign-in, register the app as an XID application through `/v1/applications` with the exact redirect URI `https://login.microsoftonline.com/<tenant-id>/oauth2/nativeclient`. The SAML app form does not register OIDC clients.
 
 ## Local L3 evidence
 

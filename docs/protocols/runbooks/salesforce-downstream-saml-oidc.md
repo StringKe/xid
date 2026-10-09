@@ -2,11 +2,11 @@
 
 ## Console steps
 
-1. Open **Console -> Organization -> Outbound enterprise SSO**.
-2. Click **Add Salesforce template** to pre-fill SP entity ID, ACS URL, and attribute mapping.
-3. Replace placeholder tokens in SP entity ID and ACS URL fields.
-4. Copy XID outbound metadata and SSO paths from the app row into the downstream SaaS admin UI.
-5. For SAML/OIDC presets, configure the OIDC redirect URI placeholder shown in the console in the downstream SaaS OIDC app registration.
+1. Open **Console -> Organization -> SAML apps** and choose **Add SAML app**.
+2. Pick **Salesforce** under **App**. The preset sets the attribute mapping (`email`, `firstName`, `lastName`, `displayName`) and the `emailAddress` NameID format.
+3. Import the SP metadata that Salesforce publishes for the SAML single sign-on setting under **App metadata** (URL or XML), or set **Entity ID** and **Assertion consumer URL** to `https://<my-domain>.my.salesforce.com`. A value that still contains `{` or `}` returns 422.
+4. From **Give these to Salesforce** on the app page, copy the Issuer and Sign-in URL into the Salesforce SAML single sign-on setting and upload the signing certificate from the downloaded IdP metadata.
+5. For OIDC sign-in, register the app as an XID application through `/v1/applications` with the exact redirect URI `https://<my-domain>.my.salesforce.com/services/authcallback/<auth-provider>`. The SAML app form does not register OIDC clients.
 
 ## Local L3 evidence
 

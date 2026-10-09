@@ -2,11 +2,10 @@
 
 ## Console steps
 
-1. Open **Console -> Organization -> Inbound enterprise SSO**.
-2. Click **Add OneLogin template** to pre-fill metadata URL, attribute mapping, and JIT defaults.
-3. Replace placeholder tokens in the IdP metadata URL and paste the IdP signing certificate into **IdP certificates**.
-4. Paste the upstream IdP signing certificate into **IdP certificates** (inbound) or configure SP ACS URL and entity ID (outbound).
-5. Download XID metadata from the console copy paths and upload to the upstream IdP or downstream SaaS admin UI.
+1. Open **Console -> Organization -> Enterprise SSO** and choose **Add connection**.
+2. Pick **OneLogin** and **SAML 2.0**. The preset sets the attribute mapping (`User.email`, `User.FirstName`, `User.LastName`) and JIT, and requires a signed Assertion.
+3. Enter the OneLogin app metadata URL, in the form `https://app.onelogin.com/saml/metadata/<app-id>`. XID fetches and parses it when the connection is saved and fills Entity ID, sign-in URL, and signing certificates. A fetch or parse failure returns 422 on `idp_metadata_url`, and a value that still contains `{` or `}` is rejected.
+4. Copy the **ACS URL** and **Entity ID** shown in the wizard into the OneLogin SAML app, or give OneLogin the SP metadata from `/sso/saml/{connectionId}/metadata`.
 
 ## Local L3 evidence
 
