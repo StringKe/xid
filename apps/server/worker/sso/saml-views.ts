@@ -1,14 +1,19 @@
 // SAML SP 视图:SP metadata XML 输出 + SP-initiated AuthnRequest 发起(DEFLATE+base64 HTTP-Redirect binding)。
 // metadata 字段见 8.9;AuthnRequest 生成走 @xid-kit/saml(不自研 XML),ID 存 DO 一次性(InResponseTo 比对)。
-// SP 签名/加密证书取 CertStore(public X.509,base64 DER);DEFLATE 用 Workers 原生 CompressionStream('deflate-raw')。
+// SP 签名/加密证书取 CertStore(public X.509,base64 DER);有 active saml_sp_signing 证书时 AuthnRequest 签名。
 
-import { buildSpMetadataXml, generateAuthnRequest } from '@xid-kit/saml'
+import {
+  buildSpMetadataXml,
+  encodeRedirectBindingMessage,
+  generateAuthnRequest,
+  signRedirectBindingRequest,
+} from '@xid-kit/saml'
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import { readAllById } from '../lib/db-pagination'
-import { acsUrl, sloUrl, spEntityId } from './saml-connection'
+import { acsUrl, loadSpSigningKey, sloUrl, spEntityId } from './saml-connection'
 import type { SamlConnection } from './saml-connection'
 import type { XidHonoEnv } from '../lib/types'
 import type { SamlAuthnRequestContext } from './saml-do'
@@ -49,7 +54,7 @@ export async function buildSpMetadata(
     entityId: spEntityId(ctx, connection.id),
     acsUrl: acsUrl(ctx, connection.id),
     sloUrl: sloUrl(ctx, connection.id),
-    authnRequestsSigned: Boolean(connection.spCertId),
+    authnRequestsSigned: signingCerts.length > 0,
     wantAssertionsSigned: connection.wantAssertionsSigned,
     signingCertsB64: signingCerts,
     ...(encryptionCerts.length > 0 ? { encryptionCertsB64: encryptionCerts } : {}),
@@ -57,14 +62,22 @@ export async function buildSpMetadata(
   return c.body(xml, 200, { 'content-type': 'application/samlmetadata+xml' })
 }
 
-// DEFLATE(raw,无 zlib 头)+ 标准 base64 -> HTTP-Redirect binding 的 SAMLRequest 值。
-// Redirect binding 用标准 base64(URLSearchParams 负责 URL 编码),非 base64url(见 SAML 2.0 Bindings)。
-async function deflateBase64(xml: string): Promise<string> {
-  const stream = new Blob([xml]).stream().pipeThrough(new CompressionStream('deflate-raw'))
-  const compressed = new Uint8Array(await new Response(stream).arrayBuffer())
-  let binary = ''
-  for (const b of compressed) binary += String.fromCharCode(b)
-  return btoa(binary)
+// HTTP-Redirect binding 查询串:有 SP 签名私钥时按 Bindings 3.4.4.1 对 SAMLRequest&RelayState&SigAlg
+// 做 detached 签名,与 metadata 的 AuthnRequestsSigned 同源判断。
+async function authnRequestQuery(
+  c: Context<XidHonoEnv>,
+  samlRequest: string,
+  relayState: string,
+): Promise<string> {
+  const signingKey = await loadSpSigningKey(c)
+  if (!signingKey) {
+    return new URLSearchParams({ SAMLRequest: samlRequest, RelayState: relayState }).toString()
+  }
+  const signed = await signRedirectBindingRequest(samlRequest, relayState, signingKey)
+  if (!signed.ok) {
+    throw new AppError('server_error', { cause: signed.error.reason })
+  }
+  return signed.value.query
 }
 
 // GET login:生成 AuthnRequest -> 存 ID 到 DO(一次性)-> 302 到 IdP SSO URL(HTTP-Redirect binding)。
@@ -84,9 +97,8 @@ export async function redirectToIdp(
   })
   await storeAuthnRequestId(c, connection.id, request.id, flowContext)
 
-  const samlRequest = await deflateBase64(request.xml)
-  const params = new URLSearchParams({ SAMLRequest: samlRequest })
-  params.set('RelayState', flowContext.continuePath.slice(0, 2048))
+  const samlRequest = await encodeRedirectBindingMessage(request.xml)
+  const query = await authnRequestQuery(c, samlRequest, flowContext.continuePath.slice(0, 2048))
   const sep = connection.idpSsoUrl.includes('?') ? '&' : '?'
-  return c.redirect(`${connection.idpSsoUrl}${sep}${params.toString()}`)
+  return c.redirect(`${connection.idpSsoUrl}${sep}${query}`)
 }
