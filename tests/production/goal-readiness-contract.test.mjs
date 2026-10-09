@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   CLOUDFLARE_SECURITY_RULES_GAP,
   cloudflareSecurityRulesReadinessGaps,
-  npmRegistryVersionMatches,
   remoteD1MigrationReadinessGaps,
   TURNSTILE_PUBLIC_KEY_GAP,
   TURNSTILE_SECRET_GAP,
@@ -72,13 +71,6 @@ describe('goal readiness production configuration contract', () => {
       'Production D1 migration pending: 0008_control-plane-projects.sql',
     ])
     expect(remoteD1MigrationReadinessGaps([])).toEqual([])
-  })
-
-  it('accepts npm publication only for the exact public package version', () => {
-    const target = { name: '@xid-kit/core', version: '0.1.0-alpha.0' }
-    expect(npmRegistryVersionMatches(target, target)).toBe(true)
-    expect(npmRegistryVersionMatches({ ...target, version: '0.1.0-alpha.1' }, target)).toBe(false)
-    expect(npmRegistryVersionMatches({ ...target, name: '@xid-kit/types' }, target)).toBe(false)
   })
 
   it('requires localized docs actions, Open Graph, JSON-LD, and llms alternate together', () => {

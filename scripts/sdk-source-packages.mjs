@@ -1,6 +1,6 @@
-export const SDK_RELEASE_VERSION = '0.1.0-alpha.0'
+export const SDK_SOURCE_VERSION = '0.1.0-alpha.0'
 
-export const PUBLIC_SDK_PACKAGES = [
+export const SDK_SOURCE_PACKAGES = [
   {
     dir: 'types',
     name: '@xid-kit/types',

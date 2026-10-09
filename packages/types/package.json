@@ -1,7 +1,7 @@
 {
   "name": "@xid-kit/types",
   "version": "0.1.0-alpha.0",
-  "private": false,
+  "private": true,
   "description": "Shared public TypeScript contracts for the XID identity platform.",
   "keywords": [
     "authentication",
@@ -37,9 +37,6 @@
     "./cloudflare": {
       "types": "./dist/cloudflare.d.ts"
     }
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "scripts": {
     "build": "vp pack --copy ../../LICENSE --copy src/cloudflare.d.ts",

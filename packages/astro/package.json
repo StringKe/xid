@@ -1,7 +1,7 @@
 {
   "name": "@xid-kit/astro",
   "version": "0.1.0-alpha.0",
-  "private": false,
+  "private": true,
   "description": "Astro integration, middleware, server helpers, and client bindings for XID.",
   "keywords": [
     "authentication",
@@ -62,9 +62,6 @@
     "./locals": {
       "types": "./dist/locals.d.ts"
     }
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "scripts": {
     "build": "vp pack src/index.ts src/integration.ts src/integration-middleware.ts src/middleware.ts src/client.ts src/server.ts --copy ../../LICENSE --copy src/locals.d.ts",

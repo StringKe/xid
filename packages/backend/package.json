@@ -1,7 +1,7 @@
 {
   "name": "@xid-kit/backend",
   "version": "0.1.0-alpha.0",
-  "private": false,
+  "private": true,
   "description": "Backend token, request, and webhook verification SDK for XID.",
   "keywords": [
     "authentication",
@@ -34,9 +34,6 @@
       "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
     }
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "scripts": {
     "build": "vp pack --copy ../../LICENSE",

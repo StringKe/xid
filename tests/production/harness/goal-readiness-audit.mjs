@@ -2,7 +2,7 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import {
   EVIDENCE_KEYS,
   EVIDENCE_MARKERS,
@@ -27,7 +27,6 @@ import {
   readRemoteQueueNames,
   reconcileQueueNames,
 } from '../../../scripts/setup-cloudflare-queues.mjs'
-import { PUBLIC_SDK_PACKAGES } from '../../../scripts/sdk-public-packages.mjs'
 import { llmsFullOk, llmsOk, llmsSectionOk } from './public-content-checks.mjs'
 import { docsAuthActionsOk, docsLocaleMetadataOk } from './public-doc-html.mjs'
 import { webRouteOwnerMatches } from './web-route-owner.mjs'
@@ -37,12 +36,6 @@ const baseUrl = productionBaseUrl()
 const repo = process.env['XID_GITHUB_REPO'] ?? 'StringKe/xid'
 const DB_BINDING = 'DB'
 const WORKER_FILTER = '@xid-kit/server'
-const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org'
-const PUBLIC_NPM_REGISTRY_TIMEOUT_MS = 10_000
-const PUBLIC_PACKAGES_URL = new URL('../../../packages/', import.meta.url)
-const PUBLIC_NPM_PACKAGE_NAMES = PUBLIC_SDK_PACKAGES.map((item) => item.name).sort((left, right) =>
-  left.localeCompare(right),
-)
 // 包管理器入口只能来自环境变量或 PATH:仓库里写死开发机绝对路径会让 CI 直接崩。
 const configuredPackageManager = process.env['XID_L3_PACKAGE_MANAGER']?.trim()
 
@@ -685,82 +678,6 @@ function auditCloudflareSecurityRulesReadiness(state, incomplete) {
   incomplete.push(...gaps)
 }
 
-async function readPublicNpmPackageTargets() {
-  const entries = await readdir(PUBLIC_PACKAGES_URL, { withFileTypes: true })
-  const targets = []
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    const manifestUrl = new URL(`${entry.name}/package.json`, PUBLIC_PACKAGES_URL)
-    let manifest
-    try {
-      manifest = JSON.parse(await readFile(manifestUrl, 'utf8'))
-    } catch (error) {
-      if (error && typeof error === 'object' && error.code === 'ENOENT') continue
-      throw new Error(`invalid package manifest ${manifestUrl.pathname}`, { cause: error })
-    }
-    if (manifest.private !== false || !String(manifest.name).startsWith('@xid-kit/')) continue
-    if (!hasValue(manifest.version)) {
-      throw new Error(`public package ${String(manifest.name)} is missing a version`)
-    }
-    targets.push({ name: manifest.name, version: manifest.version })
-  }
-  if (targets.length === 0) throw new Error('no public @xid-kit packages found')
-  targets.sort((left, right) => left.name.localeCompare(right.name))
-  const names = targets.map((target) => target.name)
-  if (JSON.stringify(names) !== JSON.stringify(PUBLIC_NPM_PACKAGE_NAMES)) {
-    throw new Error(`public @xid-kit package set mismatch: ${names.join(',')}`)
-  }
-  return targets
-}
-
-export function npmRegistryVersionMatches(manifest, target) {
-  return manifest?.name === target.name && manifest?.version === target.version
-}
-
-async function auditPublicNpmRegistryReadiness(incomplete) {
-  let targets
-  try {
-    targets = await readPublicNpmPackageTargets()
-  } catch (error) {
-    incomplete.push(
-      `npm registry target discovery failed: ${error instanceof Error ? error.message : String(error)}`,
-    )
-    return
-  }
-  const results = await Promise.all(
-    targets.map(async (target) => {
-      const url = `${PUBLIC_NPM_REGISTRY}/${encodeURIComponent(target.name)}/${encodeURIComponent(target.version)}`
-      try {
-        const response = await fetch(url, {
-          headers: { accept: 'application/json' },
-          cache: 'no-store',
-          signal: AbortSignal.timeout(PUBLIC_NPM_REGISTRY_TIMEOUT_MS),
-        })
-        if (response.status !== 200) {
-          return { target, gap: `npm package unpublished: ${target.name}@${target.version}` }
-        }
-        const manifest = parseJson(await response.text(), `npm package ${target.name}`)
-        if (!npmRegistryVersionMatches(manifest, target)) {
-          return {
-            target,
-            gap: `npm package version mismatch: ${target.name}@${target.version}`,
-          }
-        }
-        return { target }
-      } catch (error) {
-        return {
-          target,
-          gap: `npm registry check failed for ${target.name}@${target.version}: ${error instanceof Error ? error.message : String(error)}`,
-        }
-      }
-    }),
-  )
-  for (const result of results) {
-    if (result.gap) incomplete.push(result.gap)
-    else print('PASS', 'npm package published', `${result.target.name}@${result.target.version}`)
-  }
-}
-
 function auditCloudflareQueueReadiness(incomplete) {
   try {
     const required = readQueueNames()
@@ -1287,7 +1204,6 @@ export async function runGoalReadinessAudit() {
   const productionVars = await readProductionConfigVars()
   const secretSet = await readSecretSet(target)
   auditCloudflareQueueReadiness(incomplete)
-  await auditPublicNpmRegistryReadiness(incomplete)
   const config = await readAuthConfig()
   const providerState = await readProviderReadinessState()
   const passwordResetReady = passwordResetFullEvidenceReady(evidence, evidenceContext)

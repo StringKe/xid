@@ -5,14 +5,14 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { PUBLIC_SDK_PACKAGES, SDK_RELEASE_VERSION } from './sdk-public-packages.mjs'
+import { SDK_SOURCE_PACKAGES, SDK_SOURCE_VERSION } from './sdk-source-packages.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const releaseVersion = SDK_RELEASE_VERSION
-const workersTypesVersion = '^5.20260724.1'
+const releaseVersion = SDK_SOURCE_VERSION
+const workersTypesVersion = await readCatalogVersion('@cloudflare/workers-types')
 const manifestOnly = process.argv.includes('--manifest-only')
 
-const publicPackages = PUBLIC_SDK_PACKAGES
+const publicPackages = SDK_SOURCE_PACKAGES
 
 const publicNames = new Set(publicPackages.map((item) => item.name))
 const dependencySections = [
@@ -21,6 +21,14 @@ const dependencySections = [
   'peerDependencies',
   'devDependencies',
 ]
+
+async function readCatalogVersion(name) {
+  const workspace = await readFile(join(repoRoot, 'pnpm-workspace.yaml'), 'utf8')
+  const escaped = name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
+  const match = workspace.match(new RegExp(`^\\s+'?${escaped}'?:\\s*(\\S+)\\s*$`, 'm'))
+  assert.ok(match, `pnpm-workspace.yaml catalog is missing ${name}`)
+  return match[1]
+}
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -132,7 +140,7 @@ function exportTargets(value) {
   return Object.values(value).flatMap(exportTargets)
 }
 
-function assertNoUnpublishableSpecs(manifest, context, packed) {
+function assertVendorableSpecs(manifest, context, packed) {
   for (const section of dependencySections) {
     for (const [name, spec] of Object.entries(manifest[section] ?? {})) {
       assert.equal(typeof spec, 'string', `${context}: ${section}.${name} must be a string`)
@@ -143,7 +151,7 @@ function assertNoUnpublishableSpecs(manifest, context, packed) {
         assert.notEqual(spec, 'workspace:*', `${context}: ${section}.${name} uses workspace:*`)
       }
       if (name.startsWith('@xid-kit/') && section !== 'devDependencies') {
-        assert.ok(publicNames.has(name), `${context}: ${name} is not in the publishable graph`)
+        assert.ok(publicNames.has(name), `${context}: ${name} is not in the vendored SDK set`)
         if (packed) {
           assert.equal(
             spec,
@@ -157,28 +165,33 @@ function assertNoUnpublishableSpecs(manifest, context, packed) {
 }
 
 async function verifySourceManifests() {
-  const discoveredPublicNames = []
+  const discoveredVendorableNames = []
   for (const entry of await readdir(join(repoRoot, 'packages'), { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     const manifestPath = join(repoRoot, 'packages', entry.name, 'package.json')
     if (!existsSync(manifestPath)) continue
     const manifest = await readJson(manifestPath)
-    if (manifest.private === false && String(manifest.name).startsWith('@xid-kit/')) {
-      discoveredPublicNames.push(manifest.name)
+    assert.equal(manifest.private, true, `${manifest.name}: every package must stay private`)
+    assert.equal(
+      Object.hasOwn(manifest, 'publishConfig'),
+      false,
+      `${manifest.name}: publishConfig is not allowed`,
+    )
+    if (Array.isArray(manifest.files) && String(manifest.name).startsWith('@xid-kit/')) {
+      discoveredVendorableNames.push(manifest.name)
     }
   }
   assert.deepEqual(
-    discoveredPublicNames.sort((left, right) => left.localeCompare(right)),
+    discoveredVendorableNames.sort((left, right) => left.localeCompare(right)),
     [...publicNames].sort((left, right) => left.localeCompare(right)),
-    'publishable @xid-kit package set drifted from the shared release inventory',
+    'vendored @xid-kit package set drifted from scripts/sdk-source-packages.mjs',
   )
 
   for (const item of publicPackages) {
     const packageRoot = join(repoRoot, 'packages', item.dir)
     const manifest = await readJson(join(packageRoot, 'package.json'))
     assert.equal(manifest.name, item.name, `${item.dir}: unexpected package name`)
-    assert.equal(manifest.version, releaseVersion, `${item.name}: release version drift`)
-    assert.equal(manifest.private, false, `${item.name}: package must be publishable`)
+    assert.equal(manifest.version, releaseVersion, `${item.name}: source version drift`)
     assert.equal(manifest.license, 'MIT', `${item.name}: license must be MIT`)
     assert.equal(manifest.homepage, item.homepage, `${item.name}: homepage drift`)
     assertSdkDocsHomepage(item.homepage, `${item.name}: release inventory`)
@@ -189,11 +202,6 @@ async function verifySourceManifests() {
     assert.equal(manifest.types, './dist/index.d.mts', `${item.name}: types must use dist`)
     assert.ok(manifest.files?.includes('dist'), `${item.name}: files must include dist`)
     assert.ok(manifest.files?.includes('README.md'), `${item.name}: files must include README.md`)
-    assert.equal(
-      manifest.publishConfig?.access,
-      'public',
-      `${item.name}: npm access must be public`,
-    )
     assert.match(
       manifest.scripts?.build ?? '',
       /^vp pack\b/,
@@ -265,7 +273,7 @@ async function verifySourceManifests() {
       )
     }
 
-    assertNoUnpublishableSpecs(manifest, item.name, false)
+    assertVendorableSpecs(manifest, item.name, false)
   }
 }
 
@@ -299,9 +307,9 @@ async function verifyPackedPackage(item, tarball, extractRoot) {
   run('tar', ['-xzf', tarball, '-C', destination])
   const packageRoot = join(destination, 'package')
   const manifest = await readJson(join(packageRoot, 'package.json'))
-  assert.equal(manifest.private, false, `${context}: private changed while packing`)
+  assert.equal(manifest.private, true, `${context}: private changed while packing`)
   assert.equal(manifest.version, releaseVersion, `${context}: version changed while packing`)
-  assertNoUnpublishableSpecs(manifest, context, true)
+  assertVendorableSpecs(manifest, context, true)
 
   for (const target of exportTargets(manifest.exports)) {
     const targetPath = join(packageRoot, target.replace(/^\.\//, ''))
@@ -542,7 +550,7 @@ void [tokenCache, nativeProvider, secureStore]
 await verifySourceManifests()
 if (manifestOnly) {
   process.stdout.write(
-    `PASS: ${publicPackages.length} SDK source manifests are distribution-safe\n`,
+    `PASS: every package is private and ${publicPackages.length} SDK source manifests are vendorable\n`,
   )
   process.exit(0)
 }
@@ -572,7 +580,7 @@ try {
   await verifyCloudflareTypesConsumer(tempRoot, tarballs)
   await verifyNativeReactConsumer(tempRoot, tarballs)
   process.stdout.write(
-    `PASS: ${publicPackages.length} SDK tarballs built, audited, installed with strict peer resolution, typechecked with skipLibCheck=false, and runtime-imported without publishing\n`,
+    `PASS: ${publicPackages.length} SDK tarballs built, audited, installed with strict peer resolution, typechecked with skipLibCheck=false, and runtime-imported from vendored tarballs without a package registry\n`,
   )
 } finally {
   const relativeTemp = relative(tmpdir(), tempRoot)

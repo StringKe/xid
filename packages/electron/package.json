@@ -1,7 +1,7 @@
 {
   "name": "@xid-kit/electron",
   "version": "0.1.0-alpha.0",
-  "private": false,
+  "private": true,
   "description": "Electron main, preload, and renderer SDK for the XID identity platform.",
   "keywords": [
     "authentication",
@@ -49,9 +49,6 @@
       "import": "./dist/preload/index.mjs",
       "default": "./dist/preload/index.mjs"
     }
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "scripts": {
     "build": "vp pack src/index.ts src/main/index.ts src/renderer/index.ts src/preload/index.ts --copy ../../LICENSE",
