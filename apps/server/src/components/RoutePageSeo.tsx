@@ -6,13 +6,13 @@ import { useLocale } from '../lib/locale-context'
 import { applyPageSeo, resolvePageSeo } from '../lib/page-seo'
 
 export function RoutePageSeo(): ReactNode {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const { locale } = useLocale()
   const { i18n } = useLingui()
 
   useEffect(() => {
-    applyPageSeo(resolvePageSeo(pathname), i18n, { pathname, locale })
-  }, [pathname, locale, i18n])
+    applyPageSeo(resolvePageSeo(pathname, search), i18n, { pathname, locale })
+  }, [pathname, search, locale, i18n])
 
   return null
 }

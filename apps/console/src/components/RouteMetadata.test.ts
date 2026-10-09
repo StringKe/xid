@@ -36,6 +36,18 @@ describe('Console route metadata', () => {
     expect(titleForPath('/console/unknown/').message).toBe('Page not found | XID')
   })
 
+  it('gives the organization Users list and record detail pages their list title', () => {
+    expect(titleForPath('/console/org/users').message).toBe('Users | Console | XID')
+    expect(titleForPath('/console/org/users/user_1').message).toBe('Users | Console | XID')
+    expect(titleForPath('/console/org/projects/project_1').message).toBe(
+      'Projects and access | Console | XID',
+    )
+    expect(titleForPath('/console/org/applications/app_1/').message).toBe(
+      'OAuth applications | Console | XID',
+    )
+    expect(titleForPath('/console/org/users/user_1/extra').message).toBe('Page not found | XID')
+  })
+
   it('defines metadata for both control-plane manager surfaces', () => {
     expect(titleForPath('/console/managed-projects').message).toBe(
       'Managed projects | Console | XID',

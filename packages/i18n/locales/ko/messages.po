@@ -3241,6 +3241,10 @@ msgstr "제품마다 프로젝트를 만든 다음 애플리케이션, 역할, �
 msgid "Create account"
 msgstr "계정 만들기"
 
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Create account | XID"
+msgstr "계정 만들기 | XID"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Create an active project on the Projects page first."
 msgstr "먼저 프로젝트 페이지에서 활성 프로젝트를 만듭니다."
@@ -11803,10 +11807,6 @@ msgstr "로그아웃한 뒤 다른 방법으로 로그인하거나 관리자에�
 msgid "sdk.signUp"
 msgstr "가입"
 
-#: apps/server/src/lib/page-seo-messages.ts
-msgid "Sign up | XID"
-msgstr "가입 | XID"
-
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signUpForm"
@@ -13706,15 +13706,15 @@ msgstr "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN"
 msgid "Two directions"
 msgstr "두 방향"
 
-#: apps/server/src/lib/page-seo-messages.ts
-msgid "Two-factor authentication | XID"
-msgstr "이중 인증 | XID"
-
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Two-step verification"
 msgstr "2단계 인증"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Two-step verification | XID"
+msgstr "2단계 인증 | XID"
 
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Two-step verification is on"

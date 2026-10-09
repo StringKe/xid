@@ -9,9 +9,9 @@ function seoDescriptor(id: string, message: string): MessageDescriptor {
 
 export const seoNotFoundTitle = seoDescriptor('iUkekb', `Page not found | XID`)
 export const seoSignInTitle = seoDescriptor('bip6wX', `Sign in | XID`)
-export const seoSignUpTitle = seoDescriptor('tq4FUn', `Sign up | XID`)
+export const seoSignUpTitle = seoDescriptor('3C_5on', `Create account | XID`)
 export const seoForgotPasswordTitle = seoDescriptor('gDD4V6', `Reset password | XID`)
-export const seoMfaTitle = seoDescriptor('IATXQ-', `Two-factor authentication | XID`)
+export const seoMfaTitle = seoDescriptor('xrddao', `Two-step verification | XID`)
 export const seoMfaSetupTitle = seoDescriptor('x-NGL0', `Set up two-step verification | XID`)
 export const seoCreatePasskeyTitle = seoDescriptor('gbItgf', `Create a passkey | XID`)
 export const seoVerifyEmailTitle = seoDescriptor('Hpiwvx', `Verify email | XID`)

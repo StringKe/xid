@@ -99,6 +99,18 @@ describe('resolvePageSeo', () => {
     expect(resolvePageSeo('/account/security').indexable).toBe(false)
   })
 
+  it('uses the create-account title when /sign-in carries a sign-up intent', () => {
+    expect(resolvePageSeo('/sign-in', '?intent=sign-up').title).toBe(
+      resolvePageSeo('/sign-up').title,
+    )
+    expect(resolvePageSeo('/sign-in', '?client_id=app&intent=application-sign-up').title).toBe(
+      resolvePageSeo('/sign-up').title,
+    )
+    expect(resolvePageSeo('/sign-in', '?intent=sign-in').title).toBe(
+      resolvePageSeo('/sign-in').title,
+    )
+  })
+
   it('does not resolve metadata for Site or Console routes', () => {
     const notFoundTitle = resolvePageSeo('/unknown').title
     expect(resolvePageSeo('/').title).toBe(notFoundTitle)
@@ -131,5 +143,11 @@ describe('page seo i18n titles', () => {
 
     applyPageSeo(resolvePageSeo('/sign-in'), i18n, { pathname: '/sign-in', locale: 'zh-Hans' })
     expect(document.title).toBe('登录 | XID')
+
+    applyPageSeo(resolvePageSeo('/sign-in', '?intent=sign-up'), i18n, {
+      pathname: '/sign-in',
+      locale: 'zh-Hans',
+    })
+    expect(document.title).toBe('创建账户 | XID')
   })
 })

@@ -1,5 +1,6 @@
 import type { I18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
+import { isSignUpIntent } from '../../shared/hosted-auth-intent'
 import { buildPublicCanonicalUrl } from './google-analytics'
 import {
   seoAcceptInvitationTitle,
@@ -43,7 +44,11 @@ function prefixRoute(
   return pathname === prefix || pathname.startsWith(`${prefix}/`) ? config : null
 }
 
-export function resolvePageSeo(pathname: string): PageSeoConfig {
+// /sign-in 同时承载登录与注册,标签页标题跟随 intent。
+export function resolvePageSeo(pathname: string, search = ''): PageSeoConfig {
+  if (pathname === '/sign-in' && isSignUpIntent(new URLSearchParams(search).get('intent'))) {
+    return { title: seoSignUpTitle, indexable: false }
+  }
   const privateRoutes: Array<[string, PageSeoConfig]> = [
     ['/sign-in', { title: seoSignInTitle, indexable: false }],
     ['/sign-up', { title: seoSignUpTitle, indexable: false }],

@@ -3,9 +3,9 @@ import { msg } from '@lingui/core/macro'
 export const seoNotFoundTitle = msg`Page not found | XID`
 
 export const seoSignInTitle = msg`Sign in | XID`
-export const seoSignUpTitle = msg`Sign up | XID`
+export const seoSignUpTitle = msg`Create account | XID`
 export const seoForgotPasswordTitle = msg`Reset password | XID`
-export const seoMfaTitle = msg`Two-factor authentication | XID`
+export const seoMfaTitle = msg`Two-step verification | XID`
 export const seoMfaSetupTitle = msg`Set up two-step verification | XID`
 export const seoCreatePasskeyTitle = msg`Create a passkey | XID`
 export const seoVerifyEmailTitle = msg`Verify email | XID`

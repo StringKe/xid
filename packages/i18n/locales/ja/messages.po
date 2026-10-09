@@ -3241,6 +3241,10 @@ msgstr "製品ごとにプロジェクトを作成し、そのアプリケーシ
 msgid "Create account"
 msgstr "アカウントを作成"
 
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Create account | XID"
+msgstr "アカウントを作成 | XID"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Create an active project on the Projects page first."
 msgstr "まず、「プロジェクト」ページでアクティブなプロジェクトを作成します。"
@@ -11803,10 +11807,6 @@ msgstr "サインアウトしてから別の方法でサインインするか、
 msgid "sdk.signUp"
 msgstr "登録"
 
-#: apps/server/src/lib/page-seo-messages.ts
-msgid "Sign up | XID"
-msgstr "サインアップ | XID"
-
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signUpForm"
@@ -13706,15 +13706,15 @@ msgstr "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN"
 msgid "Two directions"
 msgstr "2 つの方向"
 
-#: apps/server/src/lib/page-seo-messages.ts
-msgid "Two-factor authentication | XID"
-msgstr "二要素認証 | XID"
-
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Two-step verification"
 msgstr "2 段階認証"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Two-step verification | XID"
+msgstr "2 段階認証 | XID"
 
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Two-step verification is on"

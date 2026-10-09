@@ -7,10 +7,18 @@ import { useLocale } from '@xid-kit/web-ui/locale-context'
 import { useLocation } from '@xid-kit/web-ui/tanstack-router'
 import { trackPageView } from '../lib/google-analytics'
 
+const USERS_TITLE: MessageDescriptor = /*i18n*/ { id: 'q4CxF4', message: 'Users | Console | XID' }
+const PROJECTS_TITLE = msg`Projects and access | Console | XID`
+const APPLICATIONS_TITLE: MessageDescriptor = /*i18n*/ {
+  id: 'zE6GZ8',
+  message: 'OAuth applications | Console | XID',
+}
+
 const TITLES: Readonly<Record<string, MessageDescriptor>> = {
   '/console': /*i18n*/ { id: 'kjo2do', message: 'Console overview | XID' },
   '/console/managed-projects': msg`Managed projects | Console | XID`,
-  '/console/users': /*i18n*/ { id: 'q4CxF4', message: 'Users | Console | XID' },
+  '/console/users': USERS_TITLE,
+  '/console/org/users': USERS_TITLE,
   '/console/organizations': /*i18n*/ {
     id: 'ZlJXTl',
     message: 'Organizations | Console | XID',
@@ -18,7 +26,7 @@ const TITLES: Readonly<Record<string, MessageDescriptor>> = {
   '/console/settings': /*i18n*/ { id: '0QsJ5l', message: 'Settings | Console | XID' },
   '/console/org': /*i18n*/ { id: 'y-pBk0', message: 'Organization overview | Console | XID' },
   '/console/org/members': /*i18n*/ { id: 'lUBUZG', message: 'Members | Console | XID' },
-  '/console/org/projects': msg`Projects and access | Console | XID`,
+  '/console/org/projects': PROJECTS_TITLE,
   '/console/org/roles': /*i18n*/ { id: '3CjwFT', message: 'Roles | Console | XID' },
   '/console/org/auth-policy': /*i18n*/ {
     id: '6Fss-s',
@@ -47,10 +55,7 @@ const TITLES: Readonly<Record<string, MessageDescriptor>> = {
   },
   '/console/org/domains': /*i18n*/ { id: '8F9YFg', message: 'Domains | Console | XID' },
   '/console/org/branding': /*i18n*/ { id: 'kFEuyM', message: 'Branding | Console | XID' },
-  '/console/org/applications': /*i18n*/ {
-    id: 'zE6GZ8',
-    message: 'OAuth applications | Console | XID',
-  },
+  '/console/org/applications': APPLICATIONS_TITLE,
   '/console/org/webhooks': /*i18n*/ { id: '0-WDPk', message: 'Webhooks | Console | XID' },
   '/console/org/api-keys': /*i18n*/ { id: '6mxmcc', message: 'API keys | Console | XID' },
   '/console/org/audit-events': /*i18n*/ {
@@ -106,8 +111,21 @@ export function normalizeConsoleMetadataPath(pathname: string): string {
   return pathname.replace(/\/+$/, '')
 }
 
+// 详情页沿用所属列表的标题;只匹配一段 id,更深的未知路径仍是 not found。
+const DETAIL_TITLES: ReadonlyArray<readonly [string, MessageDescriptor]> = [
+  ['/console/org/users/', USERS_TITLE],
+  ['/console/org/projects/', PROJECTS_TITLE],
+  ['/console/org/applications/', APPLICATIONS_TITLE],
+]
+
 export function titleForPath(pathname: string): MessageDescriptor {
-  return TITLES[normalizeConsoleMetadataPath(pathname)] ?? NOT_FOUND_TITLE
+  const path = normalizeConsoleMetadataPath(pathname)
+  const exact = TITLES[path]
+  if (exact) return exact
+  const detail = DETAIL_TITLES.find(
+    ([prefix]) => path.startsWith(prefix) && !path.slice(prefix.length).includes('/'),
+  )
+  return detail?.[1] ?? NOT_FOUND_TITLE
 }
 
 export function RouteMetadata(): ReactNode {

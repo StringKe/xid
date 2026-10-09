@@ -856,7 +856,7 @@ msgstr "Aceitar DPA"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Accept invitation | XID"
-msgstr "Aceitar convite | | XID"
+msgstr "Aceitar convite | XID"
 
 #: apps/server/src/routes/accept-invitation/InvitationPreviewView.tsx
 msgid "Accept with this account"
@@ -1000,7 +1000,7 @@ msgstr "Ações para {name}"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Activate device | XID"
-msgstr "Ativar dispositivo | | XID"
+msgstr "Ativar dispositivo | XID"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
@@ -1720,7 +1720,7 @@ msgstr "Aprovar o login de {app}?"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Approve sign-in request | XID"
-msgstr "Aprovar solicitação de login | | XID"
+msgstr "Aprovar solicitação de login | XID"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
@@ -2015,7 +2015,7 @@ msgstr "Solicitação de autorização"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Authorize application | XID"
-msgstr "Autorizar aplicativo | | XID"
+msgstr "Autorizar aplicativo | XID"
 
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Authorized apps"
@@ -2974,7 +2974,7 @@ msgstr "Console em modo somente leitura"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Console overview | XID"
-msgstr "Visão geral do console | | XID"
+msgstr "Visão geral do console | XID"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Construct a structured XidError for local validation failures without a network round-trip"
@@ -3241,6 +3241,10 @@ msgstr "Crie um projeto para cada produto e depois adicione seus aplicativos, pa
 msgid "Create account"
 msgstr "Criar conta"
 
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Create account | XID"
+msgstr "Criar conta | XID"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Create an active project on the Projects page first."
 msgstr "Crie primeiro um projeto ativo na página Projetos."
@@ -3341,7 +3345,7 @@ msgstr "Criar organização"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Create organization | XID"
-msgstr "Criar organização | | XID"
+msgstr "Criar organização | XID"
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
@@ -8796,7 +8800,7 @@ msgstr "Página não encontrada"
 #: apps/console/src/components/RouteMetadata.tsx
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Page not found | XID"
-msgstr "Página não encontrada | | XID"
+msgstr "Página não encontrada | XID"
 
 #: apps/console/src/components/layout/ConsoleCommandMenu.tsx
 msgid "Pages"
@@ -10395,7 +10399,7 @@ msgstr "Redefinir MFA…"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Reset password | XID"
-msgstr "Redefinir senha | | XID"
+msgstr "Redefinir senha | XID"
 
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/UserActions.tsx
@@ -11251,7 +11255,7 @@ msgstr "Selecionar organização"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Select organization | XID"
-msgstr "Selecionar organização | | XID"
+msgstr "Selecionar organização | XID"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select permission"
@@ -11689,7 +11693,7 @@ msgstr "Entrar"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Sign in | XID"
-msgstr "Entrar | | XID"
+msgstr "Entrar | XID"
 
 #: packages/i18n/src/messages.ts
 msgid "Sign in again"
@@ -11802,10 +11806,6 @@ msgstr "Saia e depois entre de outra forma ou peça ao seu administrador para re
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signUp"
 msgstr "Criar conta"
-
-#: apps/server/src/lib/page-seo-messages.ts
-msgid "Sign up | XID"
-msgstr "Cadastrar-se | | XID"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -13706,15 +13706,15 @@ msgstr "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN"
 msgid "Two directions"
 msgstr "Duas direções"
 
-#: apps/server/src/lib/page-seo-messages.ts
-msgid "Two-factor authentication | XID"
-msgstr "Autenticação de dois fatores | | XID"
-
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Two-step verification"
 msgstr "Verificação em duas etapas"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Two-step verification | XID"
+msgstr "Verificação em duas etapas | XID"
 
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Two-step verification is on"
@@ -14448,7 +14448,7 @@ msgstr "Verificar e-mail"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Verify email | XID"
-msgstr "Verificar e-mail | | XID"
+msgstr "Verificar e-mail | XID"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Verify email domains for enrollment and routing. Domain removal is managed through the Management API."
