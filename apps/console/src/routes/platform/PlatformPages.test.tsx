@@ -1,24 +1,29 @@
 // @vitest-environment jsdom
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
+import type { PlatformAnnouncement, UsageOverview } from '@xid-kit/types'
+import { ToastProvider } from '@xid-kit/web-ui/ui'
 import type {
-  AuditChainVerification,
-  ComplianceDocument,
-  GlobalUser,
-  InstanceManagerAssignment,
-  PlatformAnnouncement,
-  PlatformAuditEvent,
-  PlatformOrganization,
-  PlatformSettings,
-  PlatformStats,
-  QueueDeadLetter,
-  StatusIncident,
-  UsageOverview,
-} from '@xid-kit/types'
+  AuditChainVerificationReport,
+  PlatformAuditEventDetail,
+  PlatformComplianceDocument,
+  PlatformDeadLetter,
+  PlatformDeadLetterPage,
+  PlatformOverviewStats,
+  PlatformStatusIncident,
+} from './ops-queries'
+import type {
+  PlatformManagerAssignment,
+  PlatformOrganizationListItem,
+  PlatformOrganizationsPage,
+  PlatformUserListItem,
+} from './orgs-users-queries'
+import type { InstanceSettings, PlatformSigningKey } from './settings-queries'
 
 type QueryState = {
   data: unknown
@@ -26,6 +31,7 @@ type QueryState = {
   isError: boolean
   isLoading: boolean
   isFetching?: boolean
+  isPlaceholderData?: boolean
   refetch?: () => void
 }
 
@@ -50,16 +56,26 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Plural: ({ value, other }: { value: number; other: ReactNode }) => (
+    <>{typeof other === 'string' ? other.replace('#', String(value)) : other}</>
+  ),
   useLingui: () => ({
     t: (strings: TemplateStringsArray, ...values: unknown[]) =>
       strings.reduce(
         (message, part, index) => `${message}${String(values[index - 1] ?? '')}${part}`,
       ),
     i18n: {
+      _: (descriptor: { message?: string }) => descriptor.message ?? '',
       date: (value: Date, options: Intl.DateTimeFormatOptions) =>
         new Intl.DateTimeFormat('en', options).format(value),
+      number: (value: number, options?: Intl.NumberFormatOptions) =>
+        new Intl.NumberFormat('en', options).format(value),
     },
   }),
+}))
+
+vi.mock('@lingui/core/macro', () => ({
+  msg: (strings: TemplateStringsArray) => ({ message: strings[0] }),
 }))
 
 vi.mock('@xid-kit/web-ui/queries', async (importOriginal) => {
@@ -74,29 +90,20 @@ vi.mock('@xid-kit/web-ui/queries', async (importOriginal) => {
 
 vi.mock('@xid-kit/web-ui/api-error-message', () => ({
   useApiErrorMessage: () => (error: { code: string }) => `error:${error.code}`,
-}))
-
-vi.mock('@xid-kit/web-ui/enum-labels', () => ({
-  statusToneFor: () => 'neutral',
-  useBillingStatusLabel: () => (status: string) => status,
-  useGlobalUserStatusLabel: () => (status: string) => status,
-  useOrganizationStatusLabel: () => (status: string) => status,
+  useManagementErrorMessage: () => (error: { code: string } | null) => `error:${error?.code}`,
 }))
 
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
-  useSearchParams: () => [new URLSearchParams('')],
+  useSearchParams: () => [new URLSearchParams(''), () => undefined],
+  useLocation: () => ({ pathname: '/console/platform', search: '', hash: '' }),
+  useNavigate: () => () => undefined,
 }))
 
 vi.mock('@xid-kit/web-ui/session', () => ({
   useAuth: () => ({
-    user: {
-      id: 'user_1',
-      email: 'admin@example.com',
-    },
-    api: {
-      post: vi.fn(),
-    },
+    user: { id: 'user_1', email: 'admin@example.com', instanceManager: true },
+    api: { post: vi.fn(), get: vi.fn() },
   }),
 }))
 
@@ -112,44 +119,86 @@ import PlatformStatusIncidents from './PlatformStatusIncidents'
 import PlatformUsage from './PlatformUsage'
 import PlatformUsers from './PlatformUsers'
 
-const stats: PlatformStats = {
+const NOW = '2026-07-27T00:00:00.000Z'
+
+const stats: PlatformOverviewStats = {
   organizationCount: 12,
   totalUsers: 1234,
   dau: 120,
   mau: 600,
   loginSuccessRate: 0.975,
   activeOrgCount: 10,
+  attention: [
+    {
+      kind: 'dead_letters',
+      facts: { count: 3, byQueue: [{ queue: 'xid-webhook', count: 3 }], oldestFailedAt: NOW },
+    },
+  ],
+  activity: [
+    { key: 'dau', now: 120, previous: 100 },
+    { key: 'mau', now: 600, previous: 550 },
+    { key: 'login_success_rate', now: 0.975, previous: 0.96 },
+    { key: 'organizations', now: 12, previous: 11 },
+    { key: 'users', now: 1234, previous: 1200 },
+  ],
+  recentPlatformActivity: [
+    {
+      id: 'audit_platform_1',
+      eventType: 'platform.organization.created',
+      actorId: 'user_1',
+      actorName: 'Platform Admin',
+      targetType: 'organization',
+      targetId: 'org_1',
+      occurredAt: NOW,
+    },
+  ],
 }
 
-const organization: PlatformOrganization = {
+const organization: PlatformOrganizationListItem = {
   id: 'org_1',
   slug: 'acme',
   name: 'Acme Platform',
   status: 'active',
   userCount: 25,
   orgCount: 3,
-  createdAt: '2026-07-27T00:00:00.000Z',
+  createdAt: NOW,
   canChangeStatus: true,
+  primaryHost: 'acme.xid.example',
+  mauThisMonth: 90,
+  mauQuota: 100,
+  statusChangedAt: null,
 }
 
-const defaultOrganization: PlatformOrganization = {
+const defaultOrganization: PlatformOrganizationListItem = {
   ...organization,
   id: 'org_default',
   slug: 'default',
   name: 'Default Organization',
   canChangeStatus: false,
+  mauQuota: null,
 }
 
-const globalUser: GlobalUser = {
+const organizationsPage: PlatformOrganizationsPage = {
+  data: [organization, defaultOrganization],
+  nextCursor: null,
+  total: 2,
+  counts: { total: 2, suspended: 0, deleted: 0 },
+}
+
+const globalUser: PlatformUserListItem = {
   id: 'user_1',
   email: 'admin@example.com',
   name: 'Platform Admin',
   organizations: [{ id: organization.id, slug: organization.slug, name: organization.name }],
   status: 'active',
-  createdAt: '2026-07-27T00:00:00.000Z',
+  createdAt: NOW,
+  lastSignInAt: NOW,
+  tenantId: organization.id,
+  organizationName: organization.name,
+  organizationStatus: 'active',
 }
 
-const instanceManager: InstanceManagerAssignment = {
+const instanceManager: PlatformManagerAssignment = {
   id: 'manager_assignment_1',
   tenantId: organization.id,
   userId: globalUser.id,
@@ -160,11 +209,13 @@ const instanceManager: InstanceManagerAssignment = {
   managerRole: 'instance_manager',
   scopeType: 'instance',
   scopeId: null,
-  createdAt: '2026-07-27T00:00:00.000Z',
-  updatedAt: '2026-07-27T00:00:00.000Z',
+  createdAt: NOW,
+  updatedAt: NOW,
+  grantedBy: null,
+  lastActiveAt: NOW,
 }
 
-const auditEvent: PlatformAuditEvent = {
+const auditEvent: PlatformAuditEventDetail = {
   id: 'audit_1',
   seq: 42,
   organizationId: organization.id,
@@ -176,10 +227,12 @@ const auditEvent: PlatformAuditEvent = {
   actorIp: '192.0.2.1',
   targetType: 'session',
   targetId: 'session_1',
-  occurredAt: '2026-07-27T00:00:00.000Z',
+  occurredAt: NOW,
+  actorName: globalUser.name,
+  details: {},
 }
 
-const auditVerification: AuditChainVerification = {
+const auditVerification: AuditChainVerificationReport = {
   tenant_id: organization.id,
   verified_range: { from: 1, to: 42 },
   truncated: false,
@@ -188,10 +241,13 @@ const auditVerification: AuditChainVerification = {
   broken_at_seq: null,
   failure_reason: null,
   record_count: 42,
-  computed_at: '2026-07-27T00:00:00.000Z',
+  computed_at: NOW,
+  mismatch: null,
+  batch_count: 1,
+  duration_ms: 12,
 }
 
-const deadLetter: QueueDeadLetter = {
+const deadLetter: PlatformDeadLetter = {
   id: 'dlq_1',
   sourceQueue: 'xid-webhook',
   deadLetterQueue: 'xid-webhook-dlq',
@@ -200,16 +256,24 @@ const deadLetter: QueueDeadLetter = {
   orgId: organization.id,
   eventType: 'user.updated',
   errorCode: 'consumer_retries_exhausted',
-  status: 'replaying',
+  status: 'pending',
   replayable: true,
   attempts: 5,
-  sourceEnqueuedAt: '2026-07-27T00:00:00.000Z',
-  failedAt: '2026-07-27T00:01:00.000Z',
-  replayRequestedAt: '2026-07-27T00:02:00.000Z',
+  sourceEnqueuedAt: NOW,
+  failedAt: NOW,
+  replayRequestedAt: null,
   replayedAt: null,
   replayedBy: null,
-  replayCount: 1,
-  lastReplayErrorCode: 'queue_send_failed',
+  replayCount: 0,
+  lastReplayErrorCode: null,
+  organizationName: organization.name,
+}
+
+const deadLetterPage: PlatformDeadLetterPage = {
+  data: [deadLetter],
+  nextCursor: null,
+  total: 1,
+  countsByQueue: [{ queue: 'xid-webhook', count: 1 }],
 }
 
 const announcement: PlatformAnnouncement = {
@@ -220,30 +284,32 @@ const announcement: PlatformAnnouncement = {
   body: 'The control plane will remain available.',
   severity: 'info',
   status: 'published',
-  startsAt: '2026-07-27T00:00:00.000Z',
+  startsAt: NOW,
   endsAt: null,
   createdBy: globalUser.id,
   updatedBy: globalUser.id,
-  createdAt: '2026-07-27T00:00:00.000Z',
-  updatedAt: '2026-07-27T00:00:00.000Z',
+  createdAt: NOW,
+  updatedAt: NOW,
 }
 
-const statusIncident: StatusIncident = {
+const statusIncident: PlatformStatusIncident = {
   id: 'incident_1',
   title: 'Delayed webhooks',
   status: 'monitoring',
   impact: 'minor',
   summary: 'Webhook latency is returning to normal.',
-  startedAt: '2026-07-27T00:00:00.000Z',
+  startedAt: NOW,
   resolvedAt: null,
   createdBy: globalUser.id,
   updatedBy: globalUser.id,
-  createdAt: '2026-07-27T00:00:00.000Z',
-  updatedAt: '2026-07-27T00:00:00.000Z',
+  createdAt: NOW,
+  updatedAt: NOW,
   updates: [],
+  components: ['webhooks'],
+  lastUpdateAt: null,
 }
 
-const complianceDocument: ComplianceDocument = {
+const complianceDocument: PlatformComplianceDocument = {
   id: 'compliance_1',
   tenantId: organization.id,
   organizationName: organization.name,
@@ -256,9 +322,13 @@ const complianceDocument: ComplianceDocument = {
   acceptedBy: null,
   acceptedAt: null,
   generatedBy: globalUser.id,
-  createdAt: '2026-07-27T00:00:00.000Z',
-  updatedAt: '2026-07-27T00:00:00.000Z',
+  createdAt: NOW,
+  updatedAt: NOW,
   artifactUrl: '/v1/platform/compliance-documents/compliance_1/artifact',
+  sizeBytes: 2048,
+  lastCheckedAt: null,
+  lastCheckResult: null,
+  registeredBy: globalUser.name,
 }
 
 const usageOverview: UsageOverview = {
@@ -269,7 +339,7 @@ const usageOverview: UsageOverview = {
   seatUsed: 25,
 }
 
-const settings: PlatformSettings = {
+const settings: InstanceSettings = {
   id: 'instance_1',
   name: 'XID',
   primaryDomain: 'xid.example',
@@ -286,6 +356,40 @@ const settings: PlatformSettings = {
     refreshAbsoluteTimeoutDays: 7,
   },
   status: 'active',
+  turnstile: { status: 'misconfigured', siteKey: '0x4AAA' },
+  emailSending: {
+    provider: 'cloudflare_email_service',
+    fromAddress: 'no-reply@xid.example',
+    fromName: 'XID',
+  },
+  customDomains: { status: 'not_configured', cnameTarget: null },
+  billingAdapter: { kind: 'off', status: 'not_configured' },
+  orgsFollowingDefaults: { following: 2, total: 3 },
+}
+
+const nextKeyReadyAt = Date.parse(NOW) + 3_600_000
+
+const signingKeys: { data: PlatformSigningKey[] } = {
+  data: [
+    {
+      kid: 'kid_active',
+      alg: 'ES256',
+      status: 'active',
+      createdAt: Date.parse(NOW) - 86_400_000,
+      activatedAt: Date.parse(NOW) - 86_400_000,
+      retireAfter: null,
+      activatableAt: null,
+    },
+    {
+      kid: 'kid_next',
+      alg: 'ES256',
+      status: 'next',
+      createdAt: Date.parse(NOW),
+      activatedAt: null,
+      retireAfter: null,
+      activatableAt: nextKeyReadyAt,
+    },
+  ],
 }
 
 function queryState(data: unknown): QueryState {
@@ -295,6 +399,7 @@ function queryState(data: unknown): QueryState {
     isError: false,
     isLoading: false,
     isFetching: false,
+    isPlaceholderData: false,
     refetch: vi.fn(),
   }
 }
@@ -311,6 +416,36 @@ function listState(rows: unknown[], hasNextPage = false): ListState {
   }
 }
 
+function withProviders(page: ReactElement): ReactElement {
+  return (
+    <QueryClientProvider client={new QueryClient()}>
+      <ToastProvider>{page}</ToastProvider>
+    </QueryClientProvider>
+  )
+}
+
+function render(page: ReactElement): string {
+  return renderToStaticMarkup(withProviders(page))
+}
+
+async function mount(
+  page: ReactElement,
+): Promise<{ container: HTMLElement; unmount: () => Promise<void> }> {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  await act(async () => {
+    root.render(withProviders(page))
+  })
+  return {
+    container,
+    unmount: () =>
+      act(async () => {
+        root.unmount()
+      }),
+  }
+}
+
 describe('platform pages', () => {
   beforeEach(() => {
     apiMocks.fetchNextPage.mockReset()
@@ -322,17 +457,33 @@ describe('platform pages', () => {
     apiMocks.queries.set('/v1/platform/stats', queryState(stats))
     apiMocks.queries.set('/v1/platform/audit/verify', queryState(auditVerification))
     apiMocks.queries.set('/v1/platform/settings', queryState(settings))
+    apiMocks.queries.set('/v1/platform/signing-keys', queryState(signingKeys))
+    apiMocks.queries.set('/v1/platform/organizations', queryState(organizationsPage))
+    apiMocks.queries.set(
+      '/v1/platform/users',
+      queryState({ data: [globalUser], nextCursor: null, total: 1 }),
+    )
+    apiMocks.queries.set(
+      '/v1/platform/manager-assignments',
+      queryState({ data: [instanceManager], nextCursor: null, total: 1 }),
+    )
+    apiMocks.queries.set('/v1/platform/dead-letters', queryState(deadLetterPage))
     apiMocks.lists.set('/v1/platform/organizations', listState([organization, defaultOrganization]))
-    apiMocks.lists.set('/v1/platform/users', listState([globalUser]))
     apiMocks.lists.set('/v1/platform/manager-assignments', listState([instanceManager]))
     apiMocks.lists.set('/v1/platform/audit-events', listState([auditEvent]))
-    apiMocks.lists.set('/v1/platform/dead-letters', listState([deadLetter]))
     apiMocks.lists.set('/v1/platform/announcements', listState([announcement], true))
     apiMocks.lists.set('/v1/platform/status-incidents', listState([statusIncident], true))
     apiMocks.lists.set('/v1/platform/compliance-documents', listState([complianceDocument], true))
     apiMocks.lists.set('/v1/platform/usage', listState([usageOverview]))
-    apiMocks.useApiQuery.mockImplementation((_queryKey: readonly unknown[], path: string) =>
-      apiMocks.queries.get(path),
+    apiMocks.useApiQuery.mockImplementation(
+      (_queryKey: readonly unknown[], path: string) =>
+        apiMocks.queries.get(path) ?? {
+          data: undefined,
+          error: null,
+          isError: false,
+          isLoading: true,
+          refetch: vi.fn(),
+        },
     )
     apiMocks.useApiInfiniteQuery.mockImplementation((_queryKey: readonly unknown[], path: string) =>
       apiMocks.lists.get(path),
@@ -343,145 +494,98 @@ describe('platform pages', () => {
       isPending: false,
       isSuccess: false,
       mutate: vi.fn(),
+      mutateAsync: vi.fn(() => Promise.resolve()),
       reset: vi.fn(),
       variables: undefined,
     })
   })
 
-  it('requests and renders the platform overview stats', () => {
-    const html = renderToStaticMarkup(<PlatformAdminOverview />)
+  it('leads the platform overview with what needs an instance manager', async () => {
+    const { container, unmount } = await mount(<PlatformAdminOverview />)
 
     expect(apiMocks.useApiQuery).toHaveBeenCalledWith(['platform', 'stats'], '/v1/platform/stats')
-    expect(html).toContain('Platform overview')
-    expect(html).toContain('Global metrics')
-    expect(html).toContain('1,234')
-    expect(html).toContain('97.5%')
+    expect(container.textContent).toContain('3 messages are waiting in dead letter queues.')
+    expect(container.querySelector('a[href^="/console/platform/dead-letters"]')).not.toBeNull()
+    expect(container.textContent).toContain('1,234')
+    expect(container.textContent).toContain('97.5%')
+    await unmount()
   })
 
-  it('shows no data instead of a perfect login success rate when there are no login events', () => {
-    apiMocks.queries.set('/v1/platform/stats', queryState({ ...stats, loginSuccessRate: null }))
+  it('lists organizations by MAU against their observe-only quota', () => {
+    const html = render(<PlatformOrganizations />)
 
-    const html = renderToStaticMarkup(<PlatformAdminOverview />)
-
-    expect(html.match(/No data/g)).toHaveLength(2)
-    expect(html).not.toContain('97.5%')
-  })
-
-  it('renders organizations with visible ids and hides suspend for the default organization', () => {
-    const html = renderToStaticMarkup(<PlatformOrganizations />)
-
-    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      '/v1/platform/organizations',
-      { query: { limit: 20, q: undefined } },
-    )
-    expect(html).toContain('Acme Platform')
-    expect(html).toContain(organization.id)
-    expect(html).toContain('Suspend Acme Platform')
-    expect(html).not.toContain('Suspend Default Organization')
-    expect(html).toContain('href="/console/platform/quotas?tenantId=org_1"')
-    expect(html).not.toMatch(/plan/i)
-    expect(html).not.toContain('href="/console/org/auth-policy')
-  })
-
-  it('keeps the global user query disabled until a search is submitted', () => {
-    const html = renderToStaticMarkup(<PlatformUsers />)
-
-    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      '/v1/platform/users',
-      { enabled: false, query: { limit: 20, q: '' } },
-    )
-    expect(html).toContain('Global user search')
-    expect(html).toContain('Enter a search query to find users.')
-    expect(html).not.toContain(globalUser.email)
-  })
-
-  it('renders instance managers by email and prevents self-revocation', () => {
-    const html = renderToStaticMarkup(<PlatformInstanceManagers />)
-
-    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      '/v1/platform/manager-assignments',
-      { query: { limit: 50 } },
-    )
-    expect(html).toContain('Instance managers')
-    expect(html).toContain(globalUser.email)
-    expect(html).toContain(globalUser.id)
-    expect(html).toContain(organization.name)
-    expect(html).toContain('Current user')
-    expect(html).toContain('aria-disabled="true"')
-  })
-
-  it('renders the global audit event stream with an organization picker for verification', () => {
-    const html = renderToStaticMarkup(<PlatformAuditEvents />)
-
-    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      '/v1/platform/audit-events',
-      { query: { limit: 30 } },
-    )
     expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
       expect.anything(),
-      '/v1/platform/audit/verify',
-      expect.objectContaining({ enabled: false, staleTime: 0 }),
+      '/v1/platform/organizations',
+      expect.objectContaining({ query: expect.objectContaining({ sort: 'mau_desc' }) }),
     )
-    expect(html).toContain(auditEvent.eventType)
-    expect(html).toContain(auditEvent.targetId ?? '')
-    expect(html).toContain('Platform (instance-level events)')
+    expect(html).toContain('Acme Platform')
+    expect(html).toContain('90% of 100')
+    expect(html).toContain('Quotas never block sign-in.')
+    expect(html).not.toMatch(/\bplan\b/i)
+  })
+
+  it('browses every user without requiring a search', () => {
+    const html = render(<PlatformUsers />)
+
+    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      '/v1/platform/users',
+      expect.objectContaining({ query: expect.objectContaining({ q: undefined }) }),
+    )
+    expect(html).toContain(globalUser.email)
+    expect(html).toContain('Impersonation is read-only and lasts 15 minutes')
+  })
+
+  it('grants instance managers by organization and exact email', () => {
+    const html = render(<PlatformInstanceManagers />)
+
+    expect(html).toContain(globalUser.email)
     expect(html).toContain('Acme Platform (acme)')
-    expect(html).not.toContain('Tenant ID')
+    expect(html).toContain('Default organization (default)')
+    expect(html).not.toContain('[object Object]')
+    expect(html).toContain('It must match exactly')
   })
 
-  it('reports a broken chain when the range predecessor is missing and no row was read', () => {
+  it('reports an intact audit chain with the verified range', () => {
+    const html = render(<PlatformAuditEvents />)
+
+    expect(html).toContain('Intact')
+    expect(html).toContain('Seq 1 to 42 verified.')
+    expect(html).toContain(auditEvent.eventType)
+  })
+
+  it('reports a hash break with the expected and stored hashes', () => {
     apiMocks.queries.set(
       '/v1/platform/audit/verify',
       queryState({
         ...auditVerification,
-        verified_range: { from: 10, to: 42 },
         chain_valid: false,
-        broken_at_seq: 10,
-        failure_reason: 'audit_seq_gap',
-        record_count: 0,
+        broken_at_seq: 17,
+        failure_reason: 'audit_chain_broken',
+        mismatch: { field: 'prev_hash', expected: 'expected_hash', stored: 'stored_hash' },
       }),
     )
 
-    const html = renderToStaticMarkup(<PlatformAuditEvents />)
+    const html = render(<PlatformAuditEvents />)
 
-    expect(html).toContain('Chain broken')
-    expect(html).toContain('A sequence number is missing from the chain.')
-    expect(html).not.toContain('This tenant has no audit records yet')
+    expect(html).toContain('Hash break')
+    expect(html).toContain('expected_hash')
+    expect(html).toContain('stored_hash')
+    expect(html).not.toContain('Intact')
   })
 
-  it('shows a neutral notice instead of a valid chain for a tenant without audit records', () => {
-    apiMocks.queries.set(
-      '/v1/platform/audit/verify',
-      queryState({
-        ...auditVerification,
-        verified_range: { from: 1, to: 0 },
-        latest_seq: 0,
-        record_count: 0,
-      }),
-    )
+  it('groups dead letters by source queue', () => {
+    const html = render(<PlatformDeadLetters />)
 
-    const html = renderToStaticMarkup(<PlatformAuditEvents />)
-
-    expect(html).toContain('This tenant has no audit records yet')
-    expect(html).not.toContain('Chain valid')
-  })
-
-  it('offers replay for an expired replaying lease and shows failure details', () => {
-    const html = renderToStaticMarkup(<PlatformDeadLetters />)
-
-    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
+    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
       expect.anything(),
       '/v1/platform/dead-letters',
-      { query: { limit: 30 } },
+      expect.objectContaining({ query: expect.objectContaining({ status: 'open' }) }),
     )
     expect(html).toContain(deadLetter.sourceQueue)
-    expect(html).toContain(deadLetter.errorCode)
-    expect(html).toContain('queue_send_failed')
-    expect(html).toContain('Replay message to xid-webhook')
+    expect(html).toContain('Acme Platform')
+    expect(html).toContain('Replay uses a 5-minute claim')
   })
 
   it.each([
@@ -489,36 +593,32 @@ describe('platform pages', () => {
       name: 'announcements',
       path: '/v1/platform/announcements',
       content: announcement.title,
+      button: 'Load more announcements',
       component: <PlatformAnnouncements />,
     },
     {
       name: 'status incidents',
       path: '/v1/platform/status-incidents',
       content: statusIncident.title,
+      button: 'Load more incidents',
       component: <PlatformStatusIncidents />,
     },
     {
       name: 'compliance documents',
       path: '/v1/platform/compliance-documents',
       content: complianceDocument.title,
+      button: 'Load more evidence',
       component: <PlatformCompliance />,
     },
-  ])('appends the next page for $name', async ({ component, content, path }) => {
-    globalThis.IS_REACT_ACT_ENVIRONMENT = true
-    const container = document.createElement('div')
-    const root = createRoot(container)
-
-    await act(async () => {
-      root.render(component)
-    })
+  ])('appends the next page for $name', async ({ component, content, path, button }) => {
+    const { container, unmount } = await mount(component)
 
     expect(container.textContent).toContain(content)
     expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(expect.anything(), path, {
       query: { limit: 30 },
     })
-
     const loadMore = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Load more',
+      (element) => element.textContent === button,
     )
     expect(loadMore).toBeDefined()
 
@@ -527,32 +627,41 @@ describe('platform pages', () => {
     })
 
     expect(apiMocks.fetchNextPage).toHaveBeenCalledTimes(1)
-    expect(container.textContent).toContain(content)
-
-    await act(async () => {
-      root.unmount()
-    })
+    await unmount()
   })
 
-  it('defaults new incidents to the local wall-clock time', async () => {
-    globalThis.IS_REACT_ACT_ENVIRONMENT = true
-    const container = document.createElement('div')
-    const root = createRoot(container)
+  it('shows affected components and impact on the incident list', () => {
+    const html = render(<PlatformStatusIncidents />)
 
-    await act(async () => {
-      root.render(<PlatformStatusIncidents />)
-    })
+    expect(html).toContain('Webhooks')
+    expect(html).toContain('Degraded')
+  })
 
-    const startedAt = container.querySelector<HTMLInputElement>('input[type="datetime-local"]')
-    const now = new Date()
-    const offset = now.getTimezoneOffset() * 60_000
-    const expectedPrefix = new Date(now.getTime() - offset).toISOString().slice(0, 13)
-    expect(startedAt?.value.startsWith(expectedPrefix)).toBe(true)
-    expect(container.textContent).not.toContain('Resolve incident')
+  it('records the last download check for compliance evidence', () => {
+    apiMocks.lists.set(
+      '/v1/platform/compliance-documents',
+      listState([{ ...complianceDocument, lastCheckedAt: NOW, lastCheckResult: 'mismatch' }]),
+    )
 
-    await act(async () => {
-      root.unmount()
-    })
+    const html = render(<PlatformCompliance />)
+
+    expect(html).toContain('2 KiB')
+    expect(html).not.toContain('Not downloaded yet')
+  })
+
+  it('keeps signing key activation an explicit action and shows deployment state without secrets', () => {
+    const html = render(<PlatformSettingsPage />)
+
+    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(expect.anything(), '/v1/platform/settings')
+    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      '/v1/platform/signing-keys',
+    )
+    expect(html).toContain('kid_next')
+    expect(html).toContain('Make active…')
+    expect(html).toContain('Only one of the site key and secret is set')
+    expect(html).toContain('2 of 3 follow these defaults.')
+    expect(html).not.toMatch(/secret_key|whsec_|sk_live_/)
   })
 
   it('renders metered usage without any billing wording while billing is off', () => {
@@ -561,7 +670,7 @@ describe('platform pages', () => {
       queryState({ enabled: false, portal: false, metering: false }),
     )
 
-    const html = renderToStaticMarkup(<PlatformUsage />)
+    const html = render(<PlatformUsage />)
 
     expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
       expect.anything(),
@@ -570,8 +679,6 @@ describe('platform pages', () => {
     )
     expect(html).toContain('Usage overview')
     expect(html).toContain(usageOverview.organizationName)
-    expect(html).toContain('600')
-    expect(html).toContain('25')
     expect(html).not.toMatch(/billing|plan/i)
     expect(html).toContain('href="/console/platform/quotas?tenantId=org_1"')
   })
@@ -586,35 +693,10 @@ describe('platform pages', () => {
       listState([{ ...usageOverview, billingStatus: 'overdue' }]),
     )
 
-    const html = renderToStaticMarkup(<PlatformUsage />)
+    const html = render(<PlatformUsage />)
 
     expect(html).toContain('Usage and billing')
     expect(html).toContain('Billing status')
-    expect(html).toContain('overdue')
-  })
-
-  it('edits the fallback language from supported locales and keeps data residency read-only', async () => {
-    globalThis.IS_REACT_ACT_ENVIRONMENT = true
-    const container = document.createElement('div')
-    const root = createRoot(container)
-
-    await act(async () => {
-      root.render(<PlatformSettingsPage />)
-    })
-
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(expect.anything(), '/v1/platform/settings')
-    expect(container.textContent).toContain('Platform settings')
-    const selects = [...container.querySelectorAll<HTMLSelectElement>('select')]
-    expect(selects[0]?.value).toBe('en')
-    expect([...(selects[0]?.options ?? [])].map((option) => option.value)).toContain('zh-Hans')
-    expect(selects[1]?.value).toBe(settings.mfaPolicy)
-    const readonlyValues = [...container.querySelectorAll<HTMLInputElement>('input[readonly]')].map(
-      (input) => input.value,
-    )
-    expect(readonlyValues).toEqual([settings.name, settings.dataResidency])
-
-    await act(async () => {
-      root.unmount()
-    })
+    expect(html).toContain('Overdue')
   })
 })

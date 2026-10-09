@@ -53,15 +53,11 @@ export const queryKeys = {
   orgAuthPolicy: (orgId: string) => ['organizations', orgId, 'auth-policy'] as const,
   orgDeliveryChannels: (orgId: string) => ['organizations', orgId, 'delivery-channels'] as const,
   orgSocialProviders: (orgId: string) => ['organizations', orgId, 'social-providers'] as const,
-  orgAuditEvents: (orgId: string, filters: Readonly<Record<string, string | undefined>>) =>
-    ['organizations', orgId, 'audit-events', filters] as const,
   applications: ['applications', 'list'] as const,
   application: (appId: string) => ['applications', appId] as const,
   webhooks: ['webhooks', 'list'] as const,
-  apiKeys: ['api-keys', 'list'] as const,
   platformOrganizations: (query?: string) =>
     ['platform', 'organizations', { query: query ?? null }] as const,
-  platformUsers: (query?: string) => ['platform', 'users', { query: query ?? null }] as const,
   platformAuditEvents: ['platform', 'audit-events', 'list'] as const,
   platformAuditVerification: (tenantId?: string, fromSeq?: number, toSeq?: number) =>
     [

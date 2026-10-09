@@ -15,9 +15,6 @@ import {
 } from '@xid-kit/web-ui/queries'
 import { useCanManageOrg, useIsTenantScopeOrg } from './useOrgTarget'
 import type {
-  ApiKey,
-  AuditEvent,
-  AuditEventFilters,
   CreateOrgDomainInput,
   CreateManagerAssignmentInput,
   CreateApiKeyInput,
@@ -38,8 +35,6 @@ import type {
   CreatedWebhookEndpoint,
   OAuthApplication,
   OutboundSamlApp,
-  OrgBranding,
-  OrgAuthPolicy,
   OrgComplianceDocument,
   OrgDeliveryChannels,
   OrgDomain,
@@ -61,7 +56,6 @@ import type {
   ScimTargetSyncAccepted,
   SsoConnection,
   UpdateApplicationInput,
-  UpdateOrgAuthPolicyInput,
   UpdateOrgDeliveryChannelsInput,
   UpdateOrgSocialProvidersInput,
   UpdateOutboundSamlAppInput,
@@ -474,28 +468,6 @@ export function useDeleteManagerAssignment(
   )
 }
 
-export function useOrgSsoConnectionsQuery(
-  orgId: string,
-): UseQueryResult<SsoConnection[], XidError> {
-  const canManage = useCanManageOrg(orgId)
-  return useApiQuery<SsoConnection[]>(
-    queryKeys.orgSsoConnections(orgId),
-    `/v1/organizations/${orgId}/sso-connections`,
-    { enabled: canManage },
-  )
-}
-
-export function useOrgOutboundSamlAppsQuery(
-  orgId: string,
-): UseQueryResult<OutboundSamlApp[], XidError> {
-  const canManage = useCanManageOrg(orgId)
-  return useApiQuery<OutboundSamlApp[]>(
-    queryKeys.orgOutboundSamlApps(orgId),
-    `/v1/organizations/${orgId}/outbound-saml-apps`,
-    { enabled: canManage },
-  )
-}
-
 export function useOrgScimDirectoriesQuery(
   orgId: string,
 ): UseQueryResult<ScimDirectory[], XidError> {
@@ -516,61 +488,12 @@ export function useOrgScimTargetsQuery(orgId: string): UseQueryResult<ScimTarget
   )
 }
 
-export function useOrgDomainsQuery(orgId: string): ListResult<OrgDomain> {
-  const canManage = useCanManageOrg(orgId)
-  return useApiInfiniteQuery<V1Page<OrgDomain>>(
-    queryKeys.orgDomains(orgId),
-    `/v1/organizations/${orgId}/domains`,
-    { enabled: canManage, query: { limit: 50 } },
-  )
-}
-
 export function useCreateOrgDomain(
   orgId: string,
 ): UseMutationResult<OrgDomain, XidError, CreateOrgDomainInput> {
   return useApiMutation<OrgDomain, CreateOrgDomainInput>(
     (api, payload) => api.post<OrgDomain>(`/v1/organizations/${orgId}/domains`, payload),
     { invalidate: [queryKeys.orgDomains(orgId)] },
-  )
-}
-
-export function useOrgBrandingQuery(orgId: string): UseQueryResult<OrgBranding, XidError> {
-  const canManage = useCanManageOrg(orgId)
-  return useApiQuery<OrgBranding>(
-    queryKeys.orgBranding(orgId),
-    `/v1/organizations/${orgId}/branding`,
-    { enabled: canManage },
-  )
-}
-
-export function useOrgAuthPolicyQuery(orgId: string): UseQueryResult<OrgAuthPolicy, XidError> {
-  const canManage = useCanManageOrg(orgId)
-  return useApiQuery<OrgAuthPolicy>(
-    queryKeys.orgAuthPolicy(orgId),
-    `/v1/organizations/${orgId}/auth-policy`,
-    { enabled: canManage },
-  )
-}
-
-export function useOrgDeliveryChannelsQuery(
-  orgId: string,
-): UseQueryResult<OrgDeliveryChannels, XidError> {
-  const canManage = useCanManageOrg(orgId)
-  return useApiQuery<OrgDeliveryChannels>(
-    queryKeys.orgDeliveryChannels(orgId),
-    `/v1/organizations/${orgId}/delivery-channels`,
-    { enabled: canManage },
-  )
-}
-
-export function useOrgSocialProvidersQuery(
-  orgId: string,
-): UseQueryResult<OrgSocialProviders, XidError> {
-  const canManage = useCanManageOrg(orgId)
-  return useApiQuery<OrgSocialProviders>(
-    queryKeys.orgSocialProviders(orgId),
-    `/v1/organizations/${orgId}/social-providers`,
-    { enabled: canManage },
   )
 }
 
@@ -598,24 +521,6 @@ export function useRemoveOrgMember(orgId: string): UseMutationResult<unknown, Xi
     (api, membershipId) =>
       api.del<unknown>(`/v1/organizations/${orgId}/memberships/${membershipId}`),
     { invalidate: [queryKeyPrefixes.orgMembers(orgId)] },
-  )
-}
-
-export function useUpdateOrgBranding(
-  orgId: string,
-): UseMutationResult<OrgBranding, XidError, Partial<OrgBranding>> {
-  return useApiMutation<OrgBranding, Partial<OrgBranding>>(
-    (api, payload) => api.patch<OrgBranding>(`/v1/organizations/${orgId}/branding`, payload),
-    { invalidate: [queryKeys.orgBranding(orgId)] },
-  )
-}
-
-export function useUpdateOrgAuthPolicy(
-  orgId: string,
-): UseMutationResult<OrgAuthPolicy, XidError, UpdateOrgAuthPolicyInput> {
-  return useApiMutation<OrgAuthPolicy, UpdateOrgAuthPolicyInput>(
-    (api, payload) => api.patch<OrgAuthPolicy>(`/v1/organizations/${orgId}/auth-policy`, payload),
-    { invalidate: [queryKeys.orgAuthPolicy(orgId)] },
   )
 }
 
@@ -868,14 +773,6 @@ export function useDeleteWebhook(): UseMutationResult<unknown, XidError, string>
   )
 }
 
-export function useApiKeysQuery(): ListResult<ApiKey> {
-  const isTenantScope = useIsTenantScopeOrg()
-  return useApiInfiniteQuery<V1Page<ApiKey>>(queryKeys.apiKeys, '/v1/api-keys', {
-    enabled: isTenantScope,
-    query: { limit: 20 },
-  })
-}
-
 export function useCreateApiKey(): UseMutationResult<CreatedApiKey, XidError, CreateApiKeyInput> {
   return useApiMutation<CreatedApiKey, CreateApiKeyInput>(
     (api, payload) => api.post<CreatedApiKey>('/v1/api-keys', payload),
@@ -887,19 +784,6 @@ export function useRevokeApiKey(): UseMutationResult<unknown, XidError, string> 
   return useApiMutation<unknown, string>(
     (api, keyId) => api.del<unknown>(`/v1/api-keys/${keyId}`),
     { invalidate: [queryKeyPrefixes.apiKeys] },
-  )
-}
-
-// 审计归属与筛选都在服务端执行,筛选条件进入 query key,变化时从第一页重新加载。
-export function useAuditEventsQuery(
-  orgId: string,
-  filters: AuditEventFilters,
-): ListResult<AuditEvent> {
-  const canManage = useCanManageOrg(orgId)
-  return useApiInfiniteQuery<V1Page<AuditEvent>>(
-    queryKeys.orgAuditEvents(orgId, filters),
-    `/v1/organizations/${orgId}/audit-events`,
-    { enabled: canManage, query: { limit: 30, ...filters } },
   )
 }
 

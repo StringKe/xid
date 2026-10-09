@@ -579,12 +579,6 @@ export type AuditEvent = {
   occurredAt: string
 }
 
-export type AuditEventFilters = {
-  event_type?: string
-  occurred_from?: string
-  occurred_to?: string
-}
-
 export type OrgComplianceDocument = {
   id: string
   documentType: string

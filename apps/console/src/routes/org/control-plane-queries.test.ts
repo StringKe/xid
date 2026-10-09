@@ -19,8 +19,8 @@ vi.mock('./useOrgTarget', () => ({
   useIsTenantScopeOrg: () => true,
 }))
 
+import { useOrgAuditLog } from './overview-queries'
 import {
-  useAuditEventsQuery,
   useManagedProjectGrantQuery,
   useManagedProjectQuery,
   useManagerAssignmentsQuery,
@@ -176,15 +176,16 @@ describe('control-plane Console query contracts', () => {
     )
   })
 
-  it('sends audit filters to the server and keys the list by those filters', () => {
-    const filters = { event_type: 'api_key.', occurred_from: '2026-01-01T00:00:00.000Z' }
+  it('sends only set audit filters to the server and keys the page by them', () => {
+    const filters = { event_type: 'api_key.*', occurred_from: '2026-01-01T00:00:00.000Z', q: '' }
 
-    useAuditEventsQuery('org_1', filters)
+    useOrgAuditLog('org_1', filters)
 
-    expect(listMock).toHaveBeenCalledWith(
-      ['organizations', 'org_1', 'audit-events', filters],
+    const sent = { event_type: 'api_key.*', occurred_from: '2026-01-01T00:00:00.000Z' }
+    expect(queryMock).toHaveBeenCalledWith(
+      ['organizations', 'org_1', 'audit-log', sent],
       '/v1/organizations/org_1/audit-events',
-      { enabled: true, query: { limit: 30, ...filters } },
+      expect.objectContaining({ enabled: true, query: sent }),
     )
   })
 })
