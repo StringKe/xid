@@ -245,6 +245,19 @@ const allowedSameAsSource = new Set([
   'WS-Fed',
   // 审计事件类型筛选框的占位示例,是事件名前缀字面量。
   'api_key.',
+  'user.*',
+  // 表单占位示例:证书 PEM 头、电话号码、服务名与角色键是字面量。
+  '-----BEGIN CERTIFICATE-----',
+  '+1 415 555 0142',
+  'Fleet Planner',
+  'admin, operations',
+  // SAML 协议专名。
+  'Name ID',
+  // 语言切换显示语言自称。
+  'English',
+  // 只在两个已翻译分支间选择,无自身文字。
+  '{count, plural, one {{0}} other {{1}}}',
+  '{organizations, plural, one {{0}} other {{1}}}',
 ])
 
 const targetScriptChecks = {
