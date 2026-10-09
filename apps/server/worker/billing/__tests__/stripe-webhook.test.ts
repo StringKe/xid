@@ -15,7 +15,6 @@ function subscriptionEvent(
     | 'customer.subscription.deleted',
   created: number,
   status?: string,
-  subscriptionId = 'sub_1',
 ): StripeEvent {
   return {
     id,
@@ -23,7 +22,7 @@ function subscriptionEvent(
     created,
     data: {
       object: {
-        id: subscriptionId,
+        id: 'sub_1',
         customer: 'cus_1',
         status,
         metadata: { xid_tenant_id: 'org_1' },
@@ -32,6 +31,13 @@ function subscriptionEvent(
     },
   }
 }
+
+function onSubscription(subscriptionId: string, event: StripeEvent): StripeEvent {
+  return { ...event, data: { object: { ...event.data.object, id: subscriptionId } } }
+}
+
+const created = 'customer.subscription.created'
+const deleted = 'customer.subscription.deleted'
 
 function accountStatus(d1: ReturnType<typeof createBillingDatabase>): unknown {
   return d1.database
@@ -49,22 +55,16 @@ describe('Stripe webhook with replaced subscriptions', () => {
     const env = makeBillingEnv(d1)
     await applyStripeEvent(
       env,
-      subscriptionEvent('evt_old', 'customer.subscription.created', 100, 'active', 'sub_old'),
+      onSubscription('sub_old', subscriptionEvent('evt_old', created, 100, 'active')),
     )
     await applyStripeEvent(
       env,
-      subscriptionEvent('evt_new', 'customer.subscription.created', 200, 'active', 'sub_new'),
+      onSubscription('sub_new', subscriptionEvent('evt_new', created, 200, 'active')),
     )
 
     await applyStripeEvent(
       env,
-      subscriptionEvent(
-        'evt_old_deleted',
-        'customer.subscription.deleted',
-        300,
-        undefined,
-        'sub_old',
-      ),
+      onSubscription('sub_old', subscriptionEvent('evt_old_deleted', deleted, 300)),
     )
 
     expect(accountStatus(d1)).toEqual({ status: 'active' })
@@ -86,23 +86,17 @@ describe('Stripe webhook with replaced subscriptions', () => {
     const env = makeBillingEnv(d1)
     await applyStripeEvent(
       env,
-      subscriptionEvent('evt_old', 'customer.subscription.created', 100, 'active', 'sub_old'),
+      onSubscription('sub_old', subscriptionEvent('evt_old', created, 100, 'active')),
     )
     await applyStripeEvent(
       env,
-      subscriptionEvent(
-        'evt_old_deleted',
-        'customer.subscription.deleted',
-        300,
-        undefined,
-        'sub_old',
-      ),
+      onSubscription('sub_old', subscriptionEvent('evt_old_deleted', deleted, 300)),
     )
     expect(accountStatus(d1)).toEqual({ status: 'canceled' })
 
     await applyStripeEvent(
       env,
-      subscriptionEvent('evt_new', 'customer.subscription.created', 250, 'active', 'sub_new'),
+      onSubscription('sub_new', subscriptionEvent('evt_new', created, 250, 'active')),
     )
 
     expect(accountStatus(d1)).toEqual({ status: 'active' })
@@ -114,21 +108,21 @@ describe('Stripe webhook with replaced subscriptions', () => {
     const env = makeBillingEnv(d1)
     await applyStripeEvent(
       env,
-      subscriptionEvent('evt_a', 'customer.subscription.created', 100, 'active', 'sub_a'),
+      onSubscription('sub_a', subscriptionEvent('evt_a', created, 100, 'active')),
     )
     await applyStripeEvent(
       env,
-      subscriptionEvent('evt_b', 'customer.subscription.created', 110, 'past_due', 'sub_b'),
+      onSubscription('sub_b', subscriptionEvent('evt_b', created, 110, 'past_due')),
     )
     await applyStripeEvent(
       env,
-      subscriptionEvent('evt_a_deleted', 'customer.subscription.deleted', 200, undefined, 'sub_a'),
+      onSubscription('sub_a', subscriptionEvent('evt_a_deleted', deleted, 200)),
     )
     expect(accountStatus(d1)).toEqual({ status: 'past_due' })
 
     await applyStripeEvent(
       env,
-      subscriptionEvent('evt_b_deleted', 'customer.subscription.deleted', 210, undefined, 'sub_b'),
+      onSubscription('sub_b', subscriptionEvent('evt_b_deleted', deleted, 210)),
     )
 
     expect(accountStatus(d1)).toEqual({ status: 'canceled' })
