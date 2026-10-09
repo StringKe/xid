@@ -4,13 +4,11 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import type { ScimSyncQueueMessage, TenantContext } from '@xid-kit/types'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import type { Context } from 'hono'
+import { SCIM_FULL_SYNC_DEDUPE_WINDOW_MS } from '../lib/ttl'
 import type { XidHonoEnv } from '../lib/types'
 import type { ScimTarget } from './outbound-mapping'
 import { runScimBackgroundTask } from './shared'
 import { assertScimTargetHasToken, scimTargetHasToken } from './target-credentials'
-
-// 入队标记超过这个时长仍未被消费时视为消息丢失,允许重新入队。
-const FULL_SYNC_DEDUPE_WINDOW_MS = 60 * 60 * 1000
 
 function scimSyncMessage(
   tenant: TenantContext,
@@ -57,7 +55,7 @@ async function claimFullSync(request: OrgScimSyncRequest, target: ScimTarget): P
         eq(schema.scimTargets.id, target.id),
         or(
           isNull(schema.scimTargets.fullSyncQueuedAt),
-          lt(schema.scimTargets.fullSyncQueuedAt, new Date(now - FULL_SYNC_DEDUPE_WINDOW_MS)),
+          lt(schema.scimTargets.fullSyncQueuedAt, new Date(now - SCIM_FULL_SYNC_DEDUPE_WINDOW_MS)),
         ),
       ),
     )

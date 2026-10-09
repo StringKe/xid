@@ -59,6 +59,8 @@ export const SAML_ASSERTION_REPLAY_MAX_TTL_MS = 24 * 60 * 60 * 1000
 export const STEP_UP_TTL_SEC = 5 * 60
 // SCIM token 轮换时旧 token 宽限窗口(07 章:轮换不中断在途同步)
 export const SCIM_TOKEN_ROTATE_GRACE_MS = 30 * 60 * 1000
+// 出站 SCIM 全量同步入队标记超过这个时长仍未被消费时视为消息丢失,允许同一 target 重新入队。
+export const SCIM_FULL_SYNC_DEDUPE_WINDOW_MS = 60 * 60 * 1000
 // JWKS KV 缓存 TTL 1h(signing-keys rule:SDK networkless 验证直读 KV 不回源)
 export const JWKS_CACHE_TTL_SEC = 3600
 // discovery / protected-resource 元数据 KV 缓存 TTL 1h(cloudflare-bindings rule)
