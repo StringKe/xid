@@ -42,8 +42,7 @@ export function appleSigningState(env: Env): AppleSigningState {
 function pkcs8Bytes(pem: string): Uint8Array<ArrayBuffer> {
   const body = pem
     .replaceAll('\\n', '\n')
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/-----(?:BEGIN|END) PRIVATE KEY-----/g, '')
     .replace(/\s+/g, '')
   const raw = atob(body)
   const out = new Uint8Array(raw.length)

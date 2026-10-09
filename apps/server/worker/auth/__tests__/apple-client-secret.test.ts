@@ -3,6 +3,7 @@
 import { verifyJwt } from '@xid-kit/crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { appleClientSecret, appleSigningState } from '../apple-client-secret'
+import { generateApplePrivateKey } from './apple-key-fixture'
 import {
   APPLE_CLIENT_SECRET_LIFETIME_SEC,
   APPLE_CLIENT_SECRET_REFRESH_MARGIN_SEC,
@@ -11,17 +12,6 @@ import { exchangeCode, getProviderConfig, hasProviderSecret } from '../social-pr
 import type { SocialProviderPolicy, TenantContext } from '@xid-kit/types'
 
 const APPLE_MAX_LIFETIME_SEC = 15_777_000
-
-async function appleKeyPair(): Promise<{ pem: string; publicKey: CryptoKey }> {
-  const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
-    'sign',
-    'verify',
-  ])
-  const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey))
-  const base64 = Buffer.from(pkcs8).toString('base64')
-  const pem = `-----BEGIN PRIVATE KEY-----\n${base64.match(/.{1,64}/g)?.join('\n')}\n-----END PRIVATE KEY-----`
-  return { pem, publicKey: pair.publicKey }
-}
 
 function decodeSegment(token: string, index: number): Record<string, unknown> {
   return JSON.parse(Buffer.from(token.split('.')[index] ?? '', 'base64url').toString()) as Record<
@@ -62,7 +52,7 @@ afterEach(() => {
 
 describe('appleClientSecret', () => {
   it('signs an ES256 JWT with Apple header and claims that verifies with the public key', async () => {
-    const { pem, publicKey } = await appleKeyPair()
+    const { pem, publicKey } = await generateApplePrivateKey()
     const now = 1_800_000_000
 
     const token = await appleClientSecret(
@@ -85,7 +75,7 @@ describe('appleClientSecret', () => {
   })
 
   it('accepts a PEM stored with literal \\n escapes', async () => {
-    const { pem, publicKey } = await appleKeyPair()
+    const { pem, publicKey } = await generateApplePrivateKey()
     const escaped = pem.replaceAll('\n', '\\n')
 
     const token = await appleClientSecret(
@@ -100,7 +90,7 @@ describe('appleClientSecret', () => {
   })
 
   it('reuses the cached token until the refresh margin and re-signs after it', async () => {
-    const { pem } = await appleKeyPair()
+    const { pem } = await generateApplePrivateKey()
     const config = { teamId: 'TEAM-CACHE', keyId: 'KEY-CACHE', privateKeyPem: pem }
     const now = 1_800_000_000
 
@@ -137,7 +127,7 @@ describe('appleSigningState', () => {
 
 describe('Apple provider credentials', () => {
   it('signs the client_secret at code exchange when the signing key is configured', async () => {
-    const { pem, publicKey } = await appleKeyPair()
+    const { pem, publicKey } = await generateApplePrivateKey()
     const env = {
       APPLE_TEAM_ID: 'TEAM-EXCH',
       APPLE_KEY_ID: 'KEY-EXCH',

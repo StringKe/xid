@@ -4,6 +4,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { schema } from '@xid-kit/db'
 import { eq } from 'drizzle-orm'
+import { generateApplePrivateKey } from '../../auth/__tests__/apple-key-fixture'
 import { registerOrganizationsRoutes } from '../organizations'
 import {
   TENANT_B,
@@ -221,7 +222,7 @@ describe('social provider input', () => {
       ...envOf(d1),
       APPLE_TEAM_ID: 'TEAM123456',
       APPLE_KEY_ID: 'KEY1234567',
-      APPLE_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----',
+      APPLE_PRIVATE_KEY: (await generateApplePrivateKey()).pem,
     }
     const apple = {
       authorizationEndpoint: 'https://appleid.apple.com/auth/authorize',
