@@ -5,6 +5,7 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, desc, eq } from 'drizzle-orm'
 import type { Hono } from 'hono'
 import { smsDeliveryReady } from '../auth/delivery-channels'
+import { isAllowedPhoneOtpTarget } from '../auth/phone-otp-regions'
 import { AppError } from '../lib/errors'
 import { findActiveSmsFactor, hasStrongMfaFactor, SMS_FACTOR_TYPE } from '../lib/mfa-methods'
 import { createPersistedId } from '../lib/persisted-id'
@@ -44,6 +45,7 @@ export function registerSmsFactorRoutes(app: Hono<XidHonoEnv>): void {
       : undefined
     const enrollable =
       phone !== undefined &&
+      isAllowedPhoneOtpTarget(phone.phone) &&
       (await hasStrongMfaFactor(db, session.userId)) &&
       (await findActiveSmsFactor(db, session.userId)) === null
     const body: SmsFactorOption = {
@@ -67,7 +69,7 @@ export function registerSmsFactorRoutes(app: Hono<XidHonoEnv>): void {
       throw new AppError('already_exists', { httpStatus: 409 })
     }
     const phone = await findVerifiedPhone(db, session.userId)
-    if (!phone) throw new AppError('invalid_request')
+    if (!phone || !isAllowedPhoneOtpTarget(phone.phone)) throw new AppError('invalid_request')
 
     const factorId = createPersistedId('mfaFactor')
     const now = new Date()

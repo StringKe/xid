@@ -75,8 +75,9 @@ function post(app: ReturnType<typeof makeApp>, env: Env, path: string, body?: un
 }
 
 function mockSmsFactor(
-  options: { factor?: boolean; verificationTokens?: Record<string, unknown> } = {},
+  options: { factor?: boolean; phone?: string; verificationTokens?: Record<string, unknown> } = {},
 ) {
+  const phone = options.phone ?? '+12125550142'
   vi.mocked(createTenantDb).mockReturnValue({
     mfaFactors: {
       findOne: vi
@@ -87,7 +88,7 @@ function mockSmsFactor(
             : { id: 'mf_sms', target: 'ph_1', createdAt: new Date() },
         ),
     },
-    userPhones: { findOne: vi.fn().mockResolvedValue({ id: 'ph_1', phone: '+15551234567' }) },
+    userPhones: { findOne: vi.fn().mockResolvedValue({ id: 'ph_1', phone }) },
     ...(options.verificationTokens ? { verificationTokens: options.verificationTokens } : {}),
   } as unknown as ReturnType<typeof createTenantDb>)
 }
@@ -125,7 +126,7 @@ describe('POST /auth/mfa/sms/send', () => {
 
     expect(res.status).toBe(200)
     expect(persistAndSendOtp).toHaveBeenCalledWith(
-      expect.objectContaining({ purpose: 'mfa_otp', target: '+15551234567' }),
+      expect.objectContaining({ purpose: 'mfa_otp', target: '+12125550142' }),
     )
   })
 
@@ -139,6 +140,23 @@ describe('POST /auth/mfa/sms/send', () => {
     const res = await post(app, makeEnv({ smsProvider: 'twilio' }), '/auth/mfa/sms/send')
 
     expect(res.status).toBe(403)
+    expect(persistAndSendOtp).not.toHaveBeenCalled()
+  })
+
+  it('SMS 因子号码不在短信区域白名单 -> 400 invalid_request,不扣发送预算也不发码', async () => {
+    mockSmsFactor({ phone: '+18765550142' })
+    const env = makeEnv({ smsProvider: 'twilio' })
+    const idFromName = vi.spyOn(env.RATE_LIMITER, 'idFromName')
+    const app = makeApp(registerSessionAuthRoutes, {
+      session: makeSession(),
+      tenant: tenantWithSmsDelivery() as never,
+    })
+
+    const res = await post(app, env, '/auth/mfa/sms/send')
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'invalid_request' })
+    expect(idFromName).not.toHaveBeenCalled()
     expect(persistAndSendOtp).not.toHaveBeenCalled()
   })
 
@@ -299,7 +317,7 @@ describe('POST /auth/mfa/verify', () => {
     expect(loadVerifiableOtp).toHaveBeenCalledWith(
       expect.anything(),
       'sms',
-      '+15551234567',
+      '+12125550142',
       'mfa_otp',
     )
     expect(hardDelete).not.toHaveBeenCalled()

@@ -45,7 +45,7 @@ function verifiedPhoneRow(): Record<string, unknown> {
     id: 'phone_1',
     tenant_id: 't_1',
     user_id: 'u_1',
-    phone: '+15551234567',
+    phone: '+12125554567',
     verified: 1,
     verification_status: 'verified',
     is_primary: 1,
@@ -778,6 +778,47 @@ describe('SMS factor enrollment', () => {
     const db = makeFakeD1({
       mfa_factors: factors,
       user_phones: [{ ...verifiedPhoneRow(), tenant_id: 't_other' }],
+    })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerMfaFactorsRoutes, session, tenant: SMS_TENANT })
+
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/sms',
+      method: 'POST',
+      env: smsEnv(db),
+      session,
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'invalid_request' })
+    expect(factors).toHaveLength(1)
+  })
+
+  it('reports SMS as not enrollable when the verified phone is outside the SMS region allowlist', async () => {
+    const db = makeFakeD1({
+      mfa_factors: [totpRow()],
+      user_phones: [{ ...verifiedPhoneRow(), phone: '+18765554567' }],
+    })
+    const app = buildApp({
+      register: registerMfaFactorsRoutes,
+      session: makeSession({ userId: 'u_1' }),
+      tenant: SMS_TENANT,
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/mfa-factors/sms',
+      { method: 'GET' },
+      smsEnv(db),
+    )
+
+    expect(await res.json()).toEqual({ enrollable: false, phoneLast4: '4567' })
+  })
+
+  it('refuses to enroll a verified phone outside the SMS region allowlist', async () => {
+    const factors = [totpRow()]
+    const db = makeFakeD1({
+      mfa_factors: factors,
+      user_phones: [{ ...verifiedPhoneRow(), phone: '+18765554567' }],
     })
     const session = makeSession({ userId: 'u_1' })
     const app = buildApp({ register: registerMfaFactorsRoutes, session, tenant: SMS_TENANT })
