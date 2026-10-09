@@ -34,15 +34,21 @@ export async function issue(options: {
   rsa?: boolean
   aaguid?: Uint8Array
   notAfter?: Date
+  keys?: CryptoKeyPair
+  extensions?: x509.Extension[]
+  emptySubject?: boolean
 }): Promise<Issued> {
-  const keys = (await crypto.subtle.generateKey(options.rsa ? RSA : EC_P256, true, [
-    'sign',
-    'verify',
-  ])) as CryptoKeyPair
+  const keys =
+    options.keys ??
+    ((await crypto.subtle.generateKey(options.rsa ? RSA : EC_P256, true, [
+      'sign',
+      'verify',
+    ])) as CryptoKeyPair)
   const signer = options.issuer?.keys ?? keys
   const signerIsRsa = signer.privateKey.algorithm.name === 'RSASSA-PKCS1-v1_5'
   const extensions: x509.Extension[] = [
     new x509.BasicConstraintsExtension(options.ca, options.pathLen, true),
+    ...(options.extensions ?? []),
   ]
   if (options.aaguid) {
     extensions.push(
@@ -51,7 +57,7 @@ export async function issue(options: {
   }
   const cert = await x509.X509CertificateGenerator.create({
     serialNumber: String(serial++).padStart(2, '0'),
-    subject: `CN=${options.subject}`,
+    subject: options.emptySubject ? '' : `CN=${options.subject}`,
     issuer: options.issuer ? options.issuer.cert.subject : `CN=${options.subject}`,
     notBefore: new Date('2026-01-01T00:00:00Z'),
     notAfter: options.notAfter ?? new Date('2030-01-01T00:00:00Z'),
@@ -63,6 +69,10 @@ export async function issue(options: {
     extensions,
   })
   return { cert, keys, der: new Uint8Array(cert.rawData) }
+}
+
+export async function generateP256Keys(): Promise<CryptoKeyPair> {
+  return (await crypto.subtle.generateKey(EC_P256, true, ['sign', 'verify'])) as CryptoKeyPair
 }
 
 export function pemOf(issued: Issued): string {
@@ -99,11 +109,12 @@ export type Registration = {
   credentialKeys: CryptoKeyPair
 }
 
-export async function buildRegistration(aaguid: Uint8Array): Promise<Registration> {
-  const credentialKeys = (await crypto.subtle.generateKey(EC_P256, true, [
-    'sign',
-    'verify',
-  ])) as CryptoKeyPair
+export async function buildRegistration(
+  aaguid: Uint8Array,
+  keys?: CryptoKeyPair,
+): Promise<Registration> {
+  const credentialKeys =
+    keys ?? ((await crypto.subtle.generateKey(EC_P256, true, ['sign', 'verify'])) as CryptoKeyPair)
   const rawPublicKey = new Uint8Array(
     (await crypto.subtle.exportKey('raw', credentialKeys.publicKey)) as ArrayBuffer,
   )

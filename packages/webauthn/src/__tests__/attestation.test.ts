@@ -304,8 +304,8 @@ describe('verifyEnterpriseAttestation: policy', () => {
     if (!result.ok) expect(result.error.longMessage).toContain('trusted attestation roots')
   })
 
-  it.each(['tpm', 'android-key', 'apple'])(
-    'treats unsupported fmt %s as none under indirect and rejects it under direct',
+  it.each(['vendor-proprietary'])(
+    'treats unknown fmt %s as none under indirect and rejects it under direct',
     async (fmt) => {
       const registration = await buildRegistration(AAGUID)
       const roots = [pemOf(await issue({ subject: 'Root', ca: true }))]

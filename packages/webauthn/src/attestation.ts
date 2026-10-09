@@ -1,17 +1,18 @@
 // attestation 按租户策略判定。可信根由调用方注入,本模块不内置根证书。
 // - none:不校验,verified=false。
-// - indirect:能校验的格式(packed、fido-u2f)签名必须成立;链抵达可信根才 verified=true,
-//   fmt=none、自签名与暂不支持的格式(tpm、android-key、android-safetynet、apple)按 none 处理。
-// - direct:必须是可校验格式,签名成立且链抵达已配置的可信根,否则拒绝注册。
+// - indirect:可校验格式(packed、fido-u2f、tpm、android-key、apple)的语句必须成立;链抵达可信根
+//   才 verified=true。fmt=none、packed 自签名与未知格式按 none 处理。
+// - direct:必须是可校验格式,语句成立且链抵达已配置的可信根,否则拒绝注册。
+// android-safetynet 已被 Google 停用,indirect 与 direct 下都拒绝。
 
 import { toBufferSource } from '@xid-kit/crypto'
 import type { Result, XidError } from '@xid-kit/types'
 
-import {
-  verifyFidoU2fStatement,
-  verifyPackedStatement,
-  type StatementVerification,
-} from './attestation-formats'
+import { verifyAndroidKeyStatement } from './attestation-android-key'
+import { verifyAppleStatement } from './attestation-apple'
+import { verifyFidoU2fStatement, verifyPackedStatement } from './attestation-formats'
+import type { StatementInput, StatementVerification } from './attestation-shared'
+import { verifyTpmStatement } from './attestation-tpm'
 import { parseAuthData } from './authdata'
 import type { CborMap } from './cbor'
 import { cborDecode } from './cbor'
@@ -20,7 +21,19 @@ import { parseCertificate, pemToDerList, verifyCertificateChain } from './x509'
 
 export type AttestationConveyance = 'none' | 'indirect' | 'direct'
 
-export const VERIFIABLE_ATTESTATION_FORMATS = ['packed', 'fido-u2f'] as const
+const STATEMENT_VERIFIERS: Readonly<
+  Record<string, (input: StatementInput) => Promise<StatementVerification>>
+> = {
+  packed: verifyPackedStatement,
+  'fido-u2f': verifyFidoU2fStatement,
+  tpm: verifyTpmStatement,
+  'android-key': verifyAndroidKeyStatement,
+  apple: verifyAppleStatement,
+}
+
+export const VERIFIABLE_ATTESTATION_FORMATS = Object.keys(STATEMENT_VERIFIERS)
+
+const REJECTED_ATTESTATION_FORMATS: ReadonlySet<string> = new Set(['android-safetynet'])
 
 export type AttestationVerificationInput = {
   fmt: string
@@ -49,12 +62,14 @@ function rejected(message: string): AttestationResult {
 }
 
 function isVerifiableFormat(fmt: string): boolean {
-  return (VERIFIABLE_ATTESTATION_FORMATS as readonly string[]).includes(fmt)
+  return Object.hasOwn(STATEMENT_VERIFIERS, fmt)
 }
 
 async function verifyStatement(
   input: AttestationVerificationInput,
 ): Promise<StatementVerification> {
+  const verifier = STATEMENT_VERIFIERS[input.fmt]
+  if (!verifier) return { ok: false, reason: `attestation fmt ${input.fmt} is not verifiable` }
   const parsed = await parseAuthData(input.authData)
   const attested = parsed.attestedCredentialData
   if (!attested) return { ok: false, reason: 'missing attested credential data' }
@@ -67,9 +82,7 @@ async function verifyStatement(
     parsed: { ...parsed, attestedCredentialData: attested },
     clientDataHash,
   }
-  return input.fmt === 'fido-u2f'
-    ? verifyFidoU2fStatement(statementInput)
-    : verifyPackedStatement(statementInput)
+  return verifier(statementInput)
 }
 
 export function parseTrustedRoots(trustedRootsPem: readonly string[]) {
@@ -81,6 +94,9 @@ export async function verifyEnterpriseAttestation(
 ): Promise<AttestationResult> {
   if (input.policy === 'none') return accepted(input.fmt)
   const direct = input.policy === 'direct'
+  if (REJECTED_ATTESTATION_FORMATS.has(input.fmt)) {
+    return rejected(`attestation fmt ${input.fmt} is not accepted`)
+  }
   if (!isVerifiableFormat(input.fmt)) {
     return direct ? rejected(`attestation fmt ${input.fmt} is not verifiable`) : accepted(input.fmt)
   }

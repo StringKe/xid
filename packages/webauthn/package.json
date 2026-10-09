@@ -28,7 +28,8 @@
     "@peculiar/asn1-schema": "catalog:",
     "@peculiar/asn1-x509": "catalog:",
     "@xid-kit/crypto": "workspace:*",
-    "@xid-kit/types": "workspace:*"
+    "@xid-kit/types": "workspace:*",
+    "asn1js": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
