@@ -8,6 +8,7 @@ import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { AuthHeading } from '../../components/hosted/AuthHeading'
 import { hosted } from '../../components/hosted/hosted-styles'
 import { ProfileFields } from './SignInFields'
+import { SignInTurnstileSlot } from './SignInTurnstileSlot'
 import type { ProfileFieldKey } from './shared'
 import type { SignInActions, SignInState } from './sign-in-types'
 
@@ -94,6 +95,7 @@ export function PasswordPanel(props: PasswordPanelProps): ReactNode {
           error={props.inlineError ?? undefined}
           autoFocus
         />
+        <SignInTurnstileSlot />
         <Button
           type="submit"
           variant="accent"

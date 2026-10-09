@@ -22,6 +22,8 @@ import { useCredentialMutations } from './useCredentialMutations'
 import { useIdentifierDiscovery } from './useIdentifierDiscovery'
 import { useSignInCompletion } from './useSignInCompletion'
 import { useOtpSend } from './useOtpSend'
+import { otpSendStatus, turnstileGate, turnstilePasses } from './turnstile-gate'
+import { useTurnstile, type TurnstileHandle } from './useTurnstile'
 import { buildSignInActions } from './sign-in-actions'
 
 export type { SignInActions, SignInState, SignInStep } from './sign-in-types'
@@ -29,7 +31,7 @@ export type { SignInMethod, SignInErrorKey } from './shared'
 export { buildAuthConfigPath } from './auth-config-query'
 export { buildSocialAuthorizeUrl, enabledSignInMethodsForIntent } from './sign-in-entry'
 
-export function useSignIn(): [SignInState, SignInActions] {
+export function useSignIn(): [SignInState, SignInActions, TurnstileHandle] {
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as SignInSearch
@@ -53,8 +55,14 @@ export function useSignIn(): [SignInState, SignInActions] {
   const authConfig = useLocalizedAuthConfig(authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG)
   const configSettled = !authConfigQuery.isPending && !authConfigQuery.isPlaceholderData
   const hostedReturn = resolveHostedReturn(search, authConfig.defaultLandingPath)
-  const turnstileReady =
-    configSettled && (authConfig.turnstileSiteKey === null || Boolean(turnstileToken))
+  const turnstile = useTurnstile(authConfig.turnstileSiteKey, turnstileToken, setTurnstileToken)
+  const gate = turnstileGate({
+    configSettled,
+    siteKey: authConfig.turnstileSiteKey,
+    token: turnstileToken,
+    needsInteraction: turnstile.needsInteraction,
+  })
+  const turnstileReady = turnstilePasses(gate)
   const isSignUpFlow = Boolean(search.invitation_token) || isSignUpIntent(search.intent)
   // 邀请只走 Email claim:社交与企业 SSO 不接受邀请 capability(01 章 3)。
   const excludesFederatedEntry =
@@ -190,10 +198,11 @@ export function useSignIn(): [SignInState, SignInActions] {
     setError,
   })
 
+  // 等用户完成 Turnstile 时按钮不转圈,由按钮上方的说明告诉用户要做什么。
   const isLoading =
     passkey.isVerifying ||
     discovery.isDiscovering ||
-    discovery.pendingDiscovery !== null ||
+    (discovery.pendingDiscovery !== null && gate !== 'needs_interaction') ||
     credentials.password.isPending ||
     credentials.magicLink.isPending ||
     credentials.otpSend.isPending ||
@@ -216,7 +225,12 @@ export function useSignIn(): [SignInState, SignInActions] {
     otpCode: otp.otpCode,
     otpSentAt: otp.otpSentAt,
     otpResent: otp.otpResent,
-    isSendingOtp: credentials.otpSend.isPending || pendingOtpSend,
+    otpSendStatus: otpSendStatus({
+      sentAt: otp.otpSentAt,
+      requestInFlight: credentials.otpSend.isPending,
+      gate,
+    }),
+    isSendingOtp: credentials.otpSend.isPending,
     isVerifyingOtp: credentials.otpVerify.isPending,
     magicLinkSent,
     ssoTarget: discovery.ssoTarget,
@@ -227,6 +241,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     error: passkey.error ?? error,
     turnstileToken,
     turnstileReady,
+    turnstileGate: gate,
     excludesFederatedEntry,
     hostedReturn,
     guestEntryPending:
@@ -244,5 +259,5 @@ export function useSignIn(): [SignInState, SignInActions] {
     },
   }
 
-  return [state, actions]
+  return [state, actions, turnstile]
 }

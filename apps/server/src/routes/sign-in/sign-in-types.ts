@@ -4,6 +4,7 @@ import type { IdentifierKind } from './method-order'
 import type { ProfileFieldKey, ProfileValues, SignInErrorKey, SignInMethod } from './shared'
 import type { PasskeySupport } from './usePasskeySignIn'
 import type { SsoTarget } from './useSsoDiscovery'
+import type { OtpSendStatus, TurnstileGate } from './turnstile-gate'
 
 // identifier:只收标识符;methods:回显标识符后选一种方式;sso:跳转 IdP 的过渡屏;
 // organization:根入口的标识符对应多个组织,先选组织。
@@ -47,6 +48,8 @@ export type SignInState = {
   otpCode: string
   otpSentAt: number | null
   otpResent: boolean
+  otpSendStatus: OtpSendStatus
+  // 只表示发码请求在途;等待 Turnstile 不算发送中。
   isSendingOtp: boolean
   isVerifyingOtp: boolean
   magicLinkSent: boolean
@@ -58,6 +61,7 @@ export type SignInState = {
   error: SignInErrorKey | null
   turnstileToken: string | null
   turnstileReady: boolean
+  turnstileGate: TurnstileGate
   excludesFederatedEntry: boolean
   hostedReturn: string
   // config 未返回且 URL 不排除 guest 时为 true,页面固定高度占位防 CLS。

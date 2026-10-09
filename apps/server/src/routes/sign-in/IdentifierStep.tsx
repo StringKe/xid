@@ -11,6 +11,7 @@ import { hosted } from '../../components/hosted/hosted-styles'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { IdentifierLabel, useIdentifierPlaceholder } from './SignInFields'
 import { SignInSocialButtons } from './SignInSocialButtons'
+import { SignInTurnstileSlot } from './SignInTurnstileSlot'
 import { identifierPrompt } from './shared'
 import type { SignInActions, SignInState } from './sign-in-types'
 
@@ -84,13 +85,14 @@ export function IdentifierStep(props: IdentifierStepProps): ReactNode {
             autoFocus
           />
         </Field>
+        <SignInTurnstileSlot />
         <Button
           type="submit"
           variant="accent"
           size="lg"
           fullWidth
           isLoading={state.isLoading}
-          disabled={!state.configSettled}
+          disabled={!state.configSettled || state.turnstileGate === 'needs_interaction'}
         >
           <Trans>Continue</Trans>
         </Button>

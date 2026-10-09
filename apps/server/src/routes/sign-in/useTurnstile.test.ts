@@ -28,8 +28,22 @@ type HostProps = {
 }
 
 function Host({ siteKey, token, onToken }: HostProps) {
-  const { containerRef } = useTurnstile(siteKey, token, onToken)
-  return createElement('div', { ref: containerRef })
+  const { containerRef, needsInteraction } = useTurnstile(siteKey, token, onToken)
+  return createElement('div', {
+    ref: containerRef,
+    'data-needs-interaction': String(needsInteraction),
+  })
+}
+
+function SwitchingHost({
+  step,
+  onToken,
+}: {
+  step: 'first' | 'second'
+  onToken: HostProps['onToken']
+}) {
+  const { containerRef } = useTurnstile('site-key', null, onToken)
+  return createElement('div', { key: step, id: step, ref: containerRef })
 }
 
 describe('useTurnstile lifecycle', () => {
@@ -78,6 +92,67 @@ describe('useTurnstile lifecycle', () => {
 
     await act(async () => root.unmount())
     expect(remove).toHaveBeenCalledWith('widget-1')
+  })
+
+  it('flags a visible challenge and clears the flag once the visitor passes it', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    const render = vi.fn<(container: HTMLElement, options: Record<string, unknown>) => string>(
+      () => 'widget-1',
+    )
+    ;(globalThis as Record<string, unknown>).turnstile = {
+      render,
+      reset: vi.fn<(widgetId: string) => void>(),
+      remove: vi.fn<(widgetId: string) => void>(),
+    }
+    const onToken = vi.fn<(token: string) => void>()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(createElement(Host, { siteKey: 'site-key', token: null, onToken }))
+    })
+    const options = render.mock.calls[0]?.[1] as {
+      callback: (token: string) => void
+      'before-interactive-callback': () => void
+    }
+    const host = (): string | null =>
+      container.firstElementChild?.getAttribute('data-needs-interaction') ?? null
+
+    await act(async () => options['before-interactive-callback']())
+    expect(host()).toBe('true')
+
+    await act(async () => options.callback('token-1'))
+    expect(host()).toBe('false')
+    expect(onToken).toHaveBeenCalledWith('token-1')
+    await act(async () => root.unmount())
+  })
+
+  it('moves the widget into the new container when the step changes', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    const render = vi.fn<(container: HTMLElement, options: Record<string, unknown>) => string>()
+    render.mockReturnValueOnce('widget-1').mockReturnValueOnce('widget-2')
+    const remove = vi.fn<(widgetId: string) => void>()
+    ;(globalThis as Record<string, unknown>).turnstile = {
+      render,
+      reset: vi.fn<(widgetId: string) => void>(),
+      remove,
+    }
+    const onToken = vi.fn<(token: string) => void>()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(createElement(SwitchingHost, { step: 'first', onToken }))
+    })
+
+    await act(async () => {
+      root.render(createElement(SwitchingHost, { step: 'second', onToken }))
+    })
+
+    expect(remove).toHaveBeenCalledWith('widget-1')
+    expect(render).toHaveBeenCalledTimes(2)
+    expect(render.mock.calls.map(([element]) => element.id)).toEqual(['first', 'second'])
+    await act(async () => root.unmount())
   })
 
   it('does not load the script or render a fallback widget without a site key', async () => {

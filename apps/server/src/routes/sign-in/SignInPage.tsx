@@ -23,8 +23,8 @@ import { isOtpMethod } from './shared'
 import { resolveHostedReturn } from './sign-in-flow'
 import { useSignInErrorMessage } from './sign-in-messages'
 import type { SignInSearch, SignInState } from './sign-in-types'
+import { SignInTurnstileProvider } from './SignInTurnstileSlot'
 import { useSignIn } from './useSignIn'
-import { useTurnstile } from './useTurnstile'
 
 // 互切 intent 时透传认证动线参数;verified/reauthenticate/select_account 为一次性不带。
 const INTENT_SWITCH_KEYS = [
@@ -76,12 +76,7 @@ function SignInPage(): ReactNode {
   const search = useSearch({ strict: false }) as PageSearch
   const isProductSignUpFlow = isProductSignUpIntent(search.intent)
   const requiresExplicitInteraction = search.reauthenticate === '1' || search.select_account === '1'
-  const [state, actions] = useSignIn()
-  const { containerRef } = useTurnstile(
-    state.authConfig.turnstileSiteKey,
-    state.turnstileToken,
-    actions.setTurnstileToken,
-  )
+  const [state, actions, turnstile] = useSignIn()
   const errorMessage = useSignInErrorMessage()
   const context = useSignInContext(state)
   const org = state.authConfig.context.organizationName
@@ -162,62 +157,62 @@ function SignInPage(): ReactNode {
 
   return (
     <AuthLayout context={context}>
-      <div {...stylex.props(hosted.screen)}>
-        {error && state.error !== 'verify_email_sent' ? (
-          <Notice tone="danger">{error}</Notice>
-        ) : null}
-        {success ? <Notice tone="success">{success}</Notice> : null}
+      <SignInTurnstileProvider value={turnstile}>
+        <div {...stylex.props(hosted.screen)}>
+          {error && state.error !== 'verify_email_sent' ? (
+            <Notice tone="danger">{error}</Notice>
+          ) : null}
+          {success ? <Notice tone="success">{success}</Notice> : null}
 
-        {state.step === 'organization' && state.authConfig.resolution.status === 'ambiguous' ? (
-          <OrganizationStep
-            matches={state.authConfig.resolution.matches}
-            above={above}
-            applicationName={state.authConfig.context.applicationName}
-            onSelect={actions.selectOrganizationContext}
-          />
-        ) : state.step === 'sso' && state.ssoTarget ? (
-          <SsoRedirectStep
-            target={state.ssoTarget}
-            above={above}
-            applicationName={state.authConfig.context.applicationName}
-            onUseDifferentEmail={actions.changeIdentifier}
-          />
-        ) : state.step === 'methods' ? (
-          <MethodStep
-            state={state}
-            actions={actions}
-            createTitle={createTitle}
-            forgotPasswordHref={recoveryHref}
-            inlineError={inlineError}
-          />
-        ) : (
-          <IdentifierStep
-            state={state}
-            actions={actions}
-            title={
-              state.isSignUpFlow ? (
-                createTitle
-              ) : org ? (
-                <Trans>Sign in to {org}</Trans>
-              ) : (
-                <Trans>Sign in</Trans>
-              )
-            }
-            switchIntent={switchIntent}
-            forgotPasswordHref={recoveryHref}
-          />
-        )}
+          {state.step === 'organization' && state.authConfig.resolution.status === 'ambiguous' ? (
+            <OrganizationStep
+              matches={state.authConfig.resolution.matches}
+              above={above}
+              applicationName={state.authConfig.context.applicationName}
+              onSelect={actions.selectOrganizationContext}
+            />
+          ) : state.step === 'sso' && state.ssoTarget ? (
+            <SsoRedirectStep
+              target={state.ssoTarget}
+              above={above}
+              applicationName={state.authConfig.context.applicationName}
+              onUseDifferentEmail={actions.changeIdentifier}
+            />
+          ) : state.step === 'methods' ? (
+            <MethodStep
+              state={state}
+              actions={actions}
+              createTitle={createTitle}
+              forgotPasswordHref={recoveryHref}
+              inlineError={inlineError}
+            />
+          ) : (
+            <IdentifierStep
+              state={state}
+              actions={actions}
+              title={
+                state.isSignUpFlow ? (
+                  createTitle
+                ) : org ? (
+                  <Trans>Sign in to {org}</Trans>
+                ) : (
+                  <Trans>Sign in</Trans>
+                )
+              }
+              switchIntent={switchIntent}
+              forgotPasswordHref={recoveryHref}
+            />
+          )}
 
-        <div ref={containerRef} {...stylex.props(hosted.widgetSlot)} />
-
-        {state.step === 'identifier' && state.authConfig.guest ? (
-          <SignInGuestButton
-            onContinue={actions.submitGuest}
-            isLoading={state.isLoading}
-            disabled={!state.turnstileReady}
-          />
-        ) : null}
-      </div>
+          {state.step === 'identifier' && state.authConfig.guest ? (
+            <SignInGuestButton
+              onContinue={actions.submitGuest}
+              isLoading={state.isLoading}
+              disabled={!state.turnstileReady}
+            />
+          ) : null}
+        </div>
+      </SignInTurnstileProvider>
     </AuthLayout>
   )
 }

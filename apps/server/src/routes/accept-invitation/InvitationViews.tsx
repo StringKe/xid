@@ -167,6 +167,7 @@ export function CheckEmailView(props: {
   isPending: boolean
   disabled: boolean
   onResend: () => void
+  turnstileSlot: ReactNode
 }): ReactNode {
   return (
     <div {...stylex.props(hosted.screen)}>
@@ -180,16 +181,19 @@ export function CheckEmailView(props: {
         }
       />
       {props.error ? <Notice tone="danger">{props.error}</Notice> : null}
-      <Button
-        variant="secondary"
-        size="lg"
-        fullWidth
-        isLoading={props.isPending}
-        disabled={props.disabled}
-        onClick={props.onResend}
-      >
-        <Trans>Resend invitation email</Trans>
-      </Button>
+      <div {...stylex.props(hosted.group)}>
+        {props.turnstileSlot}
+        <Button
+          variant="secondary"
+          size="lg"
+          fullWidth
+          isLoading={props.isPending}
+          disabled={props.disabled}
+          onClick={props.onResend}
+        >
+          <Trans>Resend invitation email</Trans>
+        </Button>
+      </div>
     </div>
   )
 }

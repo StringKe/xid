@@ -12,6 +12,8 @@ import { hosted } from '../../components/hosted/hosted-styles'
 import { useAuth } from '../../lib/auth-context'
 import { trackPasswordResetRequest } from '../../lib/google-analytics-funnel'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
+import { TurnstileSlot } from '../../components/hosted/TurnstileSlot'
+import { turnstileGate, turnstilePasses } from '../sign-in/turnstile-gate'
 import { useTurnstile } from '../sign-in/useTurnstile'
 import { buildSignInFlowFields } from '../sign-in/sign-in-flow'
 import { maskEmail } from '../sign-in/identifier-mask'
@@ -21,14 +23,6 @@ type RequestStepProps = {
   search: PasswordRecoverySearch
   onDone: (email: string) => void
 }
-
-const styles = stylex.create({
-  turnstile: {
-    display: { default: 'flex', ':empty': 'none' },
-    justifyContent: 'center',
-    width: '100%',
-  },
-})
 
 export function RequestStep({ search, onDone }: RequestStepProps): ReactNode {
   const { t } = useLingui()
@@ -51,13 +45,15 @@ export function RequestStep({ search, onDone }: RequestStepProps): ReactNode {
     retry: false,
   })
   const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
-  const { containerRef } = useTurnstile(
-    authConfig.turnstileSiteKey,
-    turnstileToken,
-    setTurnstileToken,
+  const turnstile = useTurnstile(authConfig.turnstileSiteKey, turnstileToken, setTurnstileToken)
+  const turnstileReady = turnstilePasses(
+    turnstileGate({
+      configSettled: !authConfigQuery.isPending,
+      siteKey: authConfig.turnstileSiteKey,
+      token: turnstileToken,
+      needsInteraction: turnstile.needsInteraction,
+    }),
   )
-  const turnstileReady =
-    !authConfigQuery.isPending && (authConfig.turnstileSiteKey === null || Boolean(turnstileToken))
 
   const requestMutation = useMutation({
     mutationFn: (emailValue: string) => {
@@ -124,7 +120,7 @@ export function RequestStep({ search, onDone }: RequestStepProps): ReactNode {
             disabled={requestMutation.isPending}
           />
         </Field>
-        <div ref={containerRef} {...stylex.props(styles.turnstile)} />
+        <TurnstileSlot turnstile={turnstile} />
         <Button
           type="submit"
           variant="accent"

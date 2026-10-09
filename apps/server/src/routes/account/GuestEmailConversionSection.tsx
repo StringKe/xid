@@ -11,6 +11,7 @@ import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { Alert, Button, Dialog, TextField } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
+import { TurnstileSlot } from '../../components/hosted/TurnstileSlot'
 import { useTurnstile } from '../sign-in/useTurnstile'
 
 const RETURN_PATH = '/account/security'
@@ -40,7 +41,7 @@ export function GuestAddEmailDialog({ onClose }: { onClose: () => void }): React
   const [error, setError] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const siteKey = config.data?.turnstileSiteKey ?? null
-  const { containerRef } = useTurnstile(siteKey, turnstileToken, setTurnstileToken)
+  const turnstile = useTurnstile(siteKey, turnstileToken, setTurnstileToken)
   const turnstileReady = siteKey === null || Boolean(turnstileToken)
   const allowed = config.data ? emailOtpCreationAllowed(config.data) : true
 
@@ -157,7 +158,7 @@ export function GuestAddEmailDialog({ onClose }: { onClose: () => void }): React
           />
         )}
       </form>
-      {step === 'email' ? <div ref={containerRef} /> : null}
+      {step === 'email' ? <TurnstileSlot turnstile={turnstile} /> : null}
       {!allowed ? (
         <Alert tone="warning">
           <Trans>

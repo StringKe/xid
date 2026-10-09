@@ -5,6 +5,8 @@ type TurnstileRenderOptions = {
   callback?: (token: string) => void
   'expired-callback'?: () => void
   'error-callback'?: () => void
+  'before-interactive-callback'?: () => void
+  'after-interactive-callback'?: () => void
   'refresh-expired'?: 'auto' | 'manual' | 'never'
   theme?: 'light' | 'dark' | 'auto'
   size?: 'normal' | 'flexible' | 'compact'

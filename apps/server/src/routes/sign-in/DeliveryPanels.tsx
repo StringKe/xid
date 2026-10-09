@@ -9,6 +9,7 @@ import { hosted } from '../../components/hosted/hosted-styles'
 import { maskEmail } from './identifier-mask'
 import { useTargetLabel } from './OtpPanel'
 import { ProfileFields } from './SignInFields'
+import { SignInTurnstileSlot } from './SignInTurnstileSlot'
 import type { OtpSignInMethod, ProfileFieldKey } from './shared'
 import type { SignInActions, SignInState } from './sign-in-types'
 
@@ -49,6 +50,7 @@ export function MagicLinkPanel(props: PanelProps & ProfileProps): ReactNode {
             </Trans>
           }
         />
+        <SignInTurnstileSlot />
         <p {...stylex.props(hosted.note)}>
           <Trans>No email after a minute? Check spam, or send the link again.</Trans>{' '}
           <button
@@ -83,6 +85,7 @@ export function MagicLinkPanel(props: PanelProps & ProfileProps): ReactNode {
             onChange={actions.setProfileValue}
           />
         ) : null}
+        <SignInTurnstileSlot />
         <Button
           type="submit"
           variant="accent"
@@ -130,6 +133,7 @@ export function CodeStartPanel(
           disabled={state.isLoading}
           onChange={actions.setProfileValue}
         />
+        <SignInTurnstileSlot />
         <Button
           type="submit"
           variant="accent"
@@ -167,6 +171,7 @@ export function PasskeyPanel(props: PanelProps): ReactNode {
         </Notice>
       ) : null}
       <div {...stylex.props(hosted.group)}>
+        <SignInTurnstileSlot />
         <Button
           variant="accent"
           size="lg"

@@ -3831,6 +3831,10 @@ msgstr "Company identity providers. When someone enters an email at a routed dom
 msgid "Complete the CAPTCHA verification to continue."
 msgstr "Complete the CAPTCHA verification to continue."
 
+#: apps/server/src/components/hosted/TurnstileSlot.tsx
+msgid "Complete the check below to continue."
+msgstr "Complete the check below to continue."
+
 #: apps/console/src/nav.tsx
 msgid "Compliance"
 msgstr "Compliance"
@@ -17912,6 +17916,10 @@ msgstr "We'll email a link to {target}. Open it to sign in, no password needed."
 #: apps/server/src/routes/accept-invitation/InvitationPreviewView.tsx
 msgid "We'll email a secure link to the invited address. If it already has an account, sign in to it instead."
 msgstr "We'll email a secure link to the invited address. If it already has an account, sign in to it instead."
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "We'll send a 6-digit code to {target} once you complete the check below."
+msgstr "We'll send a 6-digit code to {target} once you complete the check below."
 
 #: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 msgid "We'll send a 6-digit code to {target} to confirm it's you."

@@ -11,16 +11,9 @@ import { hosted } from '../../components/hosted/hosted-styles'
 import { useAuth } from '../../lib/auth-context'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
+import { TurnstileSlot } from '../../components/hosted/TurnstileSlot'
 import { useTurnstile } from '../sign-in/useTurnstile'
 import { forgotPasswordHref } from '../forgot-password/navigation'
-
-const styles = stylex.create({
-  turnstile: {
-    display: 'flex',
-    justifyContent: 'center',
-    width: '100%',
-  },
-})
 
 function useTurnstileGate(enabled: boolean) {
   const { api } = useAuth()
@@ -35,10 +28,10 @@ function useTurnstileGate(enabled: boolean) {
     retry: false,
   })
   const siteKey = enabled ? (configQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG).turnstileSiteKey : null
-  const { containerRef } = useTurnstile(siteKey, turnstileToken, setTurnstileToken)
+  const handle = useTurnstile(siteKey, turnstileToken, setTurnstileToken)
   const ready =
     !enabled || (!configQuery.isPending && (siteKey === null || Boolean(turnstileToken)))
-  return { containerRef, turnstileToken, ready, reset: () => setTurnstileToken(null) }
+  return { handle, turnstileToken, ready, reset: () => setTurnstileToken(null) }
 }
 
 export function ResendVerification(): ReactNode {
@@ -106,7 +99,7 @@ export function ResendVerification(): ReactNode {
               disabled={resendMutation.isPending}
             />
           </Field>
-          <div ref={turnstile.containerRef} {...stylex.props(styles.turnstile)} />
+          <TurnstileSlot turnstile={turnstile.handle} />
         </>
       ) : null}
       <Button

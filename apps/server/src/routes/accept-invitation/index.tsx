@@ -12,6 +12,7 @@ import { useAuth } from '../../lib/auth-context'
 import { trackInvitationAccepted } from '../../lib/google-analytics-funnel'
 import { page } from '../../styles/product-surface.stylex'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
+import { TurnstileSlot } from '../../components/hosted/TurnstileSlot'
 import { useTurnstile } from '../sign-in/useTurnstile'
 import {
   claimTokenFromFragment,
@@ -39,14 +40,6 @@ type InvitationPageStatus =
   | 'expired'
   | 'check-email'
   | 'preview'
-
-const styles = stylex.create({
-  turnstile: {
-    display: { default: 'flex', ':empty': 'none' },
-    justifyContent: 'center',
-    width: '100%',
-  },
-})
 
 export const invitationNavigation = {
   assign(redirectUrl: string): void {
@@ -133,11 +126,8 @@ export function AcceptInvitationPage(): ReactNode {
     },
   })
   const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
-  const { containerRef } = useTurnstile(
-    authConfig.turnstileSiteKey,
-    turnstileToken,
-    setTurnstileToken,
-  )
+  const turnstile = useTurnstile(authConfig.turnstileSiteKey, turnstileToken, setTurnstileToken)
+  const turnstileSlot = <TurnstileSlot turnstile={turnstile} />
   const context = useInvitationContext(data)
 
   async function handleClaimStart(): Promise<void> {
@@ -252,6 +242,7 @@ export function AcceptInvitationPage(): ReactNode {
           isPending={claimStartPending}
           disabled={claimStartDisabled}
           onResend={() => void handleClaimStart()}
+          turnstileSlot={turnstileSlot}
         />
       )
     }
@@ -266,6 +257,7 @@ export function AcceptInvitationPage(): ReactNode {
         claimStartPending={claimStartPending}
         claimStartDisabled={claimStartDisabled}
         onClaimStart={() => void handleClaimStart()}
+        turnstileSlot={turnstileSlot}
       />
     ) : null
   }
@@ -277,13 +269,7 @@ export function AcceptInvitationPage(): ReactNode {
           <Spinner label={t`Loading invitation`} />
         </div>
       ) : (
-        <div {...stylex.props(hosted.screen)}>
-          {renderStatus()}
-          {/* 同挂载点切换,Turnstile 不重建以便 resend 拿新 challenge。 */}
-          {status === 'preview' || status === 'check-email' ? (
-            <div ref={containerRef} {...stylex.props(styles.turnstile)} />
-          ) : null}
-        </div>
+        <div {...stylex.props(hosted.screen)}>{renderStatus()}</div>
       )}
     </AuthLayout>
   )

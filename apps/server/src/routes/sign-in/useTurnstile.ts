@@ -1,6 +1,6 @@
 // interaction-only Turnstile;site key 缺失不回退测试 key(防生产跳过校验)。
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { TURNSTILE_ACTION } from '../../../shared/turnstile'
 
 const TURNSTILE_SCRIPT_ID = 'xid-turnstile-script'
@@ -13,12 +13,19 @@ type TurnstileApi = {
       callback: (token: string) => void
       'expired-callback': () => void
       'error-callback': () => void
+      'before-interactive-callback': () => void
+      'after-interactive-callback': () => void
       action: string
       appearance: 'interaction-only'
     },
   ) => string
   remove?: (widgetId: string) => void
   reset?: (widgetId: string) => void
+}
+
+export type TurnstileHandle = {
+  containerRef: (element: HTMLDivElement | null) => void
+  needsInteraction: boolean
 }
 
 function ensureScript(): void {
@@ -31,45 +38,51 @@ function ensureScript(): void {
   document.head.appendChild(script)
 }
 
+function turnstileApi(): TurnstileApi | undefined {
+  return (globalThis as Record<string, unknown>).turnstile as TurnstileApi | undefined
+}
+
 export function normalizeTurnstileSiteKey(value: string | null | undefined): string | null {
   const sitekey = value?.trim() ?? ''
   return sitekey.length > 0 ? sitekey : null
 }
 
-// token 被清空时 reset widget,保证每次校验用新单次 token。
+// 容器随步骤换节点时把 widget 重新渲染进新节点;token 被清空时 reset,保证每次校验用新单次 token。
 export function useTurnstile(
   siteKey: string | null | undefined,
   token: string | null,
   onToken: (token: string) => void,
-): {
-  containerRef: React.RefObject<HTMLDivElement | null>
-} {
-  const containerRef = useRef<HTMLDivElement>(null)
+): TurnstileHandle {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null)
+  const [needsInteraction, setNeedsInteraction] = useState(false)
   const widgetIdRef = useRef<string | null>(null)
   // ref 持最新回调,避免 onToken 进 deps 重复初始化 widget。
   const onTokenRef = useRef(onToken)
   onTokenRef.current = onToken
+  const containerRef = useCallback((element: HTMLDivElement | null) => setContainer(element), [])
 
   useEffect(() => {
     const normalizedSiteKey = normalizeTurnstileSiteKey(siteKey)
-    if (!normalizedSiteKey) return
+    if (!normalizedSiteKey || !container) return
     ensureScript()
     let timer: ReturnType<typeof setInterval> | null = null
     let disposed = false
 
+    const settle = (value: string): void => {
+      setNeedsInteraction(false)
+      onTokenRef.current(value)
+    }
     const mount = (): boolean => {
-      if (disposed) return true
-      const container = containerRef.current
-      if (!container || widgetIdRef.current) return true
-      const turnstile = (globalThis as Record<string, unknown>).turnstile as
-        | TurnstileApi
-        | undefined
+      if (disposed || widgetIdRef.current) return true
+      const turnstile = turnstileApi()
       if (!turnstile?.render) return false
       widgetIdRef.current = turnstile.render(container, {
         sitekey: normalizedSiteKey,
-        callback: (token) => onTokenRef.current(token),
-        'expired-callback': () => onTokenRef.current(''),
-        'error-callback': () => onTokenRef.current(''),
+        callback: settle,
+        'expired-callback': () => settle(''),
+        'error-callback': () => settle(''),
+        'before-interactive-callback': () => setNeedsInteraction(true),
+        'after-interactive-callback': () => setNeedsInteraction(false),
         action: TURNSTILE_ACTION,
         appearance: 'interaction-only',
       })
@@ -88,23 +101,18 @@ export function useTurnstile(
       disposed = true
       if (timer) clearInterval(timer)
       const widgetId = widgetIdRef.current
-      if (widgetId) {
-        const turnstile = (globalThis as Record<string, unknown>).turnstile as
-          | TurnstileApi
-          | undefined
-        turnstile?.remove?.(widgetId)
-      }
+      if (widgetId) turnstileApi()?.remove?.(widgetId)
       widgetIdRef.current = null
+      setNeedsInteraction(false)
     }
-  }, [siteKey])
+  }, [siteKey, container])
 
   useEffect(() => {
     if (token) return
     const widgetId = widgetIdRef.current
     if (!widgetId) return
-    const turnstile = (globalThis as Record<string, unknown>).turnstile as TurnstileApi | undefined
-    turnstile?.reset?.(widgetId)
+    turnstileApi()?.reset?.(widgetId)
   }, [token])
 
-  return { containerRef }
+  return { containerRef, needsInteraction }
 }

@@ -13,6 +13,7 @@ import { hosted } from '../../components/hosted/hosted-styles'
 import { maskEmail, phoneLastDigits } from './identifier-mask'
 import { formatCountdown, isOtpExpired, otpLifetimeMinutes, resendWaitSeconds } from './otp-timing'
 import type { OtpSignInMethod } from './shared'
+import { SignInTurnstileSlot } from './SignInTurnstileSlot'
 import type { SignInActions, SignInState } from './sign-in-types'
 
 function useNow(active: boolean): number {
@@ -107,9 +108,11 @@ export function OtpPanel(props: {
   }
 
   const lead =
-    sentAt === null
-      ? t`Sending a 6-digit code to ${target}.`
-      : t`We sent a 6-digit code to ${target}. It works for ${minutes} minutes.`
+    state.otpSendStatus === 'sent'
+      ? t`We sent a 6-digit code to ${target}. It works for ${minutes} minutes.`
+      : state.otpSendStatus === 'awaiting_check'
+        ? t`We'll send a 6-digit code to ${target} once you complete the check below.`
+        : t`Sending a 6-digit code to ${target}.`
   const fieldError =
     formatError ??
     (invalid
@@ -149,13 +152,14 @@ export function OtpPanel(props: {
           disabled={rateLimited}
           autoFocus
         />
+        {sentAt === null || expired ? <SignInTurnstileSlot /> : null}
         {expired ? (
           <Button
             variant="accent"
             size="lg"
             fullWidth
             isLoading={state.isSendingOtp}
-            disabled={waitSeconds > 0}
+            disabled={waitSeconds > 0 || !state.turnstileReady}
             onClick={actions.requestOtp}
           >
             <Trans>Send a new code</Trans>
@@ -166,7 +170,7 @@ export function OtpPanel(props: {
             variant="accent"
             size="lg"
             fullWidth
-            isLoading={state.isVerifyingOtp || state.isSendingOtp}
+            isLoading={state.isVerifyingOtp}
             disabled={rateLimited || sentAt === null}
           >
             <Trans>Verify code</Trans>
@@ -174,12 +178,15 @@ export function OtpPanel(props: {
         )}
       </form>
       {expired || rateLimited ? null : (
-        <ResendLine
-          method={method}
-          waitSeconds={waitSeconds}
-          disabled={state.isSendingOtp || !state.turnstileReady}
-          onResend={actions.requestOtp}
-        />
+        <div {...stylex.props(hosted.group)}>
+          {sentAt === null ? null : <SignInTurnstileSlot />}
+          <ResendLine
+            method={method}
+            waitSeconds={waitSeconds}
+            disabled={state.isSendingOtp || !state.turnstileReady}
+            onResend={actions.requestOtp}
+          />
+        </div>
       )}
     </div>
   )

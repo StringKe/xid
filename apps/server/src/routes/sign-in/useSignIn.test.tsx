@@ -707,6 +707,44 @@ describe('useSignIn second step', () => {
     }
   })
 
+  it('waits for the Turnstile token without showing a send in progress, then reports the code as sent', async () => {
+    postResponses.set('/auth/otp/email/send', { ok: true })
+    const { captured, cleanup } = await renderSecondStep({
+      search: { login_hint: 'dana@northwind.com' },
+      config: { ...otpAndPassword, turnstileSiteKey: 'site-key' },
+    })
+    try {
+      await act(async () => {
+        captured.value?.[1].submitIdentifier()
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured.value?.[0].step).toBe('methods'))
+      })
+
+      expect(captured.value?.[0].isSendingOtp).toBe(false)
+      expect(captured.value?.[0].isLoading).toBe(false)
+      expect(captured.value?.[0].otpSendStatus).toBe('sending')
+      expect(postCalls.map((call) => call.path)).not.toContain('/auth/otp/email/send')
+
+      await act(async () => {
+        captured.value?.[1].setTurnstileToken('turnstile-token-1')
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured.value?.[0].otpSendStatus).toBe('sent'))
+      })
+
+      expect(postCalls.at(-1)).toMatchObject({
+        path: '/auth/otp/email/send',
+        body: { turnstileToken: 'turnstile-token-1' },
+      })
+      expect(captured.value?.[0].turnstileReady).toBe(false)
+      expect(captured.value?.[0].isSendingOtp).toBe(false)
+    } finally {
+      postResponses.clear()
+      await cleanup()
+    }
+  })
+
   it('opens the method this browser used last without sending a code', async () => {
     globalThis.localStorage.setItem('xid.lastAuthMethod', 'password')
     const { captured, cleanup } = await renderSecondStep({

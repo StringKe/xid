@@ -20,6 +20,7 @@ export type InvitationPreviewViewProps = {
   claimStartPending: boolean
   claimStartDisabled: boolean
   onClaimStart: () => void
+  turnstileSlot: ReactNode
 }
 
 export function InvitationPreviewView({
@@ -32,6 +33,7 @@ export function InvitationPreviewView({
   claimStartPending,
   claimStartDisabled,
   onClaimStart,
+  turnstileSlot,
 }: InvitationPreviewViewProps): ReactNode {
   const { user } = useAuth()
   const org = invite.orgName
@@ -85,6 +87,7 @@ export function InvitationPreviewView({
       {signedInAsInvitee ? null : (
         <div {...stylex.props(hosted.group)}>
           {claimStartError ? <Notice tone="danger">{claimStartError}</Notice> : null}
+          {turnstileSlot}
           <Button
             variant="accent"
             size="lg"
