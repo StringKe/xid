@@ -119,6 +119,8 @@ async function verifyWresultProfile(input: {
   return {
     profile: {
       idpId: assertion.idpId,
+      // 连接改用 idpId 属性作主键前按 NameID 建的账号,由 JIT 按旧绑定沿用。
+      ...(assertion.legacyIdpId ? { legacyIdpId: assertion.legacyIdpId } : {}),
       email: assertion.email,
       emailVerified: false,
       firstName: assertion.firstName,

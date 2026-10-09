@@ -345,6 +345,43 @@ describe('enterprise legacy protocols', () => {
     },
   )
 
+  it('WS-Fed callback with an idpId attribute keeps NameID as the legacy binding', async () => {
+    const connection = await signedWsfedConnection()
+    mockSsoConnectionsFindOne.mockResolvedValue({
+      ...connection,
+      attributeMapping: {
+        ...connection.attributeMapping,
+        idpId: `${WSFED_CLAIMS}/givenname`,
+      },
+    })
+    const app = buildApp()
+
+    const res = await app.request(
+      `/sso/wsfed/conn-1/callback?wresult=${encodeURIComponent(await signedWresult('saml11'))}`,
+      {},
+      fakeEnv,
+    )
+
+    expect(res.status).toBe(302)
+    expect(mockJitProvision.mock.calls[0]?.[1]).toMatchObject({
+      idpId: 'WSFed',
+      legacyIdpId: 'wsfed.user@example.com',
+    })
+  })
+
+  it('WS-Fed callback without an idpId attribute sends no legacy binding', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(await signedWsfedConnection())
+    const app = buildApp()
+
+    await app.request(
+      `/sso/wsfed/conn-1/callback?wresult=${encodeURIComponent(await signedWresult('saml2'))}`,
+      {},
+      fakeEnv,
+    )
+
+    expect(mockJitProvision.mock.calls[0]?.[1]).not.toHaveProperty('legacyIdpId')
+  })
+
   it('WS-Fed SP-initiated callback matches wctx against server flow state', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(await signedWsfedConnection())
     const app = buildApp()
