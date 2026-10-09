@@ -8,11 +8,9 @@ import type { Context } from 'hono'
 import type { OrganizationMembershipRole, TenantContext } from '@xid-kit/types'
 import type { SessionData, XidHonoEnv } from '../../lib/types'
 import { isAppError } from '../../lib/errors'
-import {
-  enqueueOrgScimTargetSyncs,
-  executeScimTargetSync,
-  registerOutboundScimRoutes,
-} from '../outbound'
+import { registerOutboundScimRoutes } from '../outbound'
+import { enqueueOrgScimTargetSyncs } from '../outbound-enqueue'
+import { executeScimTargetSync } from '../outbound-sync'
 import { encryptScimTargetToken } from '../target-credentials'
 
 const TENANT: TenantContext = {

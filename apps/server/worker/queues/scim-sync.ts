@@ -5,7 +5,6 @@ import { isAppError } from '../lib/errors'
 import { logWorkerError } from '../lib/safe-log'
 import { OutboundScimRequestError } from '../scim/outbound-client'
 import { releaseFullSyncClaim } from '../scim/outbound-enqueue'
-import type { OutboundScimSyncMessage } from '../scim/outbound-enqueue'
 import { executeScimTargetSync, executeScimUserSync } from '../scim/outbound-sync'
 import type { SyncSummary } from '../scim/outbound-sync'
 
@@ -107,7 +106,7 @@ async function resolveTarget(env: Env, tenant: TenantContext, message: ScimSyncQ
 }
 
 function auditMessage(
-  body: OutboundScimSyncMessage,
+  body: ScimSyncQueueMessage,
   action: AuditQueueMessage['action'],
   attempt: number,
   payload: Record<string, unknown>,
@@ -134,7 +133,7 @@ function auditMessage(
 // 失败重试只重做当前批次。
 async function runSync(
   env: Env,
-  body: OutboundScimSyncMessage,
+  body: ScimSyncQueueMessage,
   scope: { tenant: TenantContext; target: Awaited<ReturnType<typeof resolveTarget>> },
 ): Promise<SyncSummary> {
   if (body.userId !== undefined) {
@@ -143,14 +142,14 @@ async function runSync(
   if (body.cursor === undefined) await releaseFullSyncClaim(env, scope.tenant, scope.target)
   const summary = await executeScimTargetSync({ env, ...scope, cursor: body.cursor })
   if (summary.nextCursor !== undefined) {
-    const next: OutboundScimSyncMessage = { ...body, cursor: summary.nextCursor }
+    const next: ScimSyncQueueMessage = { ...body, cursor: summary.nextCursor }
     await env.SCIM_QUEUE.send(next)
   }
   return summary
 }
 
 async function processMessage(message: Message<ScimSyncQueueMessage>, env: Env): Promise<void> {
-  const body: OutboundScimSyncMessage = message.body
+  const body: ScimSyncQueueMessage = message.body
   const attempt = message.attempts
   try {
     if (body.cursor === undefined) {

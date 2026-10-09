@@ -12,15 +12,6 @@ import { requireOrg, requireOrgManager } from '../v1/shared'
 import { enqueueScimTargetSync } from './outbound-enqueue'
 import type { ScimTarget } from './outbound-mapping'
 
-export { OutboundScimRequestError } from './outbound-client'
-export {
-  enqueueOrgScimTargetSyncs,
-  enqueueScimTargetSync,
-  scheduleOrgScimTargetSyncs,
-  scheduleUserScimTargetSyncs,
-} from './outbound-enqueue'
-export { executeScimTargetSync, executeScimUserSync } from './outbound-sync'
-
 const outbound = new Hono<XidHonoEnv>()
 
 function requireSession(c: Context<XidHonoEnv>): SessionData {

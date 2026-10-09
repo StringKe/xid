@@ -9,9 +9,6 @@ import type { ScimTarget } from './outbound-mapping'
 import { runScimBackgroundTask } from './shared'
 import { assertScimTargetHasToken, scimTargetHasToken } from './target-credentials'
 
-// userId 存在时只同步该用户;cursor 是全量对账的续传位置(成员 id)。
-export type OutboundScimSyncMessage = ScimSyncQueueMessage & { userId?: string; cursor?: string }
-
 // 入队标记超过这个时长仍未被消费时视为消息丢失,允许重新入队。
 const FULL_SYNC_DEDUPE_WINDOW_MS = 60 * 60 * 1000
 
@@ -19,7 +16,7 @@ function scimSyncMessage(
   tenant: TenantContext,
   target: ScimTarget,
   extra: { actorId?: string; userId?: string },
-): OutboundScimSyncMessage {
+): ScimSyncQueueMessage {
   return {
     tenantId: tenant.tenantId,
     orgId: target.orgId,

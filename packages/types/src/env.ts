@@ -88,6 +88,10 @@ export type ScimSyncQueueMessage = {
   actorId?: string
   runId: string
   requestedAt: number
+  // 只同步这一个用户;缺省为全量对账
+  userId?: string
+  // 全量对账的续传位置(成员 id)
+  cursor?: string
 }
 
 export type PrivacyQueueMessage = {

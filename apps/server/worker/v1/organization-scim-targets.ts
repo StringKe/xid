@@ -11,7 +11,7 @@ import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
-import { enqueueScimTargetSync } from '../scim/outbound'
+import { enqueueScimTargetSync } from '../scim/outbound-enqueue'
 import {
   encryptScimTargetToken,
   normalizeScimTargetBaseUrl,

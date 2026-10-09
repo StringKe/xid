@@ -29,7 +29,7 @@ import {
   validateQuery,
 } from '../lib/validate'
 import { sendPasswordResetEmail } from '../me-auth/password-reset-token'
-import { scheduleUserScimTargetSyncs } from '../scim/outbound'
+import { scheduleUserScimTargetSyncs } from '../scim/outbound-enqueue'
 import {
   auditActorId,
   decodeCursor,
