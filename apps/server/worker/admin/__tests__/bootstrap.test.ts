@@ -972,7 +972,7 @@ describe('post-bootstrap tenant resolution', () => {
     const defaultOrg = store['organizations']?.find((row) => row['slug'] === 'default')
     expect(resolved.value.tenant.tenantId).toBe(defaultOrg?.['id'])
     expect(resolved.value.tenant.issuer).toBe('https://xid.test')
-    expect(resolved.value.tenant.rpId).toBe('xid.test')
+    expect(resolved.value.tenant.rpId).toBe('default.xid.test')
     expect(resolved.value.tenant.hostedAuthOrigin).toBe('https://xid.test')
     expect(resolved.value.tenant.signingKeys.activeKid).toBe(
       store['instance_signing_keys']?.[0]?.['kid'],
@@ -1024,7 +1024,7 @@ describe('post-bootstrap tenant resolution', () => {
     if (resolved.value.status !== 'resolved') throw new Error('not resolved')
     expect(resolved.value.tenant.tenantId).toBe(defaultOrg['id'])
     expect(resolved.value.tenant.issuer).toBe('https://xid.test')
-    expect(resolved.value.tenant.rpId).toBe('xid.test')
+    expect(resolved.value.tenant.rpId).toBe('default.xid.test')
     expect(resolved.value.tenant.hostedAuthOrigin).toBe('https://xid.test')
   })
 
@@ -1071,7 +1071,7 @@ describe('post-bootstrap tenant resolution', () => {
       if (resolved.value.status !== 'resolved') throw new Error('not resolved')
       expect(resolved.value.tenant.tenantId).toBe(defaultOrg['id'])
       expect(resolved.value.tenant.issuer).toBe('https://xid.test')
-      expect(resolved.value.tenant.rpId).toBe('xid.test')
+      expect(resolved.value.tenant.rpId).toBe('default.xid.test')
       expect(resolved.value.tenant.hostedAuthOrigin).toBe('https://xid.test')
       expect(resolved.value.matchedBy).toBe(identifier.kind)
     }
@@ -1179,7 +1179,7 @@ describe('post-bootstrap tenant resolution', () => {
     const defaultOrg = store['organizations']?.find((row) => row['slug'] === 'default')
     expect(resolved.value.tenant.tenantId).toBe(defaultOrg?.['id'])
     expect(resolved.value.tenant.issuer).toBe('https://xid.test')
-    expect(resolved.value.tenant.rpId).toBe('xid.test')
+    expect(resolved.value.tenant.rpId).toBe('default.xid.test')
     expect(resolved.value.tenant.hostedAuthOrigin).toBe('https://xid.test')
   })
 
@@ -1223,7 +1223,7 @@ describe('post-bootstrap tenant resolution', () => {
     if (resolved.value.status !== 'new_user') throw new Error('not new_user')
     expect(resolved.value.tenant.tenantId).toBe(defaultOrg['id'])
     expect(resolved.value.tenant.issuer).toBe('https://xid.test')
-    expect(resolved.value.tenant.rpId).toBe('xid.test')
+    expect(resolved.value.tenant.rpId).toBe('default.xid.test')
     expect(resolved.value.tenant.hostedAuthOrigin).toBe('https://xid.test')
   })
 
@@ -1356,7 +1356,7 @@ describe('post-bootstrap tenant resolution', () => {
     expect(resolved.value.status).toBe('resolved')
     expect(resolved.value.tenant.tenantId).toBe(defaultOrg?.['id'])
     expect(resolved.value.tenant.issuer).toBe('https://xid.test')
-    expect(resolved.value.tenant.rpId).toBe('xid.test')
+    expect(resolved.value.tenant.rpId).toBe('default.xid.test')
     expect(resolved.value.tenant.hostedAuthOrigin).toBe('https://xid.test')
   })
 

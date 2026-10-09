@@ -33,6 +33,7 @@ import { activateSessionAfterMfaSetup, resolvePostAuthMfaGate } from '../lib/mfa
 import { loadUserCredentialLabel, requireSession, type SessionRequirement } from '../me/shared'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
 import { trustedRootsKvKey } from '../v1/webauthn-trusted-roots'
+import { handleSessionHandoff, passkeyCeremonyOrigin } from '../me-auth/passkey-handoff'
 
 const passkey = new Hono<XidHonoEnv>()
 
@@ -94,6 +95,8 @@ async function assertResolvedWebAuthnTenant(
       action: 'login',
     })
   }
+  // 凭证只能绑定到组织自己的 rpId 主机,不能在根域以父域或别的主机注册。
+  if (passkeyCeremonyOrigin(c, tenant)) throw new AppError('invalid_request')
 }
 
 function registrationChallengeKey(userId: string, tenantId: string): string {
@@ -220,6 +223,9 @@ passkey.post('/register/verify', async (c) => {
   await activateSessionAfterMfaSetup(c, tenant, { session, method: 'passkey' })
   return c.json({ ok: true })
 })
+
+// POST /auth/passkey/handoff -- rpId 主机完成 passkey 登录后,浏览器把一次性交接 grant 带回 issuer 主机
+passkey.post('/handoff', handleSessionHandoff)
 
 export function registerPasskeyRoutes(app: Hono<XidHonoEnv>): void {
   app.route('/auth/passkey', passkey)

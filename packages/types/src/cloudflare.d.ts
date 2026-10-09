@@ -38,6 +38,7 @@ export type Env = CloudflareForSaasEnv & {
   GUEST_STORE: DurableObjectNamespace
   CIBA_STATE: DurableObjectNamespace
   IMPERSONATION_GRANTS: DurableObjectNamespace
+  SESSION_HANDOFF: DurableObjectNamespace
 
   EMAIL_QUEUE: Queue<EmailQueueMessage>
   WHATSAPP_QUEUE: Queue<WhatsappQueueMessage>

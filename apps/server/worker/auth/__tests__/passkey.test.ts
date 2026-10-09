@@ -211,6 +211,17 @@ async function makeApp(
     await next()
   })
   registerPasskeyRoutes(app)
+  return servedOnRpIdHost(app, tenant)
+}
+
+// WebAuthn 仪式只在租户 rpId 主机上进行:相对路径请求统一发往该主机。
+function servedOnRpIdHost(app: Hono<XidHonoEnv>, tenant: TenantVar): Hono<XidHonoEnv> {
+  const request = app.request.bind(app)
+  app.request = ((input: string | Request | URL, ...rest: unknown[]) =>
+    (request as (...args: unknown[]) => Response | Promise<Response>)(
+      typeof input === 'string' && input.startsWith('/') ? `https://${tenant.rpId}${input}` : input,
+      ...rest,
+    )) as typeof app.request
   return app
 }
 
@@ -245,6 +256,20 @@ describe('POST /auth/passkey/register/options', () => {
       { type: 'public-key', alg: -8 },
     ])
     expect(body['attestation']).toBe('none')
+  })
+
+  it('refuses to start registration on a host other than the tenant rpId', async () => {
+    const challengeHandler = vi.fn(async () => new Response(null, { status: 201 }))
+    const app = await makeApp()
+
+    const res = await app.request(
+      'https://xid.dev/auth/passkey/register/options',
+      { method: 'POST' },
+      makeEnv(challengeHandler),
+    )
+
+    expect(res.status).toBe(400)
+    expect(challengeHandler).not.toHaveBeenCalled()
   })
 
   it('returns 401 when no session', async () => {
@@ -450,7 +475,8 @@ describe('POST /auth/passkey/register/verify', () => {
     expect(body.ok).toBe(true)
     expect(verifyRegistration).toHaveBeenCalledWith(
       expect.objectContaining({
-        expectedOrigins: expect.arrayContaining(['http://localhost']),
+        expectedRpId: 'test.xid.dev',
+        expectedOrigins: expect.arrayContaining(['https://test.xid.dev']),
       }),
       expect.objectContaining({ attestationPolicy: 'none' }),
     )

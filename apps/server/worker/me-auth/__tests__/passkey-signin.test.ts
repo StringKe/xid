@@ -58,7 +58,20 @@ import { consumeChallenge, createChallenge } from '../../auth/passkey-helpers'
 import { AppError } from '../../lib/errors'
 import { resolvePostAuthMfaGate } from '../../lib/mfa-session'
 import { registerSessionAuthRoutes } from '../index'
-import { execCtx, makeApp, makeEnv, makeTenant } from './helpers'
+import { execCtx, makeApp as makeBaseApp, makeEnv, makeTenant } from './helpers'
+
+// 请求发往上下文 tenant 的 rpId 主机:根入口是实例主域,组织上下文是组织子域。
+function makeApp(...args: Parameters<typeof makeBaseApp>): ReturnType<typeof makeBaseApp> {
+  const app = makeBaseApp(...args)
+  const host = (args[1]?.tenant ?? makeTenant()).rpId
+  const request = app.request.bind(app)
+  app.request = ((input: string | Request | URL, ...rest: unknown[]) =>
+    (request as (...values: unknown[]) => Response | Promise<Response>)(
+      typeof input === 'string' && input.startsWith('/') ? `https://${host}${input}` : input,
+      ...rest,
+    )) as typeof app.request
+  return app
+}
 
 const VERIFY_BODY = {
   sessionId: 'handle-1',
@@ -213,7 +226,7 @@ describe('POST /auth/passkey/challenge', () => {
     )
   })
 
-  it('root entry 带 identifier 时按 resolver 切到最终 tenant 生成 challenge', async () => {
+  it('root entry 带 identifier 时解析出组织,不发 challenge,改为把仪式交给组织子域', async () => {
     vi.mocked(resolveInstanceLoginCandidates).mockResolvedValue({
       ok: true,
       value: { status: 'resolved', tenant: makeResolvedTenant(), matchedBy: 'email' },
@@ -232,21 +245,22 @@ describe('POST /auth/passkey/challenge', () => {
       execCtx,
     )
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual(
-      expect.objectContaining({ challenge: 'chal-abc', organizationId: 'tenant-resolved' }),
-    )
+    const body = (await res.json()) as {
+      ceremony: { origin: string; state: string }
+      organizationId: string
+    }
+    expect(body.ceremony.origin).toBe('https://tenant-resolved.xid.dev')
+    expect(body.organizationId).toBe('tenant-resolved')
+    expect(res.headers.get('set-cookie')).toContain(`__Host-xid.handoff=${body.ceremony.state}`)
     expect(resolveInstanceLoginCandidates).toHaveBeenCalledWith(
       expect.any(Request),
       expect.anything(),
       [{ kind: 'email', value: 'user@example.com' }],
     )
-    expect(createChallenge).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining('tenant-resolved'),
-    )
+    expect(createChallenge).not.toHaveBeenCalled()
   })
 
-  it('root entry 带 organizationId 时按选中 organization 生成 challenge', async () => {
+  it('root entry 带 organizationId 时按选中 organization 把仪式交给其子域', async () => {
     vi.mocked(resolveTenantContextById).mockResolvedValue({
       ok: true,
       value: { status: 'resolved', tenant: makeResolvedTenant() },
@@ -271,7 +285,10 @@ describe('POST /auth/passkey/challenge', () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual(
-      expect.objectContaining({ challenge: 'chal-abc', organizationId: 'tenant-resolved' }),
+      expect.objectContaining({
+        ceremony: expect.objectContaining({ origin: 'https://tenant-resolved.xid.dev' }),
+        organizationId: 'tenant-resolved',
+      }),
     )
     expect(resolveTenantContextById).toHaveBeenCalledWith(
       expect.any(Request),
@@ -279,10 +296,7 @@ describe('POST /auth/passkey/challenge', () => {
       'tenant-resolved',
     )
     expect(resolveInstanceLoginCandidates).not.toHaveBeenCalled()
-    expect(createChallenge).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining('tenant-resolved'),
-    )
+    expect(createChallenge).not.toHaveBeenCalled()
   })
 })
 
@@ -360,7 +374,7 @@ describe('POST /auth/passkey/verify', () => {
     )
   })
 
-  it('root entry verify 按 body organizationId 还原最终 tenant 后验签', async () => {
+  it('root entry verify 解析出的组织 rpId 不是当前主机 -> 拒绝且不消费 challenge', async () => {
     vi.mocked(resolveTenantContextById).mockResolvedValue({
       ok: true,
       value: { status: 'resolved', tenant: makeResolvedTenant() },
@@ -380,21 +394,14 @@ describe('POST /auth/passkey/verify', () => {
       ...VERIFY_BODY,
       organizationId: 'tenant-resolved',
     })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(400)
     expect(resolveTenantContextById).toHaveBeenCalledWith(
       expect.any(Request),
       expect.anything(),
       'tenant-resolved',
     )
-    expect(consumeChallenge).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining('tenant-resolved'),
-    )
-    expect(verifyAuthentication).toHaveBeenCalledWith(
-      expect.objectContaining({
-        expectedOrigins: expect.arrayContaining(['http://localhost']),
-      }),
-    )
+    expect(consumeChallenge).not.toHaveBeenCalled()
+    expect(verifyAuthentication).not.toHaveBeenCalled()
   })
 
   it('租户子域带 client_id 时以当前主机 rpId 验签,client_id 只核对归属', async () => {

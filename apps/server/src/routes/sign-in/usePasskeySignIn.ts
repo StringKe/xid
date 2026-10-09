@@ -1,5 +1,7 @@
 // Passkey 登录:Conditional UI 与显式按钮两条路径,四验证在 server。
 // tab 可见性只取决于浏览器是否支持 WebAuthn;Turnstile 只拦截提交,不拆除 passkey 入口。
+// 多租户根域上,组织的 passkey 只属于其子域:challenge 返回 ceremony 时带着登录流程参数跳到子域完成,
+// 子域验签后服务端返回一次性交接表单,浏览器 POST 回根域续跑 /authorize。
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
@@ -9,13 +11,48 @@ import { b64urlToBytes, browserSupportsWebAuthn, serializeAssertion } from './pa
 import type { SignInFlowFields } from './sign-in-flow'
 
 type ChallengeResponse = { challenge: string; sessionId: string; organizationId?: string }
-type VerifyResponse = { redirectUrl?: string }
+type CeremonyResponse = { ceremony: { origin: string; state: string }; organizationId: string }
+type HandoffForm = { action: string; method: 'POST'; fields: Record<string, string> }
+type VerifyResponse = { redirectUrl?: string; handoff?: HandoffForm }
 type VerifyBody = ReturnType<typeof serializeAssertion> & {
   organizationId?: string
   clientId?: string
   continue?: string
   intent?: string
   turnstileToken?: string | null
+  handoffState?: string
+}
+
+const HANDOFF_STATE_PARAM = 'handoff_state'
+const PASSKEY_PARAM = 'passkey'
+
+function currentSearchParam(name: string): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(name)
+}
+
+// 把当前登录页的流程参数原样带到组织子域的登录页,并附上根域 state 与要直接走 passkey 的标记。
+function continueOnCeremonyHost(ceremony: CeremonyResponse): void {
+  const params = new URLSearchParams(window.location.search)
+  params.set(HANDOFF_STATE_PARAM, ceremony.ceremony.state)
+  params.set('organization_id', ceremony.organizationId)
+  params.set(PASSKEY_PARAM, '1')
+  window.location.assign(`${ceremony.ceremony.origin}/sign-in?${params.toString()}`)
+}
+
+function submitHandoff(form: HandoffForm): void {
+  const element = document.createElement('form')
+  element.method = form.method
+  element.action = form.action
+  for (const [name, value] of Object.entries(form.fields)) {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    element.appendChild(input)
+  }
+  document.body.appendChild(element)
+  element.submit()
 }
 
 export type PasskeySupport = 'pending' | 'yes' | 'no'
@@ -47,7 +84,15 @@ type PasskeySignInOptions = {
   onSuccess: (redirectUrl: string | undefined) => Promise<void>
 }
 
-type ChallengeOutcome = ChallengeResponse | 'organization_selection_required' | null
+type ChallengeOutcome =
+  | ChallengeResponse
+  | CeremonyResponse
+  | 'organization_selection_required'
+  | null
+
+function isCeremony(outcome: ChallengeOutcome): outcome is CeremonyResponse {
+  return typeof outcome === 'object' && outcome !== null && 'ceremony' in outcome
+}
 
 // 服务端 challenge 有效期 7 分钟,提前换新以免用户久等后选择的凭据对应已过期的 challenge。
 const CONDITIONAL_REFRESH_MS = 5 * 60 * 1000
@@ -78,7 +123,7 @@ async function fetchChallenge(
   api: ApiClient,
   input: { identifier: string; organizationId?: string | null; clientId?: string },
 ): Promise<ChallengeOutcome> {
-  const result = await api.post<ChallengeResponse>('/auth/passkey/challenge', {
+  const result = await api.post<ChallengeResponse | CeremonyResponse>('/auth/passkey/challenge', {
     ...(input.identifier ? { identifier: input.identifier } : {}),
     ...(input.organizationId ? { organizationId: input.organizationId } : {}),
     ...(input.clientId ? { clientId: input.clientId } : {}),
@@ -93,6 +138,7 @@ function assertionBody(
   extras: { flowFields: SignInFlowFields; turnstileToken: string | null },
 ): VerifyBody {
   const { flowFields, turnstileToken } = extras
+  const handoffState = currentSearchParam(HANDOFF_STATE_PARAM)
   return {
     ...serializeAssertion(credential, challenge.sessionId),
     ...(challenge.organizationId ? { organizationId: challenge.organizationId } : {}),
@@ -100,6 +146,7 @@ function assertionBody(
     ...(flowFields.continue ? { continue: flowFields.continue } : {}),
     ...(flowFields.intent ? { intent: flowFields.intent } : {}),
     ...(turnstileToken ? { turnstileToken } : {}),
+    ...(handoffState ? { handoffState } : {}),
   }
 }
 
@@ -136,6 +183,10 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
       if (!result.ok) {
         setError(apiErrorToKey(result.error))
         restart()
+        return
+      }
+      if (result.value.handoff) {
+        submitHandoff(result.value.handoff)
         return
       }
       await latest.current.onSuccess(result.value.redirectUrl)
@@ -189,7 +240,10 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
 
     void (async () => {
       const challenge = await fetchChallenge(api, { identifier, organizationId, clientId })
-      if (!challenge || challenge === 'organization_selection_required') return
+      // 需要换到组织子域时只在用户主动点按钮后跳转,自动填充建议不触发页面跳转。
+      if (!challenge || challenge === 'organization_selection_required' || isCeremony(challenge)) {
+        return
+      }
       if (controller.signal.aborted) return
       setConditionalRunning(true)
       let credential: Credential | null = null
@@ -251,6 +305,10 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
         restart()
         return
       }
+      if (isCeremony(challenge)) {
+        continueOnCeremonyHost(challenge)
+        return
+      }
       let credential: Credential | null = null
       try {
         credential = await navigator.credentials.get({
@@ -264,6 +322,15 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
       else restart()
     })()
   }, [api, clientId, enabled, identifierRequired, organizationId, restart, submitAssertion])
+
+  // 从根域跳来时直接发起一次;浏览器要求用户手势而拒绝时,按钮仍在,用户再点一次即可。
+  const autoStarted = useRef(false)
+  useEffect(() => {
+    if (autoStarted.current || support !== 'yes' || !enabled || !turnstileReady) return
+    if (currentSearchParam(PASSKEY_PARAM) !== '1') return
+    autoStarted.current = true
+    triggerButton()
+  }, [enabled, support, triggerButton, turnstileReady])
 
   return {
     support,

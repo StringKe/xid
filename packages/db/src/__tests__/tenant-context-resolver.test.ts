@@ -292,6 +292,7 @@ describe('resolveTenantContextByIdInInstance', () => {
       expect(result.value.tenant.tenantId).toBe('org_default')
       expect(result.value.tenant.instanceId).toBe('inst_1')
       expect(result.value.tenant.issuer).toBe('https://xid.test')
+      expect(result.value.tenant.rpId).toBe('default.xid.test')
     }
   })
 
@@ -332,6 +333,7 @@ describe('resolveTenantContextBySessionHash', () => {
     expect(result.ok).toBe(true)
     if (result.ok && result.value.status === 'resolved') {
       expect(result.value.tenant.tenantId).toBe('org_acme')
+      expect(result.value.tenant.rpId).toBe('acme.xid.test')
     }
   })
 

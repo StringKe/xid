@@ -82,6 +82,7 @@ export {
   GuestStore,
   CibaStore,
   ImpersonationGrantDO,
+  SessionHandoffDO,
 } from './durable-objects'
 
 // 异步不阻塞主链路;audit max_concurrency=1 保链式 hash 顺序。

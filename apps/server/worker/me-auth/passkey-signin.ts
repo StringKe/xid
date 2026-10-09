@@ -30,6 +30,12 @@ import {
   resolveEntryTenant,
   withTenant,
 } from './instance-login'
+import {
+  beginPasskeyCeremonyHandoff,
+  handoffStateSchema,
+  mintSessionHandoff,
+  passkeyCeremonyOrigin,
+} from './passkey-handoff'
 
 // challenge DO key:per 匿名 ceremony,用前端原样回传的 sessionId(不透明 handle)。
 function challengeKey(sessionId: string, tenantId: string): string {
@@ -42,6 +48,7 @@ const verifyBodySchema = v.object({
   continue: v.optional(v.nullable(v.string())),
   intent: v.optional(v.nullable(v.string())),
   turnstileToken: v.optional(v.nullable(v.string())),
+  handoffState: v.optional(v.nullable(handoffStateSchema)),
   sessionId: v.pipe(v.string(), v.minLength(1)),
   id: v.optional(v.string()),
   rawId: v.pipe(v.string(), v.minLength(1)),
@@ -142,6 +149,12 @@ export async function handlePasskeyChallenge(c: Context<XidHonoEnv>): Promise<Re
       action: 'login',
     })
   }
+  // 根域解析出的组织 rpId 是其子域:不在这里发 challenge,让浏览器到 rpId 主机完成仪式。
+  const ceremonyOrigin = passkeyCeremonyOrigin(c, tenant)
+  if (ceremonyOrigin) {
+    const state = beginPasskeyCeremonyHandoff(c)
+    return c.json({ ceremony: { origin: ceremonyOrigin, state }, organizationId: tenant.tenantId })
+  }
   // sessionId 是不透明 challenge handle(非登录 session);前端原样回传到 verify。
   const sessionId = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
   const challenge = await createChallenge(c.env, challengeKey(sessionId, tenant.tenantId))
@@ -175,6 +188,7 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
       action: 'login',
     })
   }
+  if (passkeyCeremonyOrigin(c, tenant)) throw new AppError('invalid_request')
 
   // 失败限流:credentialId 账户级 10/15min + IP 级 50/min(anti-abuse rule);成功后清除账户维度。
   const rateLimitAccount = { env: c.env, tenantId: tenant.tenantId, scope: 'passkey' }
@@ -214,6 +228,18 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
       userAgent: requestUserAgent(c),
     })
 
+    // 从根域转来的应用登录:会话已就绪时交还根域续跑 /authorize;仍需 MFA 时留在本主机完成。
+    const handoff =
+      body.handoffState && !mfaGate.redirectUrl && !mfaGate.sessionStatus
+        ? await mintSessionHandoff(c, {
+            tenant,
+            userId,
+            authenticatedAt: now,
+            continuePath: returnPath,
+            state: body.handoffState,
+          })
+        : null
+    if (handoff) return c.json({ handoff })
     return c.json({ redirectUrl: mfaGate.redirectUrl ?? returnPath })
   })
 }

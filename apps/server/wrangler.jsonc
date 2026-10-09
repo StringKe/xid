@@ -227,6 +227,7 @@
       { "name": "GUEST_STORE", "class_name": "GuestStore" },
       { "name": "CIBA_STATE", "class_name": "CibaStore" },
       { "name": "IMPERSONATION_GRANTS", "class_name": "ImpersonationGrantDO" },
+      { "name": "SESSION_HANDOFF", "class_name": "SessionHandoffDO" },
     ],
   },
   // 重建生产 D1 时不需要、也不能靠这里清 DO 状态。
@@ -267,6 +268,10 @@
     {
       "tag": "v4",
       "new_sqlite_classes": ["ImpersonationGrantDO"],
+    },
+    {
+      "tag": "v5",
+      "new_sqlite_classes": ["SessionHandoffDO"],
     },
   ],
   "triggers": {

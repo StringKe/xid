@@ -85,9 +85,10 @@ function passkeyDbMocks(
   return sessionUpdate
 }
 
+// passkey 仪式只在租户 rpId 主机上进行。
 function post(app: ReturnType<typeof makeApp>, env: Env, path: string, body?: unknown) {
   return app.request(
-    path,
+    `https://${makeTenant().rpId}${path}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

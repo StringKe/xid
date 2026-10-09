@@ -14,6 +14,7 @@ import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/veri
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
 import type { XidHonoEnv } from '../lib/types'
 import { MFA_VERIFY_SCOPE } from './mfa-challenge'
+import { passkeyCeremonyOrigin } from './passkey-handoff'
 import { requestIp } from './shared'
 
 const passkeyMfaVerifyBodySchema = v.object({
@@ -38,6 +39,7 @@ export async function handlePasskeyMfaOptions(c: Context<XidHonoEnv>): Promise<R
   const db = createTenantDb(c.env.DB, tenant)
   const credentials = await listEligiblePasskeyCredentials(db, session)
   if (credentials.length === 0) throw new AppError('mfa_setup_required')
+  if (passkeyCeremonyOrigin(c, tenant)) throw new AppError('invalid_request')
 
   const challenge = await createChallenge(c.env, challengeKey(session.sessionId, tenant.tenantId))
   return c.json({

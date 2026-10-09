@@ -120,8 +120,10 @@ function instanceOriginForRequest(request: Request, instance: InstanceRow): stri
   return new URL(request.url).origin
 }
 
-// WebAuthn 隔离要求 rpId 为具体租户子域,禁止父域(见 webauthn rule)。
+// WebAuthn 隔离要求 rpId 为具体租户子域,禁止父域(见 webauthn rule)。多租户下同一组织无论从根域
+// 还是子域解析,rpId 都是 {slug}.{primary};根域上的 passkey 仪式由 Hosted UI 转到该子域完成。
 function rpIdFor(instance: InstanceRow, org: OrgRow): string {
+  if (instance.mode === 'single_tenant') return instance.primaryDomain
   return `${org.slug}.${instance.primaryDomain}`
 }
 
@@ -131,13 +133,11 @@ function rootResolvedContextOptions(
 ): {
   issuer: string
   hostedAuthOrigin: string
-  rpId: string
   resolution: TenantContext['resolution']
 } {
   return {
     issuer: origin,
     hostedAuthOrigin: origin,
-    rpId: instance.primaryDomain,
     resolution: { kind: 'tenant', primaryDomain: instance.primaryDomain },
   }
 }

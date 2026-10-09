@@ -32,7 +32,7 @@ type WorkerBindings = {
   SITE_WORKER: Fetcher
   CONSOLE_WORKER: Fetcher
 
-  // Durable Objects(11 个,见 wrangler.jsonc durable_objects)
+  // Durable Objects(12 个,见 wrangler.jsonc durable_objects)
   SESSION_REVOCATION: DurableObjectNamespace
   WEBAUTHN_CHALLENGE: DurableObjectNamespace
   OAUTH_STATE: DurableObjectNamespace
@@ -44,6 +44,7 @@ type WorkerBindings = {
   GUEST_STORE: DurableObjectNamespace
   CIBA_STATE: DurableObjectNamespace
   IMPERSONATION_GRANTS: DurableObjectNamespace
+  SESSION_HANDOFF: DurableObjectNamespace
 
   // Queues(8 条,消息体类型来自 @xid-kit/types)
   EMAIL_QUEUE: Queue<EmailQueueMessage>
