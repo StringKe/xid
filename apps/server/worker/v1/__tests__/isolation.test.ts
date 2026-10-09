@@ -6471,6 +6471,8 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
       WEBHOOK_QUEUE: makeFakeQueue(),
       WHATSAPP_META_PHONE_NUMBER_ID: 'phone-number-id',
       WHATSAPP_META_ACCESS_TOKEN: 'access-token',
+      WHATSAPP_TEMPLATE_NAME: 'xid_login_code',
+      WHATSAPP_TEMPLATE_LANGUAGE: 'en',
       TWILIO_ACCOUNT_SID: 'account-sid',
       TWILIO_AUTH_TOKEN: 'auth-token',
       SMS_FROM: '+15550000000',
@@ -6552,6 +6554,8 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
       TWILIO_ACCOUNT_SID: 'account-sid',
       TWILIO_AUTH_TOKEN: 'auth-token',
       TWILIO_MESSAGING_SERVICE_SID: 'messaging-service-sid',
+      TWILIO_WHATSAPP_CONTENT_SID: 'HX00000000000000000000000000000000',
+      TWILIO_WHATSAPP_MESSAGING_SERVICE_SID: 'whatsapp-messaging-service-sid',
     })
     const app = buildApp(registerOrganizationsRoutes)
 
@@ -6613,6 +6617,8 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
       WEBHOOK_QUEUE: makeFakeQueue(),
       WHATSAPP_META_PHONE_NUMBER_ID: 'phone-number-id',
       WHATSAPP_META_ACCESS_TOKEN: 'access-token',
+      WHATSAPP_TEMPLATE_NAME: 'xid_login_code',
+      WHATSAPP_TEMPLATE_LANGUAGE: 'en',
       TWILIO_ACCOUNT_SID: 'account-sid',
       TWILIO_AUTH_TOKEN: 'auth-token',
     })
@@ -6645,7 +6651,12 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
           whatsapp: {
             provider: 'meta',
             enabled: true,
-            secretRefs: ['WHATSAPP_META_PHONE_NUMBER_ID', 'WHATSAPP_META_ACCESS_TOKEN'],
+            secretRefs: [
+              'WHATSAPP_META_PHONE_NUMBER_ID',
+              'WHATSAPP_META_ACCESS_TOKEN',
+              'WHATSAPP_TEMPLATE_NAME',
+              'WHATSAPP_TEMPLATE_LANGUAGE',
+            ],
             from: 'whatsapp:+15550000000',
           },
           sms: {
@@ -6673,6 +6684,8 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     expect(patchBody.whatsapp['secretRefs']).toEqual([
       'WHATSAPP_META_PHONE_NUMBER_ID',
       'WHATSAPP_META_ACCESS_TOKEN',
+      'WHATSAPP_TEMPLATE_NAME',
+      'WHATSAPP_TEMPLATE_LANGUAGE',
     ])
     expect(JSON.stringify(patchBody)).not.toContain('access-token')
     expect(JSON.stringify(patchBody)).not.toContain('auth-token')
