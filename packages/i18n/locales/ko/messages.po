@@ -13,8 +13,9 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "-----BEGIN CERTIFICATE-----"
 msgstr "-----BEGIN CERTIFICATE-----"
 
@@ -98,7 +99,7 @@ msgid "{0, plural, one {# person still uses one.} other {# people still use one.
 msgstr "{0, plural, one {아직 #명이 사용 중입니다.} other {아직 #명이 사용 중입니다.}}"
 
 #. placeholder {0}: domain.memberCount
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 msgid "{0, plural, one {# person} other {# people}}"
 msgstr "{0, plural, one {#명} other {#명}}"
 
@@ -268,6 +269,10 @@ msgstr "{actor}님이 컴플라이언스 증빙 {target}을(를) 등록했습니
 #: apps/console/src/routes/users/activity-sentence.ts
 msgid "{actor} removed {subject} from an organization."
 msgstr "{actor}님이 {subject}님을 조직에서 제거했습니다."
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} removed a passkey from {subject}."
+msgstr "{actor}이(가) {subject}의 패스키 1개를 제거했습니다."
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "{actor} removed instance manager {target}."
@@ -608,7 +613,7 @@ msgstr "{firstName}님의 기기 페이지에 대리 로그인 세션이 표시�
 msgid "{following, plural, one {# of {total} follows these defaults.} other {# of {total} follow these defaults.}}"
 msgstr "{following, plural, one {{total}개 중 #개가 이 기본값을 따릅니다.} other {{total}개 중 #개가 이 기본값을 따릅니다.}}"
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 msgid "{from} to {to}"
 msgstr "{from}부터 {to}까지"
 
@@ -700,6 +705,10 @@ msgstr "{name}님은 {count, plural, other {조직 #개}}에 속해 있습니다
 msgid "{name} belongs to no organization."
 msgstr "{name}님은 어떤 조직에도 속해 있지 않습니다."
 
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+msgid "{name} can no longer sign in with this passkey and is signed out everywhere. Other passkeys and sign-in methods keep working. {name} can add a new passkey from the Security page of their account after signing in another way."
+msgstr "{name}은(는) 더 이상 이 패스키로 로그인할 수 없으며 모든 곳에서 로그아웃됩니다. 다른 패스키와 로그인 방법은 계속 사용할 수 있습니다. {name}은(는) 다른 방법으로 로그인한 뒤 계정의 보안 페이지에서 새 패스키를 추가할 수 있습니다."
+
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "{name} can sign in again"
 msgstr "{name}님이 다시 로그인할 수 있습니다"
@@ -716,7 +725,7 @@ msgstr "계정의 일시 중단을 해제할 때까지 {name}님은 로그인할
 msgid "{name} details"
 msgstr "{name} 세부 정보"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 msgid "{name} directory sync"
 msgstr "{name} 디렉터리 동기화"
 
@@ -757,6 +766,10 @@ msgstr "{name}님이 추가되었습니다"
 #: apps/console/src/routes/users/DeleteUserDialog.tsx
 msgid "{name} was deleted"
 msgstr "{name}이(가) 삭제되었습니다"
+
+#: apps/server/src/routes/account/PasskeyNotices.tsx
+msgid "{name} was removed. If your password manager still offers it, delete it there too."
+msgstr "{name}을(를) 제거했습니다. 비밀번호 관리자에 아직 표시되면 그곳에서도 삭제하세요."
 
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "{name} was signed out everywhere"
@@ -923,10 +936,6 @@ msgstr "{remaining} 남음"
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "{remaining} of {total} unused. For when you can't reach your phone or passkeys."
 msgstr "{total}개 중 {remaining}개 미사용. 휴대폰이나 패스키를 사용할 수 없을 때를 위한 것입니다."
-
-#: apps/server/src/routes/account/PasskeySection.tsx
-msgid "{removedName} was removed. If your password manager still offers it, delete it there too."
-msgstr "{removedName}이(가) 제거되었습니다. 비밀번호 관리자에 아직 표시되면 그곳에서도 삭제하세요."
 
 #: apps/console/src/routes/members/MembersTab.tsx
 msgid "{removingName} loses access to {orgLabel} and its apps right away. The account itself stays and can be invited again."
@@ -1134,127 +1143,159 @@ msgstr "+1 415 555 0142"
 msgid "+1 555 000 0000"
 msgstr "+1 555 000 0000"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> accepted an invitation"
 msgstr "<0>{actor}</0>님이 초대를 수락했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> acted on <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>에 작업했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added <1>{target}</1> as a member"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 멤버로 추가했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added a webhook endpoint"
 msgstr "<0>{actor}</0>님이 Webhook 엔드포인트를 추가했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added an email address to <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>에 이메일 주소를 추가했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed sign-in and MFA settings"
 msgstr "<0>{actor}</0>님이 로그인 및 MFA 설정을 변경했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed the enterprise SSO connection"
 msgstr "<0>{actor}</0>님이 엔터프라이즈 SSO 연결을 변경했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed the primary email address of <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>의 기본 이메일 주소를 변경했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed the role of <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>의 역할을 변경했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> connected enterprise SSO"
 msgstr "<0>{actor}</0>님이 엔터프라이즈 SSO를 연결했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> created the API key <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 API 키 <1>{target}</1>을(를) 만들었습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> created the user <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 사용자 <1>{target}</1>을(를) 만들었습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deactivated <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 비활성화했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 삭제했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted the user <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 사용자 <1>{target}</1>을(를) 삭제했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> ended a session"
 msgstr "<0>{actor}</0>님이 세션을 종료했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> exported users"
 msgstr "<0>{actor}</0>님이 사용자를 내보냈습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> invited <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 초대했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> made a change"
 msgstr "<0>{actor}</0>님이 변경했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> marked the {period} MAU report ({value}) as already received by Stripe"
+msgstr "<0>{actor}</0>이(가) {period} MAU 보고({value})를 Stripe에서 이미 수신한 것으로 표시했습니다"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> prepared a new SAML signing certificate for outbound apps"
+msgstr "<0>{actor}</0>이(가) 아웃바운드 앱용 새 SAML 서명 인증서를 준비했습니다"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> published the next SAML signing certificate for outbound apps"
+msgstr "<0>{actor}</0>이(가) 아웃바운드 앱용 다음 SAML 서명 인증서를 게시했습니다"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> reactivated <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 다시 활성화했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> removed <1>{target}</1> from the organization"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 조직에서 제거했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> removed a passkey from <1>{target}</1>"
+msgstr "<0>{actor}</0>이(가) <1>{target}</1>의 패스키 1개를 제거했습니다"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> removed all passkey attestation trusted roots"
+msgstr "<0>{actor}</0>이(가) 패스키 증명의 신뢰할 수 있는 루트를 모두 제거했습니다"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> replaced the passkey attestation trusted roots, {count} in total"
+msgstr "<0>{actor}</0>이(가) 패스키 증명의 신뢰할 수 있는 루트를 교체했습니다(총 {count}개)"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> reset two-step verification for <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>의 2단계 인증을 초기화했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> restored the user <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 사용자 <1>{target}</1>을(를) 복원했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> revoked an invitation"
 msgstr "<0>{actor}</0>님이 초대를 취소했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> revoked the API key <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 API 키 <1>{target}</1>을(를) 폐기했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> rotated a webhook signing secret"
 msgstr "<0>{actor}</0>님이 Webhook 서명 시크릿을 교체했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> sent a password reset to <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>에게 비밀번호 재설정을 보냈습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> sent the {period} MAU report ({value}) to Stripe again"
+msgstr "<0>{actor}</0>이(가) {period} MAU 보고({value})를 Stripe에 다시 보냈습니다"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> set a new password for <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>의 새 비밀번호를 설정했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> signed <1>{target}</1> out everywhere"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 모든 곳에서 로그아웃시켰습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> signed in"
 msgstr "<0>{actor}</0>님이 로그인했습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> switched outbound apps to the new SAML signing certificate"
+msgstr "<0>{actor}</0>이(가) 아웃바운드 앱을 새 SAML 서명 인증서로 전환했습니다"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> updated <1>{target}</1>"
 msgstr "<0>{actor}</0>님이 <1>{target}</1>을(를) 업데이트했습니다"
 
@@ -1494,7 +1535,7 @@ msgstr "6자리 코드이며 10분간 유효합니다. 메시징으로 전송됩
 msgid "A client secret is configured. Leave blank to keep it."
 msgstr "클라이언트 시크릿이 설정되어 있습니다. 유지하려면 비워 두세요."
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 #: apps/console/src/routes/users/activity-sentence.ts
 msgid "A deleted user"
 msgstr "삭제된 사용자"
@@ -1540,11 +1581,11 @@ msgstr "패스키"
 msgid "A passkey counts as both steps. Everyone else proves it a second way after their password or code."
 msgstr "패스키는 두 단계를 모두 충족합니다. 그 외 사용자는 비밀번호나 코드 다음에 다른 방법으로 한 번 더 확인합니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "A passkey only works on {host}, so a look-alike sign-in page can't use it."
 msgstr "패스키는 {host}에서만 작동하므로 가짜 로그인 페이지에서는 사용할 수 없습니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "A passkey replaces your password and counts as two-step verification. It takes a few seconds on this device."
 msgstr "패스키는 비밀번호를 대신하며 2단계 인증으로도 인정됩니다. 이 기기에서는 몇 초면 됩니다."
 
@@ -1584,7 +1625,11 @@ msgstr "재사용된 어설션이 감지되었습니다."
 msgid "A resource with this identifier already exists."
 msgstr "이 식별자를 사용하는 리소스가 이미 있습니다."
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "A secret is configured. Leave blank to keep it."
+msgstr "시크릿이 설정되어 있습니다. 유지하려면 비워 두세요."
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "A sign-in attempt failed"
 msgstr "로그인 시도가 실패했습니다"
 
@@ -1660,7 +1705,7 @@ msgstr "액세스 요청 수명주기"
 msgid "Access requests"
 msgstr "액세스 요청"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Access token"
 msgstr "액세스 토큰"
 
@@ -1672,7 +1717,7 @@ msgstr "액세스 토큰 유효 시간(분)"
 msgid "Access tokens are stored in <0>HttpOnly</0> session cookies; they are never written to <1>localStorage</1>."
 msgstr "액세스 토큰은 <0>HttpOnly</0> 세션 cookie에 저장되며 <1>localStorage</1>에는 기록되지 않습니다."
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Access tokens: 1 minute to 24 hours. Refresh tokens rotate on every use; reusing an old one signs out the whole chain. Leave a field empty to use the instance default."
 msgstr "액세스 토큰: 1분부터 24시간까지. 리프레시 토큰은 사용할 때마다 교체되며, 이전 토큰을 다시 쓰면 체인 전체가 로그아웃됩니다. 인스턴스 기본값을 쓰려면 필드를 비워 두세요."
 
@@ -1746,8 +1791,8 @@ msgstr "이 인스턴스의 모든 조직 계정입니다. 같은 이메일이 �
 msgid "ACS endpoint for signed or encrypted SAML responses."
 msgstr "서명되었거나 암호화된 SAML 응답을 위한 ACS 엔드포인트입니다."
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "ACS URL"
 msgstr "ACS URL"
 
@@ -1773,6 +1818,7 @@ msgstr "조치 필요"
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -1813,7 +1859,7 @@ msgstr "{host} 작업"
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/users/UserActions.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Actions for {name}"
 msgstr "{name} 작업"
 
@@ -1832,7 +1878,7 @@ msgstr "기기 활성화 | XID"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/platform/SigningKeysSection.tsx
@@ -1893,7 +1939,7 @@ msgstr "활동을 불러올 수 없습니다"
 msgid "Activity could not be loaded. Reload the page to try again."
 msgstr "활동을 불러오지 못했습니다. 페이지를 새로고침해 다시 시도하세요."
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "Actor"
@@ -2076,6 +2122,10 @@ msgstr "조직에 추가…"
 msgid "Add to pubspec.yaml and run flutter pub get:"
 msgstr "pubspec.yaml에 추가하고 flutter pub get을 실행하세요:"
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Add trusted roots first. Without them no passkey could be registered."
+msgstr "먼저 신뢰할 수 있는 루트를 추가하세요. 루트가 없으면 패스키를 등록할 수 없습니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add via Swift Package Manager in Package.swift:"
 msgstr "Package.swift에서 Swift Package Manager를 통해 추가하세요:"
@@ -2173,8 +2223,8 @@ msgid "After signing in, open the original invitation link again to join with th
 msgstr "로그인한 후 원래 초대 링크를 다시 열어 해당 계정으로 참여하세요."
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-msgid "After that, {name} rejects every sign-in from XID. XID publishes the next certificate 30 days before expiry; download the IdP metadata again and upload it in {name} once it appears below."
-msgstr "그 이후 {name}은(는) XID의 모든 로그인을 거부합니다. XID는 만료 30일 전에 다음 인증서를 게시합니다. 아래에 표시되면 IdP 메타데이터를 다시 내려받아 {name}에 업로드하세요."
+msgid "After that, {name} rejects every sign-in from XID. XID publishes the next certificate 60 days before expiry. Download the IdP metadata again, upload it in {name}, then switch to the next certificate below."
+msgstr "그 이후에는 {name}이(가) XID에서 오는 모든 로그인을 거부합니다. XID는 만료 60일 전에 다음 인증서를 게시합니다. IdP 메타데이터를 다시 다운로드해 {name}에 업로드한 뒤 아래에서 다음 인증서로 전환하세요."
 
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
 msgid "After that, XID rejects every sign-in from {name}."
@@ -2184,19 +2234,19 @@ msgstr "그 이후 XID는 {name}의 모든 로그인을 거부합니다."
 msgid "After this you'll save 10 backup codes, in case you lose your device."
 msgstr "다음 단계에서 기기를 잃어버릴 경우를 대비해 백업 코드 10개를 저장합니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "After this, you'll sign in to {appName} with a code sent to your email."
 msgstr "이후에는 이메일로 받은 코드로 {appName}에 로그인합니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "After this, you'll sign in to {appName} with your {provider} account."
 msgstr "이후에는 {provider} 계정으로 {appName}에 로그인합니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "After this, you'll sign in to {appName} with your password and a code from your authenticator app."
 msgstr "이후에는 비밀번호와 인증 앱의 코드로 {appName}에 로그인합니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "After this, you'll sign in to {appName} with your password."
 msgstr "이후에는 비밀번호로 {appName}에 로그인합니다."
 
@@ -2497,13 +2547,17 @@ msgstr "조직의 모든 멤버"
 msgid "Any organization"
 msgstr "모든 조직"
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Any passkey can be registered."
+msgstr "모든 패스키를 등록할 수 있습니다."
+
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Any provider with a discovery URL"
 msgstr "Discovery URL이 있는 모든 공급자"
 
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "Any provider with a metadata URL"
-msgstr "메타데이터 URL이 있는 모든 공급자"
+msgid "Any provider with a metadata URL or file"
+msgstr "메타데이터 URL 또는 파일을 제공하는 모든 공급자"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Any time"
@@ -2521,7 +2575,7 @@ msgstr "모든 사용자"
 msgid "API key"
 msgstr "API 키"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "API key {name}"
 msgstr "API 키 {name}"
@@ -2565,6 +2619,10 @@ msgstr "앱 작업"
 msgid "App added"
 msgstr "앱 추가됨"
 
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "App metadata"
+msgstr "앱 메타데이터"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "App name or entity ID"
 msgstr "앱 이름 또는 엔터티 ID"
@@ -2592,6 +2650,10 @@ msgstr "앱 섹션"
 #: apps/console/src/routes/org/AuthDetailParts.tsx
 msgid "App settings changed"
 msgstr "앱 설정 변경됨"
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "App sign-ins"
+msgstr "앱 로그인 정보"
 
 #: apps/console/src/routes/org/OutboundSamlAppForms.tsx
 msgid "App signing certificates"
@@ -2632,6 +2694,10 @@ msgstr "프로젝트 파일에 <UseWinUI>true</UseWinUI>를 설정해야 합니�
 #: apps/console/src/routes/applications/ApplicationDetail.tsx
 msgid "Application not found"
 msgstr "애플리케이션을 찾을 수 없습니다"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Application sign-in URL"
+msgstr "애플리케이션 로그인 URL"
 
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Application type"
@@ -2814,6 +2880,10 @@ msgstr "인스턴스 설정 시"
 msgid "At least 12 characters, breached passwords blocked."
 msgstr "12자 이상이며 유출된 비밀번호는 차단됩니다."
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "At least 32 characters. XID never shows it again after saving."
+msgstr "32자 이상이어야 합니다. 저장한 뒤에는 XID가 다시 표시하지 않습니다."
+
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "At least one instance manager must remain. The list was refreshed."
 msgstr "인스턴스 관리자는 최소 한 명 있어야 합니다. 목록을 새로 고쳤습니다."
@@ -2821,6 +2891,14 @@ msgstr "인스턴스 관리자는 최소 한 명 있어야 합니다. 목록을 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Atlassian"
 msgstr "Atlassian"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Attestation is a signed statement from the device about which security key or platform created a passkey. Most organizations do not require it."
+msgstr "증명은 어떤 보안 키나 플랫폼이 패스키를 만들었는지에 대해 기기가 서명한 진술입니다. 대부분의 조직에서는 필요하지 않습니다."
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Attestation is required but no trusted roots are configured, so no one can register a passkey. Add trusted roots or choose another option."
+msgstr "증명이 필수이지만 신뢰할 수 있는 루트가 설정되지 않아 아무도 패스키를 등록할 수 없습니다. 신뢰할 수 있는 루트를 추가하거나 다른 옵션을 선택하세요."
 
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
@@ -3143,9 +3221,17 @@ msgstr "결제 상태"
 msgid "billing_admin"
 msgstr "billing_admin"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Bind DN template"
+msgstr "Bind DN 템플릿"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Binding"
 msgstr "바인딩"
+
+#: apps/console/src/routes/org/DeliveryChannelDialog.tsx
+msgid "Bird sends from the SMS channel your instance operator set up."
+msgstr "Bird는 인스턴스 운영자가 설정한 SMS 채널로 발송합니다."
 
 #: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Block new resource creation"
@@ -3371,10 +3457,11 @@ msgstr "CanActivateFn 팩토리"
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 #: apps/server/src/routes/account/PasswordSection.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/account/step-up.tsx
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
 #: apps/server/src/routes/mfa/MfaExits.tsx
 #: packages/web-ui/src/components/ConfirmDialog.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
@@ -3398,7 +3485,7 @@ msgstr "기능"
 msgid "CAPTCHA verification failed. Try again."
 msgstr "CAPTCHA 인증에 실패했습니다. 다시 시도하세요."
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
 msgid "Certificate"
 msgstr "인증서"
@@ -3499,6 +3586,10 @@ msgstr "세부 정보를 확인한 뒤 현재 로그인한 계정으로 수락�
 msgid "Check the sequence range. It must exist in the chain and stay within 50,000 entries."
 msgstr "시퀀스 범위를 확인하세요. 체인에 존재해야 하며 50,000개를 넘을 수 없습니다."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Check when present"
+msgstr "제공된 경우 검증"
+
 #: apps/server/src/routes/mfa/index.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Check your connection and try again."
@@ -3526,6 +3617,10 @@ msgstr "확인함"
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Checked at sign-in for every application in {name}."
 msgstr "{name}의 모든 애플리케이션에 로그인할 때 확인합니다."
+
+#: apps/console/src/routes/org/OrgAuthPolicy.tsx
+msgid "Checked when present"
+msgstr "제공된 경우 검증"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "checksum"
@@ -3566,16 +3661,12 @@ msgstr "콘솔에서 계속할 조직을 선택하세요."
 msgid "Choose another way to verify"
 msgstr "다른 확인 방법 선택"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "Choose SAML if {orgName}'s {label} admin already uses SAML for other apps."
-msgstr "{orgName}의 {label} 관리자가 이미 다른 앱에 SAML을 쓰고 있다면 SAML을 선택하세요."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Choose Start free at the top of this page. Sign up and name your organization; XID creates it and opens the Console."
 msgstr "이 페이지 상단의 무료로 시작을 선택합니다. 가입하고 조직 이름을 정하면 XID가 조직을 만들고 콘솔을 엽니다."
 
 #. placeholder {0}: connection.name
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Choose which email domains go to {0}"
 msgstr "{0}(으)로 보낼 이메일 도메인 선택"
 
@@ -3658,8 +3749,8 @@ msgstr "클라이언트 ID"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 #: apps/console/src/routes/org/SocialProviderDialog.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Client ID"
 msgstr "클라이언트 ID"
 
@@ -3693,8 +3784,8 @@ msgstr "클라이언트 시크릿"
 
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 #: apps/console/src/routes/org/SocialProviderDialog.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Client secret"
 msgstr "클라이언트 시크릿"
 
@@ -3803,6 +3894,10 @@ msgstr "인증 앱의 코드"
 msgid "Codebase for Cloud and self-hosted"
 msgstr "클라우드와 셀프 호스팅이 함께 쓰는 코드베이스"
 
+#: apps/console/src/routes/org/DeliveryChannelDialog.tsx
+msgid "Codes are sent with an approved WhatsApp authentication template, so the template settings are required."
+msgstr "코드는 승인된 WhatsApp 인증 템플릿으로 발송되므로 템플릿 설정이 필요합니다."
+
 #: apps/server/src/routes/activate/index.tsx
 msgid "Codes expire after 10 minutes and work only once. Get a new code on your device, then enter it here."
 msgstr "코드는 10분 후 만료되며 한 번만 사용할 수 있습니다. 기기에서 새 코드를 받아 여기에 입력하세요."
@@ -3907,10 +4002,6 @@ msgstr "인증, 공급자 연결, 엔터프라이즈 ID 및 조직 표시를 구
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Configure downstream SaaS SAML apps from Slack, GitHub, Microsoft, and other presets."
 msgstr "Slack, GitHub, Microsoft 등 프리셋으로 다운스트림 SaaS SAML 앱을 구성합니다."
-
-#: apps/console/src/routes/org/SsoConnectionFields.tsx
-msgid "Configure protocol-specific fields under <0>_legacy</0> in attribute mapping. SWA vaulted credentials are stored via the authenticated <1>/sso/swa/:connectionId/vault</1> API."
-msgstr "attribute mapping의 <0>_legacy</0> 아래에서 프로토콜별 필드를 구성합니다. SWA 보관 자격 증명은 인증된 <1>/sso/swa/:connectionId/vault</1> API를 통해 저장됩니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Configure social OAuth providers while keeping provider-ready separate from production support."
@@ -4390,6 +4481,7 @@ msgstr "초대를 생성(bulk 제한 있음), 폐기, 조회합니다."
 
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 #: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
@@ -4620,7 +4712,7 @@ msgstr "아웃바운드 SCIM 대상을 생성, 업데이트, 동기화 및 제�
 msgid "Created"
 msgstr "생성됨"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Created {created}"
 msgstr "{created}에 생성"
 
@@ -4797,7 +4889,7 @@ msgstr "데이터 상주 레이블"
 msgid "DAU"
 msgstr "DAU"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "days"
 msgstr "일"
 
@@ -4830,7 +4922,7 @@ msgstr "디코딩된 헤더와 페이로드"
 msgid "Deep link callback"
 msgstr "딥 링크 콜백"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 #: apps/console/src/routes/org/OrgBranding.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Default"
@@ -4853,7 +4945,7 @@ msgstr "기본값: openid, profile, email"
 msgid "Default. Stores tokens in the freedesktop.org Secret Service (gnome-keyring or kwallet) via D-Bus. Requires a running desktop session."
 msgstr "기본값. D-Bus를 통해 freedesktop.org Secret Service(gnome-keyring 또는 kwallet)에 토큰을 저장합니다. 실행 중인 데스크톱 세션이 필요합니다."
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Defaults for every application. An application can set its own access token lifetime on its settings page; refresh token lifetimes always come from here."
 msgstr "모든 애플리케이션의 기본값입니다. 애플리케이션은 설정 페이지에서 자체 액세스 토큰 수명을 지정할 수 있으며, 리프레시 토큰 수명은 항상 여기 값을 따릅니다."
 
@@ -5253,10 +5345,6 @@ msgstr "직접 부여"
 msgid "Direct grants can be removed here. A role that comes through a project grant changes only when that project grant changes."
 msgstr "직접 부여는 여기에서 제거할 수 있습니다. 프로젝트 권한 부여로 받은 역할은 해당 프로젝트 권한 부여가 바뀔 때만 바뀝니다."
 
-#: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
-msgid "Direct, checked against trusted roots"
-msgstr "직접, 신뢰할 수 있는 루트로 검증"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Direction"
 msgstr "방향"
@@ -5332,9 +5420,9 @@ msgstr "{name} 연결을 해제할까요?"
 msgid "Disconnect…"
 msgstr "연결 해제…"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Discovery URL"
 msgstr "디스커버리 URL"
 
@@ -5355,7 +5443,8 @@ msgid "Discriminated XidClient constructor options: same-origin accepts apiUrl, 
 msgstr "판별 가능한 XidClient constructor options입니다. same-origin은 apiUrl, secretKey, fetcher, now를 허용하고 oidc에는 issuer, clientId, redirectUri가 필요합니다."
 
 #: apps/console/src/components/ActiveAnnouncementsBanner.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyNotices.tsx
+#: apps/server/src/routes/account/SteppedUpNotice.tsx
 #: packages/web-ui/src/components/ui/Toast.tsx
 msgid "Dismiss"
 msgstr "닫기"
@@ -5381,6 +5470,14 @@ msgstr "DNS 레코드"
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Do I need to pay for SSO, SCIM or MFA?"
 msgstr "SSO, SCIM, MFA는 유료인가요?"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Do this only after you confirmed that Stripe has no event {identifier}. XID sends the {value} MAU again under a new event ID."
+msgstr "Stripe에 이벤트 {identifier}가 없음을 확인한 후에만 실행하세요. XID는 {value} MAU를 새 이벤트 ID로 다시 보냅니다."
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Do this only after you found event {identifier} in Stripe. XID records the {value} MAU as reported and does not send it again."
+msgstr "Stripe에서 이벤트 {identifier}를 찾은 후에만 실행하세요. XID는 {value} MAU를 보고 완료로 기록하고 다시 보내지 않습니다."
 
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Do you have SOC 2 or ISO 27001?"
@@ -5436,9 +5533,9 @@ msgstr "도메인"
 msgid "Domains | Console | XID"
 msgstr "도메인 | 콘솔 | XID"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
-msgid "Domains are routed in Enterprise SSO. Turn this on only after every active member has a routed domain, or they cannot sign in."
-msgstr "도메인은 엔터프라이즈 SSO에서 라우팅됩니다. 모든 활성 멤버에게 라우팅된 도메인이 있을 때만 켜세요. 그렇지 않으면 로그인할 수 없습니다."
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Domains are routed in Enterprise SSO. Turn on Require single sign-on only after every active member has a routed domain, or they cannot sign in."
+msgstr "도메인 라우팅은 엔터프라이즈 SSO에서 설정합니다. 모든 활성 멤버에게 라우팅된 도메인이 있는 경우에만 SSO 필수를 켜세요. 그렇지 않으면 로그인할 수 없습니다."
 
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 msgid "Domains could not be loaded"
@@ -5575,6 +5672,10 @@ msgstr "각 SDK에는 설치 단계, API 표, 복사-붙여넣기 예제가 포�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each source Queue requires its own dead-letter Queue and persistence-failure quarantine, for 24 Queues total. The shared xid-dlq is obsolete and must not be used."
 msgstr "각 source Queue에는 전용 dead-letter Queue와 persistence-failure quarantine이 필요하며 총 24개 Queues가 구성됩니다. 공유 xid-dlq는 폐기되었으므로 사용해서는 안 됩니다."
+
+#: apps/server/src/routes/account/PasskeyCard.tsx
+msgid "Earlier address"
+msgstr "이전 주소"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Edge Runtime middleware: verifies JWT, injects auth headers"
@@ -5741,6 +5842,10 @@ msgstr "이메일 전송"
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Email domains"
 msgstr "이메일 도메인"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Email header"
+msgstr "이메일 헤더"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Email link and code sign-in: verified in production on xid.dev. Other sign-in methods and the account page: verified locally."
@@ -5987,6 +6092,10 @@ msgstr "WhatsApp으로 받은 코드를 입력하세요"
 msgid "Enter the code we texted you"
 msgstr "문자로 받은 코드를 입력하세요"
 
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Enter the details yourself"
+msgstr "세부 정보 직접 입력"
+
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Enter the downstream API token. Sync needs it, and changing the base URL host requires it again."
 msgstr "다운스트림 API 토큰을 입력하세요. 동기화에 필요하며, 기본 URL의 호스트를 바꾸면 다시 입력해야 합니다."
@@ -6003,6 +6112,10 @@ msgstr "로그인에 사용하는 이메일을 입력하세요. 새 비밀번호
 msgid "Enter the full email address."
 msgstr "전체 이메일 주소를 입력하세요."
 
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Enter the metadata URL, or choose to enter the details yourself."
+msgstr "메타데이터 URL을 입력하거나 세부 정보를 직접 입력하도록 선택하세요."
+
 #: apps/console/src/routes/platform/CreateOrganizationDialog.tsx
 msgid "Enter the organization name."
 msgstr "조직 이름을 입력하세요."
@@ -6011,9 +6124,22 @@ msgstr "조직 이름을 입력하세요."
 msgid "Enter the owner's full email address."
 msgstr "조직 소유자의 전체 이메일 주소를 입력하세요."
 
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Enter the password again to replace the saved one."
+msgstr "저장된 비밀번호를 바꾸려면 비밀번호를 다시 입력하세요."
+
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Enter the service name and the SCIM endpoint."
 msgstr "서비스 이름과 SCIM 엔드포인트를 입력하세요."
+
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Enter the username and password you use for {appName}."
+msgstr "{appName}에서 사용하는 사용자 이름과 비밀번호를 입력하세요."
+
+#. placeholder {0}: app.targetOrigin
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Enter the username and password you use on {0}. They are stored encrypted and sent only to that site when you open the app."
+msgstr "{0}에서 사용하는 사용자 이름과 비밀번호를 입력하세요. 암호화되어 저장되며 앱을 열 때 해당 사이트로만 전송됩니다."
 
 #: apps/console/src/routes/org/ScimDirectoryDetail.tsx
 msgid "Enter this URL as the SCIM connector base URL in your identity provider, together with the directory bearer token."
@@ -6051,8 +6177,8 @@ msgstr "엔터프라이즈와 개발자"
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/AttentionList.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
+#: apps/console/src/routes/org/SsoWizardLayout.tsx
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -6086,8 +6212,8 @@ msgstr "엔터프라이즈 SSO. {expiry} 전에 갱신하세요."
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
 #: apps/console/src/routes/org/OutboundSamlAppForms.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Entity ID"
 msgstr "엔터티 ID"
 
@@ -6095,7 +6221,7 @@ msgstr "엔터티 ID"
 msgid "Entries"
 msgstr "항목"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Entry"
 msgstr "항목"
@@ -6150,7 +6276,7 @@ msgstr "ETag and If-Match"
 msgid "Event"
 msgstr "이벤트"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 msgid "Event JSON"
 msgstr "이벤트 JSON"
 
@@ -6230,6 +6356,10 @@ msgstr "모든 OrgUnit 및 AccessRequest 쿼리의 범위는 <0>tenant_id</0> �
 msgid "Every person signs in at {domain}. Stored with the instance record; not editable here."
 msgstr "모든 사용자가 {domain}에서 로그인합니다. 인스턴스 기록에 저장되며 여기서 수정할 수 없습니다."
 
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Every SAML app in this organization starts using the next certificate right away. Make sure each app already trusts it, either by downloading the metadata again or by uploading the certificate. The current certificate stays in the metadata for 7 days."
+msgstr "이 조직의 모든 SAML 앱이 즉시 다음 인증서를 사용하기 시작합니다. 메타데이터를 다시 다운로드하거나 인증서를 업로드해 각 앱이 이미 이 인증서를 신뢰하는지 확인하세요. 현재 인증서는 7일 동안 메타데이터에 남아 있습니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every SDK below carries one of two status labels, aligned with the XID platform support matrix. Neither label is a production-readiness claim."
 msgstr "아래의 모든 SDK는 XID 플랫폼 지원 매트릭스에 따라 두 가지 상태 레이블 중 하나를 가집니다. 두 레이블 모두 프로덕션 준비 완료를 의미하지 않습니다."
@@ -6242,7 +6372,7 @@ msgstr "모든 세션이 즉시 종료되고 리프레시 토큰이 더 이상 �
 msgid "Every setting for {title} in one list"
 msgstr "{title}의 모든 설정"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Every verified email domain of this organization is routed to the connection. Verify a domain with a DNS record, then people at that domain skip the password step."
 msgstr "이 조직의 인증된 이메일 도메인은 모두 이 연결로 라우팅됩니다. DNS 레코드로 도메인을 인증하면 해당 도메인 사용자는 비밀번호 단계를 건너뜁니다."
 
@@ -6632,7 +6762,7 @@ msgstr "인증된 이메일 도메인의 엔터프라이즈 연결을 찾습니�
 msgid "Find the ID on the user's page under Users."
 msgstr "ID는 사용자 메뉴의 사용자 페이지에서 확인할 수 있습니다."
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Finish"
 msgstr "완료"
 
@@ -6775,6 +6905,10 @@ msgstr "function"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "functions"
 msgstr "함수"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Gateway secret"
+msgstr "게이트웨이 시크릿"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
@@ -6977,6 +7111,10 @@ msgstr "{0}이(가) 보내는 그룹과 그 그룹이 부여하는 조직 역할
 #: apps/console/src/routes/org/ScimDirectoryDetail.tsx
 msgid "Groups"
 msgstr "그룹"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Groups header"
+msgstr "그룹 헤더"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Guarded or minimal OAuth and OIDC extensions"
@@ -7225,18 +7363,14 @@ msgstr "https://example.com/scim/v2"
 msgid "https://example.com/webhooks/xid"
 msgstr "https://example.com/webhooks/xid"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "https://idp.example.com/.well-known/openid-configuration"
 msgstr "https://idp.example.com/.well-known/openid-configuration"
 
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/entity"
 msgstr "https://idp.example.com/entity"
-
-#: apps/console/src/routes/org/SsoConnectionFields.tsx
-msgid "https://idp.example.com/login"
-msgstr "https://idp.example.com/login"
 
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/metadata.xml"
@@ -7425,6 +7559,18 @@ msgstr "로컬에서 구현됨. 실제 AD FS WS-Fed L4는 아직 없습니다."
 msgid "Implicit flow, password grant, plain PKCE, and wildcard redirects."
 msgstr "암시적 흐름, password grant, plain PKCE, 와일드카드 리디렉트."
 
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Import from a metadata URL"
+msgstr "메타데이터 URL에서 가져오기"
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Import the app's SAML metadata to fill in the fields below. Fields you fill in yourself take precedence."
+msgstr "앱의 SAML 메타데이터를 가져와 아래 필드를 채웁니다. 직접 입력한 필드가 우선합니다."
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Imported. The fields below now show the saved values."
+msgstr "가져왔습니다. 이제 아래 필드에 저장된 값이 표시됩니다."
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "In 1 year ({date365})"
 msgstr "1년 후({date365})"
@@ -7453,7 +7599,7 @@ msgstr "콘솔에서 애플리케이션을 열고 애플리케이션을 만듭�
 msgid "In XID's Cloudflare account, on D1, KV, R2 and Durable Objects. Choosing a data region isn't available."
 msgstr "XID의 Cloudflare 계정 안 D1, KV, R2, Durable Objects에 있습니다. 데이터 리전은 선택할 수 없습니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "In your password manager or on a security key. Anyone who can unlock that device can sign in."
 msgstr "비밀번호 관리자나 보안 키에 저장됩니다. 해당 기기의 잠금을 해제할 수 있는 사람은 누구나 로그인할 수 있습니다."
 
@@ -7514,10 +7660,6 @@ msgstr "로그아웃 토큰에 세션 ID(sid) 포함"
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Included"
 msgstr "포함"
-
-#: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
-msgid "Indirect"
-msgstr "간접"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Information"
@@ -7997,6 +8139,10 @@ msgstr "Kotlin 1.9 이상 및 AndroidX"
 msgid "Kotlin SDK for Android using Chrome Custom Tabs, PKCE S256 authorization code flow, and Keystore-backed EncryptedSharedPreferences token storage."
 msgstr "Chrome Custom Tabs, PKCE S256 인증 코드 흐름, Keystore 기반 EncryptedSharedPreferences 토큰 저장소를 사용하는 Android용 Kotlin SDK."
 
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Landing page after IdP-initiated sign-in"
+msgstr "IdP 시작 로그인 후 이동할 페이지"
+
 #: apps/console/src/components/layout/ConsoleTopBar.tsx
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/components/hosted/LanguageMenu.tsx
@@ -8125,7 +8271,7 @@ msgstr "마지막 업데이트"
 msgid "Last used"
 msgstr "마지막 사용"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Last used {lastUsed}"
 msgstr "마지막 사용 {lastUsed}"
 
@@ -8148,6 +8294,10 @@ msgstr "LDAP 직접 바인드"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "LDAP direct bind, WS-Federation, SWA password vaulting, header-based SSO, and directory connector framework are implemented locally with fake harness L3. Real AD/LDAP gateway, AD FS WS-Fed, target app vault, and Application Proxy L4 are still missing."
 msgstr "LDAP 직접 바인드, WS-Federation, SWA 비밀번호 보관, 헤더 기반 SSO, 디렉터리 커넥터 프레임워크가 fake harness L3와 함께 로컬에서 구현되었습니다. 실제 AD/LDAP 게이트웨이, AD FS WS-Fed, 대상 앱 보관소, Application Proxy L4는 아직 없습니다."
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "LDAP gateway URL"
+msgstr "LDAP 게이트웨이 URL"
 
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "LDAP, WS-Federation, password vaulting or header-based"
@@ -8763,6 +8913,18 @@ msgstr "매니페스트 설정"
 msgid "Manual middleware (alternative)"
 msgstr "수동 미들웨어(대안)"
 
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Mark as received by Stripe"
+msgstr "Stripe에서 수신한 것으로 표시"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Mark as reported"
+msgstr "보고 완료로 표시"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Mark as reported…"
+msgstr "보고 완료로 표시…"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Markdown is recommended for AI consumption"
 msgstr "AI에서 사용하려면 Markdown을 권장합니다"
@@ -8783,9 +8945,17 @@ msgstr "일치, {when}"
 msgid "MAU"
 msgstr "MAU"
 
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "MAU added"
+msgstr "추가된 MAU"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "MAU in {month}"
 msgstr "{month}의 MAU"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "MAU reports to check in Stripe"
+msgstr "Stripe에서 확인할 MAU 보고"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Meaning"
@@ -8824,10 +8994,18 @@ msgstr "멤버가 즉시 다시 로그인할 수 있습니다."
 msgid "Members can sign in again with the methods already set up. Data and settings were kept."
 msgstr "멤버는 이미 설정한 방법으로 다시 로그인할 수 있습니다. 데이터와 설정은 유지되었습니다."
 
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Members can sign in only through enterprise SSO. Every other method stops working for them, including passkeys and social login. Needs an active enterprise connection."
+msgstr "멤버는 엔터프라이즈 SSO로만 로그인할 수 있습니다. 패스키와 소셜 로그인을 포함한 다른 모든 방법이 작동하지 않습니다. 활성화된 엔터프라이즈 연결이 필요합니다."
+
 #: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 msgid "Members could not be loaded"
 msgstr "멤버를 불러올 수 없습니다"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Members save their own credentials for this application on their account page. Administrators never enter or see them."
+msgstr "멤버가 자신의 계정 페이지에서 이 애플리케이션의 자격 증명을 직접 저장합니다. 관리자는 이를 입력하거나 볼 수 없습니다."
 
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Members to push"
@@ -8874,15 +9052,25 @@ msgstr "메시징"
 msgid "Messaging settings could not be loaded. Reload the page to try again."
 msgstr "메시징 설정을 불러오지 못했습니다. 페이지를 새로고침해 다시 시도하세요."
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/DeliveryChannelDialog.tsx
+msgid "Meta sends from the WhatsApp phone number your instance operator set up."
+msgstr "Meta는 인스턴스 운영자가 설정한 WhatsApp 전화번호로 발송합니다."
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 msgid "Metadata"
 msgstr "메타데이터"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Metadata URL"
 msgstr "메타데이터 URL"
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Metadata XML"
+msgstr "메타데이터 XML"
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Metered usage and billing status for every organization."
@@ -8952,7 +9140,7 @@ msgstr "최소한의 구현"
 msgid "Minimum integration"
 msgstr "최소 연동"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "minutes"
 msgstr "분"
 
@@ -8998,6 +9186,10 @@ msgstr "모듈 설정"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Monitoring"
 msgstr "모니터링"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Month"
+msgstr "월"
 
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
@@ -9079,7 +9271,7 @@ msgstr "고정된 인증서를 사용하는 상호 TLS(self_signed_tls_client_au
 #: apps/console/src/routes/platform/CreateOrganizationDialog.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Name"
@@ -9258,6 +9450,7 @@ msgstr "최신순, 페이지당 50개. 시간은 UTC 기준입니다."
 
 #: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -9670,6 +9863,10 @@ msgstr "아직 {orgName} 멤버를 받는 서비스가 없습니다"
 msgid "No sign-in domain yet"
 msgstr "아직 로그인 도메인이 없습니다"
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "No sign-in saved"
+msgstr "저장된 로그인 정보 없음"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "No sign-ins yet"
 msgstr "아직 로그인이 없습니다"
@@ -9698,6 +9895,10 @@ msgstr "서드파티 의존성 없음 — Apple 시스템 프레임워크만 사
 msgid "No top-level organization on this instance has that ID."
 msgstr "이 인스턴스에 이 ID의 최상위 조직이 없습니다."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "No trusted roots for this tenant yet."
+msgstr "이 테넌트에는 아직 신뢰할 수 있는 루트가 없습니다."
+
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "No usage data available."
 msgstr "사용량 데이터가 없습니다."
@@ -9723,7 +9924,7 @@ msgstr "아직 사용자가 없습니다."
 msgid "No valid token present; reason field indicates cause"
 msgstr "유효한 token이 없습니다; reason 필드에 원인이 표시됩니다"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 msgid "No verified domain is routed to an enterprise connection yet. Add the connection and verify a domain in Enterprise SSO first."
 msgstr "엔터프라이즈 연결로 라우팅된 인증 도메인이 아직 없습니다. 먼저 엔터프라이즈 SSO에서 연결을 추가하고 도메인을 인증하세요."
 
@@ -9735,7 +9936,7 @@ msgstr "이 계정에는 확인 방법이 없습니다"
 msgid "No, it's different"
 msgstr "아니요, 다릅니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 msgid "No. {seq} in the chain"
 msgstr "체인의 {seq}번째"
 
@@ -9840,7 +10041,7 @@ msgstr "아직 게시되지 않음"
 msgid "Not now"
 msgstr "나중에"
 
-#: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Not required"
 msgstr "필수 아님"
@@ -9914,11 +10115,11 @@ msgstr "아직 로그인 안 함"
 msgid "Not started"
 msgstr "시작 전"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Not synced"
 msgstr "동기화 안 됨"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Not used yet"
 msgstr "아직 사용 안 함"
 
@@ -10294,6 +10495,10 @@ msgstr "사이트 키와 시크릿 중 하나만 설정됨"
 msgid "Only owners and admins of {orgName} can see this overview."
 msgstr "이 개요는 {orgName}의 조직 소유자와 관리자만 볼 수 있습니다."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Only passkeys whose attestation chains to a trusted root can be registered. Most synced passkeys from phones and password managers send no attestation and are refused."
+msgstr "증명이 신뢰할 수 있는 루트로 연결되는 패스키만 등록할 수 있습니다. 휴대폰과 비밀번호 관리자에서 동기화되는 패스키는 대부분 증명을 보내지 않아 거부됩니다."
+
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Only people with a {name} role"
 msgstr "{name} 역할이 있는 사람만"
@@ -10320,6 +10525,7 @@ msgstr "{app}이(가) 볼 수 있는 정보는 내가 정합니다."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
+#: apps/server/src/routes/account/SwaAppsSection.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open"
 msgstr "열기"
@@ -10327,6 +10533,10 @@ msgstr "열기"
 #: apps/console/src/routes/platform/PlatformAttention.tsx
 msgid "Open {name}"
 msgstr "{name} 열기"
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Open {name} in a new tab"
+msgstr "새 탭에서 {name} 열기"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open an embedded WebView2 authorization window with PKCE S256. Returns XidSession on completion."
@@ -10490,13 +10700,21 @@ msgstr "설정 가능한 TTL을 갖춘 선택적 네트워크 fetching JWKS 캐�
 msgid "Optional, people choose to add it"
 msgstr "선택, 사용자가 추가 여부 결정"
 
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Optional. A path on this XID domain, for example /account."
+msgstr "선택 사항입니다. 이 XID 도메인의 경로입니다(예: /account)."
+
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Optional. Leave blank to use the NameID."
+msgstr "선택 사항입니다. 비워 두면 NameID를 사용합니다."
+
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Optional. Leave blank to use the sub claim."
+msgstr "선택 사항입니다. 비워 두면 sub 클레임을 사용합니다."
+
 #: apps/console/src/routes/org/OutboundSamlAppForms.tsx
 msgid "Optional. Needs the app's signing certificate below."
 msgstr "선택 사항. 아래 앱 서명 인증서가 필요합니다."
-
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "Optional. XID refreshes certificates from it every day."
-msgstr "선택 사항. XID가 매일 여기에서 인증서를 갱신합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Options for authenticateRequest: jwtKey, issuer, audience, authorizedParties, clockToleranceSec, now, jwtCookieName, sessionTokenExchange"
@@ -10528,7 +10746,7 @@ msgstr "xidMiddleware 옵션: jwtKey, issuer, jwtCookieName, sessionTokenExchang
 msgid "or"
 msgstr "또는"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Or after no activity for"
 msgstr "또는 다음 시간 동안 활동이 없으면"
 
@@ -10541,6 +10759,7 @@ msgid "Org creation flow"
 msgstr "조직 생성 흐름"
 
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -10898,13 +11117,16 @@ msgstr "통과"
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
+#: apps/server/src/routes/account/PasskeyNotices.tsx
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Passkey"
 msgstr "패스키"
 
-#: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+#: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Passkey attestation"
 msgstr "패스키 증명"
 
@@ -10912,6 +11134,10 @@ msgstr "패스키 증명"
 #: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
 msgid "Passkey not created"
 msgstr "패스키가 생성되지 않았습니다"
+
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+msgid "Passkey removed for {name}"
+msgstr "{name}의 패스키를 제거했습니다"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passkey sign-in is primary AAL2 authentication. Password or OTP sessions can complete MFA through <0>/auth/mfa/passkey/*</0> with user verification required."
@@ -10933,9 +11159,13 @@ msgstr "패스키"
 msgid "Passkeys are tied to the address they were created on. People with passkeys will create new ones the first time they sign in at your own hostname."
 msgstr "패스키는 만든 주소에 묶여 있습니다. 패스키를 가진 사용자는 자체 호스트 이름에서 처음 로그인할 때 새 패스키를 만듭니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyNotices.tsx
 msgid "Passkeys created on a different address don't work here. Create one for this address to keep signing in with a passkey."
 msgstr "다른 주소에서 만든 패스키는 여기서 작동하지 않습니다. 계속 패스키로 로그인하려면 이 주소용 패스키를 만드세요."
+
+#: apps/server/src/routes/account/PasskeyNotices.tsx
+msgid "Passkeys marked Earlier address were created on {earlierHost}. They still work here. Create a passkey for {host}, then remove the earlier one."
+msgstr "이전 주소로 표시된 패스키는 {earlierHost}에서 만들어졌으며 여기서도 계속 사용할 수 있습니다. {host}용 패스키를 만든 뒤 이전 패스키를 제거하세요."
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Passkeys on security keys"
@@ -10944,6 +11174,14 @@ msgstr "보안 키의 패스키"
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Passkeys on your devices"
 msgstr "내 기기의 패스키"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Passkeys that are already registered keep working. While attestation is required, new passkeys can be registered only against roots the instance itself provides."
+msgstr "이미 등록된 패스키는 계속 작동합니다. 증명이 필수인 동안 새 패스키는 인스턴스 자체가 제공하는 루트로만 등록할 수 있습니다."
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Passkeys whose attestation chains to a trusted root are marked as verified. Passkeys without one are still accepted."
+msgstr "증명이 신뢰할 수 있는 루트로 연결되는 패스키는 검증됨으로 표시됩니다. 증명이 없는 패스키도 계속 허용됩니다."
 
 #. placeholder {0}: item.hostname
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
@@ -10959,10 +11197,15 @@ msgstr "비밀번호"
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/server/src/routes/account/PasswordSection.tsx
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Password"
 msgstr "비밀번호"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Password form field"
+msgstr "비밀번호 양식 필드"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Password policy enables login or user creation."
@@ -10988,9 +11231,25 @@ msgstr "유출 검사가 포함된 비밀번호, 소셜 로그인"
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
 msgstr "비밀번호 없는 이메일 매직 링크 및 OTP 요청은 챌린지를 만들 때 가입 의도, 서버가 관리하는 계속 경로, 애플리케이션 클라이언트, 초대 행 ID를 고정합니다. Social OAuth 초대 승인도 외부 공급자로 리디렉션하기 전에 원본 capability를 검증하고 일회성 상태에는 초대 행 ID만 저장하며 callback에서는 클라이언트가 관리하는 토큰 경로를 무시합니다. 검증 단계에서는 이러한 필드를 변경할 수 없습니다. 원본 초대 capability는 이러한 흐름 컨텍스트에 저장되지 않습니다. MFA로 수락이 중단되면 XID는 Tenant, 사용자, 세션, 초대에 바인딩된 단기 서명 continuation을 사용합니다."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Paste every root certificate you accept, from your security key vendors. Saving replaces the whole list. Only CA certificates that are valid today are accepted."
+msgstr "보안 키 공급업체에서 받은, 허용할 루트 인증서를 모두 붙여 넣으세요. 저장하면 전체 목록이 교체됩니다. 현재 유효한 CA 인증서만 허용됩니다."
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Paste metadata XML"
+msgstr "메타데이터 XML 붙여 넣기"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Paste or upload the metadata file instead of a URL. It replaces the metadata URL."
+msgstr "URL 대신 메타데이터 파일을 붙여 넣거나 업로드하세요. 메타데이터 URL을 대체합니다."
+
 #: apps/console/src/routes/org/OutboundSamlAppForms.tsx
 msgid "Paste PEM blocks, or separate base64 certificates with a blank line."
 msgstr "PEM 블록을 붙여넣거나 base64 인증서를 빈 줄로 구분하세요."
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Paste the metadata XML, or choose to enter the details yourself."
+msgstr "메타데이터 XML을 붙여 넣거나 세부 정보를 직접 입력하도록 선택하세요."
 
 #. placeholder {0}: connection.name
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
@@ -11189,7 +11448,7 @@ msgstr "PHP 8.1 이상이 필요합니다. 핵심 의존성은 Composer가 자�
 msgid "PHP 8.1+ server SDK for networkless JWT verification, PSR-7 request authentication, and webhook signature validation."
 msgstr "네트워크 호출 없는 JWT 검증, PSR-7 요청 인증, webhook 서명 검증을 위한 PHP 8.1+ 서버 SDK."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Pick a name you'll recognize, like the device it's saved on."
 msgstr "저장된 기기처럼 알아보기 쉬운 이름을 정하세요."
 
@@ -11322,6 +11581,10 @@ msgstr "1.0 이전 버전입니다. 호스팅 로그인, 콘솔, 관리 API의 �
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Preload script"
 msgstr "Preload 스크립트"
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Prepare next certificate"
+msgstr "다음 인증서 준비"
 
 #: apps/server/src/routes/account/DataExport.tsx
 msgid "Preparing"
@@ -12042,8 +12305,8 @@ msgstr "리디렉션 callback은 declared 앱 링크, 범용 링크, 커스텀 �
 msgid "redirect URI"
 msgstr "리디렉션 URI"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Redirect URI"
 msgstr "리디렉션 URI"
 
@@ -12107,11 +12370,11 @@ msgstr "페이지를 새로고침하여 다시 시도하세요."
 msgid "Refresh token"
 msgstr "리프레시 토큰"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Refresh token, absolute"
 msgstr "리프레시 토큰, 절대"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Refresh token, idle"
 msgstr "리프레시 토큰, 유휴"
 
@@ -12195,6 +12458,7 @@ msgstr "React SDK 재내보내기가 포함된 Remix loader/action 서버 헬퍼
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 #: apps/console/src/routes/org/SocialProviderDialog.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
+#: apps/server/src/routes/account/SwaAppsSection.tsx
 msgid "Remove"
 msgstr "제거"
 
@@ -12212,12 +12476,16 @@ msgstr "{0} 제거"
 msgid "Remove {0}?"
 msgstr "{0}을(를) 제거할까요?"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+msgid "Remove {device}?"
+msgstr "{device}을(를) 제거하시겠습니까?"
+
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Remove {name}"
 msgstr "{name} 제거"
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Remove {name}?"
 msgstr "{name}을(를) 제거할까요?"
 
@@ -12229,6 +12497,14 @@ msgstr "{orgLabel}에서 {removingName}님을 제거할까요?"
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Remove {removingName}?"
 msgstr "{removingName}을(를) 제거할까요?"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Remove all trusted roots"
+msgstr "신뢰할 수 있는 루트 모두 제거"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Remove all trusted roots?"
+msgstr "신뢰할 수 있는 루트를 모두 제거하시겠습니까?"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
@@ -12272,11 +12548,12 @@ msgstr "번호 제거"
 
 #. placeholder {0}: passkeyName(oldest, t`Passkey`)
 #. placeholder {1}: dates.date(oldest.lastUsedAt ?? oldest.createdAt)
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyNotices.tsx
 msgid "Remove one you no longer use first. {0} was last used on {1}."
 msgstr "먼저 더 이상 사용하지 않는 패스키를 제거하세요. {0}은(는) {1}에 마지막으로 사용되었습니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Remove passkey"
 msgstr "패스키 제거"
 
@@ -12299,6 +12576,14 @@ msgstr "{0}에서 역할 {role} 제거"
 msgid "Remove role permission mapping?"
 msgstr "역할 권한 매핑을 삭제하시겠습니까?"
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Remove saved sign-in for {name}"
+msgstr "{name}의 저장된 로그인 정보 제거"
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Remove saved sign-in for {name}?"
+msgstr "{name}의 저장된 로그인 정보를 제거하시겠습니까?"
+
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Remove sign-in domain"
 msgstr "로그인 도메인 제거"
@@ -12315,26 +12600,32 @@ msgstr "주소를 일부 제거하세요. 최대 50개입니다."
 msgid "Remove the fragment after #."
 msgstr "# 뒤의 프래그먼트를 제거하세요."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Remove trusted roots"
+msgstr "신뢰할 수 있는 루트 제거"
+
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Remove your only passkey?"
 msgstr "유일한 패스키를 제거할까요?"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/EmailSection.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 #: apps/server/src/routes/account/PhoneSection.tsx
+#: apps/server/src/routes/account/SwaAppsSection.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Remove…"
 msgstr "제거…"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Rename {name}"
 msgstr "{name} 이름 변경"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Rename passkey"
 msgstr "패스키 이름 변경"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Rename…"
 msgstr "이름 변경…"
 
@@ -12394,6 +12685,10 @@ msgstr "기본 SecureStorageAdapter(flutter_secure_storage)를 사용자 정의 
 msgid "Replace the storage adapter after construction."
 msgstr "생성 후 저장소 어댑터를 교체합니다."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Replace trusted roots"
+msgstr "신뢰할 수 있는 루트 교체"
+
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Replace…"
 msgstr "교체…"
@@ -12409,6 +12704,18 @@ msgstr "재전송은 5분 점유를 사용해 관리자 두 명이 같은 메시
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Replaying"
 msgstr "재처리 중"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Report again"
+msgstr "다시 보고"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Report again to Stripe"
+msgstr "Stripe에 다시 보고"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Report again…"
+msgstr "다시 보고…"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Reports and certificates you share with customers. Each one is a private object you register by its storage key and SHA-256 checksum; every download is checked against that checksum first."
@@ -12459,7 +12766,7 @@ msgstr "서명된 SAML 어설션 필요"
 msgid "Require signed SAML response"
 msgstr "서명된 SAML 응답 필요"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 msgid "Require single sign-on"
 msgstr "SSO 필수"
 
@@ -12471,7 +12778,9 @@ msgstr "2단계 인증 필수"
 msgid "required"
 msgstr "필수"
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
 #: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
+#: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Required"
 msgstr "필수"
 
@@ -12508,8 +12817,8 @@ msgid "Required when the identity provider registers XID as a confidential clien
 msgstr "ID 공급자가 XID를 기밀 클라이언트로 등록하는 경우 필수입니다."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-msgid "Required, password sign-in is off"
-msgstr "필수, 비밀번호 로그인 꺼짐"
+msgid "Required, other sign-in methods are off"
+msgstr "필수, 다른 로그인 방법은 꺼짐"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Required. Must be unique inside the directory."
@@ -12696,7 +13005,7 @@ msgstr "사용자 일시 중단 해제"
 msgid "Retire"
 msgstr "사용 중지"
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/platform/SigningKeysSection.tsx
 msgid "Retiring"
 msgstr "만료 예정"
@@ -12982,6 +13291,10 @@ msgstr "직접 부여한 역할"
 msgid "Roles given through a shared organization are a project grant and are listed on that organization."
 msgstr "공유된 조직을 통해 부여한 역할은 프로젝트 권한 부여이며 해당 조직에 표시됩니다."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Root certificates (PEM)"
+msgstr "루트 인증서(PEM)"
+
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
 msgid "Rotate secret"
@@ -13135,10 +13448,6 @@ msgstr "SAML 클록 허용 오차(밀리초)"
 msgid "SAML is provider-ready: local and fake-IdP evidence covers the current Worker routes, and production readiness still requires a real IdP connection without recording SAMLResponse values or provider secrets."
 msgstr "SAML은 provider-ready입니다. 로컬 및 fake-IdP 증거가 현재 Worker 라우트를 커버하지만, 프로덕션 readiness에는 SAMLResponse 값이나 provider secret을 기록하지 않는 실제 IdP 연결이 여전히 필요합니다."
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "SAML or OIDC"
-msgstr "SAML 또는 OIDC"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SAML Single Logout is implemented and verified locally at L1/L2 for inbound and outbound SAML. The Slack profile is excluded because Slack does not support SLO; real IdP and downstream SaaS L4 evidence remains UNKNOWN."
 msgstr "SAML Single Logout은 인바운드 및 아웃바운드 SAML에 대해 로컬 L1/L2에서 구현되고 검증되었습니다. Slack은 SLO를 지원하지 않으므로 Slack profile은 제외되며, 실제 IdP 및 다운스트림 SaaS의 L4 증거는 계속 UNKNOWN입니다."
@@ -13164,6 +13473,7 @@ msgid "SAML, OIDC, WS-Fed legacy baseline"
 msgstr "SAML, OIDC, WS-Fed legacy baseline"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
 msgid "Save"
 msgstr "저장"
 
@@ -13175,7 +13485,7 @@ msgstr "{name} 저장"
 msgid "Save a copy first"
 msgstr "먼저 사본 저장"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Save and continue"
 msgstr "저장하고 계속"
 
@@ -13186,6 +13496,10 @@ msgstr "앱 저장"
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Save as draft"
 msgstr "초안으로 저장"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Save attestation"
+msgstr "증명 설정 저장"
 
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Save attribute mapping"
@@ -13222,7 +13536,7 @@ msgstr "이벤트 저장"
 msgid "Save grants and tokens"
 msgstr "그랜트 유형과 토큰 저장"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Save name"
 msgstr "이름 저장"
 
@@ -13243,13 +13557,17 @@ msgstr "리디렉션 URI 저장"
 msgid "Save role"
 msgstr "역할 저장"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Save sessions and tokens"
 msgstr "세션 및 토큰 저장"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Save sign-in defaults"
 msgstr "로그인 기본값 저장"
+
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Save sign-in for {appName}"
+msgstr "{appName} 로그인 정보 저장"
 
 #: apps/console/src/routes/org/AuthPolicySections.tsx
 msgid "Save sign-in methods"
@@ -13259,6 +13577,10 @@ msgstr "로그인 방법 저장"
 msgid "Save sign-in rule"
 msgstr "로그인 규칙 저장"
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Save sign-in…"
+msgstr "로그인 정보 저장…"
+
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Save sign-out settings"
 msgstr "로그아웃 설정 저장"
@@ -13267,7 +13589,7 @@ msgstr "로그아웃 설정 저장"
 msgid "Save sign-up settings"
 msgstr "가입 설정 저장"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 msgid "Save single sign-on"
 msgstr "SSO 저장"
 
@@ -13707,7 +14029,7 @@ msgstr "업무용 이메일이 없는 사용자에게 문자 메시지로 로그
 msgid "Send sign-in codes over WhatsApp where SMS delivery is unreliable. Needs an approved WhatsApp Business sender."
 msgstr "SMS 전송이 불안정한 곳에서는 WhatsApp으로 로그인 코드를 보냅니다. 승인된 WhatsApp Business 발신자가 필요합니다."
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Send these values to the company's IT admin, then paste what {name} gives back."
 msgstr "이 값을 회사 IT 관리자에게 보낸 뒤 {name}에서 받은 값을 붙여넣으세요."
 
@@ -13849,7 +14171,7 @@ msgstr "상태, 만료, 활성 조직을 포함한 세션 보기"
 msgid "Sessions"
 msgstr "세션"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Sessions and tokens"
 msgstr "세션 및 토큰"
@@ -14209,7 +14531,7 @@ msgstr "로그인 | XID"
 msgid "Sign in again"
 msgstr "다시 로그인"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Sign in again after"
 msgstr "다시 로그인하기까지"
 
@@ -14465,8 +14787,8 @@ msgid "sign-in URL"
 msgstr "로그인 URL"
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Sign-in URL"
 msgstr "로그인 URL"
 
@@ -14571,8 +14893,8 @@ msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) process
 msgstr "signIn(options?)은 전체 리디렉션 흐름을 실행합니다. handleRedirect(url)는 딥 링크 콜백을 처리합니다. signInState는 idle, pending, complete, cancelled, error를 보고합니다."
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Signing certificate"
 msgstr "서명 인증서"
 
@@ -14621,6 +14943,11 @@ msgstr "signOut은 refresh 또는 revoke request 없이 로컬 session과 legacy
 msgid "signOut() clears the local session and legacy credentials; signOutState reports progress or storage failures; no revoke request is sent"
 msgstr "signOut()은 로컬 session과 legacy credentials를 지웁니다. signOutState는 진행 상태 또는 storage failures를 보고하며 revoke request는 전송하지 않습니다."
 
+#. placeholder {0}: app.username
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Signs in as {0}"
+msgstr "{0}(으)로 로그인"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Since {start}"
 msgstr "{start}부터"
@@ -14635,6 +14962,7 @@ msgstr "인스턴스 설정 이후"
 msgid "Single logout URL"
 msgstr "단일 로그아웃 URL"
 
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Single sign-on"
 msgstr "싱글 사인온"
@@ -14663,7 +14991,7 @@ msgstr "사이트 탐색"
 msgid "Size"
 msgstr "크기"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Skip for now"
 msgstr "지금은 건너뛰기"
 
@@ -14767,7 +15095,7 @@ msgstr "@xid-kit/core 기반의 SolidJS 컨텍스트 provider, 신호 기반 인
 msgid "Some Stripe settings are missing, so no usage is reported"
 msgstr "일부 Stripe 설정이 없어 사용량을 보고하지 않습니다"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 msgid "Someone"
 msgstr "누군가"
 
@@ -14843,6 +15171,14 @@ msgstr "SSO 연결"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Stable keys cannot be changed after creation."
 msgstr "안정적인 키는 생성 후에 변경할 수 없습니다."
+
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Stable user ID attribute"
+msgstr "고정 사용자 ID 속성"
+
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Stable user ID claim"
+msgstr "고정 사용자 ID 클레임"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Stable XID directory user ID."
@@ -14924,7 +15260,7 @@ msgstr "상태 변경 리스너 callback 타입"
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -14971,7 +15307,7 @@ msgstr "상태 범례"
 msgid "Step {current} of {total}"
 msgstr "{total}단계 중 {current}단계"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardLayout.tsx
 msgid "Step {step} of 3"
 msgstr "3단계 중 {step}단계"
 
@@ -15071,6 +15407,14 @@ msgstr "string"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "string constant"
 msgstr "문자열 상수"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Stripe did not confirm these reports, and sending them again could bill twice. Search each event ID among the MAU meter events in Stripe, then choose an action."
+msgstr "Stripe가 이 보고들을 확인하지 않았으므로 다시 보내면 이중 청구될 수 있습니다. Stripe의 MAU 미터 이벤트에서 각 이벤트 ID를 검색한 뒤 작업을 선택하세요."
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Stripe event ID"
+msgstr "Stripe 이벤트 ID"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Stripe metered MAU on"
@@ -15228,7 +15572,7 @@ msgstr "SWA 비밀번호 보관"
 msgid "Swap keychain adapter at runtime"
 msgstr "런타임에 keychain 어댑터 교체"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Swap metadata with {name}"
 msgstr "{name}과(와) 메타데이터 교환"
 
@@ -15252,6 +15596,10 @@ msgstr "ASWebAuthenticationSession, PKCE S256 인증 코드 흐름, Keychain 토
 msgid "Switch"
 msgstr "전환"
 
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Switch certificate"
+msgstr "인증서 전환"
+
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 msgid "Switch organization"
 msgstr "조직 전환"
@@ -15264,6 +15612,14 @@ msgstr "하나의 콘솔에서 조직 전환"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.switchSession"
 msgstr "세션 전환"
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Switch the signing certificate?"
+msgstr "서명 인증서를 전환하시겠습니까?"
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Switch to the next certificate…"
+msgstr "다음 인증서로 전환…"
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Switching organization"
@@ -15327,7 +15683,7 @@ msgstr "목차"
 msgid "Taking you back to sign in."
 msgstr "로그인으로 돌아가는 중입니다."
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Target"
@@ -15486,8 +15842,8 @@ msgid "The app can finish signing you in on the other device."
 msgstr "앱이 다른 기기에서 로그인을 완료할 수 있습니다."
 
 #: apps/console/src/routes/org/DeliveryChannelDialog.tsx
-msgid "The approved WhatsApp Business number."
-msgstr "승인된 WhatsApp Business 번호입니다."
+msgid "The approved WhatsApp Business number. Leave empty to use the instance default."
+msgstr "승인된 WhatsApp Business 번호입니다. 비워 두면 인스턴스 기본값을 사용합니다."
 
 #: packages/i18n/src/messages.ts
 msgid "The assertion recipient does not match."
@@ -15556,6 +15912,10 @@ msgstr "암호화 서명을 검증할 수 없습니다."
 #: apps/console/src/routes/org/WebhookDetail.tsx
 msgid "The current secret stops working right away. Requests to {host} fail verification until you deploy the new secret."
 msgstr "현재 시크릿은 즉시 작동을 멈춥니다. 새 시크릿을 배포할 때까지 {host}(으)로 가는 요청은 검증에 실패합니다."
+
+#: apps/console/src/routes/org/SsoConnectionDetail.tsx
+msgid "The daily metadata refresh failed on {metadataErrorDate}. Sign-in keeps using the last saved certificates. Check that the metadata URL is still reachable."
+msgstr "{metadataErrorDate}에 매일 메타데이터 새로 고침이 실패했습니다. 로그인에는 마지막으로 저장된 인증서를 계속 사용합니다. 메타데이터 URL에 아직 접근할 수 있는지 확인하세요."
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "The default sender of your XID instance"
@@ -15746,7 +16106,7 @@ msgid "The passkey wasn't created. Try again, or add an email instead."
 msgstr "패스키가 만들어지지 않았습니다. 다시 시도하거나 대신 이메일을 추가하세요."
 
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/use-passkey-registration.tsx
 msgid "The passkey wasn't created. Try again."
 msgstr "패스키가 만들어지지 않았습니다. 다시 시도하세요."
 
@@ -15760,8 +16120,8 @@ msgid "The person must be an active member of the organization that owns {0}."
 msgstr "{0}을(를) 소유한 조직의 활성 멤버여야 합니다."
 
 #: apps/console/src/routes/org/DeliveryChannelDialog.tsx
-msgid "The phone number or sender ID registered with the provider."
-msgstr "공급자에 등록한 전화번호 또는 발신자 ID입니다."
+msgid "The phone number or sender ID registered with the provider. Leave empty to use the instance default."
+msgstr "공급자에 등록된 전화번호 또는 발신자 ID입니다. 비워 두면 인스턴스 기본값을 사용합니다."
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "the platform"
@@ -15883,6 +16243,14 @@ msgstr "SAML 대상이 이 서비스 공급자와 일치하지 않습니다."
 #: packages/i18n/src/messages.ts
 msgid "The SAML issuer does not match the expected identity provider."
 msgstr "SAML 발급자가 예상 ID 공급자와 일치하지 않습니다."
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "The SAML signing certificate for outbound apps expired on {date}"
+msgstr "아웃바운드 앱용 SAML 서명 인증서가 {date}에 만료되었습니다"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "The SAML signing certificate for outbound apps expires on {date}"
+msgstr "아웃바운드 앱용 SAML 서명 인증서가 {date}에 만료됩니다"
 
 #: packages/i18n/src/messages.ts
 msgid "The SAML XML document is malformed."
@@ -16104,7 +16472,7 @@ msgstr "이 코드는 더 이상 사용할 수 없습니다"
 msgid "This device"
 msgstr "이 디바이스"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/use-passkey-registration.tsx
 msgid "This device already has a passkey for your account."
 msgstr "이 기기에는 이미 계정의 패스키가 있습니다."
 
@@ -16230,7 +16598,7 @@ msgstr "이 매직 링크는 유효하지 않습니다."
 msgid "This number is already on your account."
 msgstr "이 번호는 이미 계정에 있습니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "This only removes it from your {appName} account. The passkey stays in the password manager or on the security key where you created it until you delete it there."
 msgstr "{appName} 계정에서만 제거됩니다. 패스키는 만든 곳인 비밀번호 관리자나 보안 키에서 삭제할 때까지 남아 있습니다."
 
@@ -16259,8 +16627,8 @@ msgid "This organization has no audit entries yet. There is nothing to verify."
 msgstr "이 조직에는 아직 감사 항목이 없습니다. 확인할 내용이 없습니다."
 
 #: apps/console/src/routes/platform/UsageBillingSection.tsx
-msgid "This organization has no Stripe customer yet. Create one in Stripe with the metadata key xid_tenant_id set to this organization ID."
-msgstr "이 조직에는 아직 Stripe customer가 없습니다. Stripe에서 customer를 만들고 metadata 키 xid_tenant_id를 이 조직 ID로 설정하세요."
+msgid "This organization has no Stripe customer yet. In Stripe, create a customer and a metered subscription, and set the subscription metadata key xid_tenant_id to this organization ID."
+msgstr "이 조직에는 아직 Stripe 고객이 없습니다. Stripe에서 고객과 종량제 구독을 만들고 구독 메타데이터 키 xid_tenant_id를 이 조직 ID로 설정하세요."
 
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 msgid "This organization has not added a domain."
@@ -16289,6 +16657,10 @@ msgstr "이 페이지는 Markdown 형식으로 제공됩니다"
 #: apps/server/src/routes/magic-link/index.tsx
 msgid "This page needs the link from your email"
 msgstr "이 페이지에는 이메일의 링크가 필요합니다"
+
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+msgid "this passkey"
+msgstr "이 패스키"
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "This passkey is the only way you sign in"
@@ -16478,7 +16850,7 @@ msgstr "토큰은 <0>safeStorage.encryptString()</0>(OS keychain)으로 암호�
 msgid "Tokens encrypted with DPAPI (CurrentUser scope) and stored in IsolatedStorage. Not accessible to other Windows user accounts."
 msgstr "DPAPI(CurrentUser 범위)로 암호화되어 IsolatedStorage에 저장된 토큰. 다른 Windows 사용자 계정에서는 접근할 수 없습니다."
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Tokens issued to applications"
 msgstr "애플리케이션에 발급되는 토큰"
 
@@ -16533,6 +16905,22 @@ msgstr "트랜잭션 이메일은 기본 제공 Mustache 템플릿과 전역 R2 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Trigger"
 msgstr "트리거"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Trusted proxy secret"
+msgstr "신뢰할 수 있는 프록시 시크릿"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Trusted roots"
+msgstr "신뢰할 수 있는 루트"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Trusted roots apply to every organization in this tenant. A manager of the top-level organization adds them."
+msgstr "신뢰할 수 있는 루트는 이 테넌트의 모든 조직에 적용됩니다. 최상위 조직의 관리자가 추가합니다."
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Trusted roots could not be loaded. Reload the page to try again."
+msgstr "신뢰할 수 있는 루트를 불러올 수 없습니다. 페이지를 다시 불러와 다시 시도하세요."
 
 #: apps/console/src/routes/org/WebhookDetail.tsx
 msgid "Try {next} of {max} at {at}"
@@ -16628,10 +17016,6 @@ msgstr "로그인 및 MFA에서도 이 방법을 켜세요."
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Turned off {date}"
 msgstr "{date}에 끔"
-
-#: apps/console/src/routes/org/AuthPolicySections.tsx
-msgid "Turns off password sign-in for everyone in {orgName}. People sign in through the connection that matches their verified email domain."
-msgstr "{orgName}의 모든 사용자에 대해 비밀번호 로그인을 끕니다. 사용자는 인증된 이메일 도메인에 맞는 연결로 로그인합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Two directions"
@@ -16858,9 +17242,21 @@ msgstr "비밀번호 변경…"
 msgid "Update posted. Customers see it on the public status API now."
 msgstr "업데이트를 게시했습니다. 고객이 이제 공개 상태 API에서 볼 수 있습니다."
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Update saved sign-in for {name}"
+msgstr "{name}의 저장된 로그인 정보 업데이트"
+
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Update sign-in for {appName}"
+msgstr "{appName} 로그인 정보 업데이트"
+
 #: apps/server/src/routes/account/PasswordSection.tsx
 msgid "Update your password"
 msgstr "비밀번호 변경"
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Update…"
+msgstr "업데이트…"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "updated"
@@ -16883,6 +17279,10 @@ msgstr "업데이트"
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
 msgid "Upload certificate…"
 msgstr "인증서 업로드…"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Upload metadata file"
+msgstr "메타데이터 파일 업로드"
 
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
 msgid "Upload signing certificate"
@@ -16912,13 +17312,9 @@ msgstr "Upstream 엔터프라이즈 IdP 상태"
 msgid "Upstream enterprise OIDC relying party"
 msgstr "Upstream 엔터프라이즈 OIDC relying party"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "Upstream sign-in URL"
 msgstr "업스트림 로그인 URL"
-
-#: apps/console/src/routes/org/SsoConnectionFields.tsx
-msgid "Upstream SSO URL"
-msgstr "업스트림 SSO URL"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "URL-safe random string for OAuth state; base64url encoding helper"
@@ -16999,11 +17395,20 @@ msgstr "다른 이메일 사용"
 msgid "Use a passkey"
 msgstr "패스키 사용"
 
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Use a passkey created on {earlierHost}"
+msgstr "{earlierHost}에서 만든 패스키 사용"
+
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+msgid "Use a passkey created on an earlier address"
+msgstr "이전 주소에서 만든 패스키 사용"
+
 #: packages/web-ui/src/api-error-message.ts
 msgid "Use a password with 12 to 128 characters."
 msgstr "12~128자의 비밀번호를 사용하세요."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "Use a security key"
 msgstr "보안 키 사용"
 
@@ -17095,7 +17500,7 @@ msgstr "수신 측에서 전송 중복을 제거하려면 <0>svix-id</0> 헤더�
 msgid "Use the email address of the account you are signed in with."
 msgstr "로그인한 계정의 이메일 주소를 사용하세요."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "Use your face or fingerprint to sign in"
 msgstr "얼굴이나 지문으로 로그인"
 
@@ -17271,9 +17676,18 @@ msgstr "사용자 이름"
 #: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Username"
 msgstr "사용자 이름"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Username form field"
+msgstr "사용자 이름 양식 필드"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Username header"
+msgstr "사용자 이름 헤더"
 
 #: apps/console/src/components/layout/ConsoleCommandMenu.tsx
 #: apps/console/src/nav.tsx
@@ -17347,7 +17761,7 @@ msgstr "유틸리티"
 msgid "v{version}, pre-1.0"
 msgstr "v{version}, 1.0 이전"
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 msgid "Valid"
 msgstr "유효"
 
@@ -17358,6 +17772,10 @@ msgstr "{from}부터 {to}까지 유효"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Valid client status values: loading, ready, degraded, error"
 msgstr "유효한 클라이언트 상태 값: loading, ready, degraded, error"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Valid from {from} to {until}"
+msgstr "유효 기간 {from} ~ {until}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Valid session status values: active, pending, expired, removed, ended, revoked"
@@ -17717,6 +18135,10 @@ msgstr "DNS 레코드 대기 중"
 msgid "Waiting for TXT"
 msgstr "TXT 대기 중"
 
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Waiting since"
+msgstr "대기 시작"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Waitlist sign-up gate component"
 msgstr "대기자 명단 가입 게이트 컴포넌트"
@@ -17738,6 +18160,10 @@ msgstr "페이지를 찾을 수 없습니다"
 msgid "We couldn't cancel the deletion. Try again."
 msgstr "삭제를 취소하지 못했습니다. 다시 시도하세요."
 
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "We couldn't carry your sign-in over to this address. Sign in again to continue."
+msgstr "로그인 상태를 이 주소로 옮기지 못했습니다. 계속하려면 다시 로그인하세요."
+
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "We couldn't change your primary email. Try again."
 msgstr "기본 이메일을 변경하지 못했습니다. 다시 시도하세요."
@@ -17753,6 +18179,10 @@ msgstr "{name} 연결을 해제하지 못했습니다. 다시 시도하세요."
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "We couldn't generate backup codes. Try again."
 msgstr "백업 코드를 생성하지 못했습니다. 다시 시도하세요."
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "We couldn't load your app sign-ins. Refresh the page to try again."
+msgstr "앱 로그인 정보를 불러오지 못했습니다. 페이지를 새로 고쳐 다시 시도하세요."
 
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "We couldn't load your authorized apps. Refresh the page to try again."
@@ -17814,22 +18244,30 @@ msgstr "해당 번호를 제거하지 못했습니다. 다시 시도하세요."
 msgid "We couldn't remove this method. Try again."
 msgstr "이 방법을 제거하지 못했습니다. 다시 시도하세요."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "We couldn't remove this passkey. Try again."
 msgstr "이 패스키를 제거하지 못했습니다. 다시 시도하세요."
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "We couldn't remove this sign-in. Try again."
+msgstr "이 로그인 정보를 제거하지 못했습니다. 다시 시도하세요."
 
 #. placeholder {0}: org.name
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "We couldn't remove you from {0}. Try again."
 msgstr "{0}에서 나가지 못했습니다. 다시 시도하세요."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "We couldn't rename this passkey. Try again."
 msgstr "이 패스키의 이름을 변경하지 못했습니다. 다시 시도하세요."
 
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "We couldn't revoke that app's access. Try again."
 msgstr "해당 앱의 접근 권한을 취소하지 못했습니다. 다시 시도하세요."
+
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "We couldn't save this sign-in. Try again."
+msgstr "이 로그인 정보를 저장하지 못했습니다. 다시 시도하세요."
 
 #: apps/server/src/routes/account/PasswordSection.tsx
 msgid "We couldn't save your password. Try again."
@@ -18051,7 +18489,7 @@ msgstr "남는 것"
 msgid "What the apps you sign in to and your teammates see about you."
 msgstr "로그인하는 앱과 팀원에게 보이는 내 정보입니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "What they are"
 msgstr "패스키란"
 
@@ -18100,7 +18538,7 @@ msgstr "2단계 인증이 필수이면 사용자는 로그인 중에 인증 앱�
 msgid "Where is my data on XID Cloud?"
 msgstr "XID Cloud에서 내 데이터는 어디에 있나요?"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "Where they're saved"
 msgstr "저장 위치"
 
@@ -18134,7 +18572,11 @@ msgstr "로그인할 수 있는 사용자"
 msgid "Who can sign in to {name} apps"
 msgstr "{name} 앱에 로그인할 수 있는 사람"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Who in {orgName} must sign in through the enterprise connection that matches their verified email domain."
+msgstr "{orgName}에서 인증된 이메일 도메인과 일치하는 엔터프라이즈 연결로 로그인해야 하는 사용자입니다."
+
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "Why use them"
 msgstr "사용하는 이유"
 
@@ -18187,7 +18629,16 @@ msgstr "WS-Fed"
 msgid "WS-Federation"
 msgstr "WS-Federation"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "WS-Federation realm"
+msgstr "WS-Federation 영역(realm)"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "WS-Federation reply URL"
+msgstr "WS-Federation 회신 URL"
+
 #: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 #: apps/console/src/routes/users/activity-sentence.ts
 msgid "XID"
 msgstr "XID"
@@ -18236,9 +18687,9 @@ msgstr "XID가 새 secret을 만들고 한 번만 표시합니다. 현재 secret
 msgid "XID creates a SCIM base URL and a bearer token. You'll see the token once."
 msgstr "XID가 SCIM 기본 URL과 Bearer 토큰을 만듭니다. 토큰은 한 번만 표시됩니다."
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-msgid "XID creates the signing certificate the first time someone signs in to this app."
-msgstr "누군가 이 앱에 처음 로그인할 때 XID가 서명 인증서를 만듭니다."
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "XID creates the signing certificate when the first SAML app is added."
+msgstr "첫 번째 SAML 앱을 추가하면 XID가 서명 인증서를 만듭니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
@@ -18337,6 +18788,11 @@ msgstr "XID는 어떤 패키지 레지스트리에도 패키지를 게시하지 
 msgid "XID pushes organization members to {provider} after members are removed or deactivated, and at least once a day."
 msgstr "XID는 멤버가 제거되거나 비활성화된 뒤, 그리고 하루에 한 번 이상 조직 멤버를 {provider}(으)로 보냅니다."
 
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "XID reads it when you save and refreshes it every day."
+msgstr "XID는 저장할 때 읽고 매일 새로 고칩니다."
+
 #: apps/console/src/routes/org/WebhookDetail.tsx
 msgid "XID retries a failed delivery up to 5 times with growing pauses, then marks it failed. Failed deliveries are not sent again."
 msgstr "XID는 실패한 전송을 간격을 늘려 가며 최대 5회 재시도한 뒤 실패로 표시합니다. 실패한 전송은 다시 보내지 않습니다."
@@ -18349,7 +18805,7 @@ msgstr "XID 역할"
 msgid "XID sends users back only to these exact URLs after sign-in. Each one must match character for character."
 msgstr "XID는 로그인 후 사용자를 이 URL로만 돌려보냅니다. 각 URL은 문자 하나까지 정확히 일치해야 합니다."
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "XID session"
 msgstr "XID 세션"
 
@@ -18362,8 +18818,8 @@ msgid "XID shows the TXT record to add after you save."
 msgstr "저장하면 추가할 TXT 레코드를 XID가 보여 줍니다."
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-msgid "XID signs every {name} assertion with the active certificate. Both stay published during a rollover."
-msgstr "XID는 {name}의 모든 어설션에 활성 인증서로 서명합니다. 교체 중에는 두 인증서가 모두 게시됩니다."
+msgid "XID signs every {name} assertion with the active certificate. The next and retiring certificates stay published in the metadata during a rollover."
+msgstr "XID는 활성 인증서로 모든 {name} 어설션에 서명합니다. 롤오버 중에는 다음 인증서와 만료 예정 인증서가 메타데이터에 계속 게시됩니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID signs every delivery with HMAC-SHA256. Verify the signature before processing the payload. Reject deliveries older than 5 minutes to prevent replay attacks."
@@ -18603,7 +19059,7 @@ msgstr "시간당 50건의 초대 한도에 도달했습니다. 나중에 다시
 msgid "You scheduled this on {requestedDate}. Until then, everything keeps working and you can change your mind."
 msgstr "{requestedDate}에 예약했습니다. 그때까지 모든 것이 그대로 작동하며 마음을 바꿀 수 있습니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "You sign in with your fingerprint, face or screen lock instead of a password."
 msgstr "비밀번호 대신 지문, 얼굴 또는 화면 잠금으로 로그인합니다."
 
@@ -18632,6 +19088,10 @@ msgstr "어느 쪽을 선택해도 계속 진행됩니다. 패스키는 나중�
 msgid "You'll continue to {0} either way. You can create a passkey later in your account."
 msgstr "어느 쪽을 선택해도 {0}(으)로 계속 진행됩니다. 패스키는 나중에 계정에서 만들 수 있습니다."
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "You'll need to enter your username and password again before you can open {name} from here."
+msgstr "여기에서 {name}을(를) 열려면 사용자 이름과 비밀번호를 다시 입력해야 합니다."
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "You'll see the full key once, right after it's created."
 msgstr "전체 키는 만든 직후 한 번만 표시됩니다."
@@ -18645,7 +19105,7 @@ msgid "You'll use it each time you sign in. You can add more methods later in yo
 msgstr "로그인할 때마다 사용합니다. 다른 방법은 나중에 계정에서 추가할 수 있습니다."
 
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/use-passkey-registration.tsx
 msgid "You're about to add a passkey to your account."
 msgstr "계정에 패스키를 추가하려고 합니다."
 
@@ -18677,7 +19137,7 @@ msgstr "{0}을(를) 기본 이메일로 설정하려고 합니다. 앞으로 로
 msgid "You're about to remove {0} from your account."
 msgstr "계정에서 {0}을(를) 제거하려고 합니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "You're about to remove the passkey {name}."
 msgstr "패스키 {name}을(를) 제거하려고 합니다."
 
@@ -18747,7 +19207,11 @@ msgstr "{0}의 유일한 조직 소유자입니다. 먼저 다른 사람을 조�
 msgid "You're using {appName} as a guest, so nothing ties this account to you. Anything you saved disappears if you sign out, clear this browser, or switch devices. Add a way to sign in to keep it."
 msgstr "게스트로 {appName}을(를) 사용하고 있어 이 계정은 본인과 연결되어 있지 않습니다. 로그아웃하거나, 이 브라우저 데이터를 지우거나, 기기를 바꾸면 저장한 내용이 사라집니다. 유지하려면 로그인 방법을 추가하세요."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/SteppedUpNotice.tsx
+msgid "You've confirmed it's you. Continue with your change."
+msgstr "본인 확인을 마쳤습니다. 변경을 계속하세요."
+
+#: apps/server/src/routes/account/PasskeyNotices.tsx
 msgid "You've reached the limit of {limit} passkeys"
 msgstr "패스키 한도 {limit}개에 도달했습니다"
 
@@ -18877,8 +19341,8 @@ msgid "Your instance operator has not set a secret for this provider yet."
 msgstr "인스턴스 운영자가 아직 이 공급자의 시크릿을 설정하지 않았습니다."
 
 #: apps/console/src/routes/org/DeliveryChannelDialog.tsx
-msgid "Your instance operator sets these as Workers Secrets. XID never shows their values."
-msgstr "인스턴스 운영자가 Workers Secrets로 설정합니다. XID는 값을 표시하지 않습니다."
+msgid "Your instance operator sets these as Workers Secrets or variables. XID never shows their values."
+msgstr "인스턴스 운영자가 이 값들을 Workers Secrets 또는 변수로 설정합니다. XID는 값을 표시하지 않습니다."
 
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Your main second step"
@@ -18895,6 +19359,10 @@ msgstr "조직에서 로그인할 때마다 2단계 확인을 요구합니다."
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Your organization doesn't offer passkeys yet."
 msgstr "조직에서 아직 패스키를 제공하지 않습니다."
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Your organization opens these apps by filling in a username and password you save here."
+msgstr "조직은 여기에 저장한 사용자 이름과 비밀번호를 입력해 이 앱들을 엽니다."
 
 #: apps/server/src/routes/mfa-setup/index.tsx
 msgid "Your organization requires a second step"

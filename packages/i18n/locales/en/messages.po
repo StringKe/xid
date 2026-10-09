@@ -13,8 +13,9 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "-----BEGIN CERTIFICATE-----"
 msgstr "-----BEGIN CERTIFICATE-----"
 
@@ -98,7 +99,7 @@ msgid "{0, plural, one {# person still uses one.} other {# people still use one.
 msgstr "{0, plural, one {# person still uses one.} other {# people still use one.}}"
 
 #. placeholder {0}: domain.memberCount
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 msgid "{0, plural, one {# person} other {# people}}"
 msgstr "{0, plural, one {# person} other {# people}}"
 
@@ -268,6 +269,10 @@ msgstr "{actor} registered compliance evidence {target}."
 #: apps/console/src/routes/users/activity-sentence.ts
 msgid "{actor} removed {subject} from an organization."
 msgstr "{actor} removed {subject} from an organization."
+
+#: apps/console/src/routes/users/activity-sentence.ts
+msgid "{actor} removed a passkey from {subject}."
+msgstr "{actor} removed a passkey from {subject}."
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "{actor} removed instance manager {target}."
@@ -608,7 +613,7 @@ msgstr "{firstName} sees an Impersonation session on their Devices page. Start a
 msgid "{following, plural, one {# of {total} follows these defaults.} other {# of {total} follow these defaults.}}"
 msgstr "{following, plural, one {# of {total} follows these defaults.} other {# of {total} follow these defaults.}}"
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 msgid "{from} to {to}"
 msgstr "{from} to {to}"
 
@@ -700,6 +705,10 @@ msgstr "{name} belongs to {count, plural, one {# organization} other {# organiza
 msgid "{name} belongs to no organization."
 msgstr "{name} belongs to no organization."
 
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+msgid "{name} can no longer sign in with this passkey and is signed out everywhere. Other passkeys and sign-in methods keep working. {name} can add a new passkey from the Security page of their account after signing in another way."
+msgstr "{name} can no longer sign in with this passkey and is signed out everywhere. Other passkeys and sign-in methods keep working. {name} can add a new passkey from the Security page of their account after signing in another way."
+
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "{name} can sign in again"
 msgstr "{name} can sign in again"
@@ -716,7 +725,7 @@ msgstr "{name} cannot sign in until you resume the account. Nothing is deleted. 
 msgid "{name} details"
 msgstr "{name} details"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 msgid "{name} directory sync"
 msgstr "{name} directory sync"
 
@@ -757,6 +766,10 @@ msgstr "{name} was added"
 #: apps/console/src/routes/users/DeleteUserDialog.tsx
 msgid "{name} was deleted"
 msgstr "{name} was deleted"
+
+#: apps/server/src/routes/account/PasskeyNotices.tsx
+msgid "{name} was removed. If your password manager still offers it, delete it there too."
+msgstr "{name} was removed. If your password manager still offers it, delete it there too."
 
 #: apps/console/src/routes/users/UserActions.tsx
 msgid "{name} was signed out everywhere"
@@ -923,10 +936,6 @@ msgstr "{remaining} left"
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "{remaining} of {total} unused. For when you can't reach your phone or passkeys."
 msgstr "{remaining} of {total} unused. For when you can't reach your phone or passkeys."
-
-#: apps/server/src/routes/account/PasskeySection.tsx
-msgid "{removedName} was removed. If your password manager still offers it, delete it there too."
-msgstr "{removedName} was removed. If your password manager still offers it, delete it there too."
 
 #: apps/console/src/routes/members/MembersTab.tsx
 msgid "{removingName} loses access to {orgLabel} and its apps right away. The account itself stays and can be invited again."
@@ -1134,127 +1143,159 @@ msgstr "+1 415 555 0142"
 msgid "+1 555 000 0000"
 msgstr "+1 555 000 0000"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> accepted an invitation"
 msgstr "<0>{actor}</0> accepted an invitation"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> acted on <1>{target}</1>"
 msgstr "<0>{actor}</0> acted on <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added <1>{target}</1> as a member"
 msgstr "<0>{actor}</0> added <1>{target}</1> as a member"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added a webhook endpoint"
 msgstr "<0>{actor}</0> added a webhook endpoint"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> added an email address to <1>{target}</1>"
 msgstr "<0>{actor}</0> added an email address to <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed sign-in and MFA settings"
 msgstr "<0>{actor}</0> changed sign-in and MFA settings"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed the enterprise SSO connection"
 msgstr "<0>{actor}</0> changed the enterprise SSO connection"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed the primary email address of <1>{target}</1>"
 msgstr "<0>{actor}</0> changed the primary email address of <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> changed the role of <1>{target}</1>"
 msgstr "<0>{actor}</0> changed the role of <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> connected enterprise SSO"
 msgstr "<0>{actor}</0> connected enterprise SSO"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> created the API key <1>{target}</1>"
 msgstr "<0>{actor}</0> created the API key <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> created the user <1>{target}</1>"
 msgstr "<0>{actor}</0> created the user <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deactivated <1>{target}</1>"
 msgstr "<0>{actor}</0> deactivated <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted <1>{target}</1>"
 msgstr "<0>{actor}</0> deleted <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> deleted the user <1>{target}</1>"
 msgstr "<0>{actor}</0> deleted the user <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> ended a session"
 msgstr "<0>{actor}</0> ended a session"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> exported users"
 msgstr "<0>{actor}</0> exported users"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> invited <1>{target}</1>"
 msgstr "<0>{actor}</0> invited <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> made a change"
 msgstr "<0>{actor}</0> made a change"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> marked the {period} MAU report ({value}) as already received by Stripe"
+msgstr "<0>{actor}</0> marked the {period} MAU report ({value}) as already received by Stripe"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> prepared a new SAML signing certificate for outbound apps"
+msgstr "<0>{actor}</0> prepared a new SAML signing certificate for outbound apps"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> published the next SAML signing certificate for outbound apps"
+msgstr "<0>{actor}</0> published the next SAML signing certificate for outbound apps"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> reactivated <1>{target}</1>"
 msgstr "<0>{actor}</0> reactivated <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> removed <1>{target}</1> from the organization"
 msgstr "<0>{actor}</0> removed <1>{target}</1> from the organization"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> removed a passkey from <1>{target}</1>"
+msgstr "<0>{actor}</0> removed a passkey from <1>{target}</1>"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> removed all passkey attestation trusted roots"
+msgstr "<0>{actor}</0> removed all passkey attestation trusted roots"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> replaced the passkey attestation trusted roots, {count} in total"
+msgstr "<0>{actor}</0> replaced the passkey attestation trusted roots, {count} in total"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> reset two-step verification for <1>{target}</1>"
 msgstr "<0>{actor}</0> reset two-step verification for <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> restored the user <1>{target}</1>"
 msgstr "<0>{actor}</0> restored the user <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> revoked an invitation"
 msgstr "<0>{actor}</0> revoked an invitation"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> revoked the API key <1>{target}</1>"
 msgstr "<0>{actor}</0> revoked the API key <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> rotated a webhook signing secret"
 msgstr "<0>{actor}</0> rotated a webhook signing secret"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> sent a password reset to <1>{target}</1>"
 msgstr "<0>{actor}</0> sent a password reset to <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> sent the {period} MAU report ({value}) to Stripe again"
+msgstr "<0>{actor}</0> sent the {period} MAU report ({value}) to Stripe again"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> set a new password for <1>{target}</1>"
 msgstr "<0>{actor}</0> set a new password for <1>{target}</1>"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> signed <1>{target}</1> out everywhere"
 msgstr "<0>{actor}</0> signed <1>{target}</1> out everywhere"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> signed in"
 msgstr "<0>{actor}</0> signed in"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "<0>{actor}</0> switched outbound apps to the new SAML signing certificate"
+msgstr "<0>{actor}</0> switched outbound apps to the new SAML signing certificate"
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "<0>{actor}</0> updated <1>{target}</1>"
 msgstr "<0>{actor}</0> updated <1>{target}</1>"
 
@@ -1494,7 +1535,7 @@ msgstr "A 6-digit code, valid for 10 minutes. Sent through Messaging."
 msgid "A client secret is configured. Leave blank to keep it."
 msgstr "A client secret is configured. Leave blank to keep it."
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 #: apps/console/src/routes/users/activity-sentence.ts
 msgid "A deleted user"
 msgstr "A deleted user"
@@ -1540,11 +1581,11 @@ msgstr "a passkey"
 msgid "A passkey counts as both steps. Everyone else proves it a second way after their password or code."
 msgstr "A passkey counts as both steps. Everyone else proves it a second way after their password or code."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "A passkey only works on {host}, so a look-alike sign-in page can't use it."
 msgstr "A passkey only works on {host}, so a look-alike sign-in page can't use it."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "A passkey replaces your password and counts as two-step verification. It takes a few seconds on this device."
 msgstr "A passkey replaces your password and counts as two-step verification. It takes a few seconds on this device."
 
@@ -1584,7 +1625,11 @@ msgstr "A replayed assertion was detected."
 msgid "A resource with this identifier already exists."
 msgstr "A resource with this identifier already exists."
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "A secret is configured. Leave blank to keep it."
+msgstr "A secret is configured. Leave blank to keep it."
+
+#: apps/console/src/routes/org/AuditEventSentence.tsx
 msgid "A sign-in attempt failed"
 msgstr "A sign-in attempt failed"
 
@@ -1660,7 +1705,7 @@ msgstr "Access request lifecycle"
 msgid "Access requests"
 msgstr "Access requests"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Access token"
 msgstr "Access token"
 
@@ -1672,7 +1717,7 @@ msgstr "Access token lifetime in minutes"
 msgid "Access tokens are stored in <0>HttpOnly</0> session cookies; they are never written to <1>localStorage</1>."
 msgstr "Access tokens are stored in <0>HttpOnly</0> session cookies; they are never written to <1>localStorage</1>."
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Access tokens: 1 minute to 24 hours. Refresh tokens rotate on every use; reusing an old one signs out the whole chain. Leave a field empty to use the instance default."
 msgstr "Access tokens: 1 minute to 24 hours. Refresh tokens rotate on every use; reusing an old one signs out the whole chain. Leave a field empty to use the instance default."
 
@@ -1746,8 +1791,8 @@ msgstr "Accounts across every organization on this instance. The same email can 
 msgid "ACS endpoint for signed or encrypted SAML responses."
 msgstr "ACS endpoint for signed or encrypted SAML responses."
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "ACS URL"
 msgstr "ACS URL"
 
@@ -1773,6 +1818,7 @@ msgstr "Action required"
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -1813,7 +1859,7 @@ msgstr "Actions for {host}"
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/users/UserActions.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Actions for {name}"
 msgstr "Actions for {name}"
 
@@ -1832,7 +1878,7 @@ msgstr "Activate device | XID"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/platform/SigningKeysSection.tsx
@@ -1893,7 +1939,7 @@ msgstr "Activity could not be loaded"
 msgid "Activity could not be loaded. Reload the page to try again."
 msgstr "Activity could not be loaded. Reload the page to try again."
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "Actor"
@@ -2076,6 +2122,10 @@ msgstr "Add to organization…"
 msgid "Add to pubspec.yaml and run flutter pub get:"
 msgstr "Add to pubspec.yaml and run flutter pub get:"
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Add trusted roots first. Without them no passkey could be registered."
+msgstr "Add trusted roots first. Without them no passkey could be registered."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add via Swift Package Manager in Package.swift:"
 msgstr "Add via Swift Package Manager in Package.swift:"
@@ -2173,8 +2223,8 @@ msgid "After signing in, open the original invitation link again to join with th
 msgstr "After signing in, open the original invitation link again to join with that account."
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-msgid "After that, {name} rejects every sign-in from XID. XID publishes the next certificate 30 days before expiry; download the IdP metadata again and upload it in {name} once it appears below."
-msgstr "After that, {name} rejects every sign-in from XID. XID publishes the next certificate 30 days before expiry; download the IdP metadata again and upload it in {name} once it appears below."
+msgid "After that, {name} rejects every sign-in from XID. XID publishes the next certificate 60 days before expiry. Download the IdP metadata again, upload it in {name}, then switch to the next certificate below."
+msgstr "After that, {name} rejects every sign-in from XID. XID publishes the next certificate 60 days before expiry. Download the IdP metadata again, upload it in {name}, then switch to the next certificate below."
 
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
 msgid "After that, XID rejects every sign-in from {name}."
@@ -2184,19 +2234,19 @@ msgstr "After that, XID rejects every sign-in from {name}."
 msgid "After this you'll save 10 backup codes, in case you lose your device."
 msgstr "After this you'll save 10 backup codes, in case you lose your device."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "After this, you'll sign in to {appName} with a code sent to your email."
 msgstr "After this, you'll sign in to {appName} with a code sent to your email."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "After this, you'll sign in to {appName} with your {provider} account."
 msgstr "After this, you'll sign in to {appName} with your {provider} account."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "After this, you'll sign in to {appName} with your password and a code from your authenticator app."
 msgstr "After this, you'll sign in to {appName} with your password and a code from your authenticator app."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "After this, you'll sign in to {appName} with your password."
 msgstr "After this, you'll sign in to {appName} with your password."
 
@@ -2497,13 +2547,17 @@ msgstr "Any member of the organization"
 msgid "Any organization"
 msgstr "Any organization"
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Any passkey can be registered."
+msgstr "Any passkey can be registered."
+
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Any provider with a discovery URL"
 msgstr "Any provider with a discovery URL"
 
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "Any provider with a metadata URL"
-msgstr "Any provider with a metadata URL"
+msgid "Any provider with a metadata URL or file"
+msgstr "Any provider with a metadata URL or file"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Any time"
@@ -2521,7 +2575,7 @@ msgstr "Anyone"
 msgid "API key"
 msgstr "API key"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "API key {name}"
 msgstr "API key {name}"
@@ -2565,6 +2619,10 @@ msgstr "App actions"
 msgid "App added"
 msgstr "App added"
 
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "App metadata"
+msgstr "App metadata"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "App name or entity ID"
 msgstr "App name or entity ID"
@@ -2592,6 +2650,10 @@ msgstr "App sections"
 #: apps/console/src/routes/org/AuthDetailParts.tsx
 msgid "App settings changed"
 msgstr "App settings changed"
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "App sign-ins"
+msgstr "App sign-ins"
 
 #: apps/console/src/routes/org/OutboundSamlAppForms.tsx
 msgid "App signing certificates"
@@ -2632,6 +2694,10 @@ msgstr "Application must set <UseWinUI>true</UseWinUI> in the project file"
 #: apps/console/src/routes/applications/ApplicationDetail.tsx
 msgid "Application not found"
 msgstr "Application not found"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Application sign-in URL"
+msgstr "Application sign-in URL"
 
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Application type"
@@ -2814,6 +2880,10 @@ msgstr "At instance setup"
 msgid "At least 12 characters, breached passwords blocked."
 msgstr "At least 12 characters, breached passwords blocked."
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "At least 32 characters. XID never shows it again after saving."
+msgstr "At least 32 characters. XID never shows it again after saving."
+
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "At least one instance manager must remain. The list was refreshed."
 msgstr "At least one instance manager must remain. The list was refreshed."
@@ -2821,6 +2891,14 @@ msgstr "At least one instance manager must remain. The list was refreshed."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Atlassian"
 msgstr "Atlassian"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Attestation is a signed statement from the device about which security key or platform created a passkey. Most organizations do not require it."
+msgstr "Attestation is a signed statement from the device about which security key or platform created a passkey. Most organizations do not require it."
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Attestation is required but no trusted roots are configured, so no one can register a passkey. Add trusted roots or choose another option."
+msgstr "Attestation is required but no trusted roots are configured, so no one can register a passkey. Add trusted roots or choose another option."
 
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
@@ -3143,9 +3221,17 @@ msgstr "Billing status"
 msgid "billing_admin"
 msgstr "billing_admin"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Bind DN template"
+msgstr "Bind DN template"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Binding"
 msgstr "Binding"
+
+#: apps/console/src/routes/org/DeliveryChannelDialog.tsx
+msgid "Bird sends from the SMS channel your instance operator set up."
+msgstr "Bird sends from the SMS channel your instance operator set up."
 
 #: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Block new resource creation"
@@ -3371,10 +3457,11 @@ msgstr "CanActivateFn factory"
 #: apps/server/src/routes/account/ContactCodeDialog.tsx
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 #: apps/server/src/routes/account/PasswordSection.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/account/step-up.tsx
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
 #: apps/server/src/routes/mfa/MfaExits.tsx
 #: packages/web-ui/src/components/ConfirmDialog.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
@@ -3398,7 +3485,7 @@ msgstr "Capabilities"
 msgid "CAPTCHA verification failed. Try again."
 msgstr "CAPTCHA verification failed. Try again."
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
 msgid "Certificate"
 msgstr "Certificate"
@@ -3499,6 +3586,10 @@ msgstr "Check the details, then accept with the account you're signed in to."
 msgid "Check the sequence range. It must exist in the chain and stay within 50,000 entries."
 msgstr "Check the sequence range. It must exist in the chain and stay within 50,000 entries."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Check when present"
+msgstr "Check when present"
+
 #: apps/server/src/routes/mfa/index.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Check your connection and try again."
@@ -3526,6 +3617,10 @@ msgstr "Checked"
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Checked at sign-in for every application in {name}."
 msgstr "Checked at sign-in for every application in {name}."
+
+#: apps/console/src/routes/org/OrgAuthPolicy.tsx
+msgid "Checked when present"
+msgstr "Checked when present"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "checksum"
@@ -3566,16 +3661,12 @@ msgstr "Choose an organization to continue in the console."
 msgid "Choose another way to verify"
 msgstr "Choose another way to verify"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "Choose SAML if {orgName}'s {label} admin already uses SAML for other apps."
-msgstr "Choose SAML if {orgName}'s {label} admin already uses SAML for other apps."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Choose Start free at the top of this page. Sign up and name your organization; XID creates it and opens the Console."
 msgstr "Choose Start free at the top of this page. Sign up and name your organization; XID creates it and opens the Console."
 
 #. placeholder {0}: connection.name
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Choose which email domains go to {0}"
 msgstr "Choose which email domains go to {0}"
 
@@ -3658,8 +3749,8 @@ msgstr "client ID"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 #: apps/console/src/routes/org/SocialProviderDialog.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Client ID"
 msgstr "Client ID"
 
@@ -3693,8 +3784,8 @@ msgstr "client secret"
 
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 #: apps/console/src/routes/org/SocialProviderDialog.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Client secret"
 msgstr "Client secret"
 
@@ -3803,6 +3894,10 @@ msgstr "Code from your authenticator app"
 msgid "Codebase for Cloud and self-hosted"
 msgstr "Codebase for Cloud and self-hosted"
 
+#: apps/console/src/routes/org/DeliveryChannelDialog.tsx
+msgid "Codes are sent with an approved WhatsApp authentication template, so the template settings are required."
+msgstr "Codes are sent with an approved WhatsApp authentication template, so the template settings are required."
+
 #: apps/server/src/routes/activate/index.tsx
 msgid "Codes expire after 10 minutes and work only once. Get a new code on your device, then enter it here."
 msgstr "Codes expire after 10 minutes and work only once. Get a new code on your device, then enter it here."
@@ -3907,10 +4002,6 @@ msgstr "Configure authentication, provider connections, enterprise identity, and
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Configure downstream SaaS SAML apps from Slack, GitHub, Microsoft, and other presets."
 msgstr "Configure downstream SaaS SAML apps from Slack, GitHub, Microsoft, and other presets."
-
-#: apps/console/src/routes/org/SsoConnectionFields.tsx
-msgid "Configure protocol-specific fields under <0>_legacy</0> in attribute mapping. SWA vaulted credentials are stored via the authenticated <1>/sso/swa/:connectionId/vault</1> API."
-msgstr "Configure protocol-specific fields under <0>_legacy</0> in attribute mapping. SWA vaulted credentials are stored via the authenticated <1>/sso/swa/:connectionId/vault</1> API."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Configure social OAuth providers while keeping provider-ready separate from production support."
@@ -4390,6 +4481,7 @@ msgstr "Create (with bulk limit), revoke, and list invitations."
 
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 #: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
@@ -4620,7 +4712,7 @@ msgstr "Create, update, sync, and remove outbound SCIM targets."
 msgid "Created"
 msgstr "Created"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Created {created}"
 msgstr "Created {created}"
 
@@ -4797,7 +4889,7 @@ msgstr "Data residency label"
 msgid "DAU"
 msgstr "DAU"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "days"
 msgstr "days"
 
@@ -4830,7 +4922,7 @@ msgstr "Decoded header and payload"
 msgid "Deep link callback"
 msgstr "Deep link callback"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 #: apps/console/src/routes/org/OrgBranding.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Default"
@@ -4853,7 +4945,7 @@ msgstr "Default: openid, profile, email"
 msgid "Default. Stores tokens in the freedesktop.org Secret Service (gnome-keyring or kwallet) via D-Bus. Requires a running desktop session."
 msgstr "Default. Stores tokens in the freedesktop.org Secret Service (gnome-keyring or kwallet) via D-Bus. Requires a running desktop session."
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Defaults for every application. An application can set its own access token lifetime on its settings page; refresh token lifetimes always come from here."
 msgstr "Defaults for every application. An application can set its own access token lifetime on its settings page; refresh token lifetimes always come from here."
 
@@ -5253,10 +5345,6 @@ msgstr "Direct grant"
 msgid "Direct grants can be removed here. A role that comes through a project grant changes only when that project grant changes."
 msgstr "Direct grants can be removed here. A role that comes through a project grant changes only when that project grant changes."
 
-#: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
-msgid "Direct, checked against trusted roots"
-msgstr "Direct, checked against trusted roots"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Direction"
 msgstr "Direction"
@@ -5332,9 +5420,9 @@ msgstr "Disconnect {name}?"
 msgid "Disconnect…"
 msgstr "Disconnect…"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Discovery URL"
 msgstr "Discovery URL"
 
@@ -5355,7 +5443,8 @@ msgid "Discriminated XidClient constructor options: same-origin accepts apiUrl, 
 msgstr "Discriminated XidClient constructor options: same-origin accepts apiUrl, secretKey, fetcher, and now; oidc requires issuer, clientId, and redirectUri."
 
 #: apps/console/src/components/ActiveAnnouncementsBanner.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyNotices.tsx
+#: apps/server/src/routes/account/SteppedUpNotice.tsx
 #: packages/web-ui/src/components/ui/Toast.tsx
 msgid "Dismiss"
 msgstr "Dismiss"
@@ -5381,6 +5470,14 @@ msgstr "DNS records"
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Do I need to pay for SSO, SCIM or MFA?"
 msgstr "Do I need to pay for SSO, SCIM or MFA?"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Do this only after you confirmed that Stripe has no event {identifier}. XID sends the {value} MAU again under a new event ID."
+msgstr "Do this only after you confirmed that Stripe has no event {identifier}. XID sends the {value} MAU again under a new event ID."
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Do this only after you found event {identifier} in Stripe. XID records the {value} MAU as reported and does not send it again."
+msgstr "Do this only after you found event {identifier} in Stripe. XID records the {value} MAU as reported and does not send it again."
 
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Do you have SOC 2 or ISO 27001?"
@@ -5436,9 +5533,9 @@ msgstr "Domains"
 msgid "Domains | Console | XID"
 msgstr "Domains | Console | XID"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
-msgid "Domains are routed in Enterprise SSO. Turn this on only after every active member has a routed domain, or they cannot sign in."
-msgstr "Domains are routed in Enterprise SSO. Turn this on only after every active member has a routed domain, or they cannot sign in."
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Domains are routed in Enterprise SSO. Turn on Require single sign-on only after every active member has a routed domain, or they cannot sign in."
+msgstr "Domains are routed in Enterprise SSO. Turn on Require single sign-on only after every active member has a routed domain, or they cannot sign in."
 
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 msgid "Domains could not be loaded"
@@ -5575,6 +5672,10 @@ msgstr "Each SDK has a dedicated reference page with install steps, API tables, 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each source Queue requires its own dead-letter Queue and persistence-failure quarantine, for 24 Queues total. The shared xid-dlq is obsolete and must not be used."
 msgstr "Each source Queue requires its own dead-letter Queue and persistence-failure quarantine, for 24 Queues total. The shared xid-dlq is obsolete and must not be used."
+
+#: apps/server/src/routes/account/PasskeyCard.tsx
+msgid "Earlier address"
+msgstr "Earlier address"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Edge Runtime middleware: verifies JWT, injects auth headers"
@@ -5741,6 +5842,10 @@ msgstr "Email delivery"
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Email domains"
 msgstr "Email domains"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Email header"
+msgstr "Email header"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Email link and code sign-in: verified in production on xid.dev. Other sign-in methods and the account page: verified locally."
@@ -5987,6 +6092,10 @@ msgstr "Enter the code we sent on WhatsApp"
 msgid "Enter the code we texted you"
 msgstr "Enter the code we texted you"
 
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Enter the details yourself"
+msgstr "Enter the details yourself"
+
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Enter the downstream API token. Sync needs it, and changing the base URL host requires it again."
 msgstr "Enter the downstream API token. Sync needs it, and changing the base URL host requires it again."
@@ -6003,6 +6112,10 @@ msgstr "Enter the email you sign in with. We'll send a link to choose a new pass
 msgid "Enter the full email address."
 msgstr "Enter the full email address."
 
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Enter the metadata URL, or choose to enter the details yourself."
+msgstr "Enter the metadata URL, or choose to enter the details yourself."
+
 #: apps/console/src/routes/platform/CreateOrganizationDialog.tsx
 msgid "Enter the organization name."
 msgstr "Enter the organization name."
@@ -6011,9 +6124,22 @@ msgstr "Enter the organization name."
 msgid "Enter the owner's full email address."
 msgstr "Enter the owner's full email address."
 
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Enter the password again to replace the saved one."
+msgstr "Enter the password again to replace the saved one."
+
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Enter the service name and the SCIM endpoint."
 msgstr "Enter the service name and the SCIM endpoint."
+
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Enter the username and password you use for {appName}."
+msgstr "Enter the username and password you use for {appName}."
+
+#. placeholder {0}: app.targetOrigin
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Enter the username and password you use on {0}. They are stored encrypted and sent only to that site when you open the app."
+msgstr "Enter the username and password you use on {0}. They are stored encrypted and sent only to that site when you open the app."
 
 #: apps/console/src/routes/org/ScimDirectoryDetail.tsx
 msgid "Enter this URL as the SCIM connector base URL in your identity provider, together with the directory bearer token."
@@ -6051,8 +6177,8 @@ msgstr "Enterprise and developers"
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/AttentionList.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
+#: apps/console/src/routes/org/SsoWizardLayout.tsx
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -6086,8 +6212,8 @@ msgstr "Enterprise SSO. Renew it before {expiry}."
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
 #: apps/console/src/routes/org/OutboundSamlAppForms.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Entity ID"
 msgstr "Entity ID"
 
@@ -6095,7 +6221,7 @@ msgstr "Entity ID"
 msgid "Entries"
 msgstr "Entries"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Entry"
 msgstr "Entry"
@@ -6150,7 +6276,7 @@ msgstr "ETag and If-Match"
 msgid "Event"
 msgstr "Event"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 msgid "Event JSON"
 msgstr "Event JSON"
 
@@ -6230,6 +6356,10 @@ msgstr "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and 
 msgid "Every person signs in at {domain}. Stored with the instance record; not editable here."
 msgstr "Every person signs in at {domain}. Stored with the instance record; not editable here."
 
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Every SAML app in this organization starts using the next certificate right away. Make sure each app already trusts it, either by downloading the metadata again or by uploading the certificate. The current certificate stays in the metadata for 7 days."
+msgstr "Every SAML app in this organization starts using the next certificate right away. Make sure each app already trusts it, either by downloading the metadata again or by uploading the certificate. The current certificate stays in the metadata for 7 days."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every SDK below carries one of two status labels, aligned with the XID platform support matrix. Neither label is a production-readiness claim."
 msgstr "Every SDK below carries one of two status labels, aligned with the XID platform support matrix. Neither label is a production-readiness claim."
@@ -6242,7 +6372,7 @@ msgstr "Every session ends right away and refresh tokens stop working. Access to
 msgid "Every setting for {title} in one list"
 msgstr "Every setting for {title} in one list"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Every verified email domain of this organization is routed to the connection. Verify a domain with a DNS record, then people at that domain skip the password step."
 msgstr "Every verified email domain of this organization is routed to the connection. Verify a domain with a DNS record, then people at that domain skip the password step."
 
@@ -6632,7 +6762,7 @@ msgstr "Find the enterprise connection for a verified email domain."
 msgid "Find the ID on the user's page under Users."
 msgstr "Find the ID on the user's page under Users."
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Finish"
 msgstr "Finish"
 
@@ -6775,6 +6905,10 @@ msgstr "function"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "functions"
 msgstr "functions"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Gateway secret"
+msgstr "Gateway secret"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
@@ -6977,6 +7111,10 @@ msgstr "Group sent by {0} to the organization role it grants."
 #: apps/console/src/routes/org/ScimDirectoryDetail.tsx
 msgid "Groups"
 msgstr "Groups"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Groups header"
+msgstr "Groups header"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Guarded or minimal OAuth and OIDC extensions"
@@ -7225,18 +7363,14 @@ msgstr "https://example.com/scim/v2"
 msgid "https://example.com/webhooks/xid"
 msgstr "https://example.com/webhooks/xid"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "https://idp.example.com/.well-known/openid-configuration"
 msgstr "https://idp.example.com/.well-known/openid-configuration"
 
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/entity"
 msgstr "https://idp.example.com/entity"
-
-#: apps/console/src/routes/org/SsoConnectionFields.tsx
-msgid "https://idp.example.com/login"
-msgstr "https://idp.example.com/login"
 
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/metadata.xml"
@@ -7425,6 +7559,18 @@ msgstr "Implemented locally; real AD FS WS-Fed L4 missing."
 msgid "Implicit flow, password grant, plain PKCE, and wildcard redirects."
 msgstr "Implicit flow, password grant, plain PKCE, and wildcard redirects."
 
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Import from a metadata URL"
+msgstr "Import from a metadata URL"
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Import the app's SAML metadata to fill in the fields below. Fields you fill in yourself take precedence."
+msgstr "Import the app's SAML metadata to fill in the fields below. Fields you fill in yourself take precedence."
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Imported. The fields below now show the saved values."
+msgstr "Imported. The fields below now show the saved values."
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "In 1 year ({date365})"
 msgstr "In 1 year ({date365})"
@@ -7453,7 +7599,7 @@ msgstr "In the Console, open Applications and create an application. Register th
 msgid "In XID's Cloudflare account, on D1, KV, R2 and Durable Objects. Choosing a data region isn't available."
 msgstr "In XID's Cloudflare account, on D1, KV, R2 and Durable Objects. Choosing a data region isn't available."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "In your password manager or on a security key. Anyone who can unlock that device can sign in."
 msgstr "In your password manager or on a security key. Anyone who can unlock that device can sign in."
 
@@ -7514,10 +7660,6 @@ msgstr "Include the session ID (sid) in the logout token"
 #: apps/site/src/lib/pricing-surface.ts
 msgid "Included"
 msgstr "Included"
-
-#: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
-msgid "Indirect"
-msgstr "Indirect"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Information"
@@ -7997,6 +8139,10 @@ msgstr "Kotlin 1.9+ and AndroidX"
 msgid "Kotlin SDK for Android using Chrome Custom Tabs, PKCE S256 authorization code flow, and Keystore-backed EncryptedSharedPreferences token storage."
 msgstr "Kotlin SDK for Android using Chrome Custom Tabs, PKCE S256 authorization code flow, and Keystore-backed EncryptedSharedPreferences token storage."
 
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Landing page after IdP-initiated sign-in"
+msgstr "Landing page after IdP-initiated sign-in"
+
 #: apps/console/src/components/layout/ConsoleTopBar.tsx
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/components/hosted/LanguageMenu.tsx
@@ -8125,7 +8271,7 @@ msgstr "Last updated"
 msgid "Last used"
 msgstr "Last used"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Last used {lastUsed}"
 msgstr "Last used {lastUsed}"
 
@@ -8148,6 +8294,10 @@ msgstr "LDAP direct bind"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "LDAP direct bind, WS-Federation, SWA password vaulting, header-based SSO, and directory connector framework are implemented locally with fake harness L3. Real AD/LDAP gateway, AD FS WS-Fed, target app vault, and Application Proxy L4 are still missing."
 msgstr "LDAP direct bind, WS-Federation, SWA password vaulting, header-based SSO, and directory connector framework are implemented locally with fake harness L3. Real AD/LDAP gateway, AD FS WS-Fed, target app vault, and Application Proxy L4 are still missing."
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "LDAP gateway URL"
+msgstr "LDAP gateway URL"
 
 #: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "LDAP, WS-Federation, password vaulting or header-based"
@@ -8763,6 +8913,18 @@ msgstr "Manifest setup"
 msgid "Manual middleware (alternative)"
 msgstr "Manual middleware (alternative)"
 
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Mark as received by Stripe"
+msgstr "Mark as received by Stripe"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Mark as reported"
+msgstr "Mark as reported"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Mark as reported…"
+msgstr "Mark as reported…"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Markdown is recommended for AI consumption"
 msgstr "Markdown is recommended for AI consumption"
@@ -8783,9 +8945,17 @@ msgstr "Matched, {when}"
 msgid "MAU"
 msgstr "MAU"
 
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "MAU added"
+msgstr "MAU added"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "MAU in {month}"
 msgstr "MAU in {month}"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "MAU reports to check in Stripe"
+msgstr "MAU reports to check in Stripe"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Meaning"
@@ -8824,10 +8994,18 @@ msgstr "Members can sign in again right away."
 msgid "Members can sign in again with the methods already set up. Data and settings were kept."
 msgstr "Members can sign in again with the methods already set up. Data and settings were kept."
 
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Members can sign in only through enterprise SSO. Every other method stops working for them, including passkeys and social login. Needs an active enterprise connection."
+msgstr "Members can sign in only through enterprise SSO. Every other method stops working for them, including passkeys and social login. Needs an active enterprise connection."
+
 #: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 msgid "Members could not be loaded"
 msgstr "Members could not be loaded"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Members save their own credentials for this application on their account page. Administrators never enter or see them."
+msgstr "Members save their own credentials for this application on their account page. Administrators never enter or see them."
 
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Members to push"
@@ -8874,15 +9052,25 @@ msgstr "Messaging"
 msgid "Messaging settings could not be loaded. Reload the page to try again."
 msgstr "Messaging settings could not be loaded. Reload the page to try again."
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/DeliveryChannelDialog.tsx
+msgid "Meta sends from the WhatsApp phone number your instance operator set up."
+msgstr "Meta sends from the WhatsApp phone number your instance operator set up."
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 msgid "Metadata"
 msgstr "Metadata"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Metadata URL"
 msgstr "Metadata URL"
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Metadata XML"
+msgstr "Metadata XML"
 
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Metered usage and billing status for every organization."
@@ -8952,7 +9140,7 @@ msgstr "Minimal implementation"
 msgid "Minimum integration"
 msgstr "Minimum integration"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "minutes"
 msgstr "minutes"
 
@@ -8998,6 +9186,10 @@ msgstr "Module setup"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Monitoring"
 msgstr "Monitoring"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Month"
+msgstr "Month"
 
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
@@ -9079,7 +9271,7 @@ msgstr "Mutual TLS with a pinned certificate (self_signed_tls_client_auth)"
 #: apps/console/src/routes/platform/CreateOrganizationDialog.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Name"
@@ -9258,6 +9450,7 @@ msgstr "Newest first, 50 per page. Times are shown in UTC."
 
 #: apps/console/src/routes/members/MembersTab.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -9670,6 +9863,10 @@ msgstr "No services receive {orgName} members yet"
 msgid "No sign-in domain yet"
 msgstr "No sign-in domain yet"
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "No sign-in saved"
+msgstr "No sign-in saved"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "No sign-ins yet"
 msgstr "No sign-ins yet"
@@ -9698,6 +9895,10 @@ msgstr "No third-party dependencies — uses Apple system frameworks only"
 msgid "No top-level organization on this instance has that ID."
 msgstr "No top-level organization on this instance has that ID."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "No trusted roots for this tenant yet."
+msgstr "No trusted roots for this tenant yet."
+
 #: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "No usage data available."
 msgstr "No usage data available."
@@ -9723,7 +9924,7 @@ msgstr "No users yet."
 msgid "No valid token present; reason field indicates cause"
 msgstr "No valid token present; reason field indicates cause"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 msgid "No verified domain is routed to an enterprise connection yet. Add the connection and verify a domain in Enterprise SSO first."
 msgstr "No verified domain is routed to an enterprise connection yet. Add the connection and verify a domain in Enterprise SSO first."
 
@@ -9735,7 +9936,7 @@ msgstr "No way to verify on this account"
 msgid "No, it's different"
 msgstr "No, it's different"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 msgid "No. {seq} in the chain"
 msgstr "No. {seq} in the chain"
 
@@ -9840,7 +10041,7 @@ msgstr "Not live yet"
 msgid "Not now"
 msgstr "Not now"
 
-#: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Not required"
 msgstr "Not required"
@@ -9914,11 +10115,11 @@ msgstr "Not signed in yet"
 msgid "Not started"
 msgstr "Not started"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Not synced"
 msgstr "Not synced"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Not used yet"
 msgstr "Not used yet"
 
@@ -10294,6 +10495,10 @@ msgstr "Only one of the site key and secret is set"
 msgid "Only owners and admins of {orgName} can see this overview."
 msgstr "Only owners and admins of {orgName} can see this overview."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Only passkeys whose attestation chains to a trusted root can be registered. Most synced passkeys from phones and password managers send no attestation and are refused."
+msgstr "Only passkeys whose attestation chains to a trusted root can be registered. Most synced passkeys from phones and password managers send no attestation and are refused."
+
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Only people with a {name} role"
 msgstr "Only people with a {name} role"
@@ -10320,6 +10525,7 @@ msgstr "Only you decide what {app} can see."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
+#: apps/server/src/routes/account/SwaAppsSection.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open"
 msgstr "Open"
@@ -10327,6 +10533,10 @@ msgstr "Open"
 #: apps/console/src/routes/platform/PlatformAttention.tsx
 msgid "Open {name}"
 msgstr "Open {name}"
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Open {name} in a new tab"
+msgstr "Open {name} in a new tab"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open an embedded WebView2 authorization window with PKCE S256. Returns XidSession on completion."
@@ -10490,13 +10700,21 @@ msgstr "Optional network-fetching JWKS cache with configurable TTL (default 3600
 msgid "Optional, people choose to add it"
 msgstr "Optional, people choose to add it"
 
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Optional. A path on this XID domain, for example /account."
+msgstr "Optional. A path on this XID domain, for example /account."
+
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Optional. Leave blank to use the NameID."
+msgstr "Optional. Leave blank to use the NameID."
+
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Optional. Leave blank to use the sub claim."
+msgstr "Optional. Leave blank to use the sub claim."
+
 #: apps/console/src/routes/org/OutboundSamlAppForms.tsx
 msgid "Optional. Needs the app's signing certificate below."
 msgstr "Optional. Needs the app's signing certificate below."
-
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "Optional. XID refreshes certificates from it every day."
-msgstr "Optional. XID refreshes certificates from it every day."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Options for authenticateRequest: jwtKey, issuer, audience, authorizedParties, clockToleranceSec, now, jwtCookieName, sessionTokenExchange"
@@ -10528,7 +10746,7 @@ msgstr "Options for xidMiddleware: jwtKey, issuer, jwtCookieName, sessionTokenEx
 msgid "or"
 msgstr "or"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Or after no activity for"
 msgstr "Or after no activity for"
 
@@ -10541,6 +10759,7 @@ msgid "Org creation flow"
 msgstr "Org creation flow"
 
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -10898,13 +11117,16 @@ msgstr "Passes"
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
+#: apps/server/src/routes/account/PasskeyNotices.tsx
 #: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Passkey"
 msgstr "Passkey"
 
-#: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+#: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Passkey attestation"
 msgstr "Passkey attestation"
 
@@ -10912,6 +11134,10 @@ msgstr "Passkey attestation"
 #: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
 msgid "Passkey not created"
 msgstr "Passkey not created"
+
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+msgid "Passkey removed for {name}"
+msgstr "Passkey removed for {name}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passkey sign-in is primary AAL2 authentication. Password or OTP sessions can complete MFA through <0>/auth/mfa/passkey/*</0> with user verification required."
@@ -10933,9 +11159,13 @@ msgstr "Passkeys"
 msgid "Passkeys are tied to the address they were created on. People with passkeys will create new ones the first time they sign in at your own hostname."
 msgstr "Passkeys are tied to the address they were created on. People with passkeys will create new ones the first time they sign in at your own hostname."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyNotices.tsx
 msgid "Passkeys created on a different address don't work here. Create one for this address to keep signing in with a passkey."
 msgstr "Passkeys created on a different address don't work here. Create one for this address to keep signing in with a passkey."
+
+#: apps/server/src/routes/account/PasskeyNotices.tsx
+msgid "Passkeys marked Earlier address were created on {earlierHost}. They still work here. Create a passkey for {host}, then remove the earlier one."
+msgstr "Passkeys marked Earlier address were created on {earlierHost}. They still work here. Create a passkey for {host}, then remove the earlier one."
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Passkeys on security keys"
@@ -10944,6 +11174,14 @@ msgstr "Passkeys on security keys"
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Passkeys on your devices"
 msgstr "Passkeys on your devices"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Passkeys that are already registered keep working. While attestation is required, new passkeys can be registered only against roots the instance itself provides."
+msgstr "Passkeys that are already registered keep working. While attestation is required, new passkeys can be registered only against roots the instance itself provides."
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Passkeys whose attestation chains to a trusted root are marked as verified. Passkeys without one are still accepted."
+msgstr "Passkeys whose attestation chains to a trusted root are marked as verified. Passkeys without one are still accepted."
 
 #. placeholder {0}: item.hostname
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
@@ -10959,10 +11197,15 @@ msgstr "password"
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
 #: apps/server/src/routes/account/PasswordSection.tsx
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
 #: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Password"
 msgstr "Password"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Password form field"
+msgstr "Password form field"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Password policy enables login or user creation."
@@ -10988,9 +11231,25 @@ msgstr "Password with breach checks, social sign-in"
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
 msgstr "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Paste every root certificate you accept, from your security key vendors. Saving replaces the whole list. Only CA certificates that are valid today are accepted."
+msgstr "Paste every root certificate you accept, from your security key vendors. Saving replaces the whole list. Only CA certificates that are valid today are accepted."
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Paste metadata XML"
+msgstr "Paste metadata XML"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Paste or upload the metadata file instead of a URL. It replaces the metadata URL."
+msgstr "Paste or upload the metadata file instead of a URL. It replaces the metadata URL."
+
 #: apps/console/src/routes/org/OutboundSamlAppForms.tsx
 msgid "Paste PEM blocks, or separate base64 certificates with a blank line."
 msgstr "Paste PEM blocks, or separate base64 certificates with a blank line."
+
+#: apps/console/src/routes/org/OutboundSamlAppForms.tsx
+msgid "Paste the metadata XML, or choose to enter the details yourself."
+msgstr "Paste the metadata XML, or choose to enter the details yourself."
 
 #. placeholder {0}: connection.name
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
@@ -11189,7 +11448,7 @@ msgstr "PHP 8.1+ required. Core dependencies are pulled automatically by Compose
 msgid "PHP 8.1+ server SDK for networkless JWT verification, PSR-7 request authentication, and webhook signature validation."
 msgstr "PHP 8.1+ server SDK for networkless JWT verification, PSR-7 request authentication, and webhook signature validation."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Pick a name you'll recognize, like the device it's saved on."
 msgstr "Pick a name you'll recognize, like the device it's saved on."
 
@@ -11322,6 +11581,10 @@ msgstr "Pre-1.0. Core paths of hosted sign-in, the console and the Management AP
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Preload script"
 msgstr "Preload script"
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Prepare next certificate"
+msgstr "Prepare next certificate"
 
 #: apps/server/src/routes/account/DataExport.tsx
 msgid "Preparing"
@@ -12042,8 +12305,8 @@ msgstr "Redirect callbacks are claimed app links, universal links, custom scheme
 msgid "redirect URI"
 msgstr "redirect URI"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Redirect URI"
 msgstr "Redirect URI"
 
@@ -12107,11 +12370,11 @@ msgstr "Refresh the page to try again."
 msgid "Refresh token"
 msgstr "Refresh token"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Refresh token, absolute"
 msgstr "Refresh token, absolute"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Refresh token, idle"
 msgstr "Refresh token, idle"
 
@@ -12195,6 +12458,7 @@ msgstr "Remix loader and action server helpers, cookie session storage, and OAut
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 #: apps/console/src/routes/org/SocialProviderDialog.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
+#: apps/server/src/routes/account/SwaAppsSection.tsx
 msgid "Remove"
 msgstr "Remove"
 
@@ -12212,12 +12476,16 @@ msgstr "Remove {0}"
 msgid "Remove {0}?"
 msgstr "Remove {0}?"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+msgid "Remove {device}?"
+msgstr "Remove {device}?"
+
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Remove {name}"
 msgstr "Remove {name}"
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Remove {name}?"
 msgstr "Remove {name}?"
 
@@ -12229,6 +12497,14 @@ msgstr "Remove {removingName} from {orgLabel}?"
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Remove {removingName}?"
 msgstr "Remove {removingName}?"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Remove all trusted roots"
+msgstr "Remove all trusted roots"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Remove all trusted roots?"
+msgstr "Remove all trusted roots?"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
@@ -12272,11 +12548,12 @@ msgstr "Remove number"
 
 #. placeholder {0}: passkeyName(oldest, t`Passkey`)
 #. placeholder {1}: dates.date(oldest.lastUsedAt ?? oldest.createdAt)
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyNotices.tsx
 msgid "Remove one you no longer use first. {0} was last used on {1}."
 msgstr "Remove one you no longer use first. {0} was last used on {1}."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Remove passkey"
 msgstr "Remove passkey"
 
@@ -12299,6 +12576,14 @@ msgstr "Remove role {role} from {0}"
 msgid "Remove role permission mapping?"
 msgstr "Remove role permission mapping?"
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Remove saved sign-in for {name}"
+msgstr "Remove saved sign-in for {name}"
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Remove saved sign-in for {name}?"
+msgstr "Remove saved sign-in for {name}?"
+
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Remove sign-in domain"
 msgstr "Remove sign-in domain"
@@ -12315,26 +12600,32 @@ msgstr "Remove some addresses; the limit is 50."
 msgid "Remove the fragment after #."
 msgstr "Remove the fragment after #."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Remove trusted roots"
+msgstr "Remove trusted roots"
+
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Remove your only passkey?"
 msgstr "Remove your only passkey?"
 
+#: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/server/src/routes/account/EmailSection.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 #: apps/server/src/routes/account/PhoneSection.tsx
+#: apps/server/src/routes/account/SwaAppsSection.tsx
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "Remove…"
 msgstr "Remove…"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Rename {name}"
 msgstr "Rename {name}"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Rename passkey"
 msgstr "Rename passkey"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyCard.tsx
 msgid "Rename…"
 msgstr "Rename…"
 
@@ -12394,6 +12685,10 @@ msgstr "Replace the default SecureStorageAdapter (flutter_secure_storage) with a
 msgid "Replace the storage adapter after construction."
 msgstr "Replace the storage adapter after construction."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Replace trusted roots"
+msgstr "Replace trusted roots"
+
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Replace…"
 msgstr "Replace…"
@@ -12409,6 +12704,18 @@ msgstr "Replay uses a 5-minute claim so two managers cannot send the same messag
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Replaying"
 msgstr "Replaying"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Report again"
+msgstr "Report again"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Report again to Stripe"
+msgstr "Report again to Stripe"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Report again…"
+msgstr "Report again…"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Reports and certificates you share with customers. Each one is a private object you register by its storage key and SHA-256 checksum; every download is checked against that checksum first."
@@ -12459,7 +12766,7 @@ msgstr "Require signed SAML assertions"
 msgid "Require signed SAML response"
 msgstr "Require signed SAML response"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 msgid "Require single sign-on"
 msgstr "Require single sign-on"
 
@@ -12471,7 +12778,9 @@ msgstr "Require two-step"
 msgid "required"
 msgstr "required"
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
 #: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
+#: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Required"
 msgstr "Required"
 
@@ -12508,8 +12817,8 @@ msgid "Required when the identity provider registers XID as a confidential clien
 msgstr "Required when the identity provider registers XID as a confidential client."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-msgid "Required, password sign-in is off"
-msgstr "Required, password sign-in is off"
+msgid "Required, other sign-in methods are off"
+msgstr "Required, other sign-in methods are off"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Required. Must be unique inside the directory."
@@ -12696,7 +13005,7 @@ msgstr "Resume user"
 msgid "Retire"
 msgstr "Retire"
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/platform/SigningKeysSection.tsx
 msgid "Retiring"
 msgstr "Retiring"
@@ -12982,6 +13291,10 @@ msgstr "Roles given directly"
 msgid "Roles given through a shared organization are a project grant and are listed on that organization."
 msgstr "Roles given through a shared organization are a project grant and are listed on that organization."
 
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Root certificates (PEM)"
+msgstr "Root certificates (PEM)"
+
 #: apps/console/src/routes/applications/SecretDialogs.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
 msgid "Rotate secret"
@@ -13135,10 +13448,6 @@ msgstr "SAML clock tolerance in milliseconds"
 msgid "SAML is provider-ready: local and fake-IdP evidence covers the current Worker routes, and production readiness still requires a real IdP connection without recording SAMLResponse values or provider secrets."
 msgstr "SAML is provider-ready: local and fake-IdP evidence covers the current Worker routes, and production readiness still requires a real IdP connection without recording SAMLResponse values or provider secrets."
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
-msgid "SAML or OIDC"
-msgstr "SAML or OIDC"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SAML Single Logout is implemented and verified locally at L1/L2 for inbound and outbound SAML. The Slack profile is excluded because Slack does not support SLO; real IdP and downstream SaaS L4 evidence remains UNKNOWN."
 msgstr "SAML Single Logout is implemented and verified locally at L1/L2 for inbound and outbound SAML. The Slack profile is excluded because Slack does not support SLO; real IdP and downstream SaaS L4 evidence remains UNKNOWN."
@@ -13164,6 +13473,7 @@ msgid "SAML, OIDC, WS-Fed legacy baseline"
 msgstr "SAML, OIDC, WS-Fed legacy baseline"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
 msgid "Save"
 msgstr "Save"
 
@@ -13175,7 +13485,7 @@ msgstr "Save {name}"
 msgid "Save a copy first"
 msgstr "Save a copy first"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Save and continue"
 msgstr "Save and continue"
 
@@ -13186,6 +13496,10 @@ msgstr "Save app"
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Save as draft"
 msgstr "Save as draft"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Save attestation"
+msgstr "Save attestation"
 
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "Save attribute mapping"
@@ -13222,7 +13536,7 @@ msgstr "Save events"
 msgid "Save grants and tokens"
 msgstr "Save grants and tokens"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "Save name"
 msgstr "Save name"
 
@@ -13243,13 +13557,17 @@ msgstr "Save redirect URIs"
 msgid "Save role"
 msgstr "Save role"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Save sessions and tokens"
 msgstr "Save sessions and tokens"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Save sign-in defaults"
 msgstr "Save sign-in defaults"
+
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Save sign-in for {appName}"
+msgstr "Save sign-in for {appName}"
 
 #: apps/console/src/routes/org/AuthPolicySections.tsx
 msgid "Save sign-in methods"
@@ -13259,6 +13577,10 @@ msgstr "Save sign-in methods"
 msgid "Save sign-in rule"
 msgstr "Save sign-in rule"
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Save sign-in…"
+msgstr "Save sign-in…"
+
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Save sign-out settings"
 msgstr "Save sign-out settings"
@@ -13267,7 +13589,7 @@ msgstr "Save sign-out settings"
 msgid "Save sign-up settings"
 msgstr "Save sign-up settings"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 msgid "Save single sign-on"
 msgstr "Save single sign-on"
 
@@ -13707,7 +14029,7 @@ msgstr "Send sign-in codes by text message to people without a work email."
 msgid "Send sign-in codes over WhatsApp where SMS delivery is unreliable. Needs an approved WhatsApp Business sender."
 msgstr "Send sign-in codes over WhatsApp where SMS delivery is unreliable. Needs an approved WhatsApp Business sender."
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Send these values to the company's IT admin, then paste what {name} gives back."
 msgstr "Send these values to the company's IT admin, then paste what {name} gives back."
 
@@ -13849,7 +14171,7 @@ msgstr "Session view including status, expiry, and active org"
 msgid "Sessions"
 msgstr "Sessions"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Sessions and tokens"
 msgstr "Sessions and tokens"
@@ -14209,7 +14531,7 @@ msgstr "Sign in | XID"
 msgid "Sign in again"
 msgstr "Sign in again"
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Sign in again after"
 msgstr "Sign in again after"
 
@@ -14465,8 +14787,8 @@ msgid "sign-in URL"
 msgstr "sign-in URL"
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Sign-in URL"
 msgstr "Sign-in URL"
 
@@ -14571,8 +14893,8 @@ msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) process
 msgstr "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Signing certificate"
 msgstr "Signing certificate"
 
@@ -14621,6 +14943,11 @@ msgstr "signOut clears the local session and legacy credentials without a refres
 msgid "signOut() clears the local session and legacy credentials; signOutState reports progress or storage failures; no revoke request is sent"
 msgstr "signOut() clears the local session and legacy credentials; signOutState reports progress or storage failures; no revoke request is sent"
 
+#. placeholder {0}: app.username
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Signs in as {0}"
+msgstr "Signs in as {0}"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Since {start}"
 msgstr "Since {start}"
@@ -14635,6 +14962,7 @@ msgstr "Since instance setup"
 msgid "Single logout URL"
 msgstr "Single logout URL"
 
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Single sign-on"
 msgstr "Single sign-on"
@@ -14663,7 +14991,7 @@ msgstr "Site navigation"
 msgid "Size"
 msgstr "Size"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Skip for now"
 msgstr "Skip for now"
 
@@ -14767,7 +15095,7 @@ msgstr "SolidJS context provider, signal-based auth primitives, and headless com
 msgid "Some Stripe settings are missing, so no usage is reported"
 msgstr "Some Stripe settings are missing, so no usage is reported"
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 msgid "Someone"
 msgstr "Someone"
 
@@ -14843,6 +15171,14 @@ msgstr "SSO connections"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Stable keys cannot be changed after creation."
 msgstr "Stable keys cannot be changed after creation."
+
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Stable user ID attribute"
+msgstr "Stable user ID attribute"
+
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Stable user ID claim"
+msgstr "Stable user ID claim"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Stable XID directory user ID."
@@ -14924,7 +15260,7 @@ msgstr "State change listener callback type"
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -14971,7 +15307,7 @@ msgstr "Status legend"
 msgid "Step {current} of {total}"
 msgstr "Step {current} of {total}"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardLayout.tsx
 msgid "Step {step} of 3"
 msgstr "Step {step} of 3"
 
@@ -15071,6 +15407,14 @@ msgstr "string"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "string constant"
 msgstr "string constant"
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Stripe did not confirm these reports, and sending them again could bill twice. Search each event ID among the MAU meter events in Stripe, then choose an action."
+msgstr "Stripe did not confirm these reports, and sending them again could bill twice. Search each event ID among the MAU meter events in Stripe, then choose an action."
+
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Stripe event ID"
+msgstr "Stripe event ID"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Stripe metered MAU on"
@@ -15228,7 +15572,7 @@ msgstr "SWA password vaulting"
 msgid "Swap keychain adapter at runtime"
 msgstr "Swap keychain adapter at runtime"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
 msgid "Swap metadata with {name}"
 msgstr "Swap metadata with {name}"
 
@@ -15252,6 +15596,10 @@ msgstr "Swift SDK for macOS using ASWebAuthenticationSession, PKCE S256 authoriz
 msgid "Switch"
 msgstr "Switch"
 
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Switch certificate"
+msgstr "Switch certificate"
+
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 msgid "Switch organization"
 msgstr "Switch organization"
@@ -15264,6 +15612,14 @@ msgstr "Switch organizations in one console"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.switchSession"
 msgstr "Switch session"
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Switch the signing certificate?"
+msgstr "Switch the signing certificate?"
+
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "Switch to the next certificate…"
+msgstr "Switch to the next certificate…"
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Switching organization"
@@ -15327,7 +15683,7 @@ msgstr "Table of contents"
 msgid "Taking you back to sign in."
 msgstr "Taking you back to sign in."
 
-#: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditEventDetail.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "Target"
@@ -15486,8 +15842,8 @@ msgid "The app can finish signing you in on the other device."
 msgstr "The app can finish signing you in on the other device."
 
 #: apps/console/src/routes/org/DeliveryChannelDialog.tsx
-msgid "The approved WhatsApp Business number."
-msgstr "The approved WhatsApp Business number."
+msgid "The approved WhatsApp Business number. Leave empty to use the instance default."
+msgstr "The approved WhatsApp Business number. Leave empty to use the instance default."
 
 #: packages/i18n/src/messages.ts
 msgid "The assertion recipient does not match."
@@ -15556,6 +15912,10 @@ msgstr "The cryptographic signature could not be verified."
 #: apps/console/src/routes/org/WebhookDetail.tsx
 msgid "The current secret stops working right away. Requests to {host} fail verification until you deploy the new secret."
 msgstr "The current secret stops working right away. Requests to {host} fail verification until you deploy the new secret."
+
+#: apps/console/src/routes/org/SsoConnectionDetail.tsx
+msgid "The daily metadata refresh failed on {metadataErrorDate}. Sign-in keeps using the last saved certificates. Check that the metadata URL is still reachable."
+msgstr "The daily metadata refresh failed on {metadataErrorDate}. Sign-in keeps using the last saved certificates. Check that the metadata URL is still reachable."
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "The default sender of your XID instance"
@@ -15746,7 +16106,7 @@ msgid "The passkey wasn't created. Try again, or add an email instead."
 msgstr "The passkey wasn't created. Try again, or add an email instead."
 
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/use-passkey-registration.tsx
 msgid "The passkey wasn't created. Try again."
 msgstr "The passkey wasn't created. Try again."
 
@@ -15760,8 +16120,8 @@ msgid "The person must be an active member of the organization that owns {0}."
 msgstr "The person must be an active member of the organization that owns {0}."
 
 #: apps/console/src/routes/org/DeliveryChannelDialog.tsx
-msgid "The phone number or sender ID registered with the provider."
-msgstr "The phone number or sender ID registered with the provider."
+msgid "The phone number or sender ID registered with the provider. Leave empty to use the instance default."
+msgstr "The phone number or sender ID registered with the provider. Leave empty to use the instance default."
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "the platform"
@@ -15883,6 +16243,14 @@ msgstr "The SAML audience does not match this service provider."
 #: packages/i18n/src/messages.ts
 msgid "The SAML issuer does not match the expected identity provider."
 msgstr "The SAML issuer does not match the expected identity provider."
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "The SAML signing certificate for outbound apps expired on {date}"
+msgstr "The SAML signing certificate for outbound apps expired on {date}"
+
+#: apps/console/src/routes/org/AuditSecurityEventSentence.tsx
+msgid "The SAML signing certificate for outbound apps expires on {date}"
+msgstr "The SAML signing certificate for outbound apps expires on {date}"
 
 #: packages/i18n/src/messages.ts
 msgid "The SAML XML document is malformed."
@@ -16104,7 +16472,7 @@ msgstr "This code no longer works"
 msgid "This device"
 msgstr "This device"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/use-passkey-registration.tsx
 msgid "This device already has a passkey for your account."
 msgstr "This device already has a passkey for your account."
 
@@ -16230,7 +16598,7 @@ msgstr "This magic link is invalid."
 msgid "This number is already on your account."
 msgstr "This number is already on your account."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "This only removes it from your {appName} account. The passkey stays in the password manager or on the security key where you created it until you delete it there."
 msgstr "This only removes it from your {appName} account. The passkey stays in the password manager or on the security key where you created it until you delete it there."
 
@@ -16259,8 +16627,8 @@ msgid "This organization has no audit entries yet. There is nothing to verify."
 msgstr "This organization has no audit entries yet. There is nothing to verify."
 
 #: apps/console/src/routes/platform/UsageBillingSection.tsx
-msgid "This organization has no Stripe customer yet. Create one in Stripe with the metadata key xid_tenant_id set to this organization ID."
-msgstr "This organization has no Stripe customer yet. Create one in Stripe with the metadata key xid_tenant_id set to this organization ID."
+msgid "This organization has no Stripe customer yet. In Stripe, create a customer and a metered subscription, and set the subscription metadata key xid_tenant_id to this organization ID."
+msgstr "This organization has no Stripe customer yet. In Stripe, create a customer and a metered subscription, and set the subscription metadata key xid_tenant_id to this organization ID."
 
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
 msgid "This organization has not added a domain."
@@ -16289,6 +16657,10 @@ msgstr "This page is available in Markdown format"
 #: apps/server/src/routes/magic-link/index.tsx
 msgid "This page needs the link from your email"
 msgstr "This page needs the link from your email"
+
+#: apps/console/src/routes/users/tabs/RevokePasskeyDialog.tsx
+msgid "this passkey"
+msgstr "this passkey"
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "This passkey is the only way you sign in"
@@ -16478,7 +16850,7 @@ msgstr "Tokens are encrypted with <0>safeStorage.encryptString()</0> (OS keychai
 msgid "Tokens encrypted with DPAPI (CurrentUser scope) and stored in IsolatedStorage. Not accessible to other Windows user accounts."
 msgstr "Tokens encrypted with DPAPI (CurrentUser scope) and stored in IsolatedStorage. Not accessible to other Windows user accounts."
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "Tokens issued to applications"
 msgstr "Tokens issued to applications"
 
@@ -16533,6 +16905,22 @@ msgstr "Transactional email uses built-in Mustache templates and global R2 local
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Trigger"
 msgstr "Trigger"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Trusted proxy secret"
+msgstr "Trusted proxy secret"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Trusted roots"
+msgstr "Trusted roots"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Trusted roots apply to every organization in this tenant. A manager of the top-level organization adds them."
+msgstr "Trusted roots apply to every organization in this tenant. A manager of the top-level organization adds them."
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Trusted roots could not be loaded. Reload the page to try again."
+msgstr "Trusted roots could not be loaded. Reload the page to try again."
 
 #: apps/console/src/routes/org/WebhookDetail.tsx
 msgid "Try {next} of {max} at {at}"
@@ -16628,10 +17016,6 @@ msgstr "Turn the method on in Sign-in & MFA as well."
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Turned off {date}"
 msgstr "Turned off {date}"
-
-#: apps/console/src/routes/org/AuthPolicySections.tsx
-msgid "Turns off password sign-in for everyone in {orgName}. People sign in through the connection that matches their verified email domain."
-msgstr "Turns off password sign-in for everyone in {orgName}. People sign in through the connection that matches their verified email domain."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Two directions"
@@ -16858,9 +17242,21 @@ msgstr "Update password…"
 msgid "Update posted. Customers see it on the public status API now."
 msgstr "Update posted. Customers see it on the public status API now."
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Update saved sign-in for {name}"
+msgstr "Update saved sign-in for {name}"
+
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "Update sign-in for {appName}"
+msgstr "Update sign-in for {appName}"
+
 #: apps/server/src/routes/account/PasswordSection.tsx
 msgid "Update your password"
 msgstr "Update your password"
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Update…"
+msgstr "Update…"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "updated"
@@ -16883,6 +17279,10 @@ msgstr "Updates"
 #: apps/console/src/routes/org/SsoConnectionDetail.tsx
 msgid "Upload certificate…"
 msgstr "Upload certificate…"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Upload metadata file"
+msgstr "Upload metadata file"
 
 #: apps/console/src/routes/org/SsoConnectionDialogs.tsx
 msgid "Upload signing certificate"
@@ -16912,13 +17312,9 @@ msgstr "Upstream enterprise IdP status"
 msgid "Upstream enterprise OIDC relying party"
 msgstr "Upstream enterprise OIDC relying party"
 
-#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
 msgid "Upstream sign-in URL"
 msgstr "Upstream sign-in URL"
-
-#: apps/console/src/routes/org/SsoConnectionFields.tsx
-msgid "Upstream SSO URL"
-msgstr "Upstream SSO URL"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "URL-safe random string for OAuth state; base64url encoding helper"
@@ -16999,11 +17395,20 @@ msgstr "Use a different email"
 msgid "Use a passkey"
 msgstr "Use a passkey"
 
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Use a passkey created on {earlierHost}"
+msgstr "Use a passkey created on {earlierHost}"
+
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+msgid "Use a passkey created on an earlier address"
+msgstr "Use a passkey created on an earlier address"
+
 #: packages/web-ui/src/api-error-message.ts
 msgid "Use a password with 12 to 128 characters."
 msgstr "Use a password with 12 to 128 characters."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "Use a security key"
 msgstr "Use a security key"
 
@@ -17095,7 +17500,7 @@ msgstr "Use the <0>svix-id</0> header to deduplicate deliveries on your end. Ret
 msgid "Use the email address of the account you are signed in with."
 msgstr "Use the email address of the account you are signed in with."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "Use your face or fingerprint to sign in"
 msgstr "Use your face or fingerprint to sign in"
 
@@ -17271,9 +17676,18 @@ msgstr "username"
 #: apps/console/src/routes/org/AuthPolicySignUpSection.tsx
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Username"
 msgstr "Username"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Username form field"
+msgstr "Username form field"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "Username header"
+msgstr "Username header"
 
 #: apps/console/src/components/layout/ConsoleCommandMenu.tsx
 #: apps/console/src/nav.tsx
@@ -17347,7 +17761,7 @@ msgstr "utilities"
 msgid "v{version}, pre-1.0"
 msgstr "v{version}, pre-1.0"
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
 msgid "Valid"
 msgstr "Valid"
 
@@ -17358,6 +17772,10 @@ msgstr "Valid {from} to {to}"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Valid client status values: loading, ready, degraded, error"
 msgstr "Valid client status values: loading, ready, degraded, error"
+
+#: apps/console/src/routes/org/AuthPolicyAttestationSection.tsx
+msgid "Valid from {from} to {until}"
+msgstr "Valid from {from} to {until}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Valid session status values: active, pending, expired, removed, ended, revoked"
@@ -17717,6 +18135,10 @@ msgstr "Waiting for DNS record"
 msgid "Waiting for TXT"
 msgstr "Waiting for TXT"
 
+#: apps/console/src/routes/platform/MeterReconciliationSection.tsx
+msgid "Waiting since"
+msgstr "Waiting since"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Waitlist sign-up gate component"
 msgstr "Waitlist sign-up gate component"
@@ -17738,6 +18160,10 @@ msgstr "We can't find that page"
 msgid "We couldn't cancel the deletion. Try again."
 msgstr "We couldn't cancel the deletion. Try again."
 
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "We couldn't carry your sign-in over to this address. Sign in again to continue."
+msgstr "We couldn't carry your sign-in over to this address. Sign in again to continue."
+
 #: apps/server/src/routes/account/EmailSection.tsx
 msgid "We couldn't change your primary email. Try again."
 msgstr "We couldn't change your primary email. Try again."
@@ -17753,6 +18179,10 @@ msgstr "We couldn't disconnect {name}. Try again."
 #: apps/server/src/routes/account/TwoStepSection.tsx
 msgid "We couldn't generate backup codes. Try again."
 msgstr "We couldn't generate backup codes. Try again."
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "We couldn't load your app sign-ins. Refresh the page to try again."
+msgstr "We couldn't load your app sign-ins. Refresh the page to try again."
 
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "We couldn't load your authorized apps. Refresh the page to try again."
@@ -17814,22 +18244,30 @@ msgstr "We couldn't remove that number. Try again."
 msgid "We couldn't remove this method. Try again."
 msgstr "We couldn't remove this method. Try again."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "We couldn't remove this passkey. Try again."
 msgstr "We couldn't remove this passkey. Try again."
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "We couldn't remove this sign-in. Try again."
+msgstr "We couldn't remove this sign-in. Try again."
 
 #. placeholder {0}: org.name
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "We couldn't remove you from {0}. Try again."
 msgstr "We couldn't remove you from {0}. Try again."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "We couldn't rename this passkey. Try again."
 msgstr "We couldn't rename this passkey. Try again."
 
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "We couldn't revoke that app's access. Try again."
 msgstr "We couldn't revoke that app's access. Try again."
+
+#: apps/server/src/routes/account/SwaCredentialDialog.tsx
+msgid "We couldn't save this sign-in. Try again."
+msgstr "We couldn't save this sign-in. Try again."
 
 #: apps/server/src/routes/account/PasswordSection.tsx
 msgid "We couldn't save your password. Try again."
@@ -18051,7 +18489,7 @@ msgstr "What stays"
 msgid "What the apps you sign in to and your teammates see about you."
 msgstr "What the apps you sign in to and your teammates see about you."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "What they are"
 msgstr "What they are"
 
@@ -18100,7 +18538,7 @@ msgstr "When two-step is required, people set it up during sign-in with an authe
 msgid "Where is my data on XID Cloud?"
 msgstr "Where is my data on XID Cloud?"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "Where they're saved"
 msgstr "Where they're saved"
 
@@ -18134,7 +18572,11 @@ msgstr "Who can sign in"
 msgid "Who can sign in to {name} apps"
 msgstr "Who can sign in to {name} apps"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/console/src/routes/org/AuthPolicySsoSection.tsx
+msgid "Who in {orgName} must sign in through the enterprise connection that matches their verified email domain."
+msgstr "Who in {orgName} must sign in through the enterprise connection that matches their verified email domain."
+
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "Why use them"
 msgstr "Why use them"
 
@@ -18187,7 +18629,16 @@ msgstr "WS-Fed"
 msgid "WS-Federation"
 msgstr "WS-Federation"
 
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "WS-Federation realm"
+msgstr "WS-Federation realm"
+
+#: apps/console/src/routes/org/SsoConnectionInputs.tsx
+msgid "WS-Federation reply URL"
+msgstr "WS-Federation reply URL"
+
 #: apps/console/src/routes/org/AuditEventRow.tsx
+#: apps/console/src/routes/org/AuditSentenceParts.tsx
 #: apps/console/src/routes/users/activity-sentence.ts
 msgid "XID"
 msgstr "XID"
@@ -18236,9 +18687,9 @@ msgstr "XID creates a new secret and shows it once. The current secret stops wor
 msgid "XID creates a SCIM base URL and a bearer token. You'll see the token once."
 msgstr "XID creates a SCIM base URL and a bearer token. You'll see the token once."
 
-#: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-msgid "XID creates the signing certificate the first time someone signs in to this app."
-msgstr "XID creates the signing certificate the first time someone signs in to this app."
+#: apps/console/src/routes/org/OutboundSamlCertificates.tsx
+msgid "XID creates the signing certificate when the first SAML app is added."
+msgstr "XID creates the signing certificate when the first SAML app is added."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
@@ -18337,6 +18788,11 @@ msgstr "XID publishes no packages to any registry. This SDK is distributed as so
 msgid "XID pushes organization members to {provider} after members are removed or deactivated, and at least once a day."
 msgstr "XID pushes organization members to {provider} after members are removed or deactivated, and at least once a day."
 
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+#: apps/console/src/routes/org/SsoWizardSteps.tsx
+msgid "XID reads it when you save and refreshes it every day."
+msgstr "XID reads it when you save and refreshes it every day."
+
 #: apps/console/src/routes/org/WebhookDetail.tsx
 msgid "XID retries a failed delivery up to 5 times with growing pauses, then marks it failed. Failed deliveries are not sent again."
 msgstr "XID retries a failed delivery up to 5 times with growing pauses, then marks it failed. Failed deliveries are not sent again."
@@ -18349,7 +18805,7 @@ msgstr "XID role"
 msgid "XID sends users back only to these exact URLs after sign-in. Each one must match character for character."
 msgstr "XID sends users back only to these exact URLs after sign-in. Each one must match character for character."
 
-#: apps/console/src/routes/org/AuthPolicySections.tsx
+#: apps/console/src/routes/org/AuthPolicySessionsSection.tsx
 msgid "XID session"
 msgstr "XID session"
 
@@ -18362,8 +18818,8 @@ msgid "XID shows the TXT record to add after you save."
 msgstr "XID shows the TXT record to add after you save."
 
 #: apps/console/src/routes/org/OutboundSamlAppDetail.tsx
-msgid "XID signs every {name} assertion with the active certificate. Both stay published during a rollover."
-msgstr "XID signs every {name} assertion with the active certificate. Both stay published during a rollover."
+msgid "XID signs every {name} assertion with the active certificate. The next and retiring certificates stay published in the metadata during a rollover."
+msgstr "XID signs every {name} assertion with the active certificate. The next and retiring certificates stay published in the metadata during a rollover."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID signs every delivery with HMAC-SHA256. Verify the signature before processing the payload. Reject deliveries older than 5 minutes to prevent replay attacks."
@@ -18603,7 +19059,7 @@ msgstr "You reached the limit of 50 invitations an hour. Try again later."
 msgid "You scheduled this on {requestedDate}. Until then, everything keeps working and you can change your mind."
 msgstr "You scheduled this on {requestedDate}. Until then, everything keeps working and you can change your mind."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyIntro.tsx
 msgid "You sign in with your fingerprint, face or screen lock instead of a password."
 msgstr "You sign in with your fingerprint, face or screen lock instead of a password."
 
@@ -18632,6 +19088,10 @@ msgstr "You'll continue either way. You can create a passkey later in your accou
 msgid "You'll continue to {0} either way. You can create a passkey later in your account."
 msgstr "You'll continue to {0} either way. You can create a passkey later in your account."
 
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "You'll need to enter your username and password again before you can open {name} from here."
+msgstr "You'll need to enter your username and password again before you can open {name} from here."
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "You'll see the full key once, right after it's created."
 msgstr "You'll see the full key once, right after it's created."
@@ -18645,7 +19105,7 @@ msgid "You'll use it each time you sign in. You can add more methods later in yo
 msgstr "You'll use it each time you sign in. You can add more methods later in your account."
 
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/use-passkey-registration.tsx
 msgid "You're about to add a passkey to your account."
 msgstr "You're about to add a passkey to your account."
 
@@ -18677,7 +19137,7 @@ msgstr "You're about to make {0} your primary email. Sign-in codes and account n
 msgid "You're about to remove {0} from your account."
 msgstr "You're about to remove {0} from your account."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/PasskeyDialogs.tsx
 msgid "You're about to remove the passkey {name}."
 msgstr "You're about to remove the passkey {name}."
 
@@ -18747,7 +19207,11 @@ msgstr "You're the only owner of {0}. Make someone else an owner first, then lea
 msgid "You're using {appName} as a guest, so nothing ties this account to you. Anything you saved disappears if you sign out, clear this browser, or switch devices. Add a way to sign in to keep it."
 msgstr "You're using {appName} as a guest, so nothing ties this account to you. Anything you saved disappears if you sign out, clear this browser, or switch devices. Add a way to sign in to keep it."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/account/SteppedUpNotice.tsx
+msgid "You've confirmed it's you. Continue with your change."
+msgstr "You've confirmed it's you. Continue with your change."
+
+#: apps/server/src/routes/account/PasskeyNotices.tsx
 msgid "You've reached the limit of {limit} passkeys"
 msgstr "You've reached the limit of {limit} passkeys"
 
@@ -18877,8 +19341,8 @@ msgid "Your instance operator has not set a secret for this provider yet."
 msgstr "Your instance operator has not set a secret for this provider yet."
 
 #: apps/console/src/routes/org/DeliveryChannelDialog.tsx
-msgid "Your instance operator sets these as Workers Secrets. XID never shows their values."
-msgstr "Your instance operator sets these as Workers Secrets. XID never shows their values."
+msgid "Your instance operator sets these as Workers Secrets or variables. XID never shows their values."
+msgstr "Your instance operator sets these as Workers Secrets or variables. XID never shows their values."
 
 #: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Your main second step"
@@ -18895,6 +19359,10 @@ msgstr "Your organization asks for a second step every time you sign in."
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Your organization doesn't offer passkeys yet."
 msgstr "Your organization doesn't offer passkeys yet."
+
+#: apps/server/src/routes/account/SwaAppsSection.tsx
+msgid "Your organization opens these apps by filling in a username and password you save here."
+msgstr "Your organization opens these apps by filling in a username and password you save here."
 
 #: apps/server/src/routes/mfa-setup/index.tsx
 msgid "Your organization requires a second step"
