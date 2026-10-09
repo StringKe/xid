@@ -51,9 +51,11 @@ export function PasswordPanel(props: PasswordPanelProps): ReactNode {
         above={props.above}
         title={creating ? props.createTitle : <Trans>Enter your password</Trans>}
         lead={
-          creating ? (
+          !creating ? undefined : props.profileFields.length > 0 ? (
             <Trans>Add your details and a password to create your account.</Trans>
-          ) : undefined
+          ) : (
+            <Trans>Choose a password to create your account.</Trans>
+          )
         }
       />
       <form noValidate onSubmit={handleSubmit} {...stylex.props(hosted.form)}>

@@ -24,6 +24,8 @@ const signInState = vi.hoisted(() => ({
   isSignUpFlow: false,
   allowUserCreation: true,
   organizationName: 'Northwind' as string | null,
+  nameField: 'hidden' as 'hidden' | 'required',
+  emailOtpSignUp: false,
   tenantSelection: {
     continueParam: null as string | null,
     redirect: null as string | null,
@@ -50,7 +52,7 @@ vi.mock('../../components/layout', () => ({
 }))
 
 vi.mock('../../components/hosted/context-copy', () => ({
-  useContinueLine: () => undefined,
+  useSignUpContextCopy: () => ({ title: 'your XID account' }),
 }))
 
 vi.mock('../../components/ui', () => ({
@@ -137,7 +139,7 @@ vi.mock('./useSignIn', () => ({
           email: 'required',
           username: 'hidden',
           phone: 'hidden',
-          name: 'hidden',
+          name: signInState.nameField,
           givenName: 'hidden',
           familyName: 'hidden',
         },
@@ -145,7 +147,11 @@ vi.mock('./useSignIn', () => ({
         methods: {
           password: { enabled: true, allowLogin: true, allowUserCreation: true },
           magicLink: { enabled: false, allowLogin: false, allowUserCreation: false },
-          emailOtp: { enabled: false, allowLogin: false, allowUserCreation: false },
+          emailOtp: {
+            enabled: signInState.emailOtpSignUp,
+            allowLogin: signInState.emailOtpSignUp,
+            allowUserCreation: signInState.emailOtpSignUp,
+          },
           whatsappOtp: { enabled: false, allowLogin: false, allowUserCreation: false },
           smsOtp: { enabled: false, allowLogin: false, allowUserCreation: false },
         },
@@ -243,6 +249,8 @@ describe('SignInPage', () => {
     signInState.isSignUpFlow = false
     signInState.allowUserCreation = true
     signInState.organizationName = 'Northwind'
+    signInState.nameField = 'hidden'
+    signInState.emailOtpSignUp = false
     signInState.tenantSelection = { continueParam: null, redirect: null, authzRequestId: null }
   })
 
@@ -281,8 +289,42 @@ describe('SignInPage', () => {
     const rendered = await renderPage()
 
     expect(rendered.text).toContain('Create a password')
+    expect(rendered.text).toContain('Choose a password to create your account.')
     expect(rendered.html).toContain('autocomplete="new-password"')
     expect(rendered.text).not.toContain('Forgot password?')
+  })
+
+  it('says where the code goes when sign-up asks for no profile fields', async () => {
+    authState.status = 'unauthenticated'
+    signInState.isSignUpFlow = true
+    signInState.emailOtpSignUp = true
+    signInState.step = 'methods'
+    signInState.method = 'otp-email'
+    signInState.methods = ['otp-email']
+    signInState.enabledMethods = ['otp-email']
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain("We'll send a 6-digit code to")
+    expect(rendered.text).not.toContain('Add your details')
+  })
+
+  it('asks for details before sending the code when sign-up renders profile fields', async () => {
+    authState.status = 'unauthenticated'
+    signInState.isSignUpFlow = true
+    signInState.emailOtpSignUp = true
+    signInState.nameField = 'required'
+    signInState.step = 'methods'
+    signInState.method = 'otp-email'
+    signInState.methods = ['otp-email']
+    signInState.enabledMethods = ['otp-email']
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain(
+      "Add your details, and we'll send you a code to confirm it's you.",
+    )
+    expect(rendered.text).not.toContain("We'll send a 6-digit code to")
   })
 
   it('echoes the typed identifier with a Change action and offers recovery on the password step', async () => {

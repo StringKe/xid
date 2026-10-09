@@ -1515,8 +1515,8 @@ msgid "An organization for your company, and one for each of your customers"
 msgstr "Uma organização para sua empresa e uma para cada cliente"
 
 #: apps/server/src/routes/create-organization/index.tsx
-msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
-msgstr "Uma organização tem seus próprios membros, regras de login e aplicativos. Você será o proprietário e poderá convidar outras pessoas logo em seguida."
+msgid "An organization has its own members, sign-in rules and apps."
+msgstr "Uma organização tem seus próprios membros, regras de login e aplicativos."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
@@ -2498,6 +2498,10 @@ msgstr "Escolha outra senha."
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a new password"
 msgstr "Escolha uma nova senha"
+
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Choose a password to create your account."
+msgstr "Escolha uma senha para criar sua conta."
 
 #: apps/server/src/routes/select-organization/index.tsx
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
@@ -14763,6 +14767,10 @@ msgstr "Vamos enviar um link para {target}. Abra-o para entrar, sem senha."
 msgid "We'll email a secure link to the invited address. If it already has an account, sign in to it instead."
 msgstr "Vamos enviar um link seguro para o endereço convidado. Se ele já tiver uma conta, entre nela."
 
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "We'll send a 6-digit code to {target} to confirm it's you."
+msgstr "Vamos enviar um código de 6 dígitos para {target} para confirmar que é você."
+
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 msgid "We'll send a 6-digit code to confirm it's yours. After that, you sign in with this email and the account stays yours."
 msgstr "Enviaremos um código de 6 dígitos para confirmar que ele é seu. Depois disso, você entra com este e-mail e a conta continua sendo sua."
@@ -15155,7 +15163,11 @@ msgstr "Você aprovou {app}"
 msgid "sdk.guestUpgradeMessage"
 msgstr "Você está navegando como convidado. Configure um método de login para manter seus dados."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/components/hosted/context-copy.ts
+msgid "You are creating"
+msgstr "Você está criando"
+
+#: apps/server/src/components/hosted/context-copy.ts
 msgid "You are creating an account to continue to"
 msgstr "Você está criando uma conta para continuar em"
 

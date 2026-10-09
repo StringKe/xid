@@ -32,6 +32,18 @@ export function useHostedContextCopy(override: AuthContextCopy | undefined): Aut
   return { lead: t`You are signing in to`, title: t`your XID account` }
 }
 
+// 注册流每一步都说明在创建账户,不沿用登录的缺省说法。
+export function useSignUpContextCopy(context: {
+  applicationName: string | null
+  organizationName: string | null
+}): AuthContextCopy {
+  const { t } = useLingui()
+  const line = useContinueLine()
+  const target = context.applicationName ?? context.organizationName
+  if (target) return { lead: t`You are creating an account to continue to`, title: target, line }
+  return { lead: t`You are creating`, title: t`your XID account` }
+}
+
 // 已知应用时的一行摘要,供页面自定义上下文时复用。
 export function useContinueLine(): string | undefined {
   const { t } = useLingui()

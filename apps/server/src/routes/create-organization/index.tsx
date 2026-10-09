@@ -149,7 +149,7 @@ export function CreateOrganizationPage(): ReactNode {
       context={{
         lead: signedInAs ? t`Signed in as ${signedInAs}` : undefined,
         title: t`New organization`,
-        description: t`An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after.`,
+        description: t`An organization has its own members, sign-in rules and apps.`,
       }}
       footer={
         <button

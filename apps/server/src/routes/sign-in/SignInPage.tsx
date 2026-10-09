@@ -9,7 +9,7 @@ import { AuthLayout, type AuthContextCopy } from '../../components/layout'
 import { Notice } from '../../components/ui'
 import { hosted } from '../../components/hosted/hosted-styles'
 import { IdentifierChip } from '../../components/hosted/IdentityChip'
-import { useContinueLine } from '../../components/hosted/context-copy'
+import { useSignUpContextCopy } from '../../components/hosted/context-copy'
 import { useAuth } from '../../lib/auth-context'
 import { Link, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { isProductSignUpIntent } from '../../../shared/hosted-auth-intent'
@@ -65,12 +65,8 @@ function inlineHandled(state: SignInState): boolean {
 }
 
 function useSignInContext(state: SignInState): AuthContextCopy | undefined {
-  const { t } = useLingui()
-  const line = useContinueLine()
-  const target =
-    state.authConfig.context.applicationName ?? state.authConfig.context.organizationName
-  if (!state.isSignUpFlow || !target) return undefined
-  return { lead: t`You are creating an account to continue to`, title: target, line }
+  const signUpCopy = useSignUpContextCopy(state.authConfig.context)
+  return state.isSignUpFlow ? signUpCopy : undefined
 }
 
 function SignInPage(): ReactNode {

@@ -1515,8 +1515,8 @@ msgid "An organization for your company, and one for each of your customers"
 msgstr "为你的公司建一个组织，再为每个客户各建一个"
 
 #: apps/server/src/routes/create-organization/index.tsx
-msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
-msgstr "组织拥有自己的成员、登录规则和应用。你将成为所有者，创建后即可邀请他人。"
+msgid "An organization has its own members, sign-in rules and apps."
+msgstr "组织拥有自己的成员、登录规则和应用。"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
@@ -2498,6 +2498,10 @@ msgstr "请换一个密码。"
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a new password"
 msgstr "选择新密码"
+
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Choose a password to create your account."
+msgstr "设置密码来创建账户。"
 
 #: apps/server/src/routes/select-organization/index.tsx
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
@@ -14763,6 +14767,10 @@ msgstr "我们会向 {target} 发送链接。打开即可登录，无需密码�
 msgid "We'll email a secure link to the invited address. If it already has an account, sign in to it instead."
 msgstr "我们会向受邀地址发送安全链接。如果该地址已有账户，请直接登录该账户。"
 
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "We'll send a 6-digit code to {target} to confirm it's you."
+msgstr "我们会向 {target} 发送 6 位验证码，确认是你本人。"
+
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 msgid "We'll send a 6-digit code to confirm it's yours. After that, you sign in with this email and the account stays yours."
 msgstr "我们会发送 6 位验证码确认这是你的邮箱。之后你用这个邮箱登录，账户就归你所有。"
@@ -15155,7 +15163,11 @@ msgstr "你已批准 {app}"
 msgid "sdk.guestUpgradeMessage"
 msgstr "你正在以访客身份浏览。设置登录方式以保留你的数据。"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/components/hosted/context-copy.ts
+msgid "You are creating"
+msgstr "你正在创建"
+
+#: apps/server/src/components/hosted/context-copy.ts
 msgid "You are creating an account to continue to"
 msgstr "创建账户以继续前往"
 

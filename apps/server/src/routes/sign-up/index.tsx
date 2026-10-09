@@ -4,6 +4,8 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Spinner } from '../../components/ui'
 import { AuthLayout } from '../../components/layout'
+import { useSignUpContextCopy } from '../../components/hosted/context-copy'
+import { useHostedAuthConfig } from '../../components/hosted/use-hosted-auth-config'
 import { signUpRedirectSearch, type SignUpRedirectSearch } from './redirect'
 
 // /sign-up 立即重定向 /sign-in?intent=sign-up;过渡态保持 AuthLayout 背景。
@@ -20,6 +22,8 @@ const styles = stylex.create({
 function SignUpRedirect(): ReactNode {
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as SignUpRedirectSearch
+  const { config } = useHostedAuthConfig()
+  const context = useSignUpContextCopy(config.context)
 
   useEffect(() => {
     void navigate({
@@ -39,7 +43,7 @@ function SignUpRedirect(): ReactNode {
   ])
 
   return (
-    <AuthLayout>
+    <AuthLayout context={context}>
       <div {...stylex.props(styles.spinnerCenter)}>
         <Spinner size={32} />
       </div>

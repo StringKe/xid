@@ -1515,8 +1515,8 @@ msgid "An organization for your company, and one for each of your customers"
 msgstr "회사용 조직 하나, 고객마다 조직 하나씩"
 
 #: apps/server/src/routes/create-organization/index.tsx
-msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
-msgstr "조직에는 자체 멤버, 로그인 규칙, 앱이 있습니다. 내가 소유자가 되며 만든 직후 다른 사람을 초대할 수 있습니다."
+msgid "An organization has its own members, sign-in rules and apps."
+msgstr "조직에는 자체 멤버, 로그인 규칙, 앱이 있습니다."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
@@ -2498,6 +2498,10 @@ msgstr "다른 비밀번호를 선택하세요."
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a new password"
 msgstr "새 비밀번호 선택"
+
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Choose a password to create your account."
+msgstr "비밀번호를 정해 계정을 만드세요."
 
 #: apps/server/src/routes/select-organization/index.tsx
 #: apps/server/src/routes/sign-in/RoutingSteps.tsx
@@ -14763,6 +14767,10 @@ msgstr "{target}(으)로 링크를 보냅니다. 열면 비밀번호 없이 로�
 msgid "We'll email a secure link to the invited address. If it already has an account, sign in to it instead."
 msgstr "초대받은 주소로 보안 링크를 보냅니다. 이미 계정이 있다면 해당 계정으로 로그인하세요."
 
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "We'll send a 6-digit code to {target} to confirm it's you."
+msgstr "본인 확인을 위해 {target}(으)로 6자리 코드를 보냅니다."
+
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 msgid "We'll send a 6-digit code to confirm it's yours. After that, you sign in with this email and the account stays yours."
 msgstr "본인 소유인지 확인하기 위해 6자리 코드를 보냅니다. 이후 이 이메일로 로그인하며 계정은 계속 본인의 것으로 유지됩니다."
@@ -15155,7 +15163,11 @@ msgstr "{app}을(를) 승인했습니다"
 msgid "sdk.guestUpgradeMessage"
 msgstr "게스트로 이용 중입니다. 데이터를 유지하려면 로그인 방법을 설정하세요."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/components/hosted/context-copy.ts
+msgid "You are creating"
+msgstr "만들 계정"
+
+#: apps/server/src/components/hosted/context-copy.ts
 msgid "You are creating an account to continue to"
 msgstr "계정 생성 후 이동할 곳"
 

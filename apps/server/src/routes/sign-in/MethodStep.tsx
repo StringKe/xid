@@ -30,6 +30,7 @@ function MethodPanel(props: MethodStepProps & { above: ReactNode }): ReactNode {
     if (state.isSignUpFlow && state.otpSentAt === null && !state.isSendingOtp) {
       return (
         <CodeStartPanel
+          method={method}
           state={state}
           actions={actions}
           above={above}

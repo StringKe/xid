@@ -31,7 +31,7 @@ function OtpTitle({ method }: { method: OtpSignInMethod }): ReactNode {
   return <Trans>Enter the code we emailed you</Trans>
 }
 
-function useTargetLabel(identifier: string, method: OtpSignInMethod): string {
+export function useTargetLabel(identifier: string, method: OtpSignInMethod): string {
   const { t } = useLingui()
   if (method === 'otp-email') return maskEmail(identifier.trim())
   const last = phoneLastDigits(identifier)

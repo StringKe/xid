@@ -7,8 +7,9 @@ import { Button, Icon, Notice } from '../../components/ui'
 import { AuthHeading } from '../../components/hosted/AuthHeading'
 import { hosted } from '../../components/hosted/hosted-styles'
 import { maskEmail } from './identifier-mask'
+import { useTargetLabel } from './OtpPanel'
 import { ProfileFields } from './SignInFields'
-import type { ProfileFieldKey } from './shared'
+import type { OtpSignInMethod, ProfileFieldKey } from './shared'
 import type { SignInActions, SignInState } from './sign-in-types'
 
 type PanelProps = {
@@ -98,9 +99,10 @@ export function MagicLinkPanel(props: PanelProps & ProfileProps): ReactNode {
 }
 
 export function CodeStartPanel(
-  props: PanelProps & ProfileProps & { createTitle: ReactNode },
+  props: PanelProps & ProfileProps & { method: OtpSignInMethod; createTitle: ReactNode },
 ): ReactNode {
   const { state, actions } = props
+  const target = useTargetLabel(state.identifier, props.method)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
@@ -112,7 +114,13 @@ export function CodeStartPanel(
       <AuthHeading
         above={props.above}
         title={props.createTitle}
-        lead={<Trans>Add your details, and we'll send you a code to confirm it's you.</Trans>}
+        lead={
+          props.profileFields.length > 0 ? (
+            <Trans>Add your details, and we'll send you a code to confirm it's you.</Trans>
+          ) : (
+            <Trans>We'll send a 6-digit code to {target} to confirm it's you.</Trans>
+          )
+        }
       />
       <form noValidate onSubmit={handleSubmit} {...stylex.props(hosted.form)}>
         <ProfileFields

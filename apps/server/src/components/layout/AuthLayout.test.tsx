@@ -37,6 +37,16 @@ vi.mock('../hosted/BrandMark', () => ({
 }))
 
 import { AuthLayout } from './AuthLayout'
+import { useSignUpContextCopy } from '../hosted/context-copy'
+
+function SignUpLayout(): ReactNode {
+  const context = useSignUpContextCopy(configState.context)
+  return (
+    <AuthLayout context={context}>
+      <h1>Create your account</h1>
+    </AuthLayout>
+  )
+}
 
 describe('AuthLayout', () => {
   beforeEach(() => {
@@ -90,6 +100,25 @@ describe('AuthLayout', () => {
     expect(html).toContain('Connecting a device')
     expect(html).toContain('Driver App')
     expect(html).not.toContain('Fleet Planner')
+  })
+
+  it('says the user is creating an account on sign-up steps at the instance root', () => {
+    configState.context.organizationName = null
+    configState.context.applicationName = null
+
+    const html = renderToStaticMarkup(<SignUpLayout />)
+
+    expect(html).toContain('You are creating')
+    expect(html).toContain('your XID account')
+    expect(html).not.toContain('You are signing in')
+  })
+
+  it('names the application on sign-up steps inside an application flow', () => {
+    const html = renderToStaticMarkup(<SignUpLayout />)
+
+    expect(html).toContain('You are creating an account to continue to')
+    expect(html).toContain('Fleet Planner')
+    expect(html).not.toContain('You are signing in')
   })
 
   it('offers the language menu in both the panel and the narrow top bar', () => {
