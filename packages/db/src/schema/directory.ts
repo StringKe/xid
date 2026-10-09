@@ -48,8 +48,13 @@ export const directoryUsers = sqliteTable(
     ...timestamps(),
   },
   (t) => [
-    uniqueIndex('directory_users_dir_username_unq').on(t.directoryId, t.userName),
-    uniqueIndex('directory_users_dir_external_unq').on(t.directoryId, t.externalId),
+    // 已删除的资源不占用 userName / externalId(RFC 7644 3.6)
+    uniqueIndex('directory_users_dir_username_unq')
+      .on(t.directoryId, t.userName)
+      .where(sql`${t.status} <> 'deleted' AND ${t.deletedAt} IS NULL`),
+    uniqueIndex('directory_users_dir_external_unq')
+      .on(t.directoryId, t.externalId)
+      .where(sql`${t.status} <> 'deleted' AND ${t.deletedAt} IS NULL`),
     index('directory_users_tenant_dir_id_idx')
       .on(t.tenantId, t.directoryId, t.id)
       .where(sql`${t.status} <> 'deleted' AND ${t.deletedAt} IS NULL`),
@@ -90,7 +95,9 @@ export const directoryGroups = sqliteTable(
     ...timestamps(),
   },
   (t) => [
-    uniqueIndex('directory_groups_dir_name_unq').on(t.directoryId, t.displayName),
+    uniqueIndex('directory_groups_dir_name_unq')
+      .on(t.directoryId, t.displayName)
+      .where(sql`${t.status} <> 'deleted' AND ${t.deletedAt} IS NULL`),
     index('directory_groups_tenant_dir_id_idx')
       .on(t.tenantId, t.directoryId, t.id)
       .where(sql`${t.status} <> 'deleted' AND ${t.deletedAt} IS NULL`),
@@ -169,6 +176,8 @@ export const scimTargets = sqliteTable(
     lastRunStatus: text('last_run_status').$type<'succeeded' | 'retrying' | 'failed'>(),
     lastRunError: text('last_run_error'),
     lastRunAt: tsMs('last_run_at'),
+    // 自动触发的全量同步已入队且尚未开始执行;非空时同一 target 不再重复入队。
+    fullSyncQueuedAt: tsMs('full_sync_queued_at'),
     ...timestamps(),
   },
   (t) => [

@@ -174,4 +174,4 @@ export function registerScimRoutes(app: Hono<XidHonoEnv>): void {
   registerOutboundScimRoutes(app)
 }
 
-export { authBearer } from './shared'
+export { authBearer } from './auth'

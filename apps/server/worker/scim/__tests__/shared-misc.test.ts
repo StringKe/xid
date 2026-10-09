@@ -1,9 +1,9 @@
-// SCIM shared 补充单元测试:scimError 响应体与 parseScimEqFilter。
+// SCIM shared 补充单元测试:scimError 响应体与后台投递。
 import { Hono } from 'hono'
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from 'hono'
 import type { XidHonoEnv } from '../../lib/types'
-import { emitWebhookAsync, parseScimEqFilter, scimError } from '../shared'
+import { emitWebhookAsync, scimError } from '../shared'
 
 describe('scimError', () => {
   it('returns SCIM JSON error with optional scimType and WWW-Authenticate', async () => {
@@ -25,23 +25,6 @@ describe('scimError', () => {
     expect(body.detail).toBe('Unauthorized')
     expect(body.status).toBe('401')
     expect(body.scimType).toBe('invalidToken')
-  })
-})
-
-describe('parseScimEqFilter', () => {
-  it('returns null value when filter absent', () => {
-    expect(parseScimEqFilter(undefined, 'userName')).toEqual({ ok: true, value: null })
-  })
-
-  it('parses attribute eq "value" filter', () => {
-    expect(parseScimEqFilter('userName eq "alice@example.com"', 'userName')).toEqual({
-      ok: true,
-      value: 'alice@example.com',
-    })
-  })
-
-  it('rejects malformed filter syntax', () => {
-    expect(parseScimEqFilter('userName co "alice"', 'userName')).toEqual({ ok: false })
   })
 })
 

@@ -4,13 +4,15 @@
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { Result, TenantContext } from '@xid-kit/types'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, ne, sql } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { createPersistedId } from '../lib/persisted-id'
 import { logWorkerError } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
-import { emitWebhookAsync, scimError, versionGuardFromRow } from './shared'
-import type { DirectoryRow } from './shared'
+import type { DirectoryRow } from './auth'
+import { versionGuardFromRow } from './repr'
+import { emitWebhookAsync, isUniqueConstraintError, scimError } from './shared'
+import { directoryUserConflict } from './uniqueness'
 import { deactivateDirectoryAccount, reactivateDirectoryAccount } from './user-deprovisioning'
 import type { DeactivateDirectoryAccountInput } from './user-deprovisioning'
 import {
@@ -51,6 +53,24 @@ function linkScope(scope: DirectoryUserScope): DirectoryLinkScope {
 
 function conflictResponse(c: Context<XidHonoEnv>): Response {
   return scimError(c, 409, 'userName or email already belongs to another account', 'uniqueness')
+}
+
+function uniquenessResponse(c: Context<XidHonoEnv>, attribute: string): Response {
+  return scimError(c, 409, `${attribute} already exists in this directory`, 'uniqueness')
+}
+
+// 并发写入越过预检时,部分唯一索引兜底;只把唯一冲突映射为 409,其他错误照常抛出。
+async function guardUnique<T>(
+  c: Context<XidHonoEnv>,
+  write: () => Promise<T>,
+): Promise<Result<T, Response>> {
+  try {
+    return { ok: true, value: await write() }
+  } catch (error) {
+    if (isUniqueConstraintError(error))
+      return { ok: false, error: uniquenessResponse(c, 'userName or externalId') }
+    throw error
+  }
 }
 
 function directoryUserWhere(scope: DirectoryUserScope, id: string) {
@@ -110,22 +130,90 @@ export async function createDirectoryUser(
   fields: DirectoryUserFields,
 ): Promise<Result<DirectoryUserRecord, Response>> {
   const ls = linkScope(scope)
+  const conflict = await directoryUserConflict(
+    ls.db,
+    { directoryId: scope.directory.id },
+    { userName: fields.userName, externalId: fields.externalId ?? null },
+  )
+  if (conflict) return { ok: false, error: uniquenessResponse(scope.c, conflict) }
   const profile = scimUserProfile(fields.scimRaw, fields.userName)
-  const plan = fields.active ? await planDirectoryUserLink(ls, profile) : null
+  const rehiredUserId = fields.active ? await previouslyLinkedUserId(scope, fields) : null
+  const plan: DirectoryUserLinkPlan | null = rehiredUserId
+    ? { kind: 'existing', userId: rehiredUserId }
+    : fields.active
+      ? await planDirectoryUserLink(ls, profile)
+      : null
   if (plan?.kind === 'conflict') return { ok: false, error: conflictResponse(scope.c) }
 
-  const row = await ls.db.directoryUsers.insert({
-    id: createPersistedId('directoryUser'),
-    tenantId: scope.tenant.tenantId,
-    directoryId: scope.directory.id,
-    userName: fields.userName,
-    externalId: fields.externalId ?? undefined,
-    active: fields.active,
-    status: fields.active ? 'active' : 'deactivated',
-    scimRaw: fields.scimRaw,
-  })
+  const inserted = await guardUnique(scope.c, () =>
+    ls.db.directoryUsers.insert({
+      id: createPersistedId('directoryUser'),
+      tenantId: scope.tenant.tenantId,
+      directoryId: scope.directory.id,
+      userName: fields.userName,
+      externalId: fields.externalId ?? undefined,
+      active: fields.active,
+      status: fields.active ? 'active' : 'deactivated',
+      scimRaw: fields.scimRaw,
+    }),
+  )
+  if (!inserted.ok) return inserted
+  const row = inserted.value
   if (!plan) return { ok: true, value: row }
-  return { ok: true, value: await linkDirectoryUser(scope, { row, plan, profile }) }
+  const linked = await linkDirectoryUser(scope, { row, plan, profile })
+  if (rehiredUserId) {
+    await reactivateDirectoryAccount(scope.c, {
+      tenant: scope.tenant,
+      userId: rehiredUserId,
+      orgId: scope.directory.orgId,
+      directoryId: scope.directory.id,
+    })
+  }
+  return { ok: true, value: linked }
+}
+
+// 离职后再入职:同一目录里已删除的同 externalId / userName 记录绑定过的 XID User 直接复用,
+// 不再按邮箱关联规则判成冲突(该账号的 managed membership 已在删除时暂停)。
+async function previouslyLinkedUserId(
+  scope: DirectoryUserScope,
+  fields: DirectoryUserFields,
+): Promise<string | null> {
+  const db = createTenantDb(scope.c.env.DB, scope.tenant)
+  const identity = fields.externalId
+    ? eq(schema.directoryUsers.externalId, fields.externalId)
+    : sql`lower(${schema.directoryUsers.userName}) = lower(${fields.userName})`
+  const [previous] = await db.directoryUsers.findMany(
+    and(
+      eq(schema.directoryUsers.directoryId, scope.directory.id),
+      eq(schema.directoryUsers.status, 'deleted'),
+      isNotNull(schema.directoryUsers.userId),
+      identity,
+    ),
+    { orderBy: desc(schema.directoryUsers.updatedAt), limit: 1 },
+  )
+  return previous?.userId ?? null
+}
+
+// 只检查本次改动的属性,不让存量中仅大小写不同的两行互相阻塞无关更新。
+async function changedIdentityConflict(
+  scope: DirectoryUserScope,
+  existing: DirectoryUserRecord,
+  fields: DirectoryUserFields,
+): Promise<'userName' | 'externalId' | null> {
+  const userNameChanged = fields.userName.toLowerCase() !== existing.userName.toLowerCase()
+  const externalIdChanged =
+    fields.externalId !== undefined &&
+    fields.externalId !== null &&
+    fields.externalId !== existing.externalId
+  if (!userNameChanged && !externalIdChanged) return null
+  return directoryUserConflict(
+    createTenantDb(scope.c.env.DB, scope.tenant),
+    { directoryId: scope.directory.id, excludeId: existing.id },
+    {
+      userName: userNameChanged ? fields.userName : undefined,
+      externalId: externalIdChanged ? fields.externalId : undefined,
+    },
+  )
 }
 
 export async function updateDirectoryUser(
@@ -134,6 +222,8 @@ export async function updateDirectoryUser(
   fields: DirectoryUserFields,
 ): Promise<Result<DirectoryUserRecord, Response>> {
   const ls = linkScope(scope)
+  const conflict = await changedIdentityConflict(scope, existing, fields)
+  if (conflict) return { ok: false, error: uniquenessResponse(scope.c, conflict) }
   const profile = scimUserProfile(fields.scimRaw, fields.userName)
   const plan = fields.active && !existing.userId ? await planDirectoryUserLink(ls, profile) : null
   if (plan?.kind === 'conflict') return { ok: false, error: conflictResponse(scope.c) }
@@ -142,21 +232,24 @@ export async function updateDirectoryUser(
     existing.userId !== null &&
     (existing.active || existing.status === 'deprovisioning')
 
-  const updated = await ls.db.directoryUsers.update(
-    {
-      userName: fields.userName,
-      ...(fields.externalId === undefined ? {} : { externalId: fields.externalId }),
-      active: fields.active,
-      status: revoking ? 'deprovisioning' : fields.active ? 'active' : 'deactivated',
-      scimRaw: fields.scimRaw,
-    },
-    and(
-      directoryUserWhere(scope, existing.id),
-      ne(schema.directoryUsers.status, 'deleted'),
-      eq(schema.directoryUsers.updatedAt, versionGuardFromRow(existing.updatedAt)),
+  const updated = await guardUnique(scope.c, () =>
+    ls.db.directoryUsers.update(
+      {
+        userName: fields.userName,
+        ...(fields.externalId === undefined ? {} : { externalId: fields.externalId }),
+        active: fields.active,
+        status: revoking ? 'deprovisioning' : fields.active ? 'active' : 'deactivated',
+        scimRaw: fields.scimRaw,
+      },
+      and(
+        directoryUserWhere(scope, existing.id),
+        ne(schema.directoryUsers.status, 'deleted'),
+        eq(schema.directoryUsers.updatedAt, versionGuardFromRow(existing.updatedAt)),
+      ),
     ),
   )
-  const row = updated[0]
+  if (!updated.ok) return updated
+  const row = updated.value[0]
   if (!row) return { ok: false, error: scimError(scope.c, 412, 'Resource version mismatch') }
 
   if (revoking && existing.userId) {

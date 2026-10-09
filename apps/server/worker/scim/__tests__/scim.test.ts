@@ -11,20 +11,13 @@ import type { TenantContext } from '@xid-kit/types'
 import { registerScimRoutes } from '../index'
 import type { XidHonoEnv } from '../../lib/types'
 import { buildTestTenant, makeEnv, makeFakeDoNs, makeFakeKv } from '../../oidc/__tests__/helpers'
-import {
-  parsePatchOps,
-  applyUserPatch,
-  parseScimProjection,
-  projectScimResource,
-  parseScimFilter,
-  evaluateScimFilter,
-  getUserFilterValue,
-  parseScimSort,
-  parseScimPagination,
-  SCIM_USER_SORT_ATTRS,
-  SCIM_BULK_MAX_PAYLOAD_SIZE,
-  buildVersion,
-} from '../shared'
+import { evaluateScimFilter, getUserFilterValue } from '../filter-eval'
+import { parseScimFilter } from '../filter-parser'
+import { parseScimPagination, parseScimSort, SCIM_USER_SORT_ATTRS } from '../list-query'
+import { applyUserPatch, parsePatchOps } from '../patch'
+import { parseScimProjection, projectScimResource } from '../projection'
+import { buildVersion } from '../repr'
+import { SCIM_BULK_MAX_PAYLOAD_SIZE } from '../shared'
 
 // --- 测试辅助 ---
 
@@ -288,7 +281,7 @@ describe('applyUserPatch', () => {
   it('replace active=false', () => {
     const staged = { active: true, userName: 'alice' }
     const ops = [{ op: 'replace' as const, path: 'active', value: false }]
-    const r = applyUserPatch(staged, ops)
+    const r = applyUserPatch(staged, ops, 'u1')
     expect(r.ok).toBe(true)
     expect(staged['active']).toBe(false)
   })
@@ -296,14 +289,14 @@ describe('applyUserPatch', () => {
   it('remove 不存在的属性幂等', () => {
     const staged = { userName: 'alice' }
     const ops = [{ op: 'remove' as const, path: 'title' }]
-    const r = applyUserPatch(staged, ops)
+    const r = applyUserPatch(staged, ops, 'u1')
     expect(r.ok).toBe(true)
   })
 
   it('remove 缺 path -> noTarget', () => {
     const staged = { userName: 'alice' }
     const ops = [{ op: 'remove' as const }]
-    const r = applyUserPatch(staged, ops)
+    const r = applyUserPatch(staged, ops, 'u1')
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.scimType).toBe('noTarget')
   })
@@ -311,7 +304,7 @@ describe('applyUserPatch', () => {
   it('修改 readOnly id -> mutability', () => {
     const staged = { userName: 'alice' }
     const ops = [{ op: 'replace' as const, path: 'id', value: 'new-id' }]
-    const r = applyUserPatch(staged, ops)
+    const r = applyUserPatch(staged, ops, 'u1')
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.scimType).toBe('mutability')
   })
@@ -319,7 +312,7 @@ describe('applyUserPatch', () => {
   it('无 path replace 批量替换属性', () => {
     const staged: Record<string, unknown> = { userName: 'alice', active: true }
     const ops = [{ op: 'replace' as const, value: { active: false, title: 'Manager' } }]
-    const r = applyUserPatch(staged, ops)
+    const r = applyUserPatch(staged, ops, 'u1')
     expect(r.ok).toBe(true)
     expect(staged['active']).toBe(false)
     expect(staged['title']).toBe('Manager')
@@ -2035,7 +2028,7 @@ describe('SCIM Bulk', () => {
         },
         body: JSON.stringify({
           schemas: ['urn:ietf:params:scim:api:messages:2.0:BulkRequest'],
-          failOnErrors: true,
+          failOnErrors: 1,
           Operations: [
             { method: 'PATCH', path: '/Users/bulkId:missing', data: {} },
             {

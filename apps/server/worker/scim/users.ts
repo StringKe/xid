@@ -1,276 +1,115 @@
-// SCIM 2.0 Users 端点(/scim/v2/organizations/{organization_id}/Users)
-// 规格:docs/design/04-enterprise-sso.md 第 9 节(RFC7644)
-// 租户隔离:所有查询经 @xid-kit/db 租户查询层,directory_id 额外过滤(P0)
-// User 绑定、停用与恢复见 user-lifecycle.ts(04 章 6、10.1.2)
-// Bearer token:SHA-256 哈希存储,constant-time 比对,30min 宽限(9.2)
+// SCIM 2.0 Users 端点(/scim/v2/organizations/{organization_id}/Users),RFC 7644。
+// 规格:docs/design/04-enterprise-sso.md 第 9 节;User 绑定、停用与恢复见 user-lifecycle.ts。
+// 租户隔离:所有查询经 @xid-kit/db 租户查询层,directory_id 额外过滤(P0)。
 
-import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm'
+import { schema } from '@xid-kit/db'
+import { and, eq, ne } from 'drizzle-orm'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
-import { createDirectoryUser, deactivateLinkedAccount, updateDirectoryUser } from './user-lifecycle'
-import { suspendDirectoryMembership } from './user-provisioning'
-import {
-  scimError,
-  authBearer,
-  readAllById,
-  buildUserScimRepr,
-  buildVersion,
-  readScimJson,
-  readScimPatchOps,
-  applyUserPatch,
-  emitWebhookAsync,
-  parseScimFilter,
-  evaluateScimFilter,
-  getUserFilterValue,
-  parseScimSort,
-  pushDownScimFilter,
-  scanScimList,
-  scimOrderBy,
-  scimUserListOrder,
-  SCIM_SCAN_BATCH_SIZE,
-  SCIM_USER_FILTER_COLUMNS,
-  SCIM_USER_SORT_ATTRS,
-  checkScimPrecondition,
-  parseScimPagination,
-  parseScimProjection,
-  projectScimResource,
-  versionGuardFromRow,
-} from './shared'
+import { applyUserPatch, readScimPatchOps } from './patch'
+import { resolvePendingMembers } from './pending-members'
+import { projectScimResource } from './projection'
+import { buildUserScimRepr, buildVersion, scimResourceHeaders, versionGuardFromRow } from './repr'
+import { openScimRequest } from './route-context'
+import type { ScimRequestContext } from './route-context'
+import { readAttribute } from './scim-json'
+import { checkScimPrecondition, emitWebhookAsync, readScimJson, scimError } from './shared'
 import { normalizeScimActive, stripScimWriteOnlyAttributes } from './user-attributes'
+import { createDirectoryUser, deactivateLinkedAccount, updateDirectoryUser } from './user-lifecycle'
+import { listScimUsers } from './user-list'
+import { suspendDirectoryMembership } from './user-provisioning'
 
-// organization_id 来自路径参数,须与 TenantContext 一致(双重验证,见 tenant-isolation rule)
 const users = new Hono<XidHonoEnv>()
 
-// POST/PUT body:只锚定 userName 必填;scimRaw 整体落库,looseObject 放行其余字段不丢数据。
-// 失败映射 RFC7644 scimError invalidValue,不走 XidAPIError,故用 safeParse 自映射。
+// POST/PUT body 只锚定 userName 必填,其余属性放行后经 stripScimWriteOnlyAttributes 落库。
+// 失败映射 RFC 7644 scimError invalidValue,不走 XidAPIError,故用 safeParse 自映射。
 const scimUserWriteSchema = v.looseObject({
   userName: v.pipe(v.string(), v.minLength(1)),
 })
 
-// POST /scim/v2/organizations/{organization_id}/Users -- 创建用户
-users.post('/', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
+type DirectoryUserRecord = typeof schema.directoryUsers.$inferSelect
 
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
+async function findLiveUser(
+  ctx: ScimRequestContext,
+  id: string,
+): Promise<DirectoryUserRecord | undefined> {
+  return ctx.db.directoryUsers.findOne(
+    and(
+      eq(schema.directoryUsers.id, id),
+      eq(schema.directoryUsers.directoryId, ctx.directory.id),
+      ne(schema.directoryUsers.status, 'deleted'),
+    ),
   )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
-  }
+}
+
+function userResponse(
+  c: Context<XidHonoEnv>,
+  ctx: ScimRequestContext,
+  row: DirectoryUserRecord,
+  status: 200 | 201,
+): Response {
+  const repr = buildUserScimRepr(row, ctx.tenantId, c.req.url)
+  const headers = scimResourceHeaders(repr)
+  if (status === 200) delete headers['Location']
+  return c.json(projectScimResource(repr, ctx.projection), status, headers)
+}
+
+users.post('/', async (c) => {
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const ctx = opened.value
 
   const rawBody = await readScimJson(c)
   if (!rawBody.ok) return rawBody.error
   const parsed = v.safeParse(scimUserWriteSchema, rawBody.value)
   if (!parsed.success) return scimError(c, 400, 'userName is required', 'invalidValue')
   const body = parsed.output
-  const userName = body['userName']
   const active = normalizeScimActive(body['active'])
   if (active === null) return scimError(c, 400, 'active must be a boolean', 'invalidValue')
 
-  const db = createTenantDb(c.env.DB, tenant)
-
-  // 唯一性检查(同 directory 内 userName 唯一)
-  const existing = await db.directoryUsers.findOne(
-    and(
-      eq(schema.directoryUsers.directoryId, directory.id),
-      eq(schema.directoryUsers.userName, userName),
-      ne(schema.directoryUsers.status, 'deleted'),
-    ),
-  )
-  if (existing) return scimError(c, 409, 'userName already exists', 'uniqueness')
-
   const created = await createDirectoryUser(
-    { c, tenant, directory },
+    { c, tenant: ctx.tenant, directory: ctx.directory },
     {
-      userName,
+      userName: body.userName,
       externalId: typeof body['externalId'] === 'string' ? body['externalId'] : null,
       active,
       scimRaw: stripScimWriteOnlyAttributes(body),
     },
   )
   if (!created.ok) return created.error
-  const row = created.value
 
-  // pending members 回填:如有该 userName 或 id 对应的 pending member,补建 group member
-  // (按 directory.id 约束,避免同租户多 directory 交叉,见 resolvePendingMembers 注释)。
   await resolvePendingMembers({
-    db,
-    tenantId,
-    directoryId: directory.id,
-    directoryUserId: row.id,
-    userName,
+    db: ctx.db,
+    tenantId: ctx.tenantId,
+    directoryId: ctx.directory.id,
+    directoryUserId: created.value.id,
+    userName: body.userName,
   })
-
-  const repr = buildUserScimRepr(row, tenantId, c.req.url)
-  return c.json(projectScimResource(repr, projectionResult.projection), 201, {
-    'Content-Type': 'application/scim+json',
-  })
+  return userResponse(c, ctx, created.value, 201)
 })
 
-// GET /scim/v2/organizations/{organization_id}/Users -- 列出用户(filter/startIndex/count)
 users.get('/', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
-  )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
-  }
-
-  const db = createTenantDb(c.env.DB, tenant)
-  const filter = c.req.query('filter')
-  const parsedPagination = parseScimPagination(c.req.query('startIndex'), c.req.query('count'))
-  if (!parsedPagination.ok) {
-    return scimError(c, 400, parsedPagination.detail, 'invalidValue')
-  }
-  const { startIndex, count } = parsedPagination
-  const parsedFilter = parseScimFilter(filter)
-  if (!parsedFilter.ok) return scimError(c, 400, parsedFilter.detail, 'invalidFilter')
-  const parsedSort = parseScimSort(
-    c.req.query('sortBy'),
-    c.req.query('sortOrder'),
-    SCIM_USER_SORT_ATTRS,
-  )
-  if (!parsedSort.ok) return scimError(c, 400, parsedSort.detail, 'invalidValue')
-
-  const baseFilter = and(
-    eq(schema.directoryUsers.directoryId, directory.id),
-    ne(schema.directoryUsers.status, 'deleted'),
-    isNull(schema.directoryUsers.deletedAt),
-  )
-  let rows: (typeof schema.directoryUsers.$inferSelect)[]
-  let total: number
-  const order = scimUserListOrder(parsedSort.sortBy, parsedSort.sortOrder)
-  const orderBy = scimOrderBy(order)
-  const filterExpr = parsedFilter.expr
-  const pushdown = filterExpr
-    ? pushDownScimFilter(filterExpr, SCIM_USER_FILTER_COLUMNS)
-    : { where: undefined, complete: true }
-  const where = and(baseFilter, pushdown.where)
-  if (!filterExpr || pushdown.complete) {
-    ;[total, rows] = await Promise.all([
-      db.directoryUsers.count(where),
-      db.directoryUsers.findMany(where, {
-        orderBy,
-        limit: count,
-        offset: startIndex - 1,
-      }),
-    ])
-  } else {
-    const matched: (typeof schema.directoryUsers.$inferSelect)[] = []
-    let matchedTotal = 0
-    await scanScimList(
-      order,
-      (after) =>
-        db.directoryUsers.findMany(and(where, after), { orderBy, limit: SCIM_SCAN_BATCH_SIZE }),
-      (page) => {
-        for (const row of page) {
-          if (!evaluateScimFilter(filterExpr, row, getUserFilterValue)) continue
-          matchedTotal += 1
-          if (matchedTotal >= startIndex && matched.length < count) matched.push(row)
-        }
-      },
-    )
-    rows = matched
-    total = matchedTotal
-  }
-
-  const paged = rows
-  const baseUrl = new URL(c.req.url)
-
-  return c.json(
-    {
-      schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
-      totalResults: total,
-      startIndex,
-      itemsPerPage: paged.length,
-      Resources: paged.map((r) =>
-        projectScimResource(
-          buildUserScimRepr(r, tenantId, baseUrl.origin),
-          projectionResult.projection,
-        ),
-      ),
-    },
-    200,
-    { 'Content-Type': 'application/scim+json' },
-  )
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  return listScimUsers(c, opened.value)
 })
 
-// GET /scim/v2/organizations/{organization_id}/Users/{id} -- 读单个用户
 users.get('/:id', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
-  )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
-  }
-
-  const id = c.req.param('id')
-  const db = createTenantDb(c.env.DB, tenant)
-  const row = await db.directoryUsers.findOne(
-    and(
-      eq(schema.directoryUsers.id, id),
-      eq(schema.directoryUsers.directoryId, directory.id),
-      ne(schema.directoryUsers.status, 'deleted'),
-    ),
-  )
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const row = await findLiveUser(opened.value, c.req.param('id'))
   if (!row) return scimError(c, 404, 'User not found')
-
-  const repr = buildUserScimRepr(row, tenantId, c.req.url)
-  const version = (repr.meta as Record<string, unknown>)['version'] as string
-  return c.json(projectScimResource(repr, projectionResult.projection), 200, {
-    'Content-Type': 'application/scim+json',
-    ETag: version,
-  })
+  return userResponse(c, opened.value, row, 200)
 })
 
-// PUT /scim/v2/organizations/{organization_id}/Users/{id} -- 全量替换
 users.put('/:id', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
-  )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
-  }
-
-  const id = c.req.param('id')
-  const db = createTenantDb(c.env.DB, tenant)
-  const existing = await db.directoryUsers.findOne(
-    and(
-      eq(schema.directoryUsers.id, id),
-      eq(schema.directoryUsers.directoryId, directory.id),
-      ne(schema.directoryUsers.status, 'deleted'),
-    ),
-  )
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const ctx = opened.value
+  const existing = await findLiveUser(ctx, c.req.param('id'))
   if (!existing) return scimError(c, 404, 'User not found')
-
   const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
@@ -282,120 +121,85 @@ users.put('/:id', async (c) => {
   const active = normalizeScimActive(body['active'])
   if (active === null) return scimError(c, 400, 'active must be a boolean', 'invalidValue')
 
-  const updated = await updateDirectoryUser({ c, tenant, directory }, existing, {
-    userName: body['userName'],
-    externalId: typeof body['externalId'] === 'string' ? body['externalId'] : undefined,
-    active,
-    scimRaw: stripScimWriteOnlyAttributes(body),
-  })
+  const updated = await updateDirectoryUser(
+    { c, tenant: ctx.tenant, directory: ctx.directory },
+    existing,
+    {
+      userName: body.userName,
+      externalId: typeof body['externalId'] === 'string' ? body['externalId'] : undefined,
+      active,
+      scimRaw: stripScimWriteOnlyAttributes(body),
+    },
+  )
   if (!updated.ok) return updated.error
-  const row = updated.value
-
-  const prefer = c.req.header('Prefer')
-  if (prefer === 'return=minimal') return new Response(null, { status: 204 })
-
-  const repr = buildUserScimRepr(row, tenantId, c.req.url)
-  const version = (repr.meta as Record<string, unknown>)['version'] as string
-  return c.json(projectScimResource(repr, projectionResult.projection), 200, {
-    'Content-Type': 'application/scim+json',
-    ETag: version,
-  })
+  if (c.req.header('Prefer') === 'return=minimal') return new Response(null, { status: 204 })
+  return userResponse(c, ctx, updated.value, 200)
 })
 
-// PATCH /scim/v2/organizations/{organization_id}/Users/{id} -- 增量更新(RFC7644 3.5.2)
+// RFC 7644 3.5.2:staged 预置当前 active / userName / externalId,操作后缺失即视为被移除。
 users.patch('/:id', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
-  )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
-  }
-
-  const id = c.req.param('id')
-  const db = createTenantDb(c.env.DB, tenant)
-  const existing = await db.directoryUsers.findOne(
-    and(
-      eq(schema.directoryUsers.id, id),
-      eq(schema.directoryUsers.directoryId, directory.id),
-      ne(schema.directoryUsers.status, 'deleted'),
-    ),
-  )
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const ctx = opened.value
+  const existing = await findLiveUser(ctx, c.req.param('id'))
   if (!existing) return scimError(c, 404, 'User not found')
-
   const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
   const patchOps = await readScimPatchOps(c)
   if (!patchOps.ok) return patchOps.error
-  const ops = patchOps.value
 
   const staged: Record<string, unknown> = {
-    ...(existing.scimRaw as Record<string, unknown>),
+    ...existing.scimRaw,
+    userName: existing.userName,
     active: existing.active,
   }
-
-  const patchResult = applyUserPatch(staged, ops)
+  if (existing.externalId !== null) staged['externalId'] = existing.externalId
+  const patchResult = applyUserPatch(staged, patchOps.value, existing.id)
   if (!patchResult.ok) {
     return scimError(c, 400, patchResult.error.detail, patchResult.error.scimType)
   }
-  const active = normalizeScimActive(staged['active'])
+  const active = normalizeScimActive(readAttribute(staged, 'active'))
   if (active === null) return scimError(c, 400, 'active must be a boolean', 'invalidValue')
+  const userName = readAttribute(staged, 'userName')
+  if (typeof userName !== 'string' || userName.length === 0) {
+    return scimError(c, 400, 'userName is required', 'invalidValue')
+  }
+  const externalId = readAttribute(staged, 'externalId')
 
-  const updated = await updateDirectoryUser({ c, tenant, directory }, existing, {
-    userName: typeof staged['userName'] === 'string' ? staged['userName'] : existing.userName,
-    active,
-    scimRaw: stripScimWriteOnlyAttributes(staged),
-  })
+  const updated = await updateDirectoryUser(
+    { c, tenant: ctx.tenant, directory: ctx.directory },
+    existing,
+    {
+      userName,
+      externalId: typeof externalId === 'string' ? externalId : null,
+      active,
+      scimRaw: stripScimWriteOnlyAttributes(staged),
+    },
+  )
   if (!updated.ok) return updated.error
-  const row = updated.value
-
-  const prefer = c.req.header('Prefer')
-  if (prefer === 'return=minimal') return new Response(null, { status: 204 })
-
-  const repr = buildUserScimRepr(row, tenantId, c.req.url)
-  const version = (repr.meta as Record<string, unknown>)['version'] as string
-  return c.json(projectScimResource(repr, projectionResult.projection), 200, {
-    'Content-Type': 'application/scim+json',
-    ETag: version,
-  })
+  if (c.req.header('Prefer') === 'return=minimal') return new Response(null, { status: 204 })
+  return userResponse(c, ctx, updated.value, 200)
 })
 
-// DELETE /scim/v2/organizations/{organization_id}/Users/{id} -- deprovision + soft delete
+// deprovision + soft delete
 users.delete('/:id', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const ctx = opened.value
   const id = c.req.param('id')
-  const db = createTenantDb(c.env.DB, tenant)
-  const existing = await db.directoryUsers.findOne(
-    and(
-      eq(schema.directoryUsers.id, id),
-      eq(schema.directoryUsers.directoryId, directory.id),
-      ne(schema.directoryUsers.status, 'deleted'),
-    ),
-  )
+  const existing = await findLiveUser(ctx, id)
   if (!existing) return scimError(c, 404, 'User not found')
-
   const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
+  const ifMatch = c.req.header('If-Match')?.trim()
   const deleteConditions = [
     eq(schema.directoryUsers.id, id),
-    eq(schema.directoryUsers.directoryId, directory.id),
+    eq(schema.directoryUsers.directoryId, ctx.directory.id),
     ne(schema.directoryUsers.status, 'deleted'),
   ]
-  if (c.req.header('If-Match')?.trim() && c.req.header('If-Match')?.trim() !== '*') {
+  if (ifMatch && ifMatch !== '*') {
     deleteConditions.push(
       eq(schema.directoryUsers.updatedAt, versionGuardFromRow(existing.updatedAt)),
     )
@@ -404,9 +208,8 @@ users.delete('/:id', async (c) => {
     existing.userId && (existing.active || existing.status === 'deprovisioning')
       ? existing.userId
       : null
-  const requiresSessionRevocation = sessionUserId !== null
-  const transitioned = await db.directoryUsers.update(
-    requiresSessionRevocation
+  const transitioned = await ctx.db.directoryUsers.update(
+    sessionUserId !== null
       ? { active: false, status: 'deprovisioning', deletedAt: null }
       : { active: false, status: 'deleted', deletedAt: new Date() },
     and(...deleteConditions),
@@ -416,108 +219,43 @@ users.delete('/:id', async (c) => {
     return new Response(null, { status: 204 })
   }
 
-  if (requiresSessionRevocation) {
-    const failure = await deactivateLinkedAccount(
-      { c, tenant, directory },
-      { userId: sessionUserId, reason: 'deleted' },
-    )
+  if (sessionUserId !== null) {
+    const scope = { c, tenant: ctx.tenant, directory: ctx.directory }
+    const failure = await deactivateLinkedAccount(scope, {
+      userId: sessionUserId,
+      reason: 'deleted',
+    })
     if (failure) return failure
-
-    const finalized = await db.directoryUsers.update(
+    const finalized = await ctx.db.directoryUsers.update(
       { status: 'deleted', deletedAt: new Date() },
       and(
         eq(schema.directoryUsers.id, id),
-        eq(schema.directoryUsers.directoryId, directory.id),
+        eq(schema.directoryUsers.directoryId, ctx.directory.id),
         eq(schema.directoryUsers.status, 'deprovisioning'),
       ),
     )
     if (finalized.length === 0) return scimError(c, 409, 'User deprovisioning state changed')
   } else if (existing.userId) {
     await suspendDirectoryMembership(
-      { db, tenantId: tenant.tenantId, orgId: directory.orgId },
+      { db: ctx.db, tenantId: ctx.tenant.tenantId, orgId: ctx.directory.orgId },
       existing.userId,
     )
   }
 
   if (existing.userId) {
     emitWebhookAsync(c, {
-      tenantId,
+      tenantId: ctx.tenantId,
       event: 'user.deleted',
-      payload: { userId: existing.userId, directoryId: directory.id, orgId: directory.orgId },
+      payload: {
+        userId: existing.userId,
+        directoryId: ctx.directory.id,
+        orgId: ctx.directory.orgId,
+      },
     })
   }
-
   return new Response(null, { status: 204 })
 })
-
-// 回填 pending members:用户创建后将 pending group 成员关系转为正式成员(OneLogin quirk)。
-// pending 表无 directory_id 列,跨 directory 隔离靠 group 归属:pending.groupId 必须属于本 directory,
-// 否则同租户多 directory 间 ref(userName)相同会交叉污染(见 tenant-isolation rule directory_id 过滤)。
-type PendingMembersContext = {
-  db: ReturnType<typeof createTenantDb>
-  tenantId: string
-  directoryId: string
-  directoryUserId: string
-  userName: string
-}
-
-async function resolvePendingMembers(context: PendingMembersContext): Promise<void> {
-  // pending members 可能以 userName 或 directoryUserId 作 ref
-  const refCandidates = [context.directoryUserId, context.userName]
-  const pendingFilter = inArray(schema.directoryPendingMembers.ref, refCandidates)
-  const pending = await readAllById((cursor, limit) =>
-    context.db.directoryPendingMembers.findMany(
-      cursor ? and(pendingFilter, gt(schema.directoryPendingMembers.id, cursor)) : pendingFilter,
-      { orderBy: asc(schema.directoryPendingMembers.id), limit },
-    ),
-  )
-  if (pending.length === 0) return
-
-  const groupIds = [...new Set(pending.map((row) => row.groupId))]
-  const dirGroupIds = new Set<string>()
-  for (let start = 0; start < groupIds.length; start += SCIM_SCAN_BATCH_SIZE) {
-    const groupBatch = groupIds.slice(start, start + SCIM_SCAN_BATCH_SIZE)
-    const groupFilter = and(
-      eq(schema.directoryGroups.directoryId, context.directoryId),
-      inArray(schema.directoryGroups.id, groupBatch),
-    )
-    const dirGroups = await readAllById((cursor, limit) =>
-      context.db.directoryGroups.findMany(
-        cursor ? and(groupFilter, gt(schema.directoryGroups.id, cursor)) : groupFilter,
-        { orderBy: asc(schema.directoryGroups.id), limit },
-      ),
-    )
-    for (const group of dirGroups) dirGroupIds.add(group.id)
-  }
-  const validPending = pending.filter((row) => dirGroupIds.has(row.groupId))
-  if (validPending.length === 0) return
-  for (let start = 0; start < validPending.length; start += SCIM_SCAN_BATCH_SIZE) {
-    const pendingBatch = validPending.slice(start, start + SCIM_SCAN_BATCH_SIZE)
-    await context.db.directoryGroupMembers.insertManyIgnore(
-      pendingBatch.map((row) => ({
-        id: crypto.randomUUID(),
-        tenantId: context.tenantId,
-        groupId: row.groupId,
-        directoryUserId: context.directoryUserId,
-      })),
-    )
-  }
-  const validGroupIds = [...dirGroupIds]
-  for (let start = 0; start < validGroupIds.length; start += SCIM_SCAN_BATCH_SIZE) {
-    await context.db.directoryPendingMembers.hardDelete(
-      and(
-        inArray(
-          schema.directoryPendingMembers.groupId,
-          validGroupIds.slice(start, start + SCIM_SCAN_BATCH_SIZE),
-        ),
-        inArray(schema.directoryPendingMembers.ref, refCandidates),
-      ),
-    )
-  }
-}
 
 export function registerScimUsersRoutes(app: Hono<XidHonoEnv>, basePath: string): void {
   app.route(`${basePath}/Users`, users)
 }
-
-export { resolvePendingMembers }

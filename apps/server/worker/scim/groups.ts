@@ -1,325 +1,163 @@
-// SCIM 2.0 Groups 端点(/scim/v2/organizations/{organization_id}/Groups)
-// 规格:docs/design/04-enterprise-sso.md 第 9 节(RFC7644)
-// unknown member 幂等处理:PATCH add 指向未创建用户时写 pending_members(9.1.1)
-// 租户隔离:所有查询经 @xid-kit/db 租户查询层(P0)
+// SCIM 2.0 Groups 端点(/scim/v2/organizations/{organization_id}/Groups),RFC 7644。
+// 规格:docs/design/04-enterprise-sso.md 第 9 节;未知成员写 pending(9.1.1)。
+// 租户隔离:所有查询经 @xid-kit/db 租户查询层(P0)。
 
-import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm'
+import { schema } from '@xid-kit/db'
+import { and, eq, ne } from 'drizzle-orm'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
+import { listScimGroups, readGroupMembers } from './group-list'
 import {
-  scimError,
-  authBearer,
-  buildGroupScimRepr,
-  buildVersion,
-  readScimJson,
-  readScimPatchOps,
-  applyGroupPatch,
-  applyGroupMemberPatches,
-  emitWebhookAsync,
-  parseScimFilter,
-  evaluateScimFilter,
-  getGroupFilterValue,
-  parseScimSort,
-  pushDownScimFilter,
-  scanScimList,
-  scimGroupListOrder,
-  scimOrderBy,
-  SCIM_GROUP_FILTER_COLUMNS,
-  SCIM_SCAN_BATCH_SIZE,
   addDirectoryUsersToGroup,
-  readAllById,
-  SCIM_GROUP_SORT_ATTRS,
-  checkScimPrecondition,
-  parseScimPagination,
-  parseScimProjection,
-  projectScimResource,
-  versionGuardFromRow,
-} from './shared'
+  applyGroupMemberPatches,
+  memberRefs,
+  removeAllGroupMembers,
+} from './group-members'
+import { applyGroupPatch } from './group-patch'
+import { readScimPatchOps } from './patch'
+import { projectScimResource } from './projection'
+import { buildGroupScimRepr, buildVersion, scimResourceHeaders, versionGuardFromRow } from './repr'
+import { openScimRequest } from './route-context'
+import type { ScimRequestContext } from './route-context'
+import { checkScimPrecondition, isUniqueConstraintError, readScimJson, scimError } from './shared'
+import { directoryGroupNameTaken } from './uniqueness'
 
 const groups = new Hono<XidHonoEnv>()
 
-type DirectoryGroupMemberRow = typeof schema.directoryGroupMembers.$inferSelect
+type DirectoryGroupRecord = typeof schema.directoryGroups.$inferSelect
 
-// POST/PUT body:只锚定 displayName 必填;members 等字段由领域逻辑处理,looseObject 放行。
-// 失败映射 RFC7644 scimError invalidValue,不走 XidAPIError,故用 safeParse 自映射。
+// POST/PUT body 只锚定 displayName 必填;members 由成员逻辑处理。
 const scimGroupWriteSchema = v.looseObject({
   displayName: v.pipe(v.string(), v.minLength(1)),
 })
 
-async function readGroupMembers(
-  db: ReturnType<typeof createTenantDb>,
-  tenantId: string,
-  groupIds: readonly string[],
-): Promise<DirectoryGroupMemberRow[]> {
-  if (groupIds.length === 0) return []
-  const baseFilter = and(
-    eq(schema.directoryGroupMembers.tenantId, tenantId),
-    inArray(schema.directoryGroupMembers.groupId, groupIds),
-  )
-  return readAllById((cursor, limit) =>
-    db.directoryGroupMembers.findMany(
-      cursor ? and(baseFilter, gt(schema.directoryGroupMembers.id, cursor)) : baseFilter,
-      { orderBy: asc(schema.directoryGroupMembers.id), limit },
+async function findLiveGroup(
+  ctx: ScimRequestContext,
+  id: string,
+): Promise<DirectoryGroupRecord | undefined> {
+  return ctx.db.directoryGroups.findOne(
+    and(
+      eq(schema.directoryGroups.id, id),
+      eq(schema.directoryGroups.directoryId, ctx.directory.id),
+      ne(schema.directoryGroups.status, 'deleted'),
     ),
   )
 }
 
-function membersByGroup(rows: readonly DirectoryGroupMemberRow[]): Map<string, Set<string>> {
-  const result = new Map<string, Set<string>>()
-  for (const row of rows) {
-    const members = result.get(row.groupId) ?? new Set<string>()
-    members.add(row.directoryUserId)
-    result.set(row.groupId, members)
-  }
-  return result
+async function groupResponse(
+  c: Context<XidHonoEnv>,
+  ctx: ScimRequestContext,
+  row: DirectoryGroupRecord,
+  status: 200 | 201,
+): Promise<Response> {
+  const memberRows = await readGroupMembers(ctx.db, [row.id])
+  const repr = buildGroupScimRepr(row, memberRows, ctx.tenantId, c.req.url)
+  const headers = scimResourceHeaders(repr)
+  if (status === 200) delete headers['Location']
+  return c.json(projectScimResource(repr, ctx.projection), status, headers)
 }
 
-// POST /scim/v2/organizations/{organization_id}/Groups -- 创建组
-groups.post('/', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
+function nameTaken(c: Context<XidHonoEnv>): Response {
+  return scimError(c, 409, 'displayName already exists', 'uniqueness')
+}
 
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
-  )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
+// 并发写入越过预检时由部分唯一索引兜底,只把唯一冲突映射为 409。
+async function writeGroup<T>(
+  c: Context<XidHonoEnv>,
+  write: () => Promise<T>,
+): Promise<T | Response> {
+  try {
+    return await write()
+  } catch (error) {
+    if (isUniqueConstraintError(error)) return nameTaken(c)
+    throw error
   }
+}
 
+function memberContext(ctx: ScimRequestContext, groupId: string) {
+  return { db: ctx.db, tenantId: ctx.tenantId, groupId, directoryId: ctx.directory.id }
+}
+
+async function updateGroupName(
+  ctx: ScimRequestContext,
+  existing: DirectoryGroupRecord,
+  displayName: string,
+): Promise<DirectoryGroupRecord[]> {
+  return ctx.db.directoryGroups.update(
+    { displayName },
+    and(
+      eq(schema.directoryGroups.id, existing.id),
+      eq(schema.directoryGroups.directoryId, ctx.directory.id),
+      ne(schema.directoryGroups.status, 'deleted'),
+      eq(schema.directoryGroups.updatedAt, versionGuardFromRow(existing.updatedAt)),
+    ),
+  )
+}
+
+async function renameConflicts(
+  ctx: ScimRequestContext,
+  existing: DirectoryGroupRecord,
+  displayName: string,
+): Promise<boolean> {
+  if (displayName.toLowerCase() === existing.displayName.toLowerCase()) return false
+  return directoryGroupNameTaken(
+    ctx.db,
+    { directoryId: ctx.directory.id, excludeId: existing.id },
+    displayName,
+  )
+}
+
+groups.post('/', async (c) => {
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const ctx = opened.value
   const rawBody = await readScimJson(c)
   if (!rawBody.ok) return rawBody.error
   const parsed = v.safeParse(scimGroupWriteSchema, rawBody.value)
   if (!parsed.success) return scimError(c, 400, 'displayName is required', 'invalidValue')
-  const body = parsed.output
-  const displayName = body['displayName']
+  const displayName = parsed.output.displayName
 
-  const db = createTenantDb(c.env.DB, tenant)
-
-  // 唯一性检查(同 directory 内 displayName 唯一)
-  const existing = await db.directoryGroups.findOne(
-    and(
-      eq(schema.directoryGroups.directoryId, directory.id),
-      eq(schema.directoryGroups.displayName, displayName),
-      ne(schema.directoryGroups.status, 'deleted'),
-    ),
-  )
-  if (existing) return scimError(c, 409, 'displayName already exists', 'uniqueness')
-
+  if (await directoryGroupNameTaken(ctx.db, { directoryId: ctx.directory.id }, displayName)) {
+    return nameTaken(c)
+  }
   const id = createPersistedId('directoryGroup')
-  const row = await db.directoryGroups.insert({
-    id,
-    tenantId,
-    directoryId: directory.id,
-    displayName,
-    status: 'active',
-  })
-
-  // 处理 members 字段(POST body 可能已含初始成员)
-  const members = body['members']
-  if (Array.isArray(members)) {
-    await addGroupMembers({ db, tenantId, groupId: id, directoryId: directory.id }, members)
-  }
-
-  const memberRows = await readGroupMembers(db, tenantId, [id])
-
-  const repr = buildGroupScimRepr(row, memberRows, tenantId, c.req.url)
-  return c.json(projectScimResource(repr, projectionResult.projection), 201, {
-    'Content-Type': 'application/scim+json',
-  })
-})
-
-// GET /scim/v2/organizations/{organization_id}/Groups -- 列出组
-groups.get('/', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
-  )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
-  }
-
-  const db = createTenantDb(c.env.DB, tenant)
-  const filter = c.req.query('filter')
-  const parsedPagination = parseScimPagination(c.req.query('startIndex'), c.req.query('count'))
-  if (!parsedPagination.ok) {
-    return scimError(c, 400, parsedPagination.detail, 'invalidValue')
-  }
-  const { startIndex, count } = parsedPagination
-  const parsedFilter = parseScimFilter(filter)
-  if (!parsedFilter.ok) return scimError(c, 400, parsedFilter.detail, 'invalidFilter')
-  const parsedSort = parseScimSort(
-    c.req.query('sortBy'),
-    c.req.query('sortOrder'),
-    SCIM_GROUP_SORT_ATTRS,
-  )
-  if (!parsedSort.ok) return scimError(c, 400, parsedSort.detail, 'invalidValue')
-
-  const baseFilter = and(
-    eq(schema.directoryGroups.directoryId, directory.id),
-    ne(schema.directoryGroups.status, 'deleted'),
-    isNull(schema.directoryGroups.deletedAt),
-  )
-  let rows: (typeof schema.directoryGroups.$inferSelect)[]
-  let total: number
-  let allMemberRows: DirectoryGroupMemberRow[] = []
-  const order = scimGroupListOrder(parsedSort.sortBy, parsedSort.sortOrder)
-  const orderBy = scimOrderBy(order)
-  const filterExpr = parsedFilter.expr
-  const pushdown = filterExpr
-    ? pushDownScimFilter(filterExpr, SCIM_GROUP_FILTER_COLUMNS)
-    : { where: undefined, complete: true }
-  const where = and(baseFilter, pushdown.where)
-  if (!filterExpr || pushdown.complete) {
-    ;[total, rows] = await Promise.all([
-      db.directoryGroups.count(where),
-      db.directoryGroups.findMany(where, {
-        orderBy,
-        limit: count,
-        offset: startIndex - 1,
-      }),
-    ])
-    allMemberRows = await readGroupMembers(
-      db,
-      tenantId,
-      rows.map((row) => row.id),
-    )
-  } else {
-    const matched: (typeof schema.directoryGroups.$inferSelect)[] = []
-    let matchedTotal = 0
-    await scanScimList(
-      order,
-      (after) =>
-        db.directoryGroups.findMany(and(where, after), { orderBy, limit: SCIM_SCAN_BATCH_SIZE }),
-      async (page) => {
-        const pageMemberRows = await readGroupMembers(
-          db,
-          tenantId,
-          page.map((row) => row.id),
-        )
-        const pageMembersByGroup = membersByGroup(pageMemberRows)
-        for (const row of page) {
-          if (
-            !evaluateScimFilter(filterExpr, row, (target, path) =>
-              getGroupFilterValue(target, path, pageMembersByGroup.get(target.id) ?? new Set()),
-            )
-          ) {
-            continue
-          }
-          matchedTotal += 1
-          if (matchedTotal >= startIndex && matched.length < count) {
-            matched.push(row)
-            allMemberRows.push(...pageMemberRows.filter((member) => member.groupId === row.id))
-          }
-        }
-      },
-    )
-    rows = matched
-    total = matchedTotal
-  }
-
-  const paged = rows
-  const baseUrl = new URL(c.req.url)
-
-  const resources = await Promise.all(
-    paged.map(async (r) => {
-      const memberRows = allMemberRows.filter((m) => m.groupId === r.id)
-      return projectScimResource(
-        buildGroupScimRepr(r, memberRows, tenantId, baseUrl.origin),
-        projectionResult.projection,
-      )
+  const row = await writeGroup(c, () =>
+    ctx.db.directoryGroups.insert({
+      id,
+      tenantId: ctx.tenantId,
+      directoryId: ctx.directory.id,
+      displayName,
+      status: 'active',
     }),
   )
-
-  return c.json(
-    {
-      schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
-      totalResults: total,
-      startIndex,
-      itemsPerPage: paged.length,
-      Resources: resources,
-    },
-    200,
-    { 'Content-Type': 'application/scim+json' },
-  )
+  if (row instanceof Response) return row
+  await addDirectoryUsersToGroup(memberContext(ctx, id), memberRefs(parsed.output['members']))
+  return groupResponse(c, ctx, row, 201)
 })
 
-// GET /scim/v2/organizations/{organization_id}/Groups/{id} -- 读单个组
+groups.get('/', async (c) => {
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  return listScimGroups(c, opened.value)
+})
+
 groups.get('/:id', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
-  )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
-  }
-
-  const id = c.req.param('id')
-  const db = createTenantDb(c.env.DB, tenant)
-  const row = await db.directoryGroups.findOne(
-    and(
-      eq(schema.directoryGroups.id, id),
-      eq(schema.directoryGroups.directoryId, directory.id),
-      ne(schema.directoryGroups.status, 'deleted'),
-    ),
-  )
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const row = await findLiveGroup(opened.value, c.req.param('id'))
   if (!row) return scimError(c, 404, 'Group not found')
-
-  const memberRows = await readGroupMembers(db, tenantId, [id])
-
-  const repr = buildGroupScimRepr(row, memberRows, tenantId, c.req.url)
-  const groupVersion = (repr.meta as Record<string, unknown>)['version'] as string
-  return c.json(projectScimResource(repr, projectionResult.projection), 200, {
-    'Content-Type': 'application/scim+json',
-    ETag: groupVersion,
-  })
+  return groupResponse(c, opened.value, row, 200)
 })
 
-// PUT /scim/v2/organizations/{organization_id}/Groups/{id} -- 全量替换
 groups.put('/:id', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
-  )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
-  }
-
-  const id = c.req.param('id')
-  const db = createTenantDb(c.env.DB, tenant)
-  const existing = await db.directoryGroups.findOne(
-    and(
-      eq(schema.directoryGroups.id, id),
-      eq(schema.directoryGroups.directoryId, directory.id),
-      ne(schema.directoryGroups.status, 'deleted'),
-    ),
-  )
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const ctx = opened.value
+  const existing = await findLiveGroup(ctx, c.req.param('id'))
   if (!existing) return scimError(c, 404, 'Group not found')
-
   const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
@@ -327,156 +165,70 @@ groups.put('/:id', async (c) => {
   if (!rawBody.ok) return rawBody.error
   const parsed = v.safeParse(scimGroupWriteSchema, rawBody.value)
   if (!parsed.success) return scimError(c, 400, 'displayName is required', 'invalidValue')
-  const body = parsed.output
-  const displayName = body['displayName']
+  const displayName = parsed.output.displayName
+  if (await renameConflicts(ctx, existing, displayName)) return nameTaken(c)
 
-  const updated = await db.directoryGroups.update(
-    { displayName },
-    and(
-      eq(schema.directoryGroups.id, id),
-      eq(schema.directoryGroups.directoryId, directory.id),
-      ne(schema.directoryGroups.status, 'deleted'),
-      eq(schema.directoryGroups.updatedAt, versionGuardFromRow(existing.updatedAt)),
-    ),
-  )
+  const updated = await writeGroup(c, () => updateGroupName(ctx, existing, displayName))
+  if (updated instanceof Response) return updated
   const row = updated[0]
   if (!row) return scimError(c, 412, 'Resource version mismatch')
 
-  // 全量替换成员
-  await db.directoryGroupMembers.hardDelete(eq(schema.directoryGroupMembers.groupId, id))
-  const members = body['members']
-  if (Array.isArray(members)) {
-    await addGroupMembers({ db, tenantId, groupId: id, directoryId: directory.id }, members)
-  }
-
-  const memberRows = await readGroupMembers(db, tenantId, [id])
-
-  const prefer = c.req.header('Prefer')
-  if (prefer === 'return=minimal') return new Response(null, { status: 204 })
-
-  const repr = buildGroupScimRepr(row, memberRows, tenantId, c.req.url)
-  const version = (repr.meta as Record<string, unknown>)['version'] as string
-  return c.json(projectScimResource(repr, projectionResult.projection), 200, {
-    'Content-Type': 'application/scim+json',
-    ETag: version,
-  })
+  const members = memberContext(ctx, existing.id)
+  await removeAllGroupMembers(members)
+  await addDirectoryUsersToGroup(members, memberRefs(parsed.output['members']))
+  if (c.req.header('Prefer') === 'return=minimal') return new Response(null, { status: 204 })
+  return groupResponse(c, ctx, row, 200)
 })
 
-// PATCH /scim/v2/organizations/{organization_id}/Groups/{id} -- 增量更新(RFC7644 3.5.2)
-// OneLogin quirk:PATCH add members 可能先于 User POST,幂等处理(9.1.1)
 groups.patch('/:id', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-  const projectionResult = parseScimProjection(
-    c.req.query('attributes'),
-    c.req.query('excludedAttributes'),
-  )
-  if (!projectionResult.ok) {
-    return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
-  }
-
-  const id = c.req.param('id')
-  const db = createTenantDb(c.env.DB, tenant)
-  const existing = await db.directoryGroups.findOne(
-    and(
-      eq(schema.directoryGroups.id, id),
-      eq(schema.directoryGroups.directoryId, directory.id),
-      ne(schema.directoryGroups.status, 'deleted'),
-    ),
-  )
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const ctx = opened.value
+  const existing = await findLiveGroup(ctx, c.req.param('id'))
   if (!existing) return scimError(c, 404, 'Group not found')
-
   const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
   const patchOps = await readScimPatchOps(c)
   if (!patchOps.ok) return patchOps.error
-  const ops = patchOps.value
-
-  const staged = { displayName: existing.displayName } as Record<string, unknown>
-
-  const patchResult = applyGroupPatch(staged, ops)
+  const patchResult = applyGroupPatch(patchOps.value, existing.id)
   if (!patchResult.ok) {
     return scimError(c, 400, patchResult.error.detail, patchResult.error.scimType)
   }
+  const displayName = patchResult.plan.displayName ?? existing.displayName
+  if (await renameConflicts(ctx, existing, displayName)) return nameTaken(c)
 
-  const newDisplayName =
-    typeof staged['displayName'] === 'string' ? staged['displayName'] : existing.displayName
-
-  const updated = await db.directoryGroups.update(
-    { displayName: newDisplayName },
-    and(
-      eq(schema.directoryGroups.id, id),
-      eq(schema.directoryGroups.directoryId, directory.id),
-      ne(schema.directoryGroups.status, 'deleted'),
-      eq(schema.directoryGroups.updatedAt, versionGuardFromRow(existing.updatedAt)),
-    ),
-  )
+  const updated = await writeGroup(c, () => updateGroupName(ctx, existing, displayName))
+  if (updated instanceof Response) return updated
   const row = updated[0]
   if (!row) return scimError(c, 412, 'Resource version mismatch')
 
-  await applyGroupMemberPatches(
-    { db, tenantId, groupId: id, directoryId: directory.id },
-    patchResult.memberPatches,
-  )
-
-  const memberRows = await readGroupMembers(db, tenantId, [id])
-
-  emitWebhookAsync(c, {
-    tenantId,
-    event: 'organization.updated',
-    payload: { groupId: id, directoryId: directory.id },
-  })
-
-  const prefer = c.req.header('Prefer')
-  if (prefer === 'return=minimal') return new Response(null, { status: 204 })
-
-  const repr = buildGroupScimRepr(row, memberRows, tenantId, c.req.url)
-  const version = (repr.meta as Record<string, unknown>)['version'] as string
-  return c.json(projectScimResource(repr, projectionResult.projection), 200, {
-    'Content-Type': 'application/scim+json',
-    ETag: version,
-  })
+  await applyGroupMemberPatches(memberContext(ctx, existing.id), patchResult.plan.memberPatches)
+  if (c.req.header('Prefer') === 'return=minimal') return new Response(null, { status: 204 })
+  return groupResponse(c, ctx, row, 200)
 })
 
-// DELETE /scim/v2/organizations/{organization_id}/Groups/{id} -- 删除组
 groups.delete('/:id', async (c) => {
-  const tenantId = c.req.param('organization_id')
-  const tenant = c.get('tenant')
-  if (tenantId !== tenant.tenantId) return scimError(c, 403, 'organization mismatch')
-
-  const directory = await authBearer(c, tenantId)
-  if (!directory) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
-
-  const id = c.req.param('id')
-  const db = createTenantDb(c.env.DB, tenant)
-  const existing = await db.directoryGroups.findOne(
-    and(
-      eq(schema.directoryGroups.id, id),
-      eq(schema.directoryGroups.directoryId, directory.id),
-      ne(schema.directoryGroups.status, 'deleted'),
-    ),
-  )
+  const opened = await openScimRequest(c)
+  if (!opened.ok) return opened.error
+  const ctx = opened.value
+  const existing = await findLiveGroup(ctx, c.req.param('id'))
   if (!existing) return scimError(c, 404, 'Group not found')
-
   const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
+  const ifMatch = c.req.header('If-Match')?.trim()
   const deleteConditions = [
-    eq(schema.directoryGroups.id, id),
-    eq(schema.directoryGroups.directoryId, directory.id),
+    eq(schema.directoryGroups.id, existing.id),
+    eq(schema.directoryGroups.directoryId, ctx.directory.id),
     ne(schema.directoryGroups.status, 'deleted'),
   ]
-  if (c.req.header('If-Match')?.trim() && c.req.header('If-Match')?.trim() !== '*') {
+  if (ifMatch && ifMatch !== '*') {
     deleteConditions.push(
       eq(schema.directoryGroups.updatedAt, versionGuardFromRow(existing.updatedAt)),
     )
   }
-  const deleted = await db.directoryGroups.update(
+  const deleted = await ctx.db.directoryGroups.update(
     { status: 'deleted', deletedAt: new Date() },
     and(...deleteConditions),
   )
@@ -484,39 +236,10 @@ groups.delete('/:id', async (c) => {
     if (c.req.header('If-Match')) return scimError(c, 412, 'Resource version mismatch')
     return new Response(null, { status: 204 })
   }
-
-  await db.directoryGroupMembers.hardDelete(eq(schema.directoryGroupMembers.groupId, id))
-
+  await removeAllGroupMembers(memberContext(ctx, existing.id))
   return new Response(null, { status: 204 })
 })
-
-// 添加 group members,幂等处理 unknown member(9.1.1)
-type GroupMembersContext = {
-  db: ReturnType<typeof createTenantDb>
-  tenantId: string
-  groupId: string
-  directoryId: string
-}
-
-async function addGroupMembers(context: GroupMembersContext, members: unknown[]): Promise<void> {
-  const refs = members.flatMap((member) => {
-    if (!member || typeof member !== 'object') return []
-    const ref = (member as Record<string, unknown>)['value']
-    return typeof ref === 'string' && ref.length > 0 ? [ref] : []
-  })
-  await addDirectoryUsersToGroup(
-    {
-      db: context.db,
-      tenantId: context.tenantId,
-      groupId: context.groupId,
-      directoryId: context.directoryId,
-    },
-    refs,
-  )
-}
 
 export function registerScimGroupsRoutes(app: Hono<XidHonoEnv>, basePath: string): void {
   app.route(`${basePath}/Groups`, groups)
 }
-
-export { addGroupMembers }
