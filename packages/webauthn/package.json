@@ -24,16 +24,16 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@peculiar/asn1-ecc": "^2.10.0",
-    "@peculiar/asn1-schema": "^2.10.0",
-    "@peculiar/asn1-x509": "^2.10.0",
+    "@peculiar/asn1-ecc": "catalog:",
+    "@peculiar/asn1-schema": "catalog:",
+    "@peculiar/asn1-x509": "catalog:",
     "@xid-kit/crypto": "workspace:*",
     "@xid-kit/types": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
-    "@peculiar/x509": "^2.1.0",
-    "reflect-metadata": "^0.2.2",
+    "@peculiar/x509": "catalog:",
+    "reflect-metadata": "catalog:",
     "vitest": "catalog:"
   }
 }
