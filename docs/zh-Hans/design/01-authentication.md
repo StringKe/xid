@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=c47454fc26d6c7a5cfc0d69bd20865d352be9424 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=5914a2c869857fcef614423de2818da52e4ef269 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -61,7 +61,7 @@ credential、不完整 profile 或缺失的必需 Membership。
 - 从实例入口登录:标识符、已选组织或 client 解析出组织后,`POST /auth/passkey/challenge` 在根域写入 `__Host-xid.handoff` state cookie 并返回 `ceremony: { origin, state }`。浏览器带着 `handoff_state` 与 `organization_id` 打开 rpId 主机上的 `/sign-in`。该次登录要续跑 `/authorize` 且无需 MFA 时,`POST /auth/passkey/verify` 返回一次性 grant 表单,浏览器把它提交到 issuer 主机,由 issuer 主机签发会话并续跑 `/authorize`。仍需 MFA 时先在 rpId 主机完成,`/authorize` 续跑经返回入口进行。
 - 登记 passkey(账户安全页、`/create-passkey`、`/mfa/setup`)、`/mfa` 上的 passkey 第二因子、账户页上的 passkey step-up:在 rpId 主机以外的主机上,`POST /auth/passkey/register/options` 与 `POST /auth/mfa/passkey/options` 返回 `{ handoff: { url } }`。浏览器先到 rpId 主机的 `GET /auth/passkey/handoff/prepare`,它写入 state cookie 后把浏览器送回来源主机的 `GET /auth/passkey/handoff/start`;`start` 凭当前会话签发 grant,并自动提交到 rpId 主机的 `POST /auth/passkey/handoff`。指向 `/authorize` 的 `redirect_to` 改写为 `GET /auth/passkey/handoff/return`,rpId 主机上的流程完成后经它把会话交回 issuer 主机。在根域账户页发起的登记,落到组织地址的账户页并带 `handoff_return=1`,创建 passkey 后由页面把会话交回根域原页面。在根域账户页发起的 passkey step-up,在组织地址的 `/mfa?step_up=1&method=passkey` 完成,然后回到根域原页面并带 `stepped_up=1`,页面提示已验证。
 - `SessionHandoffDO`(绑定 `SESSION_HANDOFF`,每个随机 grant id 一个实例)只存 grant secret 与目标主机 state 的 SHA-256,以及租户、实例、目标 origin、用户、续跑路径和会话快照。grant 有效 2 分钟(`SESSION_HANDOFF_TTL_MS`),state cookie 有效 10 分钟(`SESSION_HANDOFF_STATE_MAX_AGE_SEC`)。消费时常量时间比对两个哈希,要求租户、实例、目标 origin 一致,并在同一存储事务里删除记录,grant 只能用一次。state cookie 只在消费成功后清除,伪造的表单不能打断正在进行的交接。
-- grant 只放在 POST 表单正文里,不进 URL,响应带 `no-referrer`,CSP 只允许提交到目标 origin。只在同一租户的主机之间交接:根域只接受 issuer 主机的子域作为来源,组织主机只接受 issuer。续跑路径限于 `/authorize`、`/account*`、`/mfa*`、`/create-passkey*` 和 `/auth/passkey/handoff/return`。会话状态原样携带(`pending_mfa` 交接后仍是 `pending_mfa`),目标主机重新检查用户为 active,代管(impersonation)会话不能发起交接。来源会话已完成的 step-up 随 grant 携带(方式、签发时间、到期时间、passkey 保证信息);step-up token 绑定会话 id,目标主机为新的 `active` 会话按原签发与到期时间重签,已到期则不签发。
+- grant 只放在 POST 表单正文里,不进 URL,响应带 `no-referrer`,CSP 只允许提交到目标 origin。只在同一租户的主机之间交接:根域只接受 issuer 主机的子域作为来源,组织主机只接受 issuer。续跑路径限于 `/authorize`、`/account*`、`/mfa*`、`/create-passkey*` 和 `/auth/passkey/handoff/return`。会话状态与认证上下文(`acr`、`amr`、`aal` 和主登录方式 `auth_method`)原样携带(`pending_mfa` 交接后仍是 `pending_mfa`),目标主机重新检查用户为 active,代管(impersonation)会话不能发起交接。来源会话已完成的 step-up 随 grant 携带(方式、签发时间、到期时间、passkey 保证信息);step-up token 绑定会话 id,目标主机为新的 `active` 会话按原签发与到期时间重签,已到期则不签发。
 - prepare、start、消费、return 任一步被拒或失败都 302 到 `/sign-in?error=handoff_failed`,登录页提示用户重新登录。
 - 较早地址的凭证:仪式改到组织主机之前在实例根域登记的 passkey 绑定实例主域,`rp_id` 为 NULL。WebAuthn 允许子域 origin 以其上级可注册域名作 rpId,因此在组织 rpId 主机上 `/auth/config` 返回 `earlierPasskeyRpId`(实例主域);其他主机、单租户和自定义域名上为 null。登录页与 `/mfa` 提供「Use a passkey created on {host}」入口,由用户显式选择。服务端不自动切换,因为 `rp_id` 为 NULL 的也可能是该列出现前在组织主机登记的凭证。该入口提交 `earlier: true`,仪式以实例主域为 rpId;`/mfa` 上只列出 `rp_id` 为 NULL 的凭证。
 - 验签时组织 rpId 接受本租户的任意凭证,实例主域只接受 `rp_id` 为 NULL 的凭证,其余 rpId 一律拒绝。`rp_id` 为 NULL 的凭证以组织 rpId 验签通过后写入该 rpId,之后不再走实例主域。账户安全页给较早地址的凭证标出「Earlier address」,提示用户为当前主机创建 passkey 后删除较早的那一个。
@@ -334,7 +334,7 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 - Email OTP:6 位,10min,最多 5 次错误后作废
 - WhatsApp OTP:6 位,5min,号码白名单见下,phone OTP 首选通道
 - SMS OTP:6 位,5min,号码白名单见下,phone OTP 兜底通道。未实现租户级白名单。
-- 手机 OTP 号码白名单:只放行区号属于美国(50 州加 DC)或加拿大在用地理区号的 `+1` 号码(`apps/server/worker/auth/phone-otp-regions.ts`,数据取自 NANPA 区号报告与 CNAC Canadian Dial Plan)。其他 `+1` 号码(加勒比各国与美国海外领地 AS、CNMI、GU、PR、VI)是短信话费欺诈(SMS pumping)的常见目标,一律拒绝。新区号启用后需要补入列表
+- 手机 OTP 号码白名单:只放行区号属于美国(50 州加 DC)或加拿大在用地理区号的 `+1` 号码(`apps/server/worker/auth/phone-otp-regions.ts`,数据取自 NANPA 区号报告与 CNAC Canadian Dial Plan)。其他 `+1` 号码(加勒比各国与美国海外领地 AS、CNMI、GU、PR、VI)是短信话费欺诈(SMS pumping)的常见目标,一律拒绝。新区号启用后需要补入列表。所有短信路径共用这一检查:passwordless 短信与 WhatsApp OTP 发送(`invalid_request`)、联系方式手机验证 `POST /v1/me/phones`(`422`,`paramName=phone`)、MFA 短信发码 `POST /auth/mfa/sms/send` 与 SMS 因子登记 `POST /v1/me/mfa-factors/sms`(均为 `invalid_request`)。`GET /v1/me/mfa-factors/sms` 对这类号码返回不可登记,MFA 门控不把号码不在列表内的已登记 SMS 因子算作可用方法(`listMfaMethods`)
 - 所有手机号(OTP target、phone identifier、profile phone、login hint)在租户解析、限流、
   查库和建号之前统一规范化为 E.164:去掉空格、横杠、点和括号。无法规范化的输入按该端点的
   不透明凭证错误拒绝。
@@ -453,6 +453,7 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 ### 设计决策
 
 - TOTP secret AES-256-GCM 加密;绑定时展示在浏览器本地生成的二维码(密钥不经过第三方服务)和分组显示的密钥供手动输入,确认一次有效 code 后激活。强制绑定完成后会话记录第二因子(`acr`、`amr`、`aal`),随后的 `acr_values=aal2` 请求不再重复挑战
+- 会话除 `acr`、`amr`、`aal` 外,还在 `sessions.auth_method` 记录主登录方式:`password`、`passkey`、`otp`(Email OTP、magic link、短信或 WhatsApp OTP)、`social`、`sso` 或 `guest`。完成 MFA 或 step-up 不改变它。社交登录与企业 SSO 会话的 `amr` 为 `["pwd"]`,但 XID 并未校验密码,因此出站 SAML IdP 不会为这类会话断言 `Password` 或 `PasswordProtectedTransport` AuthnContextClassRef(见 04 章)。本列出现前创建的会话 `auth_method` 为 NULL,按非联合登录处理
 - MFA 短信验证码使用独立的 `mfa_otp` purpose,与 passwordless 登录码分开,两边不能消费或作废对方的码
 - 验证成功后清除该端点账户维度的失败计数和退避档;passkey 第二因子与 step-up 与 TOTP、SMS、备份码共用 `mfa` 计数,不再与 passkey 登录计数累加
 - TOTP 防重放:在每个 factor 的 Durable Object 中原子 claim 已用 code,并按命中的 counter
