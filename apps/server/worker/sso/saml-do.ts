@@ -1,17 +1,28 @@
 // SAML 一次性消费集(AuthnRequest ID 防重放 + Assertion ID 防重放),复用 ChallengeStore DO(强一致一次性)。
 // AuthnRequest ID(SP-initiated):/login 时 markOnce 存,ACS 时 consumeOnce 取并删,InResponseTo 比对(8.7 step 4)。
-// Assertion ID(8.7 step 6):验签通过后 consumeOnce,若已存在(200)即重放;否则 markOnce 记入消费集(TTL=NotOnOrAfter)。
-// SessionIndex 映射走 D1(saml-session-bindings.ts),不走 ChallengeStore 10min TTL。
-// ChallengeStore 提供 create(put)/consume(get+delete),DO 单线程保证一次性(见 challenge-store.ts)。
+// Assertion ID(8.7 step 6):验签通过后 claim,已被占用即重放;占位保留到断言可接受期结束。
+// SessionIndex 映射走 D1(saml-session-bindings.ts);SLO 一次性状态见 saml-logout-state.ts。
 
-import { sha256Hex } from '@xid-kit/crypto'
 import { MAX_SAML_CLOCK_SKEW_MS } from '@xid-kit/saml'
 import { defaultLandingPathFor } from '@xid-kit/types'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import { SAML_ASSERTION_REPLAY_MAX_TTL_MS } from '../lib/ttl'
 import type { XidHonoEnv } from '../lib/types'
+import { claimReplayKey, consumeOnce, markOnce } from './saml-once'
 
+export { consumeOnce, markOnce } from './saml-once'
+export type {
+  OutboundSamlLogoutRequestContext,
+  OutboundSamlLogoutTarget,
+  SamlLogoutRequestReplayInput,
+} from './saml-logout-state'
+export {
+  consumeOutboundLogoutRequestContext,
+  isLogoutRequestReplay,
+  releaseLogoutRequestReplay,
+  storeOutboundLogoutRequestContext,
+} from './saml-logout-state'
 export type {
   ConsumedSamlSessionBinding,
   OutboundSamlSessionBinding,
@@ -28,93 +39,10 @@ export {
   trackOutboundSamlSession,
 } from './saml-session-bindings'
 
-const SAML_CHALLENGE_TTL_MS = 10 * 60 * 1000
-
 export type SamlAuthnRequestContext = {
   tenantId: string
   continuePath: string
   applicationClientId: string | null
-}
-
-export type OutboundSamlLogoutRequestContext = {
-  tenantId: string
-  appId: string
-  sessionIndex: string
-  relayState: string
-  returnTo: string
-  remaining: OutboundSamlLogoutTarget[]
-}
-
-export type OutboundSamlLogoutTarget = {
-  appId: string
-  sessionIndex: string
-  nameId: string
-  nameIdFormat: string
-}
-
-type StoreOutboundSamlLogoutRequestContextInput = Omit<
-  OutboundSamlLogoutRequestContext,
-  'tenantId' | 'remaining'
-> & {
-  requestId: string
-  remaining: readonly OutboundSamlLogoutTarget[]
-}
-
-function challengeStub(env: Env, key: string): DurableObjectStub {
-  const ns = env.WEBAUTHN_CHALLENGE
-  return ns.get(ns.idFromName(key))
-}
-
-// 存一次性记录(create -> 201)。ttlMs 上限由 ChallengeStore 收紧到 10min。
-export async function markOnce(
-  env: Env,
-  key: string,
-  value: string,
-  ttlMs?: number,
-): Promise<void> {
-  const ttl =
-    ttlMs !== undefined && ttlMs > 0
-      ? Math.min(ttlMs, SAML_CHALLENGE_TTL_MS)
-      : SAML_CHALLENGE_TTL_MS
-  const res = await challengeStub(env, key).fetch('https://saml-challenge/create', {
-    method: 'POST',
-    body: JSON.stringify({ key, value, ttlMs: ttl }),
-  })
-  // 写入没落地却继续放行,ACS 阶段 InResponseTo 将永远匹配不上;静默吞掉会把存储故障
-  // 伪装成"IdP 发了未知 AuthnRequest",必须让登录直接失败。
-  if (res.status !== 201) throw new AppError('server_error')
-}
-
-// 取并删除一次性记录(consume)。命中返回 value;不存在/过期返回 null。
-export async function consumeOnce(env: Env, key: string): Promise<string | null> {
-  const res = await challengeStub(env, key).fetch('https://saml-challenge/consume', {
-    method: 'POST',
-    body: JSON.stringify({ key }),
-  })
-  // 404/410 是真实的"没有/已过期",属于一次性语义的正常否定结果。
-  if (res.status === 404 || res.status === 410) return null
-  // 其余状态是存储层故障。若沿用"非 200 即 null",故障期间 consume 恒返回 null,
-  // 一次性消费集失效,同一 assertion 可反复通过 InResponseTo 校验 -> 重放窗口。
-  if (res.status !== 200) throw new AppError('server_error')
-
-  let body: unknown
-  try {
-    body = await res.json()
-  } catch (error) {
-    throw new AppError('server_error', { cause: error })
-  }
-  if (!isChallengeBody(body)) throw new AppError('server_error')
-  return body.value
-}
-
-function isChallengeBody(value: unknown): value is { value: string } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'value' in value &&
-    typeof value.value === 'string' &&
-    value.value.length > 0
-  )
 }
 
 // AuthnRequest ID 存(SP-initiated /login),key 隔离到 connection。
@@ -173,134 +101,8 @@ export async function consumeAuthnRequestContext(
   return parsed as SamlAuthnRequestContext
 }
 
-async function outboundLogoutRequestKey(
-  tenantId: string,
-  appId: string,
-  requestId: string,
-  relayState: string,
-): Promise<string> {
-  const relayStateDigest = await sha256Hex(relayState)
-  return `saml:outbound-logout:${tenantId}:${appId}:${requestId}:${relayStateDigest}`
-}
-
-export async function storeOutboundLogoutRequestContext(
-  c: Context<XidHonoEnv>,
-  input: StoreOutboundSamlLogoutRequestContextInput,
-): Promise<void> {
-  const tenantId = c.get('tenant').tenantId
-  const context: OutboundSamlLogoutRequestContext = {
-    tenantId,
-    appId: input.appId,
-    sessionIndex: input.sessionIndex,
-    relayState: input.relayState,
-    returnTo: input.returnTo,
-    remaining: [...input.remaining],
-  }
-  await markOnce(
-    c.env,
-    await outboundLogoutRequestKey(tenantId, input.appId, input.requestId, input.relayState),
-    JSON.stringify(context),
-  )
-}
-
-export async function consumeOutboundLogoutRequestContext(
-  c: Context<XidHonoEnv>,
-  appId: string,
-  inResponseTo: string,
-  relayState: string,
-): Promise<OutboundSamlLogoutRequestContext | null> {
-  const tenantId = c.get('tenant').tenantId
-  const value = await consumeOnce(
-    c.env,
-    await outboundLogoutRequestKey(tenantId, appId, inResponseTo, relayState),
-  )
-  if (value === null) return null
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(value)
-  } catch (cause) {
-    throw new AppError('server_error', { cause })
-  }
-  const record = parsed as Record<string, unknown>
-  if (
-    !parsed ||
-    typeof parsed !== 'object' ||
-    record['tenantId'] !== tenantId ||
-    record['appId'] !== appId ||
-    typeof record['sessionIndex'] !== 'string' ||
-    record['sessionIndex'] === '' ||
-    typeof record['relayState'] !== 'string' ||
-    typeof record['returnTo'] !== 'string' ||
-    !Array.isArray(record['remaining']) ||
-    !record['remaining'].every(isOutboundSamlLogoutTarget)
-  ) {
-    throw new AppError('server_error')
-  }
-  return parsed as OutboundSamlLogoutRequestContext
-}
-
-function isOutboundSamlLogoutTarget(value: unknown): value is OutboundSamlLogoutTarget {
-  if (!value || typeof value !== 'object') return false
-  const record = value as Record<string, unknown>
-  return (
-    typeof record['appId'] === 'string' &&
-    record['appId'] !== '' &&
-    typeof record['sessionIndex'] === 'string' &&
-    record['sessionIndex'] !== '' &&
-    typeof record['nameId'] === 'string' &&
-    record['nameId'] !== '' &&
-    typeof record['nameIdFormat'] === 'string' &&
-    record['nameIdFormat'] !== ''
-  )
-}
-
-async function claimReplayKey(env: Env, key: string, ttlMs?: number): Promise<boolean> {
-  const res = await challengeStub(env, key).fetch('https://saml-challenge/claim', {
-    method: 'POST',
-    body: JSON.stringify({ key, value: '1', ...(ttlMs === undefined ? {} : { ttlMs }) }),
-  })
-  if (res.status === 201) return false
-  if (res.status === 409) return true
-  throw new AppError('server_error')
-}
-
-export type SamlLogoutRequestReplayInput = {
-  direction: 'inbound' | 'outbound'
-  scopeId: string
-  requestId: string
-  validUntil: number
-}
-
-function logoutRequestReplayKey(
-  tenantId: string,
-  input: Pick<SamlLogoutRequestReplayInput, 'direction' | 'scopeId' | 'requestId'>,
-): string {
-  return `saml:logout-request:${tenantId}:${input.direction}:${input.scopeId}:${input.requestId}`
-}
-
-export async function isLogoutRequestReplay(
-  c: Context<XidHonoEnv>,
-  input: SamlLogoutRequestReplayInput,
-): Promise<boolean> {
-  const tenantId = c.get('tenant').tenantId
-  const ttlMs = input.validUntil - Date.now()
-  if (!Number.isSafeInteger(input.validUntil) || ttlMs <= 0 || ttlMs > SAML_CHALLENGE_TTL_MS) {
-    throw new AppError('server_error')
-  }
-  return claimReplayKey(c.env, logoutRequestReplayKey(tenantId, input), ttlMs)
-}
-
-export async function releaseLogoutRequestReplay(
-  c: Context<XidHonoEnv>,
-  input: SamlLogoutRequestReplayInput,
-): Promise<void> {
-  const released = await consumeOnce(c.env, logoutRequestReplayKey(c.get('tenant').tenantId, input))
-  if (released !== null && released !== '1') throw new AppError('server_error')
-}
-
-// 断言被接受的条件是 now - skew < Conditions/@NotOnOrAfter(SubjectConfirmationData 的上界
-// 只会更早或相同,两者都须满足),所以占位保留到 Conditions/@NotOnOrAfter + 最大偏差即覆盖整个可接受期。
+// 语义校验独立拒绝 now - skew >= Conditions/@NotOnOrAfter,所以无论 SubjectConfirmationData 的上界多晚,
+// 断言的可接受期都不会超过 Conditions/@NotOnOrAfter + skew;占位保留到这个时刻(按最大 skew 取)即可覆盖。
 export function assertionReplayTtlMs(notOnOrAfter: number, now: number): number {
   return notOnOrAfter + MAX_SAML_CLOCK_SKEW_MS - now
 }
