@@ -104,7 +104,7 @@ export async function handleInvitationAccept(c: Context<XidHonoEnv>): Promise<Re
   if (!invitation) throw new AppError('invitation_invalid')
   if (!user) throw new AppError('unauthorized', { httpStatus: 401 })
   assertEmailAllowed(await resolveClaimTargetTenant(c, tenant, invitation.orgId), invitation.email)
-  const org = await requireActiveClaimOrganization(db, invitation.orgId)
+  await requireActiveClaimOrganization(db, invitation.orgId)
 
   const accepted = await acceptInvitation({
     db,
@@ -129,7 +129,6 @@ export async function handleInvitationAccept(c: Context<XidHonoEnv>): Promise<Re
   return c.json({
     redirectUrl: invitationAcceptContinuePath({
       orgId: accepted.orgId,
-      orgName: org.name ?? org.slug,
       role: accepted.role,
       defaultLandingPath: defaultLandingPathFor(c.get('tenant')),
     }),

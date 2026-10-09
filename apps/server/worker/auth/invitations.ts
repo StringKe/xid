@@ -317,14 +317,13 @@ export async function acceptInvitation(opts: {
 // 落地分流:owner/admin 持管理视角,落 console 组织页;member 无管理权限或当前 host 未路由 Console 时落 account portal。
 export function invitationAcceptContinuePath(input: {
   orgId: string
-  orgName: string
   role: OrganizationMembershipRole
   defaultLandingPath: DefaultLandingPath
 }): string {
-  const { orgId, orgName, role } = input
+  const { orgId, role } = input
   if (input.defaultLandingPath !== CONSOLE_EXACT_PATH) return ACCOUNT_EXACT_PATH
   if (role !== 'owner' && role !== 'admin') return ACCOUNT_EXACT_PATH
-  const params = new URLSearchParams({ orgId, orgName })
+  const params = new URLSearchParams({ orgId })
   return `/console/org?${params.toString()}`
 }
 

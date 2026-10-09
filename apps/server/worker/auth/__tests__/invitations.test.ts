@@ -166,14 +166,14 @@ describe('acceptInvitation', () => {
 })
 
 describe('invitationAcceptContinuePath', () => {
-  const consoleHost = { orgId: 'org-1', orgName: 'Acme', defaultLandingPath: '/console' } as const
+  const consoleHost = { orgId: 'org-1', defaultLandingPath: '/console' } as const
 
-  it('builds console org URL with orgId and orgName for owner and admin', () => {
+  it('builds a console org URL carrying only orgId for owner and admin', () => {
     expect(invitationAcceptContinuePath({ ...consoleHost, role: 'owner' })).toBe(
-      '/console/org?orgId=org-1&orgName=Acme',
+      '/console/org?orgId=org-1',
     )
     expect(invitationAcceptContinuePath({ ...consoleHost, role: 'admin' })).toBe(
-      '/console/org?orgId=org-1&orgName=Acme',
+      '/console/org?orgId=org-1',
     )
   })
 

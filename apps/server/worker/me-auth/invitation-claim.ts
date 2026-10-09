@@ -90,10 +90,8 @@ async function verifyAndConsumeInvitationEmailClaim(opts: {
       userId: state.userId,
     })
   }
-  const org = await db.organizations.findOne(eq(schema.organizations.id, state.invitation.orgId))
   const redirectPath = invitationAcceptContinuePath({
     orgId: state.invitation.orgId,
-    orgName: org?.name ?? org?.slug ?? state.invitation.orgId,
     role: state.invitation.role,
     defaultLandingPath: defaultLandingPathFor(opts.c.get('tenant')),
   })

@@ -401,7 +401,6 @@ export async function handleSelfOrganizationCreate(c: Context<XidHonoEnv>): Prom
       role: 'owner',
       redirectUrl: invitationAcceptContinuePath({
         orgId,
-        orgName: name,
         role: 'owner',
         defaultLandingPath: defaultLandingPathFor(c.get('tenant')),
       }),
