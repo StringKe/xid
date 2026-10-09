@@ -8,7 +8,7 @@ vi.mock('@lingui/react/macro', () => ({
   Plural: ({ value, other }: { value: number; other: string }) => (
     <>{other.replace('#', String(value))}</>
   ),
-  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
+  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0], i18n: { locale: 'en' } }),
 }))
 
 vi.mock('@xid-kit/web-ui/api-error-message', () => ({

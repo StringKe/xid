@@ -1,7 +1,7 @@
 // Sign-in & MFA 的「Single sign-on」分节:强制企业 SSO。
 // 强制 SSO 同时写 loginPolicy.forceSso 与 hostedAuth.forceSso:生效值取两者之一,只写一处会关不掉。
 
-import { Plural, Trans } from '@lingui/react/macro'
+import { Plural, Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
@@ -65,6 +65,7 @@ export function SingleSignOnSection({
   orgName: ReactNode
   connection: SsoConnectionView | null
 }): ReactNode {
+  const { t } = useLingui()
   const enforced = effectiveForceSso(policy)
   const [forceSso, setForceSso] = useState(enforced)
   const [saved, setSaved] = useState(false)
@@ -142,7 +143,15 @@ export function SingleSignOnSection({
       <SaveButton isPending={mutation.isPending}>
         <Trans>Save single sign-on</Trans>
       </SaveButton>
-      <SaveStatus error={mutation.error} saved={saved} />
+      <SaveStatus
+        error={mutation.error}
+        saved={saved}
+        describeError={(error) =>
+          error.code === 'validation_failed' && error.meta?.paramName?.endsWith('forceSso') === true
+            ? t`Turn on an enterprise connection in Enterprise SSO before requiring single sign-on.`
+            : null
+        }
+      />
     </SettingsBlock>
   )
 }

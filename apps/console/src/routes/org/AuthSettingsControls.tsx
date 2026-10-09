@@ -254,15 +254,17 @@ export function UnitFields({ children }: { children: ReactNode }): ReactNode {
 export function SaveStatus({
   error,
   saved,
+  describeError,
 }: {
   error: XidError | null
   saved: boolean
+  describeError?: (error: XidError) => string | null
 }): ReactNode {
   const errorMessage = useManagementErrorMessage()
   if (error) {
     return (
       <p role="alert" {...stylex.props(styles.status, styles.statusError)}>
-        {errorMessage(error)}
+        {describeError?.(error) ?? errorMessage(error)}
       </p>
     )
   }

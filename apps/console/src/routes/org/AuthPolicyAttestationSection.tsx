@@ -12,6 +12,7 @@ import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { SaveButton, SettingsBlock, settingsStyles } from './AuthSettingsLayout'
 import { ChoiceCards, SaveStatus } from './AuthSettingsControls'
+import { shortFingerprint } from './auth-format'
 import {
   useRemoveTrustedRoots,
   useReplaceTrustedRoots,
@@ -57,13 +58,19 @@ const styles = stylex.create({
   },
 })
 
+function colonHex(value: string): string {
+  return (value.toUpperCase().match(/.{1,2}/g) ?? []).join(':')
+}
+
 function RootRow({ root }: { root: TrustedRoot }): ReactNode {
   const { i18n } = useLingui()
   const from = i18n.date(new Date(root.notBefore), { dateStyle: 'medium' })
   const until = i18n.date(new Date(root.notAfter), { dateStyle: 'medium' })
   return (
     <li {...stylex.props(styles.rootRow)}>
-      <span {...stylex.props(styles.fingerprint)}>{root.fingerprint}</span>
+      <span title={root.fingerprint} {...stylex.props(styles.fingerprint)}>
+        SHA-256 {shortFingerprint(colonHex(root.fingerprint))}
+      </span>
       <span {...stylex.props(styles.validity)}>
         <Trans>
           Valid from {from} to {until}

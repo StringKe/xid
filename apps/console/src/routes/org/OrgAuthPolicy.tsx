@@ -19,7 +19,7 @@ function useSectionLinks(
   policy: OrgAuthPolicyView | undefined,
   insights: AuthPolicyInsights | undefined,
 ): SettingsSectionLink[] {
-  const { t } = useLingui()
+  const { t, i18n } = useLingui()
   const hosted = policy?.hostedAuth
   const methods =
     policy && hosted
@@ -39,7 +39,12 @@ function useSectionLinks(
     {
       id: 'methods',
       title: <Trans>Sign-in methods</Trans>,
-      summary: methods.length > 0 ? methods.join(', ') : <Trans>No method turned on</Trans>,
+      summary:
+        methods.length > 0 ? (
+          new Intl.ListFormat(i18n.locale, { type: 'conjunction', style: 'narrow' }).format(methods)
+        ) : (
+          <Trans>No method turned on</Trans>
+        ),
     },
     {
       id: 'two-step',
@@ -147,20 +152,22 @@ export default function OrgAuthPolicyPage(): ReactNode {
         ) : null
       ) : (
         <LockableFieldset locked={locked}>
-          <SettingsSections sections={sections} backLabel={title}>
-            <SignInMethodsSection orgId={orgId} policy={policy} insights={insights} />
-            <TwoStepSection orgId={orgId} policy={policy} insights={insights} />
-            <SessionsSection orgId={orgId} policy={policy} insights={insights} />
-            <SingleSignOnSection
-              orgId={orgId}
-              policy={policy}
-              insights={insights}
-              orgName={orgName}
-              connection={connections?.[0] ?? null}
-            />
-            <AttestationSection orgId={orgId} policy={policy} />
-            <SignUpSection orgId={orgId} policy={policy} />
-          </SettingsSections>
+          <div {...stylex.props(consoleShell.sectionPad)}>
+            <SettingsSections sections={sections} backLabel={title}>
+              <SignInMethodsSection orgId={orgId} policy={policy} insights={insights} />
+              <TwoStepSection orgId={orgId} policy={policy} insights={insights} />
+              <SessionsSection orgId={orgId} policy={policy} insights={insights} />
+              <SingleSignOnSection
+                orgId={orgId}
+                policy={policy}
+                insights={insights}
+                orgName={orgName}
+                connection={connections?.[0] ?? null}
+              />
+              <AttestationSection orgId={orgId} policy={policy} />
+              <SignUpSection orgId={orgId} policy={policy} />
+            </SettingsSections>
+          </div>
         </LockableFieldset>
       )}
     </ConsolePage>
