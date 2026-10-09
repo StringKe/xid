@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACR_AAL2,
+  AUTH_METHODS,
   EMAIL_OTP_AUTH_CONTEXT,
+  GUEST_AUTH_CONTEXT,
+  isAuthMethod,
+  isFederatedAuthMethod,
   MAGIC_LINK_AUTH_CONTEXT,
   PASSKEY_AUTH_CONTEXT,
   PASSWORD_AUTH_CONTEXT,
@@ -54,5 +58,34 @@ describe('auth context assurance levels', () => {
     expect(normalizeAuthAssuranceLevel(1)).toBe(1)
     expect(normalizeAuthAssuranceLevel(2)).toBe(2)
     expect(normalizeAuthAssuranceLevel(null)).toBeNull()
+  })
+})
+
+describe('auth context sign-in methods', () => {
+  it.each([
+    ['password', PASSWORD_AUTH_CONTEXT, 'password'],
+    ['passkey', PASSKEY_AUTH_CONTEXT, 'passkey'],
+    ['email OTP', EMAIL_OTP_AUTH_CONTEXT, 'otp'],
+    ['SMS OTP', SMS_OTP_AUTH_CONTEXT, 'otp'],
+    ['magic link', MAGIC_LINK_AUTH_CONTEXT, 'otp'],
+    ['guest', GUEST_AUTH_CONTEXT, 'guest'],
+    ['social', SOCIAL_AUTH_CONTEXT, 'social'],
+    ['enterprise SSO', SSO_AUTH_CONTEXT, 'sso'],
+  ])('records %s sign-in as %s', (_label, ctx, method) => {
+    expect(ctx.authMethod).toBe(method)
+  })
+
+  it('treats only social and enterprise SSO as federated sign-in', () => {
+    expect(AUTH_METHODS.filter((method) => isFederatedAuthMethod(method))).toEqual([
+      'social',
+      'sso',
+    ])
+    expect(isFederatedAuthMethod(null)).toBe(false)
+  })
+
+  it('rejects unknown stored sign-in methods', () => {
+    expect(isAuthMethod('sso')).toBe(true)
+    expect(isAuthMethod('kerberos')).toBe(false)
+    expect(isAuthMethod(null)).toBe(false)
   })
 })

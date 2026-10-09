@@ -5,6 +5,7 @@
 import type { TenantContext } from '@xid-kit/types'
 import type { AmrValue } from '@xid-kit/types'
 import type { I18n } from '@lingui/core'
+import type { AuthMethod } from './auth-context'
 import type { WorkerLocale } from './locale'
 
 // 已认证 session 的运行时视图(来自 D1 sessions 行 + DO active 校验,见 05 章 8)。
@@ -25,6 +26,8 @@ export type SessionData = {
   acr: string | null
   amr: readonly AmrValue[] | null
   aal: number | null
+  // 主登录方式;早于 sessions.auth_method 列的会话为 null。可选只为兼容只关心 acr/amr 的测试夹具。
+  authMethod?: AuthMethod | null
 }
 
 export type ResolvedSessionCandidate = {

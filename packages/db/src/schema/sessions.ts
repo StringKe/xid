@@ -24,6 +24,8 @@ export const sessions = sqliteTable(
     acr: text('acr'),
     amr: text('amr', { mode: 'json' }).$type<AmrValue[]>(),
     aal: numCol('aal'),
+    // 主登录方式 password / passkey / otp / social / sso / guest;早于该列的会话为 NULL。
+    authMethod: text('auth_method'),
     authenticatedAt: tsMs('authenticated_at').notNull(),
     lastActiveAt: tsMs('last_active_at').notNull(),
     expiresAt: tsMs('expires_at').notNull(),

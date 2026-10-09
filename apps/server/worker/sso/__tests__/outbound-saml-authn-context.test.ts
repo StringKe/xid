@@ -5,10 +5,12 @@ import type { RequestedAuthnContext } from '@xid-kit/saml'
 import { AUTHN_CONTEXT_CLASS, decideAuthnContext } from '../outbound-saml-authn-context'
 import type { AuthnFacts } from '../outbound-saml-authn-context'
 
-const PASSWORD: AuthnFacts = { amr: ['pwd'], isAal2: false }
-const PASSWORD_MFA: AuthnFacts = { amr: ['pwd', 'otp', 'mfa'], isAal2: true }
-const PASSKEY: AuthnFacts = { amr: ['phr'], isAal2: true }
-const EMAIL_OTP: AuthnFacts = { amr: ['email'], isAal2: false }
+const PASSWORD: AuthnFacts = { amr: ['pwd'], isAal2: false, isFederated: false }
+const PASSWORD_MFA: AuthnFacts = { amr: ['pwd', 'otp', 'mfa'], isAal2: true, isFederated: false }
+const PASSKEY: AuthnFacts = { amr: ['phr'], isAal2: true, isFederated: false }
+const EMAIL_OTP: AuthnFacts = { amr: ['email'], isAal2: false, isFederated: false }
+const FEDERATED: AuthnFacts = { amr: ['pwd'], isAal2: false, isFederated: true }
+const FEDERATED_MFA: AuthnFacts = { amr: ['pwd', 'otp', 'mfa'], isAal2: true, isFederated: true }
 
 const PPT = AUTHN_CONTEXT_CLASS.passwordProtectedTransport
 const MFA = AUTHN_CONTEXT_CLASS.refedsMfa
@@ -28,11 +30,37 @@ describe('decideAuthnContext without RequestedAuthnContext', () => {
     ['a password plus MFA session', PASSWORD_MFA, MFA],
     ['a passkey session', PASSKEY, MFA],
     ['an email OTP session', EMAIL_OTP, AUTHN_CONTEXT_CLASS.unspecified],
-    ['a session without amr', { amr: [], isAal2: false }, AUTHN_CONTEXT_CLASS.unspecified],
+    [
+      'a session without amr',
+      { amr: [], isAal2: false, isFederated: false },
+      AUTHN_CONTEXT_CLASS.unspecified,
+    ],
+    ['a social or enterprise SSO session', FEDERATED, AUTHN_CONTEXT_CLASS.unspecified],
+    ['a federated session after an MFA step-up', FEDERATED_MFA, MFA],
   ])('asserts the strongest class achieved by %s', (_label, current, expected) => {
     const decision = decideAuthnContext({ requested: null, current })
 
     expect(decision).toEqual({ kind: 'satisfied', classRef: expected })
+  })
+})
+
+describe('decideAuthnContext for federated sessions', () => {
+  it('does not treat a federated session as a password login', () => {
+    const decision = decideAuthnContext({
+      requested: requested('exact', [PPT]),
+      current: FEDERATED,
+    })
+
+    expect(decision).toEqual({ kind: 'reauthenticate' })
+  })
+
+  it('still satisfies an MFA floor once the federated session reached AAL2', () => {
+    const decision = decideAuthnContext({
+      requested: requested('minimum', [MFA]),
+      current: FEDERATED_MFA,
+    })
+
+    expect(decision).toEqual({ kind: 'satisfied', classRef: MFA })
   })
 })
 

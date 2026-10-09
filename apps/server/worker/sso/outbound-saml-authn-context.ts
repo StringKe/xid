@@ -22,6 +22,8 @@ const CLASS_STRENGTH: ReadonlyMap<string, number> = new Map([
 export type AuthnFacts = {
   amr: readonly AmrValue[]
   isAal2: boolean
+  // 社交登录与企业 SSO:amr 沿用 'pwd',但 XID 没有校验密码,不能断言密码类 class。
+  isFederated: boolean
 }
 
 export type AuthnContextDecision =
@@ -32,7 +34,7 @@ export type AuthnContextDecision =
 
 function achievedClasses(facts: AuthnFacts): string[] {
   const classes: string[] = [AUTHN_CONTEXT_CLASS.unspecified]
-  if (facts.amr.includes('pwd')) {
+  if (!facts.isFederated && facts.amr.includes('pwd')) {
     classes.push(AUTHN_CONTEXT_CLASS.password, AUTHN_CONTEXT_CLASS.passwordProtectedTransport)
   }
   if (facts.isAal2) classes.push(AUTHN_CONTEXT_CLASS.refedsMfa)
@@ -90,7 +92,7 @@ function match(requested: RequestedAuthnContext | null, facts: AuthnFacts): stri
   return matchComparison(requested.comparison, requested.classRefs, achieved)
 }
 
-const STRONGEST_FACTS: AuthnFacts = { amr: ['pwd', 'mfa'], isAal2: true }
+const STRONGEST_FACTS: AuthnFacts = { amr: ['pwd', 'mfa'], isAal2: true, isFederated: false }
 
 // 当前认证满足时给出实际 ClassRef;否则判断补一次 MFA(step-up)或重新登录是否可能满足。
 export function decideAuthnContext(input: {

@@ -3,6 +3,8 @@
 // 会话状态原样携带:待 MFA 的会话交接后仍待 MFA,不会被提升。
 // 只存 secret 与目标主机 state 的 SHA-256;消费在存储事务里比对后删除,并发消费只有一个成功。
 
+import { isAuthMethod } from '../lib/auth-context'
+import type { AuthMethod } from '../lib/auth-context'
 import { SESSION_HANDOFF_TTL_MS } from '../lib/ttl'
 
 const ALARM_LAG_MS = 30 * 1000
@@ -39,6 +41,7 @@ export type SessionHandoffRecord = {
   acr: string | null
   amr: string[] | null
   aal: number | null
+  authMethod: AuthMethod | null
   rememberMe: boolean
   stepUp: HandoffStepUp | null
   issuedAt: number
@@ -124,6 +127,7 @@ function isSessionSnapshot(value: Record<string, unknown>): boolean {
     (value['acr'] === null || typeof value['acr'] === 'string') &&
     (amr === null || (Array.isArray(amr) && amr.every((entry) => typeof entry === 'string'))) &&
     (value['aal'] === null || isFiniteNumber(value['aal'])) &&
+    (value['authMethod'] === null || isAuthMethod(value['authMethod'])) &&
     typeof value['rememberMe'] === 'boolean' &&
     isStepUp(value['stepUp'])
   )

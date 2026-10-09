@@ -17,7 +17,8 @@ import type {
   HandoffStepUp,
 } from '../durable-objects/session-handoff-do'
 import type { AmrValue } from '@xid-kit/types'
-import type { AuthContextData } from '../lib/auth-context'
+import { isAuthMethod } from '../lib/auth-context'
+import type { AuthContextData, AuthMethod } from '../lib/auth-context'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import { issueSession } from '../lib/session'
@@ -46,6 +47,7 @@ export type HandoffSession = {
   acr: string | null
   amr: readonly string[] | null
   aal: number | null
+  authMethod: AuthMethod | null
   rememberMe: boolean
   stepUp: HandoffStepUp | null
 }
@@ -146,6 +148,7 @@ export async function mintSessionHandoff(
       acr: session.acr,
       amr: session.amr,
       aal: session.aal,
+      authMethod: session.authMethod,
       rememberMe: session.rememberMe,
       stepUp: session.stepUp,
       ttlMs: SESSION_HANDOFF_TTL_MS,
@@ -220,7 +223,16 @@ async function consumeGrant(
 function authContextOf(grant: ConsumedSessionHandoff): { authContext?: AuthContextData } {
   const { acr, amr, aal } = grant
   if (acr === null || amr === null || (aal !== 1 && aal !== 2)) return {}
-  return { authContext: { acr, amr: amr as readonly AmrValue[], aal } }
+  // 交接前创建的 grant 没有 authMethod 字段。
+  const authMethod = isAuthMethod(grant.authMethod) ? grant.authMethod : undefined
+  return {
+    authContext: {
+      acr,
+      amr: amr as readonly AmrValue[],
+      aal,
+      ...(authMethod ? { authMethod } : {}),
+    },
+  }
 }
 
 // 消费 grant 并在本主机签发同状态的会话,返回续跑路径。state 只在消费成功后清除,

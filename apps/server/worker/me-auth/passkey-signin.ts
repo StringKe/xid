@@ -264,6 +264,7 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
           acr: PASSKEY_AUTH_CONTEXT.acr,
           amr: PASSKEY_AUTH_CONTEXT.amr,
           aal: PASSKEY_AUTH_CONTEXT.aal,
+          authMethod: issued.session.authMethod ?? null,
           rememberMe: true,
           stepUp: null,
         },

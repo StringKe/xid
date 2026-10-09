@@ -447,6 +447,17 @@ describe('outbound SAML RequestedAuthnContext', () => {
     expect(signedInput()['authnContextClassRef']).toBe(PPT)
   })
 
+  it.each(['sso', 'social'] as const)(
+    'writes unspecified for a %s session even though its amr says pwd',
+    async (authMethod) => {
+      await sso(makeApp({ ...passwordSession(), authMethod }), makeEnv())
+
+      expect(signedInput()['authnContextClassRef']).toBe(
+        'urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified',
+      )
+    },
+  )
+
   it('sends a password session to MFA step-up when the SP requires MFA', async () => {
     requestContext('minimum', [MFA])
 

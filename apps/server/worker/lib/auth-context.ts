@@ -2,10 +2,23 @@ import type { AmrValue } from '@xid-kit/types'
 
 export type AuthAssuranceLevel = 1 | 2
 
+// 会话的主登录方式,与 amr 分开记录:联合登录的 amr 沿用 'pwd',但 XID 并未校验密码。
+export const AUTH_METHODS = ['password', 'passkey', 'otp', 'social', 'sso', 'guest'] as const
+export type AuthMethod = (typeof AUTH_METHODS)[number]
+
+export function isAuthMethod(value: unknown): value is AuthMethod {
+  return typeof value === 'string' && (AUTH_METHODS as readonly string[]).includes(value)
+}
+
+export function isFederatedAuthMethod(method: AuthMethod | null | undefined): boolean {
+  return method === 'social' || method === 'sso'
+}
+
 export type AuthContextData = {
   acr: string
   amr: readonly AmrValue[]
   aal: AuthAssuranceLevel
+  authMethod?: AuthMethod
 }
 
 export const ACR_AAL1 = 'urn:xid:aal1'
@@ -16,24 +29,28 @@ export const PASSWORD_AUTH_CONTEXT: AuthContextData = {
   acr: ACR_AAL1,
   amr: ['pwd'],
   aal: 1,
+  authMethod: 'password',
 }
 
 export const PASSKEY_AUTH_CONTEXT: AuthContextData = {
   acr: ACR_AAL2,
   amr: ['phr'],
   aal: 2,
+  authMethod: 'passkey',
 }
 
 export const EMAIL_OTP_AUTH_CONTEXT: AuthContextData = {
   acr: ACR_AAL1,
   amr: ['email'],
   aal: 1,
+  authMethod: 'otp',
 }
 
 export const SMS_OTP_AUTH_CONTEXT: AuthContextData = {
   acr: ACR_AAL1,
   amr: ['sms'],
   aal: 1,
+  authMethod: 'otp',
 }
 
 export const MAGIC_LINK_AUTH_CONTEXT: AuthContextData = EMAIL_OTP_AUTH_CONTEXT
@@ -43,18 +60,21 @@ export const GUEST_AUTH_CONTEXT: AuthContextData = {
   acr: ACR_AAL1,
   amr: ['guest'],
   aal: 1,
+  authMethod: 'guest',
 }
 
 export const SOCIAL_AUTH_CONTEXT: AuthContextData = {
   acr: ACR_AAL1,
   amr: ['pwd'],
   aal: 1,
+  authMethod: 'social',
 }
 
 export const SSO_AUTH_CONTEXT: AuthContextData = {
   acr: ACR_AAL1,
   amr: ['pwd'],
   aal: 1,
+  authMethod: 'sso',
 }
 
 export type MfaMethod = 'totp' | 'backup' | 'sms' | 'passkey'

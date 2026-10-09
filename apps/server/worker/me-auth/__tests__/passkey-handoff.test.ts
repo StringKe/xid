@@ -464,6 +464,36 @@ describe('root sessions handed to the organization host for passkey ceremonies',
     )
   })
 
+  it('keeps the sign-in method of an enterprise SSO session on the organization host', async () => {
+    const env = multiHostEnv()
+    const pending: SessionData = { ...sessionWith('pending_mfa'), authMethod: 'sso' }
+    const options = await hostApp(ACME_FROM_ROOT, pending).request(
+      `${ROOT}/auth/mfa/passkey/options`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          continue: `/mfa?method=passkey&redirect_to=${encodeURIComponent(AUTHORIZE)}`,
+        }),
+      },
+      env,
+      execCtx,
+    )
+    const { handoff } = (await options.json()) as { handoff: { url: string } }
+    const { state, form } = await followPrepare(env, {
+      prepareUrl: handoff.url,
+      target: ACME_TENANT,
+      source: ACME_FROM_ROOT,
+      session: pending,
+    })
+
+    await consume(env, { tenant: ACME_TENANT, origin: ACME, form, cookie: state })
+
+    expect(sessionsInsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ authMethod: 'sso', amr: ['pwd'] }),
+    )
+  })
+
   it('hands the session back to the root after the second factor and resumes /authorize', async () => {
     const env = multiHostEnv()
     const active = sessionWith('active')

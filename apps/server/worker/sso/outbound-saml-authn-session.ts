@@ -2,7 +2,7 @@
 
 import { createTenantDb } from '@xid-kit/db'
 import type { Context } from 'hono'
-import { sessionSatisfiesAal2 } from '../lib/auth-context'
+import { isFederatedAuthMethod, sessionSatisfiesAal2 } from '../lib/auth-context'
 import { hasStrongMfaFactor } from '../lib/mfa-methods'
 import { readStepUpAuthContext } from '../lib/step-up'
 import type { SessionData, XidHonoEnv } from '../lib/types'
@@ -25,18 +25,19 @@ async function currentAuthn(
   request: OutboundSsoRequest,
 ): Promise<CurrentAuthn> {
   const isAal2 = sessionSatisfiesAal2(session)
+  const isFederated = isFederatedAuthMethod(session.authMethod)
   if (!isAal2 && request.requestedAuthnContext !== null) {
     const stepUp = await readStepUpAuthContext(c, session)
     if (stepUp) {
       return {
-        facts: { amr: stepUp.amr ?? [], isAal2: true },
+        facts: { amr: stepUp.amr ?? [], isAal2: true, isFederated },
         authnInstant: stepUp.authTime * 1000,
         usedStepUp: true,
       }
     }
   }
   return {
-    facts: { amr: session.amr ?? [], isAal2 },
+    facts: { amr: session.amr ?? [], isAal2, isFederated },
     authnInstant: session.authenticatedAt.getTime(),
     usedStepUp: false,
   }

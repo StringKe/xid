@@ -150,6 +150,7 @@ async function handleStart(c: Context<XidHonoEnv>): Promise<Response> {
         acr: session.acr,
         amr: session.amr,
         aal: session.aal,
+        authMethod: session.authMethod ?? null,
         rememberMe: session.rememberMe,
         stepUp: session.status === 'active' ? await readStepUpProof(c, session) : null,
       },

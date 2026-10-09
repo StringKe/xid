@@ -9,6 +9,7 @@ import { DEFAULT_SESSION_POLICY } from '@xid-kit/types'
 import type { SessionPolicy } from '@xid-kit/types'
 import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
+import { isAuthMethod } from './auth-context'
 import type { AuthContextData } from './auth-context'
 import { AppError } from './errors'
 import {
@@ -142,6 +143,7 @@ function toSessionData(row: typeof schema.sessions.$inferSelect): SessionData {
     acr: row.acr ?? null,
     amr: (row.amr ?? null) as SessionData['amr'],
     aal: row.aal ?? null,
+    authMethod: isAuthMethod(row.authMethod) ? row.authMethod : null,
   }
 }
 
@@ -477,6 +479,7 @@ function buildSessionInsert(
     acr: input.authContext?.acr ?? null,
     amr: input.authContext ? [...input.authContext.amr] : null,
     aal: input.authContext?.aal ?? null,
+    authMethod: input.authContext?.authMethod ?? null,
     authenticatedAt: input.authenticatedAt,
     lastActiveAt: new Date(),
     expiresAt: input.expiresAt,

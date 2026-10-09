@@ -23,6 +23,7 @@ async function createBody() {
     acr: 'urn:xid:aal1',
     amr: ['pwd'],
     aal: 1,
+    authMethod: 'sso',
     rememberMe: true,
     stepUp: null,
     ttlMs: SESSION_HANDOFF_TTL_MS,
@@ -76,6 +77,7 @@ describe('SessionHandoffDO', () => {
         authenticatedAt: 1_000,
         sessionStatus: 'pending_mfa',
         amr: ['pwd'],
+        authMethod: 'sso',
       },
     })
     expect(second.status).toBe(404)
@@ -131,6 +133,28 @@ describe('SessionHandoffDO', () => {
     })
 
     expect(response.status).toBe(400)
+  })
+
+  it.each([
+    ['an unknown sign-in method', 'kerberos'],
+    ['a missing sign-in method', undefined],
+  ])('refuses %s', async (_label, authMethod) => {
+    const { handoff } = makeDo()
+
+    const response = await post(handoff, '/create', { ...(await createBody()), authMethod })
+
+    expect(response.status).toBe(400)
+  })
+
+  it('accepts a session without a recorded sign-in method', async () => {
+    const { handoff } = makeDo()
+
+    const response = await post(handoff, '/create', {
+      ...(await createBody()),
+      authMethod: null,
+    })
+
+    expect(response.status).toBe(201)
   })
 
   it('refuses a TTL longer than two minutes', async () => {

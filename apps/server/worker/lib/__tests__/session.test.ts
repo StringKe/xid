@@ -65,6 +65,7 @@ type SessionRow = {
   acr?: string | null
   amr?: string | null
   aal?: number | null
+  auth_method?: string | null
   authenticated_at: number
   last_active_at: number
   expires_at: number
@@ -374,6 +375,7 @@ describe('issueSession', () => {
         acr: 'urn:xid:aal1',
         amr: JSON.stringify(['pwd']),
         aal: 1,
+        auth_method: 'password',
         authenticated_at: authenticatedAt.getTime(),
         last_active_at: Date.now(),
         expires_at: expiresAt.getTime(),
@@ -385,7 +387,7 @@ describe('issueSession', () => {
         authenticatedAt,
         expiresAt,
         rememberMe: true,
-        authContext: { acr: 'urn:xid:aal1', amr: ['pwd'], aal: 1 },
+        authContext: { acr: 'urn:xid:aal1', amr: ['pwd'], aal: 1, authMethod: 'password' },
       })
     })
 
@@ -405,6 +407,7 @@ describe('issueSession', () => {
     expect(insertParams).toContain('urn:xid:aal1')
     expect(insertParams).toContain(JSON.stringify(['pwd']))
     expect(insertParams).toContain(1)
+    expect(insertParams).toContain('password')
 
     // SessionDO add 被调用,sessionId 正确。
     expect(calls).toEqual([
@@ -421,6 +424,7 @@ describe('issueSession', () => {
     expect(result.session.acr).toBe('urn:xid:aal1')
     expect(result.session.amr).toEqual(['pwd'])
     expect(result.session.aal).toBe(1)
+    expect(result.session.authMethod).toBe('password')
     expect(result.refreshToken).toBe(plaintext)
   })
 
