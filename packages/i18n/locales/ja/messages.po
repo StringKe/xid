@@ -496,8 +496,8 @@ msgid "{count} passkeys"
 msgstr "パスキー {count} 個"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "{count} platform guides. Not yet published to a package registry."
-msgstr "{count} 件のプラットフォームガイド。パッケージレジストリにはまだ公開していません。"
+msgid "{count} platform guides. Distributed as source in the XID repository."
+msgstr "{count} 件のプラットフォームガイド。XID リポジトリでソースとして配布しています。"
 
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
@@ -2942,8 +2942,8 @@ msgid "Authorization"
 msgstr "認可"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Authorization code flow: verified locally with protocol clients. SDKs are not yet published to npm."
-msgstr "認可コードフロー：プロトコルクライアントでローカル検証済み。SDK はまだ npm に公開していません。"
+msgid "Authorization code flow: verified locally with protocol clients. SDKs are distributed as source in the XID repository."
+msgstr "認可コードフロー：プロトコルクライアントでローカル検証済み。SDK は XID リポジトリでソースとして配布しています。"
 
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Authorization code with PKCE"
@@ -9933,10 +9933,6 @@ msgid "Not yet implemented"
 msgstr "未実装"
 
 #: apps/site/src/lib/pricing-surface.ts
-msgid "Not yet published to npm"
-msgstr "まだ npm に公開していません"
-
-#: apps/site/src/lib/pricing-surface.ts
 msgid "Not yet."
 msgstr "まだありません。"
 
@@ -12166,10 +12162,6 @@ msgstr "登録日"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Registers XID_CLIENT singleton and APP_INITIALIZER; accepts ProvideXidOptions"
 msgstr "XID_CLIENT シングルトンと APP_INITIALIZER を登録します。ProvideXidOptions を受け入れます"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry."
-msgstr "Registry 状態: UNPUBLISHED。この SDK はリポジトリのソース checkout からのみインストールし、外部 package registry は使用しないでください。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Related docs"
@@ -14815,6 +14807,10 @@ msgstr "ユーザーまたはグループ一覧の結果を並べ替えます。
 msgid "Source"
 msgstr "作成元"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Source in the XID repository"
+msgstr "XID リポジトリのソース"
+
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Source queue"
 msgstr "ソースキュー"
@@ -15905,8 +15901,8 @@ msgid "The SDK rejects offline_access until DPoP is implemented; unexpected refr
 msgstr "DPoP が実装されるまで SDK は offline_access を拒否します。予期しない refresh_token response fields は永続化されません。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "The SDKs are not yet published to npm. Until they are, any OIDC library works with the endpoints below."
-msgstr "SDK はまだ npm に公開していません。公開までは、下記のエンドポイントで任意の OIDC ライブラリを使えます。"
+msgid "The SDKs are distributed as source in the XID repository. Any standard OIDC library also works with the endpoints below."
+msgstr "SDK は XID リポジトリでソースとして配布しています。標準の OIDC ライブラリも下記のエンドポイントで使えます。"
 
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
@@ -18332,6 +18328,10 @@ msgstr "対応が必要なものは XID がここに表示します。最終確�
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "XID profile field to the attribute name {0} sends."
 msgstr "XID のプロフィール項目と、{0} が送る属性名の対応です。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository."
+msgstr "XID はどのパッケージレジストリにもパッケージを公開していません。この SDK は XID リポジトリでソースとして配布しています。リポジトリのチェックアウトから使用してください。"
 
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "XID pushes organization members to {provider} after members are removed or deactivated, and at least once a day."

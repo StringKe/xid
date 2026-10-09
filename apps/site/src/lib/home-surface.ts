@@ -22,7 +22,7 @@ export const homeMessages = {
   oidcAnswer: msg`XID is a standard OpenID Connect provider.`,
   oidcLead: msg`Use our SDKs or any OIDC library. Access tokens are signed JWTs that carry the organization, and your backend verifies them without a network call.`,
   oidcLink: msg`Connect your app`,
-  oidcEvidence: msg`Authorization code flow: verified locally with protocol clients. SDKs are not yet published to npm.`,
+  oidcEvidence: msg`Authorization code flow: verified locally with protocol clients. SDKs are distributed as source in the XID repository.`,
   accessToken: msg`Example access token`,
   decodedPayload: msg`Decoded header and payload`,
   exampleTokenNote: msg`Example values in the shape XID issues. This is not a real token.`,

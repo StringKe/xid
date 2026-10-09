@@ -72,7 +72,7 @@ export const pricingMessages = {
   gradeLocalEndToEnd: msg`Verified end to end, local`,
   gradeIntegration: msg`Integration-tested`,
   gradeImplemented: msg`Implemented`,
-  gradeUnpublished: msg`Not yet published to npm`,
+  gradeSourceOnly: msg`Source in the XID repository`,
   questionsTitle: msg`Questions`,
   faqPayQuestion: msg`Do I need to pay for SSO, SCIM or MFA?`,
   faqPayAnswer: msg`No. There are no plans or tiers. Every feature is available on XID Cloud and when you self-host.`,
@@ -100,7 +100,7 @@ export type PricingBadge = 'success' | 'info' | 'neutral' | 'outline'
 type CapabilityDefinition = {
   label: PricingMessageKey
   highlight?: boolean
-  evidence: CapabilityEvidence | 'unpublished'
+  evidence: CapabilityEvidence | 'source-only'
   coreProductionPaths?: boolean
 }
 
@@ -220,7 +220,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroupDefinition[] = [
         label: 'featureWebhooksAudit',
         evidence: { sourceMapFeatures: ['Webhook delivery', 'Audit event hash chain'] },
       },
-      { label: 'featureSdks', highlight: true, evidence: 'unpublished' },
+      { label: 'featureSdks', highlight: true, evidence: 'source-only' },
     ],
   },
 ]
@@ -256,8 +256,8 @@ export function evidenceStatus(
 }
 
 function presentation(row: CapabilityDefinition): EvidenceStatus {
-  if (row.evidence === 'unpublished') {
-    return { label: pricingMessages.gradeUnpublished, badge: 'outline' }
+  if (row.evidence === 'source-only') {
+    return { label: pricingMessages.gradeSourceOnly, badge: 'outline' }
   }
   return evidenceStatus(row.evidence, { coreProductionPaths: row.coreProductionPaths })
 }

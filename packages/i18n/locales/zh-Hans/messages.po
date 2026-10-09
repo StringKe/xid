@@ -496,8 +496,8 @@ msgid "{count} passkeys"
 msgstr "{count} 个通行密钥"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "{count} platform guides. Not yet published to a package registry."
-msgstr "{count} 个平台指南。尚未发布到包管理仓库。"
+msgid "{count} platform guides. Distributed as source in the XID repository."
+msgstr "{count} 个平台指南。以源码形式在 XID 仓库中分发。"
 
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
@@ -2942,8 +2942,8 @@ msgid "Authorization"
 msgstr "授权"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Authorization code flow: verified locally with protocol clients. SDKs are not yet published to npm."
-msgstr "授权码流程：已在本地用协议客户端验证。SDK 尚未发布到 npm。"
+msgid "Authorization code flow: verified locally with protocol clients. SDKs are distributed as source in the XID repository."
+msgstr "授权码流程：已在本地用协议客户端验证。SDK 以源码形式在 XID 仓库中分发。"
 
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Authorization code with PKCE"
@@ -9933,10 +9933,6 @@ msgid "Not yet implemented"
 msgstr "尚未实现"
 
 #: apps/site/src/lib/pricing-surface.ts
-msgid "Not yet published to npm"
-msgstr "尚未发布到 npm"
-
-#: apps/site/src/lib/pricing-surface.ts
 msgid "Not yet."
 msgstr "还没有。"
 
@@ -12166,10 +12162,6 @@ msgstr "登记时间"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Registers XID_CLIENT singleton and APP_INITIALIZER; accepts ProvideXidOptions"
 msgstr "注册 XID_CLIENT 单例和 APP_INITIALIZER；接受 ProvideXidOptions"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry."
-msgstr "Registry 状态:UNPUBLISHED。此 SDK 只能从仓库源码 checkout 安装；不要使用外部 package registry。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Related docs"
@@ -14815,6 +14807,10 @@ msgstr "对用户或组列表结果排序。"
 msgid "Source"
 msgstr "来源"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Source in the XID repository"
+msgstr "XID 仓库中的源码"
+
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Source queue"
 msgstr "源队列"
@@ -15905,8 +15901,8 @@ msgid "The SDK rejects offline_access until DPoP is implemented; unexpected refr
 msgstr "在实现 DPoP 之前，SDK 会拒绝 offline_access；不会持久化意外返回的 refresh_token response fields。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "The SDKs are not yet published to npm. Until they are, any OIDC library works with the endpoints below."
-msgstr "SDK 尚未发布到 npm。在发布之前，任何 OIDC 库都可以配合下面的端点使用。"
+msgid "The SDKs are distributed as source in the XID repository. Any standard OIDC library also works with the endpoints below."
+msgstr "SDK 以源码形式在 XID 仓库中分发。任何标准 OIDC 库也可以配合下面的端点使用。"
 
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
@@ -18332,6 +18328,10 @@ msgstr "需要你处理的事项都会列在这里。上次检查时间 {checked
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "XID profile field to the attribute name {0} sends."
 msgstr "XID 资料字段到 {0} 发送的属性名的映射。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository."
+msgstr "XID 不向任何包管理仓库发布包。这个 SDK 以源码形式在 XID 仓库中分发，请从你检出的仓库代码中使用它。"
 
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "XID pushes organization members to {provider} after members are removed or deactivated, and at least once a day."

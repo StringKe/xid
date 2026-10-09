@@ -228,7 +228,7 @@ const NATIVE_DOC_SLUGS = [
 
 const SERVER_DOC_SLUGS = NATIVE_DOC_SLUGS.slice(0, 7)
 
-// CI 只跑静态目录/清单/元数据/README;原生工具链需本地显式执行(源码-only、无 registry 发布授权)。
+// CI 只跑静态目录/清单/元数据/README;原生工具链需本地显式执行(SDK 只以源码分发)。
 // 例:XID_NATIVE_SDK_PLATFORM=go node --test tests/native-sdk-contract.test.mjs
 test('every native SDK platform in the matrix points at a real directory', () => {
   for (const [platform, steps] of Object.entries(NATIVE_SDK_MATRIX)) {
@@ -265,8 +265,8 @@ test('every native SDK has honest source-only distribution metadata', () => {
 
     const readme = readFileSync(readmePath, 'utf8')
     assert.ok(
-      readme.includes('Registry status: UNPUBLISHED.'),
-      `${platform} README must not imply an external registry release`,
+      readme.includes('Distribution: source only.'),
+      `${platform} README must state source-only distribution`,
     )
     for (const file of contract.extraFiles ?? []) {
       assert.ok(existsSync(resolve(repoRoot, file)), `${platform} package file is missing: ${file}`)
@@ -301,7 +301,7 @@ test('server SDK request authentication and Core exchange stay aligned', () => {
     }
 
     const readme = readFileSync(resolve(repoRoot, `sdk/${platform}/README.md`), 'utf8')
-    assert.ok(readme.includes('Registry status: UNPUBLISHED.'))
+    assert.ok(readme.includes('Distribution: source only.'))
     assert.ok(readme.includes('/v1/sessions/token'))
     assert.ok(readme.includes('__Host-xid.rt.*'))
   }
@@ -328,7 +328,7 @@ test('all public native SDK pages use source checkout installation and the serve
     const document = documents.get(slug)
     assert.ok(document, `${slug} public document is missing`)
     const source = JSON.stringify(document)
-    assert.ok(source.includes('"id":"Rafp8j"'), `${slug} must disclose UNPUBLISHED registry status`)
+    assert.ok(source.includes('"id":"mghUsW"'), `${slug} must disclose source distribution`)
     for (const forbidden of forbiddenInstallFragments) {
       assert.equal(
         source.includes(forbidden),

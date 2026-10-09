@@ -496,8 +496,8 @@ msgid "{count} passkeys"
 msgstr "{count} Passkeys"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "{count} platform guides. Not yet published to a package registry."
-msgstr "{count} Plattformanleitungen. Noch nicht in einer Paket-Registry veröffentlicht."
+msgid "{count} platform guides. Distributed as source in the XID repository."
+msgstr "{count} Plattformanleitungen. Als Quellcode im XID-Repository verteilt."
 
 #: apps/console/src/routes/org/WebhookDetail.tsx
 #: apps/console/src/routes/platform/PlatformOrganizationDetail.tsx
@@ -2942,8 +2942,8 @@ msgid "Authorization"
 msgstr "Autorisierung"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Authorization code flow: verified locally with protocol clients. SDKs are not yet published to npm."
-msgstr "Autorisierungscode-Flow: lokal mit Protokoll-Clients verifiziert. Die SDKs sind noch nicht auf npm veröffentlicht."
+msgid "Authorization code flow: verified locally with protocol clients. SDKs are distributed as source in the XID repository."
+msgstr "Autorisierungscode-Flow: lokal mit Protokoll-Clients verifiziert. Die SDKs werden als Quellcode im XID-Repository verteilt."
 
 #: apps/console/src/routes/applications/app-protocol-sections.tsx
 msgid "Authorization code with PKCE"
@@ -9933,10 +9933,6 @@ msgid "Not yet implemented"
 msgstr "Noch nicht implementiert"
 
 #: apps/site/src/lib/pricing-surface.ts
-msgid "Not yet published to npm"
-msgstr "Noch nicht auf npm veröffentlicht"
-
-#: apps/site/src/lib/pricing-surface.ts
 msgid "Not yet."
 msgstr "Noch nicht."
 
@@ -12166,10 +12162,6 @@ msgstr "Registriert"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Registers XID_CLIENT singleton and APP_INITIALIZER; accepts ProvideXidOptions"
 msgstr "Registriert XID_CLIENT-Singleton und APP_INITIALIZER; akzeptiertProvideXidOptions"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry."
-msgstr "Registry-Status: UNPUBLISHED. Installieren Sie dieses SDK nur aus einem Checkout des Repository-Quellcodes; verwenden Sie keine externe Paket-Registry."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Related docs"
@@ -14815,6 +14807,10 @@ msgstr "Benutzer- oder Gruppenlisten sortieren."
 msgid "Source"
 msgstr "Quelle"
 
+#: apps/site/src/lib/pricing-surface.ts
+msgid "Source in the XID repository"
+msgstr "Quellcode im XID-Repository"
+
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Source queue"
 msgstr "Quellwarteschlange"
@@ -15905,8 +15901,8 @@ msgid "The SDK rejects offline_access until DPoP is implemented; unexpected refr
 msgstr "Das SDK lehnt offline_access ab, bis DPoP implementiert ist; unerwartete refresh_token-Antwortfelder werden nicht persistiert."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "The SDKs are not yet published to npm. Until they are, any OIDC library works with the endpoints below."
-msgstr "Die SDKs sind noch nicht auf npm veröffentlicht. Bis dahin funktioniert jede OIDC-Bibliothek mit den Endpunkten unten."
+msgid "The SDKs are distributed as source in the XID repository. Any standard OIDC library also works with the endpoints below."
+msgstr "Die SDKs werden als Quellcode im XID-Repository verteilt. Jede Standard-OIDC-Bibliothek funktioniert ebenfalls mit den Endpunkten unten."
 
 #: apps/server/src/routes/forgot-password/RequestStep.tsx
 #: apps/server/src/routes/sign-in/sign-in-messages.ts
@@ -18332,6 +18328,10 @@ msgstr "Hier listet XID alles auf, was Ihre Aufmerksamkeit braucht. Zuletzt gepr
 #: apps/console/src/routes/org/SsoConnectionPanels.tsx
 msgid "XID profile field to the attribute name {0} sends."
 msgstr "XID-Profilfeld zum Attributnamen, den {0} sendet."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository."
+msgstr "XID veröffentlicht keine Pakete in einer Registry. Dieses SDK wird als Quellcode im XID-Repository verteilt; verwenden Sie es aus einem Checkout des Repositorys."
 
 #: apps/console/src/routes/org/ScimTargetDetail.tsx
 msgid "XID pushes organization members to {provider} after members are removed or deactivated, and at least once a day."

@@ -100,8 +100,8 @@
             "slug": "sdks",
             "summary": {
               "kind": "message",
-              "id": "CyZOfB",
-              "message": "{count} platform guides. Not yet published to a package registry.",
+              "id": "K2_fK9",
+              "message": "{count} platform guides. Distributed as source in the XID repository.",
               "values": {
                 "count": {
                   "source": "static",
@@ -300,8 +300,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "tOy2L9",
-                "message": "The SDKs are not yet published to npm. Until they are, any OIDC library works with the endpoints below.",
+                "id": "S82XsI",
+                "message": "The SDKs are distributed as source in the XID repository. Any standard OIDC library also works with the endpoints below.",
                 "values": {},
                 "tags": {}
               }
@@ -6384,8 +6384,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -7150,8 +7150,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -7764,8 +7764,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -8534,8 +8534,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -8998,8 +8998,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -9682,8 +9682,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -10089,8 +10089,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -10419,8 +10419,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -10699,8 +10699,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -11104,8 +11104,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -11482,8 +11482,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -11824,8 +11824,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -12245,8 +12245,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -12649,8 +12649,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -13003,8 +13003,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -13497,8 +13497,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -13976,8 +13976,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -14359,8 +14359,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -14786,8 +14786,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -15154,8 +15154,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -15604,8 +15604,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -15991,8 +15991,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -16450,8 +16450,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -16824,8 +16824,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -17279,8 +17279,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -17717,8 +17717,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -18054,8 +18054,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -18551,8 +18551,8 @@
               "kind": "paragraph",
               "content": {
                 "kind": "message",
-                "id": "Rafp8j",
-                "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.",
+                "id": "mghUsW",
+                "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.",
                 "values": {},
                 "tags": {}
               }
@@ -23588,8 +23588,8 @@
       "message": "Create, read, update, and delete permissions."
     },
     {
-      "id": "Rafp8j",
-      "message": "Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry."
+      "id": "mghUsW",
+      "message": "XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository."
     },
     {
       "id": "AJ2GJl",
@@ -23816,8 +23816,8 @@
       "message": "Endpoints, grants, token claims, PAR and DPoP."
     },
     {
-      "id": "CyZOfB",
-      "message": "{count} platform guides. Not yet published to a package registry."
+      "id": "K2_fK9",
+      "message": "{count} platform guides. Distributed as source in the XID repository."
     },
     {
       "id": "8jhCeZ",
@@ -23880,8 +23880,8 @@
       "message": "Wrap your app in <0>XidProvider</0> with the issuer <1>https://xid.dev</1> and your client ID, then verify access tokens on your backend with <2>authenticateRequest</2>."
     },
     {
-      "id": "tOy2L9",
-      "message": "The SDKs are not yet published to npm. Until they are, any OIDC library works with the endpoints below."
+      "id": "S82XsI",
+      "message": "The SDKs are distributed as source in the XID repository. Any standard OIDC library also works with the endpoints below."
     },
     {
       "id": "IdoYP-",

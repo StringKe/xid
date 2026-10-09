@@ -257,7 +257,7 @@ test('committed AST exhausts every audited contract without legacy source access
   }
 })
 
-test('every public TypeScript SDK discloses source-only unpublished distribution', async () => {
+test('every public TypeScript SDK discloses source distribution', async () => {
   const bundle = await loadSourceAst()
   const documents = new Map(bundle.documents.map((document) => [document.slug, document]))
 
@@ -267,10 +267,10 @@ test('every public TypeScript SDK discloses source-only unpublished distribution
     const disclosure = document.sections[0]?.blocks[0]
     assert.equal(disclosure?.kind, 'paragraph', `${slug} disclosure must precede package usage`)
     assert.equal(disclosure.content.kind, 'message')
-    assert.equal(disclosure.content.id, 'Rafp8j')
+    assert.equal(disclosure.content.id, 'mghUsW')
     assert.equal(
       disclosure.content.message,
-      'Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.',
+      'XID publishes no packages to any registry. This SDK is distributed as source in the XID repository; use it from a checkout of the repository.',
     )
   }
 })
