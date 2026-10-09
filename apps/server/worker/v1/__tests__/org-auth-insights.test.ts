@@ -585,6 +585,87 @@ describe('delivery-channels failures24h', () => {
     expect(text).not.toContain('otp-482913')
   })
 
+  async function seedProviderFailure(
+    d1: D1,
+    input: { id: string; tenantId: string; channel: string; reason: string; ageMs: number },
+  ): Promise<void> {
+    await drizzle(d1 as unknown as D1Database, { schema })
+      .insert(schema.notificationDeliveryFailures)
+      .values({
+        id: input.id,
+        tenantId: input.tenantId,
+        channel: input.channel,
+        sourceMessageId: `msg_${input.id}`,
+        deliveryIdentity: `${input.channel}:msg_${input.id}`,
+        provider: 'twilio',
+        outcome: 'rejected',
+        reason: input.reason,
+        attemptCount: 1,
+        failedAt: new Date(Date.now() - input.ageMs),
+      })
+  }
+
+  it('counts provider rejections and timeouts together with pre-delivery failures', async () => {
+    const d1 = await seedPeople()
+    await seedFailure(d1, { id: 'f1', tenantId: 't_a', channel: 'sms', reason: 'x', ageMs: 1000 })
+    await seedProviderFailure(d1, {
+      id: 'p1',
+      tenantId: 't_a',
+      channel: 'sms',
+      reason: 'twilio_400',
+      ageMs: 1000,
+    })
+    await seedProviderFailure(d1, {
+      id: 'p2',
+      tenantId: 't_a',
+      channel: 'sms',
+      reason: 'twilio_400',
+      ageMs: 2000,
+    })
+    await seedProviderFailure(d1, {
+      id: 'p3',
+      tenantId: 't_a',
+      channel: 'whatsapp',
+      reason: 'provider_call_indeterminate',
+      ageMs: 1000,
+    })
+    await seedProviderFailure(d1, {
+      id: 'p4',
+      tenantId: 't_a',
+      channel: 'email',
+      reason: 'old',
+      ageMs: 2 * DAY,
+    })
+
+    const body = await json<{ failures24h: Record<string, unknown> }>(
+      await request(d1, 't_a/delivery-channels'),
+    )
+
+    expect(body.failures24h).toEqual({
+      email: { count: 0, topReason: null },
+      sms: { count: 3, topReason: 'twilio_400' },
+      whatsapp: { count: 1, topReason: 'provider_call_indeterminate' },
+    })
+  })
+
+  it('does not include another tenant provider failures', async () => {
+    const d1 = await seedPeople()
+    await seedOrg(d1, { id: 't_b', tenant: TENANT_B })
+    await seedProviderFailure(d1, {
+      id: 'p5',
+      tenantId: 't_b',
+      channel: 'sms',
+      reason: 'twilio_400',
+      ageMs: 1000,
+    })
+
+    const body = await json<{ failures24h: { sms: { count: number } } }>(
+      await request(d1, 't_a/delivery-channels'),
+    )
+
+    expect(body.failures24h.sms.count).toBe(0)
+  })
+
   it('serves API key callers with organizations:read', async () => {
     const d1 = await seedPeople()
     const token = await seedApiKey(d1, { id: 'key_read', scopes: ['organizations:read'] })

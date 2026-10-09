@@ -1,12 +1,10 @@
-// 认证设置页的只读统计:登录方式使用人数、社交登录近 30 天使用、SSO 与出站 SAML 的证书、
-// 最近登录和活动、消息渠道近 24 小时失败。人数统计只算该组织的 active 成员。
+// 认证设置页的只读统计:登录方式使用人数、社交登录近 30 天使用、SSO 最近登录和活动。
+// 人数统计只算该组织的 active 成员。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { loadIdpVerifyKey, setSamlEngine } from '@xid-kit/saml'
 import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
-import { drizzle } from 'drizzle-orm/d1'
 import type { Context, Hono } from 'hono'
 import * as v from 'valibot'
 import { auditActorDisplay } from '../lib/audit-actor'
@@ -19,10 +17,14 @@ import { MAX_PAGE_SIZE, decodeCursor, encodeCursor, requireApiKeyOrOrgManager } 
 
 type TenantDb = ReturnType<typeof createTenantDb>
 
-const FAILURE_WINDOW_MS = 24 * 60 * 60 * 1000
-const OUTBOUND_IDP_CERT_USAGE = 'saml_idp_signing'
-export const DELIVERY_FAILURE_CHANNELS = ['email', 'sms', 'whatsapp'] as const
-type DeliveryFailureChannel = (typeof DELIVERY_FAILURE_CHANNELS)[number]
+export { deliveryFailures24h } from './org-delivery-failures'
+export type { DeliveryFailures24h } from './org-delivery-failures'
+export {
+  outboundLastSignIns,
+  outboundSigningCertificates,
+  parseCertificates,
+} from './org-saml-certificates'
+export type { CertificateSummary, SigningCertificateSummary } from './org-saml-certificates'
 
 export type RoutedDomain = {
   domain: string
@@ -38,26 +40,6 @@ export type AuthPolicyInsights = {
   usersWithoutSecondFactor: number
   routedDomains: RoutedDomain[]
 }
-
-export type CertificateSummary = {
-  fingerprintSha256: string
-  notBefore: string
-  notAfter: string
-}
-
-export type SigningCertificateSummary = {
-  id: string
-  status: 'active' | 'retiring'
-  notBefore: string | null
-  notAfter: string | null
-  fingerprint: string
-  algorithm: { key: string; size: number | null; hash: string | null }
-}
-
-export type DeliveryFailures24h = Record<
-  DeliveryFailureChannel,
-  { count: number; topReason: string | null }
->
 
 // memberships 不在被统计表上,用子查询限定成员;tenant_id 显式绑定。
 function isActiveMember(column: SQLiteColumn, tenantId: string, orgId: string): SQL {
@@ -179,24 +161,6 @@ export async function socialProviderActivity(
   return Object.fromEntries(entries)
 }
 
-export async function parseCertificates(
-  certificates: readonly string[],
-): Promise<CertificateSummary[]> {
-  setSamlEngine(globalThis.crypto)
-  const parsed = await Promise.all(certificates.map((cert) => loadIdpVerifyKey(cert)))
-  return parsed.flatMap((result) =>
-    result.ok
-      ? [
-          {
-            fingerprintSha256: result.value.fingerprint,
-            notBefore: new Date(result.value.notBefore).toISOString(),
-            notAfter: new Date(result.value.notAfter).toISOString(),
-          },
-        ]
-      : [],
-  )
-}
-
 export async function ssoConnectionInsights(
   c: Context<XidHonoEnv>,
   orgId: string,
@@ -219,107 +183,6 @@ export async function ssoConnectionInsights(
     ),
   ])
   return { routedDomains, lastSignInAt: new Map(lastSignIns) }
-}
-
-function describeKeyAlgorithm(key: CryptoKey): SigningCertificateSummary['algorithm'] {
-  const algorithm = key.algorithm as KeyAlgorithm & {
-    modulusLength?: number
-    namedCurve?: string
-    hash?: { name?: string }
-  }
-  if (algorithm.name.startsWith('RSA')) {
-    return { key: 'RSA', size: algorithm.modulusLength ?? null, hash: algorithm.hash?.name ?? null }
-  }
-  if (algorithm.name === 'ECDSA') {
-    return { key: algorithm.namedCurve ?? 'ECDSA', size: null, hash: null }
-  }
-  return { key: algorithm.name, size: null, hash: null }
-}
-
-export async function outboundSigningCertificates(
-  c: Context<XidHonoEnv>,
-): Promise<SigningCertificateSummary[]> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const rows = await db.certStore.findMany(
-    and(
-      eq(schema.certStore.usage, OUTBOUND_IDP_CERT_USAGE),
-      inArray(schema.certStore.status, ['active', 'retiring']),
-    ),
-    { orderBy: desc(schema.certStore.createdAt), limit: 10 },
-  )
-  setSamlEngine(globalThis.crypto)
-  return Promise.all(
-    rows.map(async (row) => {
-      const loaded = await loadIdpVerifyKey(row.certificate)
-      return {
-        id: row.id,
-        status: row.status === 'retiring' ? 'retiring' : 'active',
-        notBefore: toIso(row.notBefore),
-        notAfter: toIso(row.notAfter),
-        fingerprint: row.fingerprint,
-        algorithm: loaded.ok
-          ? describeKeyAlgorithm(loaded.value.publicKey)
-          : { key: 'unknown', size: null, hash: null },
-      }
-    }),
-  )
-}
-
-export async function outboundLastSignIns(
-  c: Context<XidHonoEnv>,
-  appIds: readonly string[],
-): Promise<Map<string, string | null>> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const entries = await Promise.all(
-    appIds.map(async (appId) => {
-      const rows = await db.samlSessionBindings.findMany(
-        and(
-          eq(schema.samlSessionBindings.direction, 'outbound'),
-          eq(schema.samlSessionBindings.scopeId, appId),
-        ),
-        { orderBy: desc(schema.samlSessionBindings.updatedAt), limit: 1 },
-      )
-      return [appId, toIso(rows[0]?.updatedAt)] as const
-    }),
-  )
-  return new Map(entries)
-}
-
-// notification_failures 的 tenant_id 可空(平台级通知),不在 createTenantDb 表集中;此处显式绑定租户谓词,
-// 只读 channel 与 reason,不读 recipient / payload。
-export async function deliveryFailures24h(
-  c: Context<XidHonoEnv>,
-  now = Date.now(),
-): Promise<DeliveryFailures24h> {
-  const tenantId = c.get('tenant').tenantId
-  const table = schema.notificationFailures
-  const rows = await drizzle(c.env.DB, { schema })
-    .select({ channel: table.channel, reason: table.reason, count: sql<number>`count(*)` })
-    .from(table)
-    .where(
-      and(
-        eq(table.tenantId, tenantId),
-        gte(table.failedAt, windowStart(now, FAILURE_WINDOW_MS).toISOString()),
-      ),
-    )
-    .groupBy(table.channel, table.reason)
-  const result: DeliveryFailures24h = {
-    email: { count: 0, topReason: null },
-    sms: { count: 0, topReason: null },
-    whatsapp: { count: 0, topReason: null },
-  }
-  const topCount: Record<DeliveryFailureChannel, number> = { email: 0, sms: 0, whatsapp: 0 }
-  for (const row of rows) {
-    const channel = DELIVERY_FAILURE_CHANNELS.find((name) => name === row.channel)
-    if (!channel) continue
-    const count = Number(row.count)
-    result[channel].count += count
-    if (count > topCount[channel]) {
-      topCount[channel] = count
-      result[channel].topReason = row.reason
-    }
-  }
-  return result
 }
 
 const activityQuerySchema = v.object({ ...paginationQuerySchema.entries })
