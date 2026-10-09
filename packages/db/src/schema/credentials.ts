@@ -109,6 +109,8 @@ export const passkeyCredentials = sqliteTable(
     tenantId: tenantId(),
     userId: text('user_id').notNull(),
     credentialId: text('credential_id').notNull(),
+    // 注册时绑定的 rpId;NULL 是本列出现前登记的凭证,多租户下可能绑定在实例主域
+    rpId: text('rp_id'),
     publicKey: blob('public_key', { mode: 'buffer' }).notNull(),
     coseAlg: numCol('cose_alg').notNull(),
     aaguid: blob('aaguid', { mode: 'buffer' }).notNull(),

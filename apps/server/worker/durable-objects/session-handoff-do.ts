@@ -1,10 +1,15 @@
-// SessionHandoffDO:一个随机 grant id 对应一次跨主机会话交接(租户子域 <-> 实例根域)。
-// __Host- 会话 cookie 不能跨主机,passkey 仪式在租户子域完成后,由这里把已认证的身份一次性交给目标主机。
-// 只存 secret 与浏览器 state 的 SHA-256;消费在存储事务里比对后删除,并发消费只有一个成功。
+// SessionHandoffDO:一个随机 grant id 对应一次跨主机会话交接(租户子域 <-> 实例根域,双向)。
+// __Host- 会话 cookie 不能跨主机,passkey 仪式只在组织 rpId 主机进行,由这里把会话一次性交给目标主机。
+// 会话状态原样携带:待 MFA 的会话交接后仍待 MFA,不会被提升。
+// 只存 secret 与目标主机 state 的 SHA-256;消费在存储事务里比对后删除,并发消费只有一个成功。
 
-export const SESSION_HANDOFF_TTL_MS = 2 * 60 * 1000
+import { SESSION_HANDOFF_TTL_MS } from '../lib/ttl'
+
 const ALARM_LAG_MS = 30 * 1000
 const RECORD_KEY = 'grant'
+
+export const HANDOFF_SESSION_STATUSES = ['active', 'pending_mfa', 'pending_mfa_setup'] as const
+export type HandoffSessionStatus = (typeof HANDOFF_SESSION_STATUSES)[number]
 
 export type SessionHandoffRecord = {
   secretHash: string
@@ -15,6 +20,11 @@ export type SessionHandoffRecord = {
   userId: string
   continuePath: string
   authenticatedAt: number
+  sessionStatus: HandoffSessionStatus
+  acr: string | null
+  amr: string[] | null
+  aal: number | null
+  rememberMe: boolean
   issuedAt: number
   expiresAt: number
 }
@@ -64,15 +74,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isSessionSnapshot(value: Record<string, unknown>): boolean {
+  const amr = value['amr']
+  return (
+    (HANDOFF_SESSION_STATUSES as readonly unknown[]).includes(value['sessionStatus']) &&
+    (value['acr'] === null || typeof value['acr'] === 'string') &&
+    (amr === null || (Array.isArray(amr) && amr.every((entry) => typeof entry === 'string'))) &&
+    (value['aal'] === null || isFiniteNumber(value['aal'])) &&
+    typeof value['rememberMe'] === 'boolean'
+  )
+}
+
 function parseCreateInput(value: unknown): CreateInput | null {
   if (!isRecord(value)) return null
   if (!isSha256Hex(value['secretHash']) || !isSha256Hex(value['stateHash'])) return null
   if (!CREATE_STRING_FIELDS.every((field) => isNonEmptyString(value[field]))) return null
   const ttlMs = value['ttlMs']
-  const authenticatedAt = value['authenticatedAt']
-  if (typeof ttlMs !== 'number' || !Number.isFinite(ttlMs)) return null
-  if (ttlMs <= 0 || ttlMs > SESSION_HANDOFF_TTL_MS) return null
-  if (typeof authenticatedAt !== 'number' || !Number.isFinite(authenticatedAt)) return null
+  if (!isFiniteNumber(ttlMs) || ttlMs <= 0 || ttlMs > SESSION_HANDOFF_TTL_MS) return null
+  if (!isFiniteNumber(value['authenticatedAt']) || !isSessionSnapshot(value)) return null
   return value as CreateInput
 }
 

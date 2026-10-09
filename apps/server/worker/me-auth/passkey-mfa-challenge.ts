@@ -14,7 +14,9 @@ import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/veri
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
 import type { XidHonoEnv } from '../lib/types'
 import { MFA_VERIFY_SCOPE } from './mfa-challenge'
+import { earlierPasskeyRpId, isEarlierPasskey } from '../auth/passkey-rp-ids'
 import { passkeyCeremonyOrigin } from './passkey-handoff'
+import { handoffPrepareUrl, readHandoffContinue } from './passkey-handoff-paths'
 import { requestIp } from './shared'
 
 const passkeyMfaVerifyBodySchema = v.object({
@@ -33,26 +35,46 @@ function challengeKey(sessionId: string, tenantId: string): string {
   return `mfa:${sessionId}:${tenantId}`
 }
 
+const MFA_PATH = '/mfa'
+
+// 不在组织 rpId 主机上时返回交接地址:会话(含待 MFA 状态)带到组织主机完成第二因子。
+// earlier=true 时以实例主域为 rpId,只列早期在根域登记的凭证。
 export async function handlePasskeyMfaOptions(c: Context<XidHonoEnv>): Promise<Response> {
   const session = await requireMfaSession(c)
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const credentials = await listEligiblePasskeyCredentials(db, session)
   if (credentials.length === 0) throw new AppError('mfa_setup_required')
-  if (passkeyCeremonyOrigin(c, tenant)) throw new AppError('invalid_request')
+  const ceremonyOrigin = passkeyCeremonyOrigin(c, tenant)
+  if (ceremonyOrigin) {
+    const continuePath = await readHandoffContinue(c, MFA_PATH)
+    return c.json({ handoff: { url: handoffPrepareUrl(c, ceremonyOrigin, continuePath) } })
+  }
 
+  const earlierRpId = earlierPasskeyRpId(tenant)
+  const earlierCredentials = credentials.filter((cred) => isEarlierPasskey(tenant, cred))
+  const useEarlier = (await readEarlierFlag(c)) && earlierRpId !== null
+  const offered = useEarlier ? earlierCredentials : credentials
+  if (offered.length === 0) throw new AppError('mfa_setup_required')
   const challenge = await createChallenge(c.env, challengeKey(session.sessionId, tenant.tenantId))
   return c.json({
     challenge,
-    rpId: tenant.rpId,
+    rpId: useEarlier ? earlierRpId : tenant.rpId,
     userVerification: 'required',
     timeout: CHALLENGE_TTL_MS,
-    allowCredentials: credentials.map((cred) => ({
+    earlierAvailable: earlierRpId !== null && earlierCredentials.length > 0,
+    allowCredentials: offered.map((cred) => ({
       id: cred.credentialId,
       type: 'public-key',
       transports: cred.transports,
     })),
   })
+}
+
+async function readEarlierFlag(c: Context<XidHonoEnv>): Promise<boolean> {
+  const json = await readJsonBody(c)
+  if (!json.ok || typeof json.value !== 'object' || json.value === null) return false
+  return (json.value as { earlier?: unknown }).earlier === true
 }
 
 export async function handlePasskeyMfaVerify(c: Context<XidHonoEnv>): Promise<Response> {

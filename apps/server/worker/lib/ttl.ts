@@ -29,6 +29,10 @@ export const BACKCHANNEL_LOGOUT_TOKEN_TTL_SEC = 120
 export const TOKEN_EXCHANGE_ID_TOKEN_TTL_SEC = 300
 // WebAuthn challenge TTL(01 章:5-10min 范围内取 7min)
 export const WEBAUTHN_CHALLENGE_TTL_MS = 7 * 60 * 1000
+// 跨主机会话交接 grant:签发后由浏览器立即表单提交,只需覆盖一次跳转
+export const SESSION_HANDOFF_TTL_MS = 2 * 60 * 1000
+// 交接 state cookie:覆盖跳到目标主机、完成 WebAuthn 仪式再回来的整个交互
+export const SESSION_HANDOFF_STATE_MAX_AGE_SEC = 10 * 60
 // Hosted Auth guest 入口 capability:短期、一次性，仅覆盖 config -> submit 的交互窗口。
 export const GUEST_ENTRY_CAPABILITY_TTL_MS = 5 * 60 * 1000
 // magic link token 有效期(01 章 4:15min 单次有效)

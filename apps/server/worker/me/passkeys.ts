@@ -8,13 +8,14 @@ import { and, asc, eq, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import { PASSKEY_DEVICE_NAME_MAX_LENGTH, PASSKEY_LIMIT } from '../auth/passkey-helpers'
+import { isEarlierPasskey } from '../auth/passkey-rp-ids'
 import { AppError } from '../lib/errors'
 import {
   assertStrongFactorRemovable,
   retireSupplementaryFactorsWithoutStrongFactor,
 } from '../lib/mfa-methods'
 import { requireStepUp } from '../lib/step-up'
-import type { XidHonoEnv } from '../lib/types'
+import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
 import { loadUserCredentialLabel, requireSession, toIso } from './shared'
 import { hasOtherSignInMethod } from './sign-in-methods'
@@ -36,6 +37,8 @@ type PasskeyView = {
   transports: readonly string[]
   backedUp: boolean
   deviceType: PasskeyDeviceType
+  // 早期在实例主域登记的凭证:仍可在组织地址登录,账户页提示在当前地址重新登记
+  earlier: boolean
 }
 
 type PasskeyListResponse = { data: PasskeyView[]; limit: number }
@@ -49,8 +52,12 @@ type PasskeySignalResponse = {
   allAcceptedCredentialIds: string[]
 }
 
-function toPasskeyView(row: typeof schema.passkeyCredentials.$inferSelect): PasskeyView {
+function toPasskeyView(
+  tenant: TenantVar,
+  row: typeof schema.passkeyCredentials.$inferSelect,
+): PasskeyView {
   return {
+    earlier: isEarlierPasskey(tenant, row),
     id: row.id,
     deviceName: row.deviceName ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -78,7 +85,11 @@ app.get('/', async (c) => {
   const session = await requireSession(c, { pendingStatuses: ['pending_mfa_setup'] })
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   const rows = await listActivePasskeys(db, session.userId)
-  const body: PasskeyListResponse = { data: rows.map(toPasskeyView), limit: PASSKEY_LIMIT }
+  const tenant = c.get('tenant')
+  const body: PasskeyListResponse = {
+    data: rows.map((row) => toPasskeyView(tenant, row)),
+    limit: PASSKEY_LIMIT,
+  }
   return c.json(body)
 })
 
@@ -121,7 +132,7 @@ app.patch('/:id', async (c) => {
   const deviceName = body.deviceName ?? null
   const [updated] = await db.passkeyCredentials.update({ deviceName: deviceName || null }, where)
   if (!updated) throw new AppError('not_found', { httpStatus: 404 })
-  return c.json(toPasskeyView(updated))
+  return c.json(toPasskeyView(c.get('tenant'), updated))
 })
 
 app.delete('/:id', async (c) => {

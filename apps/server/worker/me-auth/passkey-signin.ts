@@ -20,6 +20,7 @@ import { postAuthRedirectPath, resolvePostAuthMfaGate } from '../lib/mfa-session
 import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
 import { firstIssuePath, readJsonBody, validateCredentialBody } from '../lib/validate'
 import { createChallenge } from '../auth/passkey-helpers'
+import { earlierPasskeyRpId } from '../auth/passkey-rp-ids'
 import { verifyPasskeyAssertion } from '../auth/passkey-assertion'
 import { requestIp, requestUserAgent, verifyTurnstile } from './shared'
 import { assertMethodAllowed, assertTenantResolvedForWebAuthn } from '../auth/hosted-policy'
@@ -31,11 +32,14 @@ import {
   withTenant,
 } from './instance-login'
 import {
-  beginPasskeyCeremonyHandoff,
   handoffStateSchema,
+  issuerOrigin,
   mintSessionHandoff,
   passkeyCeremonyOrigin,
+  requestOrigin,
+  setHandoffState,
 } from './passkey-handoff'
+import { handoffReturnPath, isAuthorizeContinuation } from './passkey-handoff-paths'
 
 // challenge DO key:per 匿名 ceremony,用前端原样回传的 sessionId(不透明 handle)。
 function challengeKey(sessionId: string, tenantId: string): string {
@@ -65,13 +69,14 @@ const challengeBodySchema = v.object({
   identifier: v.optional(v.string()),
   organizationId: v.optional(v.nullable(v.string())),
   clientId: v.optional(v.nullable(v.string())),
+  // 在组织子域上以实例主域为 rpId 发起仪式,只用于早期在根域登记的 passkey。
+  earlier: v.optional(v.boolean()),
 })
 
-async function resolvePasskeyChallengeTenant(c: Context<XidHonoEnv>): Promise<TenantVar> {
-  const current = c.get('tenant')
-  if (!isInstanceEntryContext(current)) return current
-  // challenge 阶段不触达凭证存在性,body 仅用于 tenant 解析:坏 JSON 按 {} 处理,
-  // 形状失败走 validation_failed(此处 422 不泄露任何账户信息)。
+type ChallengeBody = v.InferOutput<typeof challengeBodySchema>
+
+// challenge 阶段不触达凭证存在性:坏 JSON 按 {} 处理,形状失败走 validation_failed(不泄露账户信息)。
+async function readChallengeBody(c: Context<XidHonoEnv>): Promise<ChallengeBody> {
   const json = await readJsonBody(c)
   const parsed = v.safeParse(challengeBodySchema, json.ok ? json.value : {})
   if (!parsed.success) {
@@ -80,7 +85,15 @@ async function resolvePasskeyChallengeTenant(c: Context<XidHonoEnv>): Promise<Te
       meta: { paramName: firstIssuePath(parsed.issues) },
     })
   }
-  const body = parsed.output
+  return parsed.output
+}
+
+async function resolvePasskeyChallengeTenant(
+  c: Context<XidHonoEnv>,
+  body: ChallengeBody,
+): Promise<TenantVar> {
+  const current = c.get('tenant')
+  if (!isInstanceEntryContext(current)) return current
   const selectedOrganizationId = body.organizationId?.trim()
   if (body.clientId?.trim()) {
     return resolveEntryTenant(c, [], selectedOrganizationId, {
@@ -138,7 +151,8 @@ async function resolvePasskeyVerifyTenant(
 }
 
 export async function handlePasskeyChallenge(c: Context<XidHonoEnv>): Promise<Response> {
-  const tenant = await resolvePasskeyChallengeTenant(c)
+  const body = await readChallengeBody(c)
+  const tenant = await resolvePasskeyChallengeTenant(c, body)
   try {
     assertTenantResolvedForWebAuthn(tenant)
     assertMethodAllowed(tenant, 'passkey', 'login')
@@ -152,13 +166,19 @@ export async function handlePasskeyChallenge(c: Context<XidHonoEnv>): Promise<Re
   // 根域解析出的组织 rpId 是其子域:不在这里发 challenge,让浏览器到 rpId 主机完成仪式。
   const ceremonyOrigin = passkeyCeremonyOrigin(c, tenant)
   if (ceremonyOrigin) {
-    const state = beginPasskeyCeremonyHandoff(c)
+    const state = setHandoffState(c)
     return c.json({ ceremony: { origin: ceremonyOrigin, state }, organizationId: tenant.tenantId })
   }
   // sessionId 是不透明 challenge handle(非登录 session);前端原样回传到 verify。
   const sessionId = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
   const challenge = await createChallenge(c.env, challengeKey(sessionId, tenant.tenantId))
-  return c.json({ challenge, sessionId, organizationId: tenant.tenantId })
+  const earlierRpId = body.earlier ? earlierPasskeyRpId(tenant) : null
+  return c.json({
+    challenge,
+    sessionId,
+    organizationId: tenant.tenantId,
+    ...(earlierRpId ? { rpId: earlierRpId } : {}),
+  })
 }
 
 export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Response> {
@@ -212,12 +232,15 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
       continueParam: flow.continuePath,
       fallback: defaultLandingPathFor(tenant),
     })
+    // 应用登录要回 issuer 主机续跑 /authorize;仍需 MFA 时先在本主机完成,再经返回入口交回。
+    const returnsToIssuer =
+      isAuthorizeContinuation(returnPath) && requestOrigin(c) !== issuerOrigin(tenant)
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
       userId,
-      returnPath,
+      returnPath: returnsToIssuer ? handoffReturnPath(returnPath) : returnPath,
       sessionAmr: PASSKEY_AUTH_CONTEXT.amr,
     })
-    await issueSession(c, {
+    const issued = await issueSession(c, {
       sessionId: createPersistedId('session'),
       userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
@@ -228,18 +251,25 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
       userAgent: requestUserAgent(c),
     })
 
-    // 从根域转来的应用登录:会话已就绪时交还根域续跑 /authorize;仍需 MFA 时留在本主机完成。
-    const handoff =
-      body.handoffState && !mfaGate.redirectUrl && !mfaGate.sessionStatus
-        ? await mintSessionHandoff(c, {
-            tenant,
-            userId,
-            authenticatedAt: now,
-            continuePath: returnPath,
-            state: body.handoffState,
-          })
-        : null
-    if (handoff) return c.json({ handoff })
-    return c.json({ redirectUrl: mfaGate.redirectUrl ?? returnPath })
+    if (returnsToIssuer && body.handoffState && !mfaGate.redirectUrl) {
+      const handoff = await mintSessionHandoff(c, {
+        tenant,
+        targetOrigin: issuerOrigin(tenant),
+        continuePath: returnPath,
+        state: body.handoffState,
+        session: {
+          userId,
+          status: issued.session.status,
+          authenticatedAt: now,
+          acr: PASSKEY_AUTH_CONTEXT.acr,
+          amr: PASSKEY_AUTH_CONTEXT.amr,
+          aal: PASSKEY_AUTH_CONTEXT.aal,
+          rememberMe: true,
+        },
+      })
+      return c.json({ handoff })
+    }
+    const continuePath = returnsToIssuer ? handoffReturnPath(returnPath) : returnPath
+    return c.json({ redirectUrl: mfaGate.redirectUrl ?? continuePath })
   })
 }

@@ -164,13 +164,19 @@ export async function persistSignCount(opts: {
   newSignCount: number
   signCountAnomaly: boolean
   backedUp: boolean
+  rpId?: string
   db: ReturnType<typeof createTenantDb>
 }): Promise<void> {
-  const { c, tenantId, cred, newSignCount, signCountAnomaly, backedUp, db } = opts
+  const { c, tenantId, cred, newSignCount, signCountAnomaly, backedUp, rpId, db } = opts
   if (signCountAnomaly) enqueueSignCountAnomalyAudit(c, { tenantId, cred }, newSignCount)
   const targetSignCount = Math.max(cred.signCount, newSignCount)
   const updated = await db.passkeyCredentials.update(
-    { signCount: targetSignCount, backedUp, lastUsedAt: new Date() },
+    {
+      signCount: targetSignCount,
+      backedUp,
+      lastUsedAt: new Date(),
+      ...(rpId === undefined ? {} : { rpId }),
+    },
     and(
       eq(schema.passkeyCredentials.credentialId, cred.credentialId),
       eq(schema.passkeyCredentials.userId, cred.userId),
@@ -221,6 +227,7 @@ export async function persistNewCredential(opts: {
       tenantId,
       userId,
       credentialId: credentialIdBase64,
+      rpId: verified.rpId,
       publicKey: Buffer.from(verified.publicKey),
       coseAlg: verified.coseAlg,
       aaguid: Buffer.from(verified.aaguid),

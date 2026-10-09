@@ -17,6 +17,7 @@ import {
 } from '../me-auth/instance-login'
 import { resolveHostedAuthContext, type HostedAuthContext } from './hosted-context'
 import { hasProviderSecret } from './social-providers'
+import { earlierPasskeyRpIdForRequest } from './passkey-rp-ids'
 import { publicTurnstileSiteKey } from '../me-auth/shared'
 import {
   createGuestEntryCapability,
@@ -63,6 +64,7 @@ async function withRuntimeCapabilities(input: {
 }): Promise<
   PublicHostedAuthConfig & {
     defaultLandingPath: DefaultLandingPath
+    earlierPasskeyRpId: string | null
     branding: OrgBranding | null
     context: HostedAuthContext
   }
@@ -90,6 +92,8 @@ async function withRuntimeCapabilities(input: {
     turnstileSiteKey: publicTurnstileSiteKey(env),
     guest,
     defaultLandingPath: defaultLandingPathFor(currentTenant),
+    // 组织 rpId 主机上可用实例主域发起仪式,供早期在根域登记的 passkey 使用;其他主机为 null。
+    earlierPasskeyRpId: earlierPasskeyRpIdForRequest(requestUrl, currentTenant),
     branding: brandingFor(resolvedTenant),
     context: await resolveHostedAuthContext(env.DB, resolvedTenant, flow.applicationClientId),
   }

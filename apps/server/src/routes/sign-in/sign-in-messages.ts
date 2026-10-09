@@ -45,6 +45,8 @@ export function useSignInErrorMessage(): (key: SignInErrorKey | null) => string 
         return t`Your sign-in took too long and expired. Start again.`
       case 'sign_in_failed':
         return t`We couldn't sign you in with that account. Try again or sign in another way.`
+      case 'handoff_failed':
+        return t`We couldn't carry your sign-in over to this address. Sign in again to continue.`
       case 'verify_email_sent':
         return t`Check your email to confirm your address, then sign in.`
       default:

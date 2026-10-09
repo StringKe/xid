@@ -33,7 +33,11 @@ import { activateSessionAfterMfaSetup, resolvePostAuthMfaGate } from '../lib/mfa
 import { loadUserCredentialLabel, requireSession, type SessionRequirement } from '../me/shared'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
 import { loadTrustedAttestationRoots } from '../v1/webauthn-trusted-roots'
-import { handleSessionHandoff, passkeyCeremonyOrigin } from '../me-auth/passkey-handoff'
+import { passkeyCeremonyOrigin } from '../me-auth/passkey-handoff'
+import { handoffPrepareUrl, readHandoffContinue } from '../me-auth/passkey-handoff-paths'
+import { registerSessionHandoffRoutes } from '../me-auth/passkey-handoff-routes'
+
+const ACCOUNT_SECURITY_PATH = '/account/security'
 
 const passkey = new Hono<XidHonoEnv>()
 
@@ -70,10 +74,7 @@ function resolveAttestationPreference(tenant: TenantVar): 'none' | 'indirect' | 
   return 'none'
 }
 
-async function assertResolvedWebAuthnTenant(
-  c: Context<XidHonoEnv>,
-  tenant: TenantVar,
-): Promise<void> {
+async function assertPasskeyPolicy(c: Context<XidHonoEnv>, tenant: TenantVar): Promise<void> {
   try {
     assertTenantResolvedForWebAuthn(tenant)
     assertMethodAllowed(tenant, 'passkey', 'login')
@@ -84,7 +85,14 @@ async function assertResolvedWebAuthnTenant(
       action: 'login',
     })
   }
-  // 凭证只能绑定到组织自己的 rpId 主机,不能在根域以父域或别的主机注册。
+}
+
+// 凭证只能绑定到组织自己的 rpId 主机,不能在根域以父域或别的主机注册。
+async function assertResolvedWebAuthnTenant(
+  c: Context<XidHonoEnv>,
+  tenant: TenantVar,
+): Promise<void> {
+  await assertPasskeyPolicy(c, tenant)
   if (passkeyCeremonyOrigin(c, tenant)) throw new AppError('invalid_request')
 }
 
@@ -92,11 +100,17 @@ function registrationChallengeKey(userId: string, tenantId: string): string {
   return `reg:${userId}:${tenantId}`
 }
 
-// POST /auth/passkey/register/options -- 返回 PublicKeyCredentialCreationOptions
+// POST /auth/passkey/register/options -- 返回 PublicKeyCredentialCreationOptions;
+// 不在组织 rpId 主机上时返回交接地址,由浏览器带着会话到组织主机完成登记。
 passkey.post('/register/options', async (c) => {
   const tenant = c.get('tenant')
   const session = await requireSession(c, PASSKEY_ENROLLMENT_SESSION)
-  await assertResolvedWebAuthnTenant(c, tenant)
+  await assertPasskeyPolicy(c, tenant)
+  const ceremonyOrigin = passkeyCeremonyOrigin(c, tenant)
+  if (ceremonyOrigin) {
+    const continuePath = await readHandoffContinue(c, ACCOUNT_SECURITY_PATH)
+    return c.json({ handoff: { url: handoffPrepareUrl(c, ceremonyOrigin, continuePath) } })
+  }
 
   const db = createTenantDb(c.env.DB, tenant)
   const existing = await db.passkeyCredentials.findMany(
@@ -213,8 +227,8 @@ passkey.post('/register/verify', async (c) => {
   return c.json({ ok: true })
 })
 
-// POST /auth/passkey/handoff -- rpId 主机完成 passkey 登录后,浏览器把一次性交接 grant 带回 issuer 主机
-passkey.post('/handoff', handleSessionHandoff)
+// /auth/passkey/handoff/* -- 根域与组织 rpId 主机之间的一次性会话交接
+registerSessionHandoffRoutes(passkey)
 
 export function registerPasskeyRoutes(app: Hono<XidHonoEnv>): void {
   app.route('/auth/passkey', passkey)

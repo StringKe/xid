@@ -274,6 +274,43 @@ describe('verifyAuthentication: four-verification negative paths', () => {
   })
 })
 
+describe('verifyAuthentication: additional rpIds for earlier credentials', () => {
+  it('accepts an assertion bound to an additional rpId and reports it', async () => {
+    const { input } = await buildValidAuth({ rpId: 'xid.dev' })
+
+    const result = await verifyAuthentication({
+      ...input,
+      expectedRpId: 'acme.xid.dev',
+      additionalRpIds: ['xid.dev'],
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.rpId).toBe('xid.dev')
+  })
+
+  it('reports the primary rpId when the assertion is bound to it', async () => {
+    const { input } = await buildValidAuth({ rpId: 'acme.xid.dev' })
+
+    const result = await verifyAuthentication({
+      ...input,
+      expectedRpId: 'acme.xid.dev',
+      additionalRpIds: ['xid.dev'],
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.rpId).toBe('acme.xid.dev')
+  })
+
+  it('rejects an assertion bound to the parent domain when no additional rpId is allowed', async () => {
+    const { input } = await buildValidAuth({ rpId: 'xid.dev' })
+
+    const result = await verifyAuthentication({ ...input, expectedRpId: 'acme.xid.dev' })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('rpid_mismatch')
+  })
+})
+
 describe('verifyAuthentication: sign_count clone detection', () => {
   it('flags anomaly when new <= stored non-zero (non-sync passkey)', async () => {
     const { input } = await buildValidAuth({

@@ -10,6 +10,7 @@ import { AppError } from '../lib/errors'
 import { hostedAuthOriginForTenant } from '../lib/hosted-origin'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { buildStoredCredential, consumeChallenge, persistSignCount } from './passkey-helpers'
+import { additionalRpIdsFor } from './passkey-rp-ids'
 
 export type PasskeyAssertionResponse = {
   clientDataJSON: string
@@ -65,6 +66,8 @@ export async function verifyPasskeyAssertion(opts: {
   userId?: string
 }): Promise<VerifiedPasskeyAssertion> {
   const { c, tenant, db, challengeKey, credentialId, response, userId } = opts
+  // 仪式只在组织 rpId 主机进行;根域等其他主机不受理断言,也不消费 challenge。
+  if (new URL(c.req.url).hostname !== tenant.rpId) throw new AppError('invalid_request')
   const challengeVal = await consumeChallenge(c.env, challengeKey)
   if (!challengeVal) throw new AppError('challenge_invalid')
 
@@ -79,6 +82,7 @@ export async function verifyPasskeyAssertion(opts: {
     ceremony: 'authentication',
     expectedChallenge: decodeWebAuthnBytes(challengeVal),
     expectedRpId: tenant.rpId,
+    additionalRpIds: credential ? additionalRpIdsFor(tenant, credential) : [],
     expectedOrigins: webAuthnOrigins(tenant, new URL(c.req.url).origin),
     clientDataJson: decodeWebAuthnBytes(response.clientDataJSON),
     authenticatorData: decodeWebAuthnBytes(response.authenticatorData),
@@ -101,6 +105,8 @@ export async function verifyPasskeyAssertion(opts: {
     newSignCount: result.value.signCount,
     signCountAnomaly: result.value.signCountAnomaly,
     backedUp: result.value.credentialBackedUp,
+    // rp_id 为 NULL 的凭证一旦以组织 rpId 验签通过,就记下实际绑定,之后不再走实例主域。
+    ...(credential.rpId === null && result.value.rpId === tenant.rpId ? { rpId: tenant.rpId } : {}),
     db,
   })
   return { credential, verification: result.value }

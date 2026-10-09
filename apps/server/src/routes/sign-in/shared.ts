@@ -201,13 +201,19 @@ export type SignInErrorKey =
   | FederatedSignInErrorKey
   | SignInCorrectableErrorKey
 
-// 社交 / 企业 SSO 回调失败时 Worker 302 回 /sign-in?error=<key>;只接受这组白名单不透明码。
-export type FederatedSignInErrorKey = 'cancelled' | 'sign_in_failed' | 'session_expired'
+// 社交 / 企业 SSO 回调失败、跨主机会话交接失败时 Worker 302 回 /sign-in?error=<key>;
+// 只接受这组白名单不透明码。
+export type FederatedSignInErrorKey =
+  | 'cancelled'
+  | 'sign_in_failed'
+  | 'session_expired'
+  | 'handoff_failed'
 
 const FEDERATED_ERROR_KEYS: ReadonlySet<string> = new Set<FederatedSignInErrorKey>([
   'cancelled',
   'sign_in_failed',
   'session_expired',
+  'handoff_failed',
 ])
 
 export function federatedSignInErrorKey(value: string | undefined): FederatedSignInErrorKey | null {

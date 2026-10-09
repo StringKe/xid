@@ -258,13 +258,36 @@ describe('POST /auth/passkey/register/options', () => {
     expect(body['attestation']).toBe('none')
   })
 
-  it('refuses to start registration on a host other than the tenant rpId', async () => {
+  it('sends registration on another host to the tenant rpId host without a challenge', async () => {
     const challengeHandler = vi.fn(async () => new Response(null, { status: 201 }))
     const app = await makeApp()
 
     const res = await app.request(
       'https://xid.dev/auth/passkey/register/options',
       { method: 'POST' },
+      makeEnv(challengeHandler),
+    )
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { handoff: { url: string } }
+    const url = new URL(body.handoff.url)
+    expect(url.origin).toBe('https://test.xid.dev')
+    expect(url.pathname).toBe('/auth/passkey/handoff/prepare')
+    expect(url.searchParams.get('continue')).toBe('/account/security')
+    expect(challengeHandler).not.toHaveBeenCalled()
+  })
+
+  it('refuses to verify a registration on a host other than the tenant rpId', async () => {
+    const challengeHandler = vi.fn(async () => new Response(null, { status: 201 }))
+    const app = await makeApp()
+
+    const res = await app.request(
+      'https://xid.dev/auth/passkey/register/verify',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response: { clientDataJSON: 'a', attestationObject: 'b' } }),
+      },
       makeEnv(challengeHandler),
     )
 

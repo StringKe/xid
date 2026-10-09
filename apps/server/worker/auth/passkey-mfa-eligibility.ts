@@ -14,6 +14,7 @@ export type EligiblePasskeyCredential = {
   transports: string[]
   deviceName: string | null
   createdAt: Date
+  rpId: string | null
 }
 
 export type MfaChallengeContext = Pick<SessionData, 'userId' | 'amr'> & {
@@ -48,5 +49,6 @@ export async function listEligiblePasskeyCredentials(
     transports: row.transports ?? [],
     deviceName: row.deviceName ?? null,
     createdAt: row.createdAt,
+    rpId: row.rpId ?? null,
   }))
 }

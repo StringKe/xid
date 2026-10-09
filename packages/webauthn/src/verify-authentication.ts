@@ -65,12 +65,26 @@ function invalidCredentials(message: string): Result<VerifiedPasskey, XidError> 
   return fail(webauthnError('invalid_credentials', message))
 }
 
+// 每个候选都做一次常量时间比较,不因先命中而提前返回。
+async function matchRpId(rpIdHash: Uint8Array, rpIds: readonly string[]): Promise<string | null> {
+  let matched: string | null = null
+  for (const rpId of rpIds) {
+    const hash = new Uint8Array(
+      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rpId)),
+    )
+    if (constantTimeEqual(rpIdHash, hash) && matched === null) matched = rpId
+  }
+  return matched
+}
+
 function buildResult(
   stored: StoredCredential,
   parsed: Awaited<ReturnType<typeof parseAuthData>>,
-  signCountAnomaly: boolean,
+  outcome: { rpId: string; signCountAnomaly: boolean },
 ): VerifiedPasskey {
+  const { rpId, signCountAnomaly } = outcome
   return {
+    rpId,
     credentialId: stored.credentialId,
     publicKey: stored.publicKey,
     coseAlg: stored.coseAlg,
@@ -111,12 +125,11 @@ export async function verifyAuthentication(
     return invalidCredentials('malformed authenticatorData')
   }
 
-  const expectedRpIdHash = new Uint8Array(
-    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input.expectedRpId)),
-  )
-  if (!constantTimeEqual(parsed.rpIdHash, expectedRpIdHash)) {
-    return fail(webauthnError('rpid_mismatch'))
-  }
+  const matchedRpId = await matchRpId(parsed.rpIdHash, [
+    input.expectedRpId,
+    ...(input.additionalRpIds ?? []),
+  ])
+  if (matchedRpId === null) return fail(webauthnError('rpid_mismatch'))
 
   // UP 必须；UV 缺失直接拒绝，不降级为可选。
   if (!parsed.flags.userPresent) return fail(webauthnError('invalid_credentials', 'UP not set'))
@@ -152,5 +165,5 @@ export async function verifyAuthentication(
     ? false
     : detectSignCountAnomaly(parsed.signCount, stored.signCount)
 
-  return { ok: true, value: buildResult(stored, parsed, signCountAnomaly) }
+  return { ok: true, value: buildResult(stored, parsed, { rpId: matchedRpId, signCountAnomaly }) }
 }

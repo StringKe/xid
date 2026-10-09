@@ -32,6 +32,8 @@ export type WebAuthnVerificationInput = {
   ceremony: WebAuthnCeremony
   expectedChallenge: Uint8Array
   expectedRpId: string
+  // 认证时额外接受的 rpId(存量凭证绑定在实例主域);由调用方按凭证决定,注册不使用
+  additionalRpIds?: readonly string[]
   expectedOrigins: readonly string[]
   clientDataJson: Uint8Array
   authenticatorData: Uint8Array
@@ -42,6 +44,8 @@ export type WebAuthnVerificationInput = {
 }
 
 export type VerifiedPasskey = {
+  // authenticatorData 实际绑定的 rpId(expectedRpId 或 additionalRpIds 之一)
+  rpId: string
   credentialId: Uint8Array
   publicKey: Uint8Array
   coseAlg: CoseAlg

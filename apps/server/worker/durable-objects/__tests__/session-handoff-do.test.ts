@@ -2,7 +2,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sha256Hex } from '@xid-kit/crypto'
-import { SESSION_HANDOFF_TTL_MS, SessionHandoffDO } from '../session-handoff-do'
+import { SESSION_HANDOFF_TTL_MS } from '../../lib/ttl'
+import { SessionHandoffDO } from '../session-handoff-do'
 import { MockDurableObjectState } from './mock-do-state'
 
 const SECRET = 'opaque-handoff-secret'
@@ -18,6 +19,11 @@ async function createBody() {
     userId: 'user_1',
     continuePath: '/authorize?authz_request_id=req_1&client_id=client_1',
     authenticatedAt: 1_000,
+    sessionStatus: 'pending_mfa',
+    acr: 'urn:xid:aal1',
+    amr: ['pwd'],
+    aal: 1,
+    rememberMe: true,
     ttlMs: SESSION_HANDOFF_TTL_MS,
   }
 }
@@ -63,7 +69,13 @@ describe('SessionHandoffDO', () => {
     expect(stored).not.toContain(STATE)
     expect(first.status).toBe(200)
     await expect(first.json()).resolves.toMatchObject({
-      grant: { userId: 'user_1', tenantId: 'org_acme', authenticatedAt: 1_000 },
+      grant: {
+        userId: 'user_1',
+        tenantId: 'org_acme',
+        authenticatedAt: 1_000,
+        sessionStatus: 'pending_mfa',
+        amr: ['pwd'],
+      },
     })
     expect(second.status).toBe(404)
   })
@@ -107,6 +119,17 @@ describe('SessionHandoffDO', () => {
     const response = await post(handoff, '/consume', await consumeBody())
 
     expect(response.status).toBe(410)
+  })
+
+  it('refuses an unknown session status', async () => {
+    const { handoff } = makeDo()
+
+    const response = await post(handoff, '/create', {
+      ...(await createBody()),
+      sessionStatus: 'impersonating',
+    })
+
+    expect(response.status).toBe(400)
   })
 
   it('refuses a TTL longer than two minutes', async () => {

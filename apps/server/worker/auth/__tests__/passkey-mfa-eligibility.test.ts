@@ -93,6 +93,7 @@ describe('listEligiblePasskeyCredentials', () => {
       transports: ['internal'],
       deviceName: 'Laptop',
       createdAt: CREATED_AT,
+      rpId: null,
     })
   })
 })

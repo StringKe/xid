@@ -95,6 +95,7 @@ export async function verifyRegistration(
   return {
     ok: true,
     value: {
+      rpId: input.expectedRpId,
       credentialId: attested.credentialId,
       publicKey: attested.coseKeyBytes,
       coseAlg: attested.coseKey.alg,
