@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=working-tree source-blob=b785f279db37facfb857d273e6d0a9c8d215347c -->
+<!-- xid-translation source=docs/deployment.md source-commit=working-tree source-blob=10b244eac6c523c7dc60889fa662455dddfbb71c -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -383,11 +383,12 @@ Cron triggers:
 | `TURNSTILE_SECRET`              | Turnstile Siteverify 服务端 secret,只能与 `TURNSTILE_SITE_KEY` 成对使用   |
 | `CLOUDFLARE_FOR_SAAS_API_TOKEN` | zone-scoped Cloudflare for SaaS Custom Hostnames create/read/delete token |
 | `STRIPE_SECRET_KEY`             | 可选按量计费:Customer Portal 与 MAU meter-event API 凭证                  |
-| `STRIPE_WEBHOOK_SECRET`         | 可选按量计费:Stripe webhook HMAC secret,用于发票与付款对账                |
+| `STRIPE_WEBHOOK_SECRET`         | 可选按量计费:Stripe webhook HMAC secret,用于订阅状态对账                  |
 | `GOOGLE_CLIENT_SECRET`          | Google Social OAuth client secret                                         |
 | `GITHUB_CLIENT_SECRET`          | GitHub Social OAuth client secret                                         |
 | `MICROSOFT_CLIENT_SECRET`       | Microsoft Social OAuth client secret                                      |
-| `APPLE_CLIENT_SECRET`           | Apple Social OAuth client secret                                          |
+| `APPLE_PRIVATE_KEY`             | Sign in with Apple 的 `.p8` 私钥(PKCS#8 PEM),用于签发 client secret       |
+| `APPLE_CLIENT_SECRET`           | Apple Social OAuth 静态 client secret JWT,只在未配置 Apple 签发密钥时使用 |
 | `GITHUB_EMU_CLIENT_SECRET`      | GitHub Enterprise Managed Users OAuth client secret                       |
 
 强烈建议在首次 bootstrap 前就设置 `BOOTSTRAP_TOKEN`:没有它,任何人都能对空库调用 `/admin/bootstrap` 抢占初始超管。
@@ -436,6 +437,35 @@ pnpm --dir apps/server exec wrangler secret put SOCIAL_ACME_CLIENT_SECRET
 该映射不会创建 secret,也绝不能放 credential value。非法 JSON、非法 provider name,或映射
 到 `KEK` 等无关 binding 时会被忽略,对应 provider 保持不可用。
 
+#### Sign in with Apple 的 client secret
+
+Apple 只接受 ES256 JWT 作为 `client_secret`,有效期最长 6 个月。配置下面三项后由 Core 按需签发:
+
+| 名称                | 类型           | 值                                                   |
+| ------------------- | -------------- | ---------------------------------------------------- |
+| `APPLE_TEAM_ID`     | Variable       | Apple Developer Team ID,写入 `iss`                   |
+| `APPLE_KEY_ID`      | Variable       | Sign in with Apple 密钥的 Key ID,写入 JWT `kid`      |
+| `APPLE_PRIVATE_KEY` | Workers Secret | 下载的 `.p8` 密钥内容(PKCS#8 PEM,可用 `\n` 转义换行) |
+
+```bash
+pnpm --dir apps/server exec wrangler secret put APPLE_PRIVATE_KEY
+```
+
+- 三项都配置:Core 签发 `client_secret`,`iss` 为 Team ID,`sub` 为组织配置的 Apple client id(Services ID),`aud` 为 `https://appleid.apple.com`,有效期 1 小时。签好的值缓存在 isolate 内,到期前 5 分钟重新签发。此时不读取 `APPLE_CLIENT_SECRET`,Console 显示的凭据来源是 `APPLE_PRIVATE_KEY`。
+- 三项都不配置:Core 使用静态 `APPLE_CLIENT_SECRET`。该值必须是你自己签好的 ES256 JWT,过期后 Apple 登录失效。
+- 只配置一项或两项:配置被拒绝。Apple 视为未配置,Hosted Auth 不显示 Apple 登录,换 code 时返回 `server_error`,不会回退到 `APPLE_CLIENT_SECRET`。
+
+#### Microsoft 邮箱的信任规则
+
+Microsoft Entra ID 的令牌不带 `email_verified`,租户管理员可以把 `email` 声明设成任意值。因此 XID 只在 ID token 带有可选声明 `xms_edov` 且值为布尔 `true` 时,才把 Microsoft 邮箱视为已验证;Entra ID 在邮箱域名已在用户所属 Entra 租户中验证时设置该声明。在应用注册里把 `xms_edov` 添加为 ID token 可选声明(Token configuration -> Add optional claim)。不配置时所有 Microsoft 邮箱都是未验证。
+
+各 provider 策略对邮箱的处理:
+
+- 已绑定的身份按 provider user id 登录,不要求已验证邮箱。
+- `requireVerifiedEmail` 只限制建号:新建账号需要已验证邮箱。按邮箱关联到已有账号始终要求 provider 邮箱和 XID 中的邮箱都已验证。
+- `allowedEmailDomains`(实例级或 provider 级)只匹配已验证邮箱。配置了白名单时,没有白名单内已验证邮箱的建号被拒绝;已绑定身份的登录不会因为缺少已验证邮箱被拦。`blockedEmailDomains` 对 provider 返回的任何邮箱生效。
+- 邮箱在匹配前去掉首尾空白并转为小写。
+
 本仓库不提交任何 `.env` 或 secret 值。
 
 ### 可选按量计费(Stripe)
@@ -452,8 +482,9 @@ adapter,不是 license check,也不是 feature gate。
 
 这三项合起来就是计费开关:
 
-- 三项都配置:按量计费开启。Console 在用量总览中增加欠费状态和 Customer Portal 入口,daily
-  Cron 向 meter 上报 MAU。
+- 三项都配置:按量计费开启。Console 用量总览增加计费状态列和「待在 Stripe 核对的 MAU 上报」
+  列表,单个组织的资源配额页增加 Customer Portal 按钮(用量总览每行有链接跳转过去),daily Cron
+  向 meter 上报 MAU。
 - 三项都不配置:按量计费关闭。所有功能照常可用,Console 只显示用量,不上报 MAU。这是默认状态。
 - 只配置了一部分:计费 fail-closed。`/v1/platform/usage`、`/v1/platform/billing/config` 和 Portal
   端点返回 `server_error`,daily Stripe MAU phase 跳过并记日志,其他 daily phase 照常运行。
@@ -462,9 +493,43 @@ XID 从不创建 Checkout Session,也从不售卖套餐。需要向某个租户�
 中创建 customer 和按量 subscription,并把 subscription metadata `xid_tenant_id` 设为该租户顶层
 Organization 的 id。把 Stripe webhook destination 配置为 public HTTPS endpoint
 `https://<your-domain>/v1/billing/stripe/webhook`。Core 在解析 JSON 前验证 Stripe timestamped
-HMAC,按 event id 去重,把 customer 绑定到租户,并阻止旧事件覆盖更新的计费状态。daily Cron 会
-在调用 Stripe 前把精确 meter identifier、customer、value、event name 和 timestamp 写入 D1,
-因此 provider 已接受而本地 completion 未完成时,重试仍使用同一个 idempotent payload。
+HMAC,按 event id 去重,把 customer 绑定到租户,并阻止旧事件覆盖更新的计费状态。
+
+订阅状态按 Stripe subscription id 分别记录,来源是 `customer.subscription.created`、
+`customer.subscription.updated` 和 `customer.subscription.deleted`。Stripe 的 `active` 和
+`trialing` 保持原名;`canceled`、`paused`、`incomplete_expired` 以及已删除的订阅记为 `canceled`;
+其他 Stripe 状态(包括 `past_due`、`unpaid`、`incomplete`)记为 `past_due`(显示为逾期)。租户的
+计费状态取其所有订阅中最好的一个(依次为 `active`、`trialing`、`past_due`、`canceled`),所以旧订阅
+被删除不会把仍有有效订阅的租户标成 canceled。invoice 事件(包括 `invoice.payment_failed`)不改变
+状态;扣款失败通过订阅变为 `past_due` 或 `unpaid` 反映到 XID。只有状态为 `active` 或 `trialing`
+的租户上报 MAU。
+
+Stripe meter 必须与 XID 发送的数据一致:
+
+- event name 等于 `STRIPE_METER_EVENT_NAME`。
+- 聚合方式为 `sum`,因为 XID 每次发送的是当月 MAU 的新增量,不是总数。
+- customer 映射使用默认 payload 键 `stripe_customer_id`,value 使用默认 payload 键 `value`。
+- 按量订阅的计费周期锚定在每月 1 日 00:00 UTC,因为 XID 按 UTC 自然月统计 MAU,每次上报的
+  timestamp 都落在该月内。
+
+daily Cron 同时上报当月和上月,所以月末最后一天 02:00 UTC 之后新增的 MAU 会在第二天补报,
+timestamp 取该月最后一秒。调用 Stripe 前,Core 把精确 meter identifier、customer、value、event
+name 和 timestamp 写入 D1,每次重试都重发同一份 payload。Stripe 调用失败时经 `xid-metering` Queue
+按指数退避重试,从 30 分钟起翻倍(五次重试共约 15.5 小时),都落在 Stripe identifier 的 24 小时
+去重窗口内。去重窗口从第一次可能已被 Stripe 入账的发送起算;Stripe 返回 `409` 以外的 `4xx` 属于
+明确拒绝,不开始计时。结果不明的发送超过 24 小时后,Core 不再自动重试这条上报,改为列入对账。
+
+Instance Manager 在 Console 用量总览的「待在 Stripe 核对的 MAU 上报」中处理这些上报,对应接口:
+
+- `GET /v1/platform/billing/meter-reports`:cursor 分页列表,包含组织、月份、新增 MAU、Stripe
+  event identifier 和等待时间。
+- `POST /v1/platform/billing/meter-reports/resolve`,请求体 `{ tenantId, period, identifier, action }`:
+  在 Stripe 中找到该事件后用 `mark_reported` 把这次增量记为已上报;确认 Stripe 没有入账后用
+  `report_again` 以新 identifier 重新发送同一增量。`report_again` 要求计费已开启,事件 timestamp
+  超过 35 天(Stripe 接受的上限)时返回 `422`。identifier 已过期时返回 `409`。
+
+每次处理都写平台审计,动作为 `billing.meter_report.marked_reported` 或
+`billing.meter_report.reported_again`。
 
 仓库测试只证明本地 signature、ordering、deduplication 和 retry contract。真实 Stripe
 customer、按量 subscription、webhook delivery、Portal 与 meter-event 运行在运营方提供外部资源
@@ -847,19 +912,35 @@ Console 只读展示这些名称;调用方提交与固定 provider contract 不�
 
 WhatsApp provider:
 
-| Provider                   | 必填配置                                                                                                       |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `WHATSAPP_PROVIDER=meta`   | `WHATSAPP_META_PHONE_NUMBER_ID`、`WHATSAPP_META_ACCESS_TOKEN`;可选 `WHATSAPP_META_API_VERSION`,默认 `v25.0`    |
-| `WHATSAPP_PROVIDER=twilio` | `TWILIO_ACCOUNT_SID`、`TWILIO_AUTH_TOKEN`,并配置 `WHATSAPP_FROM`、`SMS_FROM` 或 `TWILIO_MESSAGING_SERVICE_SID` |
+| Provider                   | 必填配置                                                                                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WHATSAPP_PROVIDER=meta`   | `WHATSAPP_META_PHONE_NUMBER_ID`、`WHATSAPP_META_ACCESS_TOKEN`、`WHATSAPP_TEMPLATE_NAME`、`WHATSAPP_TEMPLATE_LANGUAGE`;可选 `WHATSAPP_META_API_VERSION`,默认 `v25.0`       |
+| `WHATSAPP_PROVIDER=twilio` | `TWILIO_ACCOUNT_SID`、`TWILIO_AUTH_TOKEN`、`TWILIO_WHATSAPP_CONTENT_SID`,并配置发送方:组织 `from`、`WHATSAPP_FROM`、`SMS_FROM` 或 `TWILIO_WHATSAPP_MESSAGING_SERVICE_SID` |
+
+WhatsApp 验证码一律以已审批的 authentication 类模板发送,24 小时客服窗口之外的用户也能收到:
+
+- Meta:创建带复制验证码按钮的 authentication 模板,把模板名和语言代码填入 `WHATSAPP_TEMPLATE_NAME` 和 `WHATSAPP_TEMPLATE_LANGUAGE`。XID 把验证码同时填入 body 参数和按钮参数(按钮 index `0`)。
+- Twilio:创建已获 WhatsApp authentication 审批的 Content 模板,变量 `{{1}}` 为验证码,把它的 `HX...` SID 填入 `TWILIO_WHATSAPP_CONTENT_SID`。XID 发送 `ContentSid` 和 `ContentVariables` `{"1":"<code>"}`。
+
+缺少任一模板配置时渠道视为未就绪,Hosted Auth 不显示 WhatsApp OTP。
 
 SMS provider:
 
-| Provider                   | 必填配置                                                                                      |
-| -------------------------- | --------------------------------------------------------------------------------------------- |
-| `SMS_PROVIDER=twilio`      | `TWILIO_ACCOUNT_SID`、`TWILIO_AUTH_TOKEN`,并配置 `SMS_FROM` 或 `TWILIO_MESSAGING_SERVICE_SID` |
-| `SMS_PROVIDER=vonage`      | `VONAGE_API_KEY`、`VONAGE_API_SECRET`、`SMS_FROM`                                             |
-| `SMS_PROVIDER=infobip`     | `INFOBIP_API_KEY`、`INFOBIP_BASE_URL`、`SMS_FROM`                                             |
-| `SMS_PROVIDER=messagebird` | `MESSAGEBIRD_ACCESS_KEY`、`SMS_FROM`                                                          |
+| Provider                   | 必填配置                                                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `SMS_PROVIDER=twilio`      | `TWILIO_ACCOUNT_SID`、`TWILIO_AUTH_TOKEN`,并配置发送方:组织 `from`、`SMS_FROM` 或 `TWILIO_MESSAGING_SERVICE_SID`                   |
+| `SMS_PROVIDER=vonage`      | `VONAGE_API_KEY`、`VONAGE_API_SECRET`,并配置组织 `from` 或 `SMS_FROM`                                                              |
+| `SMS_PROVIDER=infobip`     | `INFOBIP_API_KEY`、`INFOBIP_BASE_URL`,并配置组织 `from` 或 `SMS_FROM`                                                              |
+| `SMS_PROVIDER=messagebird` | Bird Channels API:`MESSAGEBIRD_ACCESS_KEY`(Bird access key)、`BIRD_WORKSPACE_ID`、`BIRD_CHANNEL_ID`(该 workspace 中的 SMS channel) |
+
+Infobip 使用 SMS v3 端点 `/sms/3/messages`;状态组为 `UNDELIVERABLE`、`EXPIRED` 或 `REJECTED` 的消息记为失败。`messagebird` provider 通过 Bird Channels API(`https://api.bird.com/workspaces/<workspace>/channels/<channel>/messages`)发送。旧版 MessageBird REST API 不再支持:原来用 `MESSAGEBIRD_ACCESS_KEY` 加 `SMS_FROM` 的部署,需要在 Bird 中创建 SMS channel,把 Bird access key 写入 `MESSAGEBIRD_ACCESS_KEY`,并设置 `BIRD_WORKSPACE_ID` 和 `BIRD_CHANNEL_ID`。完成之前 SMS 渠道视为未就绪。
+
+发送方规则:
+
+- 先用组织配置的 `from`,其次用实例级值(WhatsApp 为 `WHATSAPP_FROM` 或 `SMS_FROM`,SMS 为 `SMS_FROM`)。`from` 缺省或为空都视为未配置。
+- 配置了 Twilio Messaging Service SID(SMS 用 `TWILIO_MESSAGING_SERVICE_SID`,WhatsApp 用 `TWILIO_WHATSAPP_MESSAGING_SERVICE_SID`)时,组织 `from` 用于从 Sender Pool 中指定号码;组织未配置 `from` 时由 Messaging Service 选号,不使用 `SMS_FROM` / `WHATSAPP_FROM`。
+- Meta 由 `WHATSAPP_META_PHONE_NUMBER_ID` 发送,Bird 由 `BIRD_CHANNEL_ID` 发送,两者都不读取 `from`。
+- 投递渠道接口只对读取 `from` 的 provider 校验格式:WhatsApp Twilio 发送方必须是 E.164(可带 `whatsapp:` 前缀),SMS Twilio、Vonage、Infobip 发送方必须是 E.164 或 1-11 位字母数字 sender ID。格式错误返回 `422`,`paramName` 为 `whatsapp.from` 或 `sms.from`。多租户实例上只有 Instance Manager 能修改 `from`。
 
 写入凭证:
 
@@ -871,11 +952,11 @@ pnpm --filter @xid-kit/server exec wrangler secret put INFOBIP_API_KEY
 pnpm --filter @xid-kit/server exec wrangler secret put MESSAGEBIRD_ACCESS_KEY
 ```
 
-非敏感的 provider 名称和发件号可以放 Workers variables;凭证只放 Workers Secrets。
+非敏感的 provider 名称、模板名、Content SID、Bird workspace 和 channel id 以及发件号可以放 Workers variables;凭证只放 Workers Secrets。
 
 ## 通知与模板
 
-Email、WhatsApp、SMS consumer 成功发送后写 `notification.sent` 审计事件。审计 payload 只含 recipient hash、email domain、channel、type 和 provider,不写完整邮箱、手机号、token 或 OTP code。发送失败写入 `notification_failures`,达到重试上限后 ack 避免毒消息阻塞队列;失败表的 `recipient` 只存 `sha256:<hash>`,`payload` 只存非秘密元数据。
+Email、WhatsApp、SMS consumer 成功发送后写 `notification.sent` 审计事件。审计 payload 只含 recipient hash、email domain、channel、type 和 provider,不写完整邮箱、手机号、token 或 OTP code。provider 返回 `429` 或 `5xx` 时,按 provider 的 `Retry-After`(上限 600 秒)或从 15 秒起翻倍、上限 600 秒的指数退避重试,provider 调用最多 5 次;用尽后在 `notification_delivery_failures` 记为失败并 ack 消息。其他 `4xx` 记为被拒,不重试;超时、`408` 或响应无法解析记为投递结果不明,不重发。`5xx` 可能出现在 provider 已受理之后,重试可能导致重复发送;XID 接受这一风险,以免 provider 短暂故障时丢消息。调用 provider 之前的失败(例如 provider 未配置)写入 `notification_failures`,避免毒消息阻塞队列。`notification_delivery_failures` 不存 recipient 和 payload;`notification_failures` 的 `recipient` 只存 `sha256:<hash>`,`payload` 只存非秘密元数据。
 
 Email consumer 默认用 Cloudflare Email Service structured send,同时发送 `html` 和 `text`。内置模板覆盖 `verify_email`、`magic_link`、`otp`、`password_reset`,包含品牌化 HTML + 纯文本 fallback,不引用远程图片。
 

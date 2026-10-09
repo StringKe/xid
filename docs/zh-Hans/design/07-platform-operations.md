@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=1545034c4daa2e11c9f46f0667e6a2bd2f17f9db -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=3058fd12a90da2d2b6021f03b57ca3b2f8fc659a -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -38,8 +38,9 @@
   `organizations.allow_org_self_service` 控制,不存在并行的 KV flag 开关
 - 资源配额管理:查看并逐项手动调整单租户 quota(见第 7 节)
 - 实例默认策略(`/v1/platform/settings`):sessionPolicy 全字段(idleTimeoutMin 默认 4320min,边界 5-43200;absoluteTimeoutDays 默认 30d,边界 1-365;rememberMeDefault)+ tokenPolicy 全字段(accessTokenTtlSec 默认 3600s,边界 60-86400;sessionTokenTtlSec 默认 60s,边界 30-300;refreshIdleTimeoutDays 默认 30d,边界 1-365;refreshAbsoluteTimeoutDays 默认 7d,边界 1-90),org 侧经 `/v1/organizations/:id/auth-policy` 逐字段覆盖(null=继承)
-- 用量总览:每个顶层租户当月 MAU、DAU 与 active seat 数。按量计费开启时,同一视图再显示欠费
-  状态和 Customer Portal 入口
+- 用量总览:每个顶层租户当月 MAU、DAU 与 active seat 数,每行有链接跳到该租户的资源配额页。
+  按量计费开启时,该视图增加计费状态列和「待在 Stripe 核对的 MAU 上报」列表,Customer Portal
+  按钮位于单个租户的资源配额页
 - 全局告警规则是设计目标。当前没有 alert-rule API 或 PagerDuty/Slack delivery path;线上
   notification destination 属于部署状态,验证前保持 `UNKNOWN`
 - 状态页管理:开启事件并标注受影响的组件(托管登录、token endpoint、Management API、Console、
@@ -113,12 +114,12 @@ account 验证前保持 `UNKNOWN`。
 
 设计决策:
 
-- 所有通知经 Queues 异步发送,业务 Worker `queue.send({type, recipient, payload})`,Consumer 渲染模板 + 调 provider,失败指数退避重试最多 5 次,死信入 D1 `notification_failures`
+- 所有通知经 Queues 异步发送,业务 Worker `queue.send({type, recipient, payload})`,Consumer 渲染模板 + 调 provider。provider 返回 `429` 或 `5xx` 时按 `Retry-After` 或指数退避(15 秒起翻倍,上限 600 秒)重试,provider 调用最多 5 次,用尽后在 `notification_delivery_failures` 记为失败。`5xx` 可能出现在 provider 已受理之后,重试可能导致重复发送,XID 接受这一风险。其他 `4xx` 记为被拒,超时记为投递结果不明,两者都不重发。调用 provider 之前的失败写入 D1 `notification_failures`
 - 模板引擎 Mustache 子集(`{{var}}` + `{{#if}}`),运行 Workers 无 Node 依赖,作用域 user/org/brand/action
 - Provider boundary 抽象成 `EmailProvider` 接口
   (`send({to, from, subject, html, text})`),但当前 Consumer 始终解析为
   `CloudflareEmailProvider`;tenant 和 per-email-type 选择仍是设计目标
-- SMS:Twilio(主)/Vonage(备),统一 adapter
+- SMS:Twilio、Vonage、Infobip、Bird,统一 adapter;WhatsApp:Meta、Twilio,验证码只用已审批的 authentication 模板发送
 
 ### 3.1 Cloudflare Email Service(默认邮件通道)
 
@@ -344,7 +345,7 @@ async function handleAuditBatch(batch: MessageBatch<AuditQueueMsg>, env: Env) {
 - SSO:sso.connection_created / sso.connection_updated / sso.connection_deleted / sso.login_success / sso.login_failure / sso.directory_sync_started / sso.directory_sync_completed
 - 安全:security.brute_force_blocked / security.impossible_travel / security.new_device / security.account_locked / security.account_unlocked
 - 平台管理:platform.tenant_suspended / platform.tenant_activated / platform.tenant_deleted / platform.impersonate_start / platform.impersonate_end / platform.quota_changed / platform.settings_changed
-- 计费(仅在按量计费开启时):billing.subscription_created / billing.subscription_updated 记录运营方创建的 Stripe 按量订阅状态。Stripe `invoice.payment_failed` 事件会对账进该状态;独立的 billing.payment_failed 动作仍是设计目标
+- 计费(仅在按量计费开启时):billing.subscription_created / billing.subscription_updated 记录运营方创建的 Stripe 按量订阅状态;billing.meter_report.marked_reported / billing.meter_report.reported_again 记录 Instance Manager 处理 MAU 上报对账。invoice 事件不改变计费状态,独立的 billing.payment_failed 动作仍是设计目标
 
 已实现的登录结果事件:会话变为 `active` 时(签发时,或 pending MFA 会话完成 MFA 时)写一次
 `auth.login_succeeded`,模拟会话不计入。`/auth/*` 或 `/sso/*` 下的请求以 `invalid_credentials`、`account_locked`、
@@ -512,13 +513,30 @@ limit,其 create/patch API 拒绝 `seat_limit`。
 计费开启时,Stripe 只是按量计费 adapter:每日 MAU meter 上报、发票、付款与 Customer Portal。
 XID 从不创建 Checkout Session,也从不售卖套餐。运营方在 Stripe 中为租户创建 customer 和按量
 subscription,并把 subscription metadata `xid_tenant_id` 设为顶层 tenant id;签名 webhook
-随后把该 customer 绑定到租户并记录 subscription 状态。`invoice.payment_failed` 使租户在用量
-总览中显示为欠费;operator alert delivery 仍是设计目标。计费状态从不降级认证行为或锁定用户。
+随后把该 customer 绑定到租户并记录 subscription 状态。状态按 subscription id 分别保存:
+Stripe 的 `active` 和 `trialing` 保持原名,`canceled`、`paused`、`incomplete_expired` 和已删除的
+订阅记为 `canceled`,其他状态(包括 `past_due`、`unpaid`、`incomplete`)记为 `past_due`,在用量
+总览中显示为逾期。租户取其所有订阅中最好的状态(`active` > `trialing` > `past_due` >
+`canceled`),所以删除旧订阅不会把仍有其他有效订阅的租户标成 canceled。invoice 事件(包括
+`invoice.payment_failed`)不改变状态;扣款失败由 Stripe 把订阅改为 `past_due` 或 `unpaid` 来体现。
+只有 `active` 和 `trialing` 的租户上报 MAU。operator alert delivery 仍是设计目标。计费状态从不
+降级认证行为或锁定用户。
+
+Stripe meter 必须使用 `sum` 聚合和默认 payload 键 `stripe_customer_id`、`value`,event name 与
+`STRIPE_METER_EVENT_NAME` 一致;按量订阅的计费周期必须锚定在每月 1 日 00:00 UTC,因为 XID 按 UTC
+自然月上报。
 
 每次调用 provider 前,计量上报先持久化 `billing_meter_reports` cursor。pending identifier
 全局唯一,在 provider 已确认的 target 提交之前,每次重试都复用包含 customer、event name、
 value 与 timestamp 的完整首次 payload。因此 Worker 或 D1 故障不能把一个 usage delta 变成
-两次 provider report。Stripe webhook 处理同样先在 `stripe_webhook_events` claim provider
+两次 provider report。daily phase 同时上报当月和上月,上月增量的 timestamp 取该月最后一秒。
+Stripe 调用失败时经 Queue 按指数退避重试,从 30 分钟起翻倍,五次重试都在 Stripe identifier 的
+24 小时去重窗口内完成。去重窗口从第一次可能已被 Stripe 入账的发送起算;明确拒绝的 `4xx`(`409`
+除外)不开始计时。结果不明且超过 24 小时的发送不再自动重试,需要对账:Instance Manager 通过
+`GET /v1/platform/billing/meter-reports`(Console 用量总览)列出这些上报,并用
+`POST /v1/platform/billing/meter-reports/resolve` 逐条处理:在 Stripe 中找到事件后选
+`mark_reported`,或在 timestamp 未超过 Stripe 35 天上限时选 `report_again` 以新 identifier 重报。
+每次处理都写平台审计。Stripe webhook 处理同样先在 `stripe_webhook_events` claim provider
 `event_id` 再应用事件,使 event retry 保持幂等。
 
 XID 使用 MIT 许可。self-host 始终包含完整 feature set,没有 tiering、license key、license
@@ -565,8 +583,8 @@ export async function runMonthlyUsageMaintenance(env: Env, now: Date = new Date(
 }
 ```
 
-可选 Stripe adapter 在 usage maintenance 后作为独立 daily phase 运行。它读取已持久化的
-monthly snapshot,并 enqueue 幂等 meter report;它不属于月初 archive transaction。
+可选 Stripe adapter 在 usage maintenance 后作为独立 daily phase 运行。它读取已持久化的当月和
+上月 monthly snapshot,并 enqueue 幂等 meter report;它不属于月初 archive transaction。
 
 当前 D1 schema:
 

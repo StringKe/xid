@@ -49,8 +49,10 @@
   sessionTokenTtlSec, default 60s, bounds 30-300; refreshIdleTimeoutDays, default 30 days, bounds
   1-365; refreshAbsoluteTimeoutDays, default 7 days, bounds 1-90). The org side overrides field by
   field through `/v1/organizations/:id/auth-policy` (null means inherit)
-- Usage overview: current-month MAU, DAU, and active seats for every top-level tenant. When usage
-  billing is enabled, the same view adds the overdue status and a Customer Portal link
+- Usage overview: current-month MAU, DAU, and active seats for every top-level tenant, with a link
+  per row to that tenant's resource quotas page. When usage billing is enabled, the view adds a
+  billing status column and the list of MAU reports to check in Stripe, and the Customer Portal
+  button appears on the single tenant's resource quotas page
 - Global alert rules are a design target. There is no current alert-rule API or PagerDuty/Slack
   delivery path; live notification destinations remain deployment state and are `UNKNOWN` until
   verified
@@ -163,14 +165,19 @@ Design decisions:
 
 - Every notification is sent asynchronously through Queues. The business Worker calls
   `queue.send({type, recipient, payload})`, and the consumer renders the template and calls the
-  provider. Failures retry with exponential backoff up to 5 times, and dead letters go to the D1
-  `notification_failures` table
+  provider. A provider `429` or `5xx` is retried after `Retry-After` or with exponential backoff
+  (15 seconds doubling to 600 seconds), up to 5 provider attempts, and then recorded as failed in
+  `notification_delivery_failures`. A `5xx` may follow a send the provider already accepted, so a
+  retry can deliver a duplicate; XID accepts that risk. Other `4xx` responses are recorded as
+  rejected, and timeouts are recorded as delivery unknown; neither is resent. Failures before the
+  provider call go to the D1 `notification_failures` table
 - The template engine is a Mustache subset (`{{var}}` plus `{{#if}}`), which runs on Workers with no
   Node dependency, scoped to user/org/brand/action
 - The provider boundary is abstracted as an `EmailProvider` interface
   (`send({to, from, subject, html, text})`), but the current consumer always resolves
   `CloudflareEmailProvider`. Tenant and per-email-type selection are design targets
-- SMS: Twilio (primary) and Vonage (backup) behind a single adapter
+- SMS: Twilio, Vonage, Infobip, and Bird behind a single adapter; WhatsApp: Meta and Twilio, sending
+  OTP only through an approved authentication template
 
 ### 3.1 Cloudflare Email Service (the default email channel)
 
@@ -433,8 +440,9 @@ Grouped by domain, with the string format `<domain>.<action>`:
   platform.quota_changed / platform.settings_changed
 - Billing (only while usage billing is enabled): billing.subscription_created /
   billing.subscription_updated record the status of the operator-created Stripe metered
-  subscription. A Stripe `invoice.payment_failed` event is reconciled into that status; a separate
-  billing.payment_failed action remains a design target
+  subscription; billing.meter_report.marked_reported / billing.meter_report.reported_again record an
+  Instance Manager resolving a MAU report. Invoice events do not change billing status, and a
+  separate billing.payment_failed action remains a design target
 
 Implemented login outcome events: `auth.login_succeeded` is queued once when a session becomes
 `active`, either at issuance or when a pending MFA session completes MFA; impersonation sessions are
@@ -626,14 +634,35 @@ When billing is enabled, Stripe is the usage-billing adapter only: daily MAU met
 invoices, payments, and the Customer Portal. XID never creates a Checkout Session and never sells a
 plan. The operator creates the Stripe customer and metered subscription in Stripe and sets the
 subscription metadata `xid_tenant_id` to the top-level tenant id; the signed webhook then binds that
-customer to the tenant and records the subscription status. `invoice.payment_failed` marks the
-tenant overdue in the usage overview; operator alert delivery remains a design target. Billing state
-never downgrades authentication behavior or locks users out.
+customer to the tenant and records the subscription status. Status is stored per subscription id:
+Stripe `active` and `trialing` keep their names, `canceled`, `paused`, `incomplete_expired`, and a
+deleted subscription become `canceled`, and every other status, including `past_due`, `unpaid`, and
+`incomplete`, becomes `past_due`, shown as overdue in the usage overview. The tenant takes the best
+status across its subscriptions (`active` > `trialing` > `past_due` > `canceled`), so deleting an old
+subscription does not cancel a tenant with another live one. Invoice events, including
+`invoice.payment_failed`, do not change status; Stripe reflects a failed payment by moving the
+subscription to `past_due` or `unpaid`. Only `active` and `trialing` tenants are reported. Operator
+alert delivery remains a design target. Billing state never downgrades authentication behavior or
+locks users out.
+
+The Stripe meter must use the `sum` aggregation and the default payload keys `stripe_customer_id` and
+`value`, with the event name in `STRIPE_METER_EVENT_NAME`, and the metered subscription's billing
+cycle must be anchored to the first of the month at 00:00 UTC, because XID reports per UTC calendar
+month.
 
 Meter reporting persists a `billing_meter_reports` cursor before each provider call. The pending
 identifier is globally unique, and every retry reuses the complete first payload, including customer,
 event name, value, and timestamp, until the provider-acknowledged target is committed. A Worker or D1
-failure therefore cannot turn one usage delta into two provider reports.
+failure therefore cannot turn one usage delta into two provider reports. The daily phase reports both
+the current and the previous month; a previous-month delta is timestamped at that month's last second.
+A failed Stripe call retries through the Queue with exponential backoff starting at 30 minutes, so the
+five retries finish within Stripe's 24-hour identifier deduplication window. The window is counted
+from the first send Stripe may have recorded; a definitive `4xx` rejection (not `409`) does not start
+it. A send with an unknown result older than 24 hours is not retried automatically and needs
+reconciliation: an Instance Manager lists such reports with `GET /v1/platform/billing/meter-reports`
+(Console usage overview) and resolves each with `POST /v1/platform/billing/meter-reports/resolve`,
+either `mark_reported` after finding the event in Stripe or `report_again` under a new identifier
+while the timestamp is within Stripe's 35-day limit. Each resolution writes a platform audit record.
 Stripe webhook processing similarly claims each provider `event_id` in `stripe_webhook_events`
 before applying it, making event retries idempotent.
 
@@ -694,8 +723,8 @@ export async function runMonthlyUsageMaintenance(env: Env, now: Date = new Date(
 ```
 
 The optional Stripe adapter runs as a separate daily phase after usage maintenance. It reads the
-persisted monthly snapshot and queues idempotent meter reports; it is not part of the month-start
-archive transaction.
+persisted monthly snapshots of the current and the previous month and queues idempotent meter
+reports; it is not part of the month-start archive transaction.
 
 Current D1 schema:
 

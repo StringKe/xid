@@ -397,11 +397,12 @@ Optional Workers Secrets:
 | `TURNSTILE_SECRET`              | Server-side Turnstile Siteverify secret; valid only with `TURNSTILE_SITE_KEY`             |
 | `CLOUDFLARE_FOR_SAAS_API_TOKEN` | Zone-scoped Cloudflare for SaaS Custom Hostnames create/read/delete token                 |
 | `STRIPE_SECRET_KEY`             | Optional usage billing: Customer Portal and MAU meter-event API credential                |
-| `STRIPE_WEBHOOK_SECRET`         | Optional usage billing: Stripe webhook HMAC secret for invoice and payment reconciliation |
+| `STRIPE_WEBHOOK_SECRET`         | Optional usage billing: Stripe webhook HMAC secret for subscription status reconciliation |
 | `GOOGLE_CLIENT_SECRET`          | Google Social OAuth client secret                                                         |
 | `GITHUB_CLIENT_SECRET`          | GitHub Social OAuth client secret                                                         |
 | `MICROSOFT_CLIENT_SECRET`       | Microsoft Social OAuth client secret                                                      |
-| `APPLE_CLIENT_SECRET`           | Apple Social OAuth client secret                                                          |
+| `APPLE_PRIVATE_KEY`             | Apple Sign in with Apple `.p8` private key (PKCS#8 PEM) used to sign the client secret    |
+| `APPLE_CLIENT_SECRET`           | Apple Social OAuth static client secret JWT, used only when no Apple signing key is set   |
 | `GITHUB_EMU_CLIENT_SECRET`      | GitHub Enterprise Managed Users OAuth client secret                                       |
 
 Set `BOOTSTRAP_TOKEN` before the first bootstrap. Without it, anyone can call `/admin/bootstrap` against an empty database and claim the initial super admin account.
@@ -451,6 +452,35 @@ The map does not create a secret and must never contain the credential value. In
 provider names, or mappings to unrelated bindings such as `KEK` are ignored and the provider remains
 unavailable.
 
+#### Sign in with Apple client secret
+
+Apple accepts only an ES256 JWT as `client_secret`, and the JWT may live at most six months. Configure the three signing values so Core signs it on demand:
+
+| Name                | Kind           | Value                                                                   |
+| ------------------- | -------------- | ----------------------------------------------------------------------- |
+| `APPLE_TEAM_ID`     | Variable       | Apple Developer Team ID, written to `iss`                               |
+| `APPLE_KEY_ID`      | Variable       | Key ID of the Sign in with Apple key, written to the JWT `kid`          |
+| `APPLE_PRIVATE_KEY` | Workers Secret | Contents of the downloaded `.p8` key (PKCS#8 PEM, `\n` escapes allowed) |
+
+```bash
+pnpm --dir apps/server exec wrangler secret put APPLE_PRIVATE_KEY
+```
+
+- All three set: Core signs `client_secret` with `iss` = Team ID, `sub` = the organization's Apple client id (Services ID), `aud` = `https://appleid.apple.com`, and a 1-hour lifetime. The signed value is cached inside the isolate and renewed 5 minutes before expiry. `APPLE_CLIENT_SECRET` is not read, and the Console shows `APPLE_PRIVATE_KEY` as the credential source.
+- None set: Core uses the static `APPLE_CLIENT_SECRET`. That value must be an ES256 JWT you sign yourself, and Apple sign-in stops working when it expires.
+- Only one or two set: the configuration is rejected. Apple counts as not configured, so Hosted Auth hides it, and a code exchange fails with `server_error` instead of falling back to `APPLE_CLIENT_SECRET`.
+
+#### Microsoft email trust
+
+Microsoft Entra ID tokens carry no `email_verified` claim, and a tenant administrator can set the `email` claim to any value. XID therefore treats a Microsoft email as verified only when the ID token carries the optional claim `xms_edov` with the boolean value `true`, which Entra ID sets when the email domain is verified in the user's Entra tenant. Add `xms_edov` as an optional ID token claim in the app registration (Token configuration -> Add optional claim). Without it every Microsoft email is unverified.
+
+Email trust per provider policy:
+
+- An already linked identity signs in by provider user id and needs no verified email.
+- `requireVerifiedEmail` limits only user creation: a new account needs a verified email. Linking to an existing account by email always requires a verified provider email and a verified XID email.
+- `allowedEmailDomains` (instance-wide or per provider) matches only a verified email. When an allowlist is set, user creation without a verified email in an allowed domain is rejected; a linked identity is not blocked for lacking one. `blockedEmailDomains` applies to any email the provider returns.
+- Emails are trimmed and lowercased before matching.
+
 This repository never commits a `.env` file or any secret value.
 
 ### Optional usage-based billing (Stripe)
@@ -468,8 +498,10 @@ gate.
 
 These three values are one switch:
 
-- All three set: usage billing is enabled. The Console adds the overdue status and the Customer
-  Portal to the usage overview, and the daily Cron reports MAU to the meter.
+- All three set: usage billing is enabled. The Console usage overview adds a billing status column and
+  the list of MAU reports to check in Stripe, each Organization's resource quotas page adds the
+  Customer Portal button (the usage overview links to it per row), and the daily Cron reports MAU to
+  the meter.
 - None set: usage billing is disabled. Every feature keeps working, the Console shows only usage,
   and no MAU is reported. This is the default.
 - Only some set: billing fails closed. `/v1/platform/usage`, `/v1/platform/billing/config`, and the
@@ -481,9 +513,51 @@ customer and a metered subscription in the Stripe Dashboard or API, and set the 
 metadata `xid_tenant_id` to the tenant's top-level Organization id. Configure the Stripe webhook
 destination as the public HTTPS endpoint `https://<your-domain>/v1/billing/stripe/webhook`. Core
 validates Stripe's timestamped HMAC before parsing JSON, deduplicates event ids, binds the customer
-to the tenant, and prevents older events from reverting newer billing state. The daily Cron stores
-the exact meter identifier, customer, value, event name, and timestamp in D1 before calling Stripe,
-so a crash between provider acceptance and local completion retries the same idempotent payload.
+to the tenant, and prevents older events from reverting newer billing state.
+
+Subscription status is recorded per Stripe subscription id from `customer.subscription.created`,
+`customer.subscription.updated`, and `customer.subscription.deleted`. Stripe `active` and `trialing`
+keep their names; `canceled`, `paused`, `incomplete_expired`, and a deleted subscription map
+to `canceled`; every other Stripe status, including `past_due`, `unpaid`, and `incomplete`, maps to
+`past_due` (shown as overdue). The tenant's billing status is the best status across all of its
+subscriptions (`active`, then `trialing`, then `past_due`, then `canceled`), so a deleted old
+subscription does not cancel a tenant that still has an active one. Invoice events, including
+`invoice.payment_failed`, do not change the status; a failed payment reaches XID through the
+subscription moving to `past_due` or `unpaid`. MAU is reported only for tenants whose status is
+`active` or `trialing`.
+
+The Stripe meter must match what XID sends:
+
+- Event name equals `STRIPE_METER_EVENT_NAME`.
+- Aggregation formula is `sum`, because XID sends each new increase of the monthly MAU, not the total.
+- Customer mapping uses the default payload key `stripe_customer_id`, and the value uses the default
+  payload key `value`.
+- The metered subscription's billing cycle is anchored to the first day of the month, 00:00 UTC,
+  because XID counts MAU per UTC calendar month and timestamps each report inside that month.
+
+The daily Cron reports both the current month and the previous month, so MAU added on the last day
+of a month after the 02:00 UTC run is reported the next day with a timestamp at the last second of
+that month. Before calling Stripe, Core stores the exact meter identifier, customer, value, event
+name, and timestamp in D1, and every retry resends that same payload. A failed Stripe call retries
+through the `xid-metering` Queue with exponential backoff starting at 30 minutes (about 15.5 hours
+across the five retries), inside Stripe's 24-hour identifier deduplication window. That window is
+counted from the first send that Stripe may have recorded; a Stripe `4xx` other than `409` is a
+definitive rejection and does not start it. When a send with an unknown result is older than 24
+hours, Core stops retrying that report automatically and lists it for reconciliation.
+
+An Instance Manager resolves those reports in the Console usage overview under "MAU reports to check
+in Stripe", backed by:
+
+- `GET /v1/platform/billing/meter-reports`: cursor-paginated list with organization, month, MAU
+  added, Stripe event identifier, and waiting time.
+- `POST /v1/platform/billing/meter-reports/resolve` with `{ tenantId, period, identifier, action }`:
+  `mark_reported` records the increase as reported after you find the event in Stripe;
+  `report_again` sends the same increase under a new identifier after you confirm Stripe did not
+  record it. `report_again` requires billing to be enabled and is rejected with `422` once the event
+  timestamp is more than 35 days old, the limit Stripe accepts. A stale identifier returns `409`.
+
+Each resolution writes the platform audit action `billing.meter_report.marked_reported` or
+`billing.meter_report.reported_again`.
 
 Repository tests prove the local signature, ordering, deduplication, and retry contracts. A real
 Stripe customer, metered subscription, webhook delivery, Portal, and meter-event run remain L4
@@ -885,19 +959,35 @@ does not match the fixed provider contract.
 
 WhatsApp providers:
 
-| Provider                   | Required configuration                                                                                               |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `WHATSAPP_PROVIDER=meta`   | `WHATSAPP_META_PHONE_NUMBER_ID`, `WHATSAPP_META_ACCESS_TOKEN`; optional `WHATSAPP_META_API_VERSION`, default `v25.0` |
-| `WHATSAPP_PROVIDER=twilio` | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, plus `WHATSAPP_FROM`, `SMS_FROM` or `TWILIO_MESSAGING_SERVICE_SID`        |
+| Provider                   | Required configuration                                                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WHATSAPP_PROVIDER=meta`   | `WHATSAPP_META_PHONE_NUMBER_ID`, `WHATSAPP_META_ACCESS_TOKEN`, `WHATSAPP_TEMPLATE_NAME`, `WHATSAPP_TEMPLATE_LANGUAGE`; optional `WHATSAPP_META_API_VERSION`, default `v25.0`              |
+| `WHATSAPP_PROVIDER=twilio` | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_CONTENT_SID`, plus a sender: the organization `from`, `WHATSAPP_FROM`, `SMS_FROM`, or `TWILIO_WHATSAPP_MESSAGING_SERVICE_SID` |
+
+WhatsApp OTP is always sent as an approved WhatsApp template in the authentication category, so it reaches users outside the 24-hour customer service window:
+
+- Meta: create an authentication template with a copy code button and set its name and language code in `WHATSAPP_TEMPLATE_NAME` and `WHATSAPP_TEMPLATE_LANGUAGE`. XID fills the code into the body parameter and the button parameter (button index `0`).
+- Twilio: create a Content template approved for WhatsApp authentication whose variable `{{1}}` is the code, and set its `HX...` SID in `TWILIO_WHATSAPP_CONTENT_SID`. XID sends `ContentSid` with `ContentVariables` `{"1":"<code>"}`.
+
+A missing template setting leaves the channel not ready, and Hosted Auth hides WhatsApp OTP.
 
 SMS providers:
 
-| Provider                   | Required configuration                                                                       |
-| -------------------------- | -------------------------------------------------------------------------------------------- |
-| `SMS_PROVIDER=twilio`      | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, plus `SMS_FROM` or `TWILIO_MESSAGING_SERVICE_SID` |
-| `SMS_PROVIDER=vonage`      | `VONAGE_API_KEY`, `VONAGE_API_SECRET`, `SMS_FROM`                                            |
-| `SMS_PROVIDER=infobip`     | `INFOBIP_API_KEY`, `INFOBIP_BASE_URL`, `SMS_FROM`                                            |
-| `SMS_PROVIDER=messagebird` | `MESSAGEBIRD_ACCESS_KEY`, `SMS_FROM`                                                         |
+| Provider                   | Required configuration                                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `SMS_PROVIDER=twilio`      | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, plus a sender: the organization `from`, `SMS_FROM`, or `TWILIO_MESSAGING_SERVICE_SID`         |
+| `SMS_PROVIDER=vonage`      | `VONAGE_API_KEY`, `VONAGE_API_SECRET`, plus the organization `from` or `SMS_FROM`                                                        |
+| `SMS_PROVIDER=infobip`     | `INFOBIP_API_KEY`, `INFOBIP_BASE_URL`, plus the organization `from` or `SMS_FROM`                                                        |
+| `SMS_PROVIDER=messagebird` | Bird Channels API: `MESSAGEBIRD_ACCESS_KEY` (Bird access key), `BIRD_WORKSPACE_ID`, `BIRD_CHANNEL_ID` (an SMS channel in that workspace) |
+
+Infobip uses the SMS v3 endpoint `/sms/3/messages`; a message whose status group is `UNDELIVERABLE`, `EXPIRED`, or `REJECTED` counts as failed. The `messagebird` provider sends through the Bird Channels API (`https://api.bird.com/workspaces/<workspace>/channels/<channel>/messages`). The legacy MessageBird REST API is not supported: a deployment that used `MESSAGEBIRD_ACCESS_KEY` with `SMS_FROM` must create an SMS channel in Bird, store a Bird access key in `MESSAGEBIRD_ACCESS_KEY`, and set `BIRD_WORKSPACE_ID` and `BIRD_CHANNEL_ID`. Until then the SMS channel is not ready.
+
+Sender rules:
+
+- The organization `from` is used first, then the instance value (`WHATSAPP_FROM` or `SMS_FROM` for WhatsApp, `SMS_FROM` for SMS). A missing or empty `from` counts as not set.
+- With a Twilio Messaging Service SID configured (`TWILIO_MESSAGING_SERVICE_SID` for SMS, `TWILIO_WHATSAPP_MESSAGING_SERVICE_SID` for WhatsApp), the organization `from` selects a number from the Sender Pool; without it the Messaging Service picks the sender and `SMS_FROM` / `WHATSAPP_FROM` are not used.
+- Meta sends from `WHATSAPP_META_PHONE_NUMBER_ID` and Bird from `BIRD_CHANNEL_ID`; neither reads `from`.
+- The delivery channel API validates `from` only for providers that read it: a WhatsApp Twilio sender must be E.164 (an optional `whatsapp:` prefix is allowed), an SMS Twilio, Vonage, or Infobip sender must be E.164 or a 1-11 character alphanumeric sender ID. An invalid value returns `422` with `paramName` `whatsapp.from` or `sms.from`. On a multi-tenant instance only an Instance Manager may change `from`.
 
 Write the credentials:
 
@@ -909,11 +999,11 @@ pnpm --filter @xid-kit/server exec wrangler secret put INFOBIP_API_KEY
 pnpm --filter @xid-kit/server exec wrangler secret put MESSAGEBIRD_ACCESS_KEY
 ```
 
-Non-sensitive provider names and sender numbers can live in Workers variables. Credentials go into Workers Secrets only.
+Non-sensitive provider names, template names, Content SIDs, Bird workspace and channel ids, and sender numbers can live in Workers variables. Credentials go into Workers Secrets only.
 
 ## Notifications and templates
 
-The email, WhatsApp and SMS consumers write a `notification.sent` audit event after a successful send. The audit payload contains only a recipient hash, the email domain, the channel, the type and the provider; it never contains the full address, the phone number, a token or an OTP code. Failed sends are written to `notification_failures` and acked once the retry limit is reached, so a poison message cannot block the queue. In that table `recipient` stores only `sha256:<hash>` and `payload` stores only non-secret metadata.
+The email, WhatsApp and SMS consumers write a `notification.sent` audit event after a successful send. The audit payload contains only a recipient hash, the email domain, the channel, the type and the provider; it never contains the full address, the phone number, a token or an OTP code. A provider response of `429` or `5xx` is retried after the provider's `Retry-After` (capped at 600 seconds) or with exponential backoff from 15 seconds up to 600 seconds, for at most 5 provider attempts; after that the send is recorded as failed in `notification_delivery_failures` and the message is acked. Any other `4xx` is recorded as rejected without a retry, and a timeout, `408`, or unreadable response is recorded as delivery unknown without a resend. Because a `5xx` may arrive after the provider already accepted the message, a retry can deliver a duplicate; XID accepts that risk so a temporary provider outage does not drop the message. Failures before a provider call, such as a missing provider configuration, are written to `notification_failures`, so a poison message cannot block the queue. `notification_delivery_failures` stores no recipient or payload; in `notification_failures` `recipient` stores only `sha256:<hash>` and `payload` stores only non-secret metadata.
 
 The email consumer uses the Cloudflare Email Service structured send by default and always sends both `html` and `text`. Built-in templates cover `verify_email`, `magic_link`, `otp` and `password_reset`, each with branded HTML plus a plain-text fallback, and none of them reference a remote image.
 
