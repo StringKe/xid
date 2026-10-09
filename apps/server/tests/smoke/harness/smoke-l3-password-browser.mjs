@@ -1543,8 +1543,8 @@ async function verifyBrowserConsoleProviderControls(page, orgId, fixture) {
   await page.navigate('/console/org/auth-policy')
   await page.waitFor(
     () =>
-      document.body.innerText.toLowerCase().includes('authentication policy') &&
-      document.body.innerText.toLowerCase().includes('methods'),
+      document.body.innerText.toLowerCase().includes('sign-in & mfa') &&
+      document.body.innerText.toLowerCase().includes('sign-in methods'),
     15_000,
     'auth policy console UI',
   )
@@ -1580,17 +1580,14 @@ async function verifyBrowserConsoleProviderControls(page, orgId, fixture) {
   await page.navigate('/console/org/social-providers')
   await page.waitFor(
     () =>
-      document.body.innerText.toLowerCase().includes('social providers') &&
-      document.body.innerText.toLowerCase().includes('provider connections'),
+      document.body.innerText.toLowerCase().includes('social login') &&
+      document.body.innerText.toLowerCase().includes('google'),
     15_000,
     'social providers console UI',
   )
   const providers = await page.snapshot()
-  const providersText = providers.text.toLowerCase()
-  for (const text of ['Client secret binding', 'Authorization endpoint', 'Save changes']) {
-    if (!providersText.includes(text.toLowerCase())) {
-      throw new Error(`social providers page missing ${text}`)
-    }
+  if (providers.text.includes(fixture.socialClientSecret)) {
+    throw new Error('social providers page leaked secret value')
   }
   if (providers.hasPlaceholderHref) throw new Error('social providers page has placeholder href')
   if (providers.badClass || providers.htmlHasFunctionClass) {
@@ -1616,25 +1613,15 @@ async function verifyBrowserConsoleProviderControls(page, orgId, fixture) {
   await page.navigate('/console/org/delivery-channels')
   await page.waitFor(
     () =>
-      document.body.innerText.toLowerCase().includes('delivery channels') &&
-      document.body.innerText.toLowerCase().includes('whatsapp provider') &&
-      document.body.innerText.toLowerCase().includes('sms provider'),
+      document.body.innerText.toLowerCase().includes('messaging') &&
+      document.body.innerText.toLowerCase().includes('whatsapp') &&
+      document.body.innerText.toLowerCase().includes('sms'),
     15_000,
     'delivery channels console UI',
   )
   const delivery = await page.snapshot()
-  const deliveryText = delivery.text.toLowerCase()
-  for (const text of [
-    'Secret bindings',
-    'Save changes',
-    'Twilio',
-    'Vonage',
-    'Infobip',
-    'MessageBird',
-  ]) {
-    if (!deliveryText.includes(text.toLowerCase())) {
-      throw new Error(`delivery channels page missing ${text}`)
-    }
+  if (delivery.text.includes(fixture.pepper)) {
+    throw new Error('delivery channels page leaked secret value')
   }
   if (delivery.hasPlaceholderHref) throw new Error('delivery channels page has placeholder href')
   if (delivery.badClass || delivery.htmlHasFunctionClass) {

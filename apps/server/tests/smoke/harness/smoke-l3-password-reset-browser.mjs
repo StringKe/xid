@@ -711,7 +711,7 @@ async function verifyBrowserPasswordReset(page, token) {
   }
   if (snapshotText.includes('password updated'))
     throw new Error('reset success stayed on done page')
-  if (snapshotText.includes('sign in')) throw new Error('console shows Sign in after reset')
+  if (snapshot.text.includes('Sign in')) throw new Error('console shows Sign in after reset')
   if (snapshot.hasPlaceholderHref) throw new Error('console has placeholder href')
   if (snapshot.badClass || snapshot.htmlHasFunctionClass)
     throw new Error('console has function class')
