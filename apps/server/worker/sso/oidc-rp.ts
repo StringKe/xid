@@ -38,12 +38,8 @@ import {
   resolveApplicationAuthorizeContinuation,
 } from '../../shared/hosted-auth-continuation'
 import { isApplicationSignUpIntent } from '../../shared/hosted-auth-intent'
-import {
-  buildProviderKeySet,
-  exchangeCode,
-  fetchDiscovery,
-  fetchProviderJwks,
-} from './oidc-upstream'
+import { exchangeCode, fetchDiscovery } from './oidc-upstream'
+import { createProviderKeyLoader } from './oidc-provider-jwks'
 import { claimsToAssertion, verifyIdToken } from './oidc-id-token'
 
 // callback URL(保持和 authorize redirect_uri 一致)。
@@ -169,9 +165,6 @@ async function completeCallback(
 
   const permitsLoopbackHttp = isDevOrTestEnvironment(c.env)
   const discovery = await fetchDiscovery(connection.oidcDiscoveryUrl!, permitsLoopbackHttp)
-  const keySet = await buildProviderKeySet(
-    await fetchProviderJwks(discovery.jwks_uri, permitsLoopbackHttp),
-  )
   const clientSecret = connection.oidcClientSecretCiphertext
     ? await decryptOidcClientSecret(c.env, connection.oidcClientSecretCiphertext)
     : null
@@ -186,17 +179,23 @@ async function completeCallback(
   })
   const claims = await verifyIdToken({
     idToken: tokens.id_token,
-    keySet,
+    loadKeys: createProviderKeyLoader({
+      cache: c.env.CACHE,
+      jwksUri: discovery.jwks_uri,
+      permitsLoopbackHttp,
+    }),
     expectedIssuer: discovery.issuer,
     expectedAudience: connection.oidcClientId!,
     expectedNonce: flow.nonce,
   })
   const skipDefaultMembership = flow.skipDefaultMembership ?? false
-  const { userId } = await jitProvision(
-    c,
-    claimsToAssertion(claims, connectionId, connection.orgId),
-    { skipDefaultMembership },
-  )
+  const assertion = claimsToAssertion({
+    claims,
+    connectionId,
+    orgId: connection.orgId,
+    attributeMapping: connection.attributeMapping,
+  })
+  const { userId } = await jitProvision(c, assertion, { skipDefaultMembership })
   return finalizeOidcRpSession({
     c,
     userId,

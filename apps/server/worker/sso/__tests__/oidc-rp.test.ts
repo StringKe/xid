@@ -176,9 +176,25 @@ function makeDoStore() {
   return { store, ns }
 }
 
+const ID_TOKEN_TIMES = {
+  iat: Math.floor(Date.now() / 1000),
+  exp: Math.floor(Date.now() / 1000) + 3600,
+}
+
+function makeKvCache(): KVNamespace {
+  const values = new Map<string, string>()
+  return {
+    get: vi.fn(async (key: string) => values.get(key) ?? null),
+    put: vi.fn(async (key: string, value: string) => {
+      values.set(key, value)
+    }),
+  } as unknown as KVNamespace
+}
+
 function makeBaseEnv(ns?: unknown): Env {
   return {
     DB: {} as D1Database,
+    CACHE: makeKvCache(),
     OAUTH_STATE: (ns ?? {}) as DurableObjectNamespace,
     AUDIT_QUEUE: { send: vi.fn() },
   } as unknown as Env
@@ -553,6 +569,7 @@ describe('OIDC RP -- callback 基础校验', () => {
         header: { alg: 'RS256', kid: 'k1' },
         payload: {
           sub: 'idp-user-1',
+          ...ID_TOKEN_TIMES,
           iss: 'https://idp.example.com',
           aud: 'client-abc',
           nonce: 'nonce-123',
@@ -632,6 +649,7 @@ describe('OIDC RP -- callback 基础校验', () => {
           header: { alg: 'RS256', kid: 'k1' },
           payload: {
             sub: 'idp-user-1',
+            ...ID_TOKEN_TIMES,
             iss: 'https://idp.example.com',
             aud: 'client-abc',
             nonce: 'nonce-123',
@@ -702,6 +720,7 @@ describe('OIDC RP -- callback state 一次性消费', () => {
         header: { alg: 'RS256', kid: 'k1' },
         payload: {
           sub: 'idp-user-1',
+          ...ID_TOKEN_TIMES,
           iss: 'https://idp.example.com',
           aud: 'client-abc',
           nonce: 'nonce-123',
@@ -739,6 +758,7 @@ describe('OIDC RP -- callback nonce 校验', () => {
         header: { alg: 'RS256', kid: 'k1' },
         payload: {
           sub: 'idp-user-1',
+          ...ID_TOKEN_TIMES,
           nonce: 'WRONG-nonce',
           iss: 'https://idp.example.com',
           aud: 'client-abc',
@@ -766,7 +786,12 @@ describe('OIDC RP -- 机密客户端 client_secret', () => {
       ok: true,
       value: {
         header: { alg: 'RS256', kid: 'k1' },
-        payload: { sub: 'idp-user-1', nonce: 'nonce-123', iss: 'https://idp.example.com' },
+        payload: {
+          sub: 'idp-user-1',
+          ...ID_TOKEN_TIMES,
+          nonce: 'nonce-123',
+          iss: 'https://idp.example.com',
+        },
       },
     })
   }

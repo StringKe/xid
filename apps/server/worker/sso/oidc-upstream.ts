@@ -85,6 +85,8 @@ function assertDiscoveryTrust(
   ) {
     throw new AppError('internal_error', { longMessage: 'OIDC discovery trust mismatch' })
   }
+  // OIDC Discovery 1.0 4.3 只要求 issuer 精确一致;端点可以在别的 host(Google 的 token/jwks),
+  // 信任来自同源拉取的 discovery 文档本身,端点只须是公网 HTTPS。
   for (const endpoint of [
     discovery.authorization_endpoint,
     discovery.token_endpoint,
@@ -94,7 +96,6 @@ function assertDiscoveryTrust(
     if (
       parsed.username ||
       parsed.password ||
-      parsed.origin !== issuer.origin ||
       !isTrustedUpstreamUrl(endpoint, permitsLoopbackHttp)
     ) {
       throw new AppError('internal_error', { longMessage: 'OIDC discovery endpoint untrusted' })
@@ -128,9 +129,19 @@ export async function fetchDiscovery(
   return parsed.output
 }
 
-// 拉取 provider JWKS(用于验证 id_token 签名)。
-type JwksResponse = { keys: (JsonWebKey & { kid?: string; alg?: string; use?: string })[] }
+export type JwksResponse = {
+  keys: (JsonWebKey & { kid?: string; alg?: string; use?: string })[]
+}
 
+export function parseProviderJwks(payload: unknown): JwksResponse {
+  const parsed = v.safeParse(oidcJwksSchema, payload)
+  if (!parsed.success || parsed.output.keys.some((key) => typeof key['kty'] !== 'string')) {
+    throw new AppError('internal_error', { longMessage: 'Provider JWKS response invalid' })
+  }
+  return parsed.output as JwksResponse
+}
+
+// 直接回源拉取 provider JWKS;缓存由调用方的 KV 层负责,边缘缓存会让未知 kid 的强制刷新失效。
 export async function fetchProviderJwks(
   jwksUri: string,
   permitsLoopbackHttp: boolean,
@@ -138,21 +149,13 @@ export async function fetchProviderJwks(
   if (!isTrustedUpstreamUrl(jwksUri, permitsLoopbackHttp)) {
     throw new AppError('internal_error', { longMessage: 'Provider JWKS URL is not public HTTPS' })
   }
-  const fetchInit =
-    permitsLoopbackHttp && isLoopbackHttpUrl(jwksUri)
-      ? {}
-      : ({ cf: { cacheEverything: true, cacheTtl: 3600 } } as RequestInit)
   const payload = await fetchOidcJson(
     jwksUri,
-    fetchInit,
+    { cache: 'no-store' },
     OIDC_JWKS_MAX_BYTES,
     'Failed to fetch provider JWKS',
   )
-  const parsed = v.safeParse(oidcJwksSchema, payload)
-  if (!parsed.success || parsed.output.keys.some((key) => typeof key['kty'] !== 'string')) {
-    throw new AppError('internal_error', { longMessage: 'Provider JWKS response invalid' })
-  }
-  return parsed.output as JwksResponse
+  return parseProviderJwks(payload)
 }
 
 // 从 provider JWKS 构建 VerifyKeySet(按 kid 索引)。
