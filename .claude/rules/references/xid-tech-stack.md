@@ -59,7 +59,8 @@ Email        Cloudflare Email Service, send_email binding EMAIL
 Scheduled    Cron Triggers: hourly (`0 * * * *`) expiry cleanup, stale DLQ-claim release, metering
              outbox redelivery, and DAU aggregation; daily (`0 2 * * *`) signing key rotation,
              custom-hostname/certificate/domain polling, SAML IdP metadata refresh, monthly usage
-             maintenance, privacy cleanup/redelivery, guest GC, and optional Stripe MAU reporting
+             maintenance, guest GC, outbound SCIM full sync, privacy cleanup/redelivery, and
+             optional Stripe MAU reporting
 Secrets      Core Workers Secrets (KEK / pepper / provider credentials, plus optional Stripe and
              Cloudflare for SaaS credentials) + envelope encryption in D1; Site and Console
              declare no secrets

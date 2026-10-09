@@ -48,7 +48,9 @@ version below is the full original text of that list.
 
 ## Session Storage
 
-- D1 `sessions` table is the durable record (refresh token hash, device, status, `expires_at`).
+- D1 `sessions` table is the durable record (refresh token hash, device, status, `expires_at`, and
+  the auth context `acr` / `amr` / `aal` plus the primary sign-in method `auth_method`:
+  `password` / `passkey` / `otp` / `social` / `sso` / `guest`, NULL for older rows).
 - `SessionDO` (per user) holds that user's active session id set. Revocation updates the DO first and
   persists to D1 afterward; the DO serializes all operations for one user so concurrent revokes cannot
   race. An already-issued JWT stays valid for up to its 60s window.
@@ -64,7 +66,8 @@ version below is the full original text of that list.
   target host wrote, for at most two minutes, so a grant minted for another browser or host cannot
   be consumed. Consume matches tenant, instance and target origin and atomically deletes the grant;
   the target host then issues a session with the same status (`active`, `pending_mfa` or
-  `pending_mfa_setup`), remember-me flag and auth context, so a pending MFA session stays pending.
+  `pending_mfa_setup`), remember-me flag and auth context including `auth_method`, so a pending MFA
+  session stays pending.
   A step-up proof of the source session travels with the grant; for an `active` target session the
   target host re-signs the step-up cookie with the original issue and expiry times and skips it once
   expired. Impersonation sessions are never handed off.

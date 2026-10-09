@@ -103,7 +103,10 @@ chars>`, with `Add-Padding: true`). MANDATORY and blocking on sign-up, password 
   (`OTP_PHONE_TTL_MS`). Phone targets are E.164 `+1` numbers whose area code is an in-service
   geographic area code of the United States (50 states plus DC) or Canada
   (`apps/server/worker/auth/phone-otp-regions.ts`, from the NANPA report). Caribbean `+1` countries
-  and US territories are excluded, and there is no per-tenant setting.
+  and US territories are excluded, and there is no per-tenant setting. The same
+  `isAllowedPhoneOtpTarget` check gates contact phone verification (`422`, `paramName=phone`), MFA
+  SMS send and SMS factor enrollment (both `invalid_request`), and the MFA gate (`listMfaMethods`) does not count an SMS factor
+  whose number fails it.
 - OTPs are generated from `crypto.getRandomValues` reduced mod 1e6. Never `Math.random`.
 - OTP codes are stored as `sha256Hex(code)` in `verification_tokens.code_hash` and compared in
   constant time. Successful verification sets `consumed_at`; issuing a new OTP for the same

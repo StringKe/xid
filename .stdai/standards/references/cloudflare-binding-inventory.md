@@ -134,9 +134,12 @@ Two expressions, dispatched by `dispatchScheduled(cron, env)` in `apps/server/wo
   SAML IdP signing certificate maintenance (publish a `next` certificate 60 days before the `active`
   one expires, audit `outbound_saml_signing_certificate.expiring` within 30 days of expiry, retire
   `retiring` certificates; promotion to `active` stays an explicit admin action), SAML IdP
-  metadata refresh, monthly usage maintenance (MAU report, current-month snapshot, old-row cleanup),
-  expired privacy-export object cleanup, privacy export / due erasure Queue redelivery, safe guest
-  onboarding garbage collection, and optional crash-safe Stripe MAU reporting.
+  metadata refresh (merges the certificate set; a certificate gone from the metadata stays until
+  min(notAfter, disappearance + 30 days), tracked in `idp_certificate_retirements`), monthly usage
+  maintenance (MAU report, current-month snapshot, old-row cleanup), guest onboarding garbage
+  collection, an outbound SCIM full run for every active target with a token (skipped while the
+  target's shared `full_sync_queued_at` claim is held), expired privacy-export object cleanup,
+  privacy export / due erasure Queue redelivery, and optional crash-safe Stripe MAU reporting.
 
 The repository owns the incident ledger and public status API. Independent external probing and an
 availability-history store are not implemented and MUST NOT be claimed.
