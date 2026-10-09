@@ -313,6 +313,18 @@ END;`,
     ).toThrow('migration compatibility requires approved additive DDL only')
   })
 
+  it('accepts only the exact cleanup of never-applied preset idpId values', () => {
+    const exact =
+      "UPDATE `sso_connections` SET `attribute_mapping` = json_remove(`attribute_mapping`, '$.idpId') WHERE json_valid(`attribute_mapping`) AND json_extract(`attribute_mapping`, '$.idpId') IN ('nameID', 'User.username', 'sub', 'http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname', 'eduPersonPrincipalName');"
+
+    expect(() => assertMigrationCompatibility(migrationSet('0031_idp.sql', exact))).not.toThrow()
+    expect(() =>
+      assertMigrationCompatibility(
+        migrationSet('0031_idp.sql', exact.replace(" IN ('nameID',", " NOT IN ('nameID',")),
+      ),
+    ).toThrow('migration compatibility requires approved additive DDL only')
+  })
+
   it('accepts only the exact meter report send-time backfill', () => {
     const exact =
       'UPDATE `billing_meter_reports` SET `pending_sent_at` = `pending_reserved_at` WHERE `pending_identifier` IS NOT NULL AND `provider_accepted_at` IS NULL;'

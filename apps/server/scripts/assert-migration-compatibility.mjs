@@ -405,6 +405,16 @@ function isSafeScimLiveUniquenessIndexDrop(statement) {
   ].includes(normalized)
 }
 
+// Earlier presets stored idpId values that were never applied; removing exactly those keeps the
+// NameID binding existing connections have always used.
+function isSafePresetIdpIdCleanup(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  return (
+    normalized ===
+    "UPDATE `sso_connections` SET `attribute_mapping` = json_remove(`attribute_mapping`, '$.idpId') WHERE json_valid(`attribute_mapping`) AND json_extract(`attribute_mapping`, '$.idpId') IN ('nameID', 'User.username', 'sub', 'http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname', 'eduPersonPrincipalName')"
+  )
+}
+
 // Backfills only the new nullable send timestamp for reports already in flight.
 function isSafeMeterReportSentBackfill(statement) {
   const normalized = statement.replace(/\s+/gu, ' ').trim()
@@ -495,7 +505,8 @@ function isApprovedAdditiveStatement(statement) {
     isSafeSamlCertificateUniquenessCutover(statement) ||
     isSafeScimPasswordScrub(statement) ||
     isSafeMeterReportSentBackfill(statement) ||
-    isSafeScimLiveUniquenessIndexDrop(statement)
+    isSafeScimLiveUniquenessIndexDrop(statement) ||
+    isSafePresetIdpIdCleanup(statement)
   )
 }
 
