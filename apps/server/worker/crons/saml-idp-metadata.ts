@@ -1,9 +1,11 @@
 // IdP metadata URL 每日刷新:拉取 active SAML connection 的 metadata,内容变化时更新 entityID/SSO URL/证书。
+// 证书按 saml-idp-certificates 合并,不直接覆盖。
 // 每次结果都落到连接的刷新状态列,失败写日志并保留上次成功的配置,管理员在连接详情里能看到失败原因。
 
 import { parseIdpMetadataXml } from '@xid-kit/saml'
 import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
 import { isPublicHttpsUrl } from '../lib/validate'
+import { mergeIdpCertificates, readCertificateNotAfter } from './saml-idp-certificates'
 
 type IdpMetadataConnectionRow = {
   id: string
@@ -49,12 +51,6 @@ function parseStoredCertificates(value: string | string[] | null): string[] {
   } catch {
     return []
   }
-}
-
-function certificateSetChanged(oldCerts: string[], newCerts: string[]): boolean {
-  if (oldCerts.length !== newCerts.length) return true
-  const oldSet = new Set(oldCerts)
-  return newCerts.some((cert) => !oldSet.has(cert))
 }
 
 async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
@@ -165,10 +161,18 @@ async function refreshIdpMetadata(
     return { ok: false, error: 'metadata_endpoint_not_allowed' }
   }
 
-  const oldCerts = parseStoredCertificates(row.idp_certificates)
-  const certificatesChanged = certificateSetChanged(oldCerts, metadata.certificates)
+  const storedCerts = parseStoredCertificates(row.idp_certificates)
+  const now = Date.now()
+  const certificates = mergeIdpCertificates({
+    stored: storedCerts,
+    fetched: metadata.certificates,
+    notAfter: await readCertificateNotAfter(
+      storedCerts.filter((cert) => !metadata.certificates.includes(cert)),
+    ),
+    now,
+  })
   const changed =
-    certificatesChanged ||
+    certificates.changed ||
     metadata.entityId !== row.idp_entity_id ||
     metadata.ssoUrl !== row.idp_sso_url ||
     metadata.sloUrl !== row.idp_slo_url
@@ -184,21 +188,21 @@ async function refreshIdpMetadata(
       metadata.entityId,
       metadata.ssoUrl,
       metadata.sloUrl,
-      JSON.stringify(metadata.certificates),
-      Date.now(),
+      JSON.stringify(certificates.certificates),
+      now,
       row.tenant_id,
       row.id,
     )
     .run()
 
-  if (certificatesChanged) {
+  if (certificates.added.length > 0) {
     await env.WEBHOOK_QUEUE.send({
       tenantId: row.tenant_id,
       event: 'connection.saml_certificate_renewed',
       payload: {
         connection_id: row.id,
         org_id: row.org_id,
-        certificate_count: metadata.certificates.length,
+        certificate_count: certificates.certificates.length,
       },
     })
   }

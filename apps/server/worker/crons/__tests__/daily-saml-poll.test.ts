@@ -1,5 +1,6 @@
 // pollSamlIdpMetadata 负路径与隔离:拉取失败、无效 XML、超大 metadata、分页、单连接错误不阻断整轮。
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { generateSelfSignedSamlCertificate } from '@xid-kit/saml'
 import { pollSamlIdpMetadata } from '../daily'
 
 type Row = Record<string, unknown>
@@ -389,6 +390,53 @@ describe('pollSamlIdpMetadata refresh status', () => {
     const [success] = successUpdates(db)
     expect(success?.sql).toContain('idp_metadata_last_error = NULL')
     expect(success?.args).toEqual([expect.any(Number), 'tenant_1', 'conn_1'])
+  })
+
+  it('keeps the previous IdP certificate next to the rotated one until it expires', async () => {
+    const previous = await generateSelfSignedSamlCertificate('idp-old.example.com')
+    const rotated = await generateSelfSignedSamlCertificate('idp-new.example.com')
+    if (!previous.ok || !rotated.ok) throw new Error('certificate generation failed')
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(idpMetadataXml(rotated.value.certificateB64))) as typeof fetch
+    const db = new FakeD1([
+      connection({ idp_certificates: JSON.stringify([previous.value.certificateB64]) }),
+    ])
+    const sent: Row[] = []
+
+    await pollSamlIdpMetadata(makeEnv(db, sent))
+
+    const [update] = configUpdates(db)
+    expect(JSON.parse(String(update?.args[3]))).toEqual([
+      rotated.value.certificateB64,
+      previous.value.certificateB64,
+    ])
+    expect(sent.map((message) => message['event'])).toEqual(['connection.saml_certificate_renewed'])
+  })
+
+  it('removes an expired previous certificate without announcing a renewal', async () => {
+    const expired = await generateSelfSignedSamlCertificate(
+      'idp-old.example.com',
+      Date.now() - 400 * 24 * 60 * 60 * 1000,
+    )
+    if (!expired.ok) throw new Error('certificate generation failed')
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(idpMetadataXml('CERT_CURRENT'))) as typeof fetch
+    const db = new FakeD1([
+      connection({
+        idp_entity_id: 'https://idp.example.com/metadata',
+        idp_sso_url: 'https://idp.example.com/sso',
+        idp_slo_url: 'https://idp.example.com/slo',
+        idp_certificates: JSON.stringify(['CERT_CURRENT', expired.value.certificateB64]),
+      }),
+    ])
+    const sent: Row[] = []
+
+    await pollSamlIdpMetadata(makeEnv(db, sent))
+
+    expect(JSON.parse(String(configUpdates(db)[0]?.args[3]))).toEqual(['CERT_CURRENT'])
+    expect(sent).toHaveLength(0)
   })
 
   it('binds tenant_id on the configuration update', async () => {
