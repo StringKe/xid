@@ -59,7 +59,7 @@ export function PasskeySection(): ReactNode {
   const count = list.length
   const host = globalThis.location?.hostname ?? ''
   const earlierHost = authConfig.data?.earlierPasskeyRpId ?? null
-  const hasEarlier = earlierHost !== null && list.some((passkey) => passkey.earlier)
+  const hasEarlier = canCreate && earlierHost !== null && list.some((passkey) => passkey.earlier)
   const oldest = oldestPasskey(list)
   const create = (options: { securityKey: boolean }): void => void registration.register(options)
 
