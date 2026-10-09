@@ -1,93 +1,152 @@
-// 组织/用户总数走 MetricsBand side,勿再挂第二组同权重指标。
-
-import { Trans, useLingui } from '@lingui/react/macro'
+import { Plural, Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, EmptyState, Spinner } from '@xid-kit/web-ui/ui'
+import { Alert, Button, Skeleton } from '@xid-kit/web-ui/ui'
 import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
-import { MetricBarChart } from '@xid-kit/web-ui/ui/MetricBarChart'
+import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { text } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { useApiQuery } from '@xid-kit/web-ui/queries'
-import type { PlatformStats } from '@xid-kit/types'
-import { PlatformMetricsBand, formatLoginSuccessRate } from './PlatformOverviewMetrics'
+import { PlatformAttention } from './PlatformAttention'
+import { PlatformEventSentence, shortEventTime } from './PlatformAuditEvents'
+import { PlatformActivityTable } from './PlatformOverviewMetrics'
+import { usePlatformOverviewStats } from './ops-queries'
+import type { PlatformOverviewStats } from './ops-queries'
+
+const NARROW = '@media (max-width: 40rem)'
 
 const styles = stylex.create({
-  chartStack: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.75rem',
+  skeletons: {
+    display: 'grid',
+    gap: '0.75rem',
   },
-  chartDivided: {
+  sectionNote: {
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.xs,
+  },
+  wideOnly: {
+    display: { default: 'inline', [NARROW]: 'none' },
+  },
+  narrowOnly: {
+    display: { default: 'none', [NARROW]: 'inline' },
+  },
+  activityList: {
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
     borderTopColor: tokens['--xid-border'],
-    paddingTop: '1.75rem',
+  },
+  activityItem: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '1.5rem',
+    paddingBlock: '0.75rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+    color: tokens['--xid-fg'],
+    fontSize: text.base,
+  },
+  activityTime: {
+    flexShrink: 0,
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  empty: {
+    margin: 0,
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
   },
 })
 
-function ActiveUserRatioChart({ data }: { data: PlatformStats }): ReactNode {
-  return (
-    <MetricBarChart
-      title={<Trans>Active user ratio</Trans>}
-      maxValue={Math.max(data.mau, 1)}
-      items={[
-        {
-          label: <Trans>Daily active users</Trans>,
-          value: data.dau,
-          displayValue: data.dau.toLocaleString(),
-          tone: 'primary',
-        },
-        {
-          label: <Trans>Monthly active users</Trans>,
-          value: data.mau,
-          displayValue: data.mau.toLocaleString(),
-          tone: 'success',
-        },
-      ]}
-    />
-  )
-}
-
-function OperationalRatesChart({ data }: { data: PlatformStats }): ReactNode {
-  const { t } = useLingui()
-  const rate = data.loginSuccessRate
-  return (
-    <MetricBarChart
-      title={<Trans>Operational rates</Trans>}
-      maxValue={1}
-      items={[
-        {
-          label: <Trans>Login success rate (30 days)</Trans>,
-          value: rate ?? 0,
-          displayValue: rate === null ? t`No data` : formatLoginSuccessRate(rate),
-          tone: rate === null ? 'neutral' : rate >= 0.95 ? 'success' : 'danger',
-        },
-        {
-          label: <Trans>Active organizations</Trans>,
-          value: data.organizationCount > 0 ? data.activeOrgCount / data.organizationCount : 0,
-          displayValue: `${data.activeOrgCount.toLocaleString()} / ${data.organizationCount.toLocaleString()}`,
-          tone: 'primary',
-        },
-      ]}
-    />
-  )
-}
-
-function PlatformStatsSections({ data }: { data: PlatformStats }): ReactNode {
+function OverviewLead({ data }: { data: PlatformOverviewStats | undefined }): ReactNode {
+  if (!data) return <Trans>Sign-in activity, organizations and what needs attention.</Trans>
+  const host = globalThis.location?.hostname ?? ''
+  const organizations = data.organizationCount
+  const pending = data.attention.length
   return (
     <>
-      <ConsolePageSection title={<Trans>Global metrics</Trans>}>
-        <PlatformMetricsBand data={data} />
+      <Plural
+        value={organizations}
+        one={<>{host} runs # organization.</>}
+        other={<>{host} runs # organizations.</>}
+      />{' '}
+      <Plural
+        value={pending}
+        _0="Nothing needs an instance manager today."
+        one="# thing needs an instance manager today."
+        other="# things need an instance manager today."
+      />
+    </>
+  )
+}
+
+function RecentPlatformActivity({ data }: { data: PlatformOverviewStats }): ReactNode {
+  const { i18n } = useLingui()
+  if (data.recentPlatformActivity.length === 0) {
+    return (
+      <p {...stylex.props(styles.empty)}>
+        <Trans>No instance manager actions have been recorded yet.</Trans>
+      </p>
+    )
+  }
+  return (
+    <ul {...stylex.props(styles.activityList)}>
+      {data.recentPlatformActivity.map((event) => (
+        <li key={event.id} {...stylex.props(styles.activityItem)}>
+          <span>
+            <PlatformEventSentence event={event} />
+          </span>
+          <time dateTime={event.occurredAt} {...stylex.props(styles.activityTime)}>
+            {shortEventTime(i18n, event.occurredAt)}
+          </time>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function OverviewSections({ data }: { data: PlatformOverviewStats }): ReactNode {
+  const organizations = data.organizationCount
+  return (
+    <>
+      <ConsolePageSection title={<Trans>Needs attention</Trans>}>
+        <PlatformAttention items={data.attention} />
       </ConsolePageSection>
 
-      <ConsolePageSection title={<Trans>Trends</Trans>}>
-        <div {...stylex.props(styles.chartStack)}>
-          <ActiveUserRatioChart data={data} />
-          <div {...stylex.props(styles.chartDivided)}>
-            <OperationalRatesChart data={data} />
-          </div>
-        </div>
+      <ConsolePageSection
+        title={<Trans>Activity</Trans>}
+        actions={
+          <span {...stylex.props(styles.sectionNote)}>
+            <span {...stylex.props(styles.wideOnly)}>
+              <Plural
+                value={organizations}
+                one="Counts from exact metering, updated hourly. Totals cover # organization."
+                other="Counts from exact metering, updated hourly. Totals cover all # organizations."
+              />
+            </span>
+            <span {...stylex.props(styles.narrowOnly)}>
+              <Trans>Exact metering, updated hourly</Trans>
+            </span>
+          </span>
+        }
+      >
+        <PlatformActivityTable metrics={data.activity} />
+      </ConsolePageSection>
+
+      <ConsolePageSection
+        title={<Trans>Recent platform activity</Trans>}
+        actions={
+          <Link to="/console/platform/events" {...stylex.props(page.textLink)}>
+            <Trans>Open audit log</Trans>
+          </Link>
+        }
+      >
+        <RecentPlatformActivity data={data} />
       </ConsolePageSection>
     </>
   )
@@ -95,35 +154,32 @@ function PlatformStatsSections({ data }: { data: PlatformStats }): ReactNode {
 
 export default function PlatformAdminOverview(): ReactNode {
   const { t } = useLingui()
-  const { data, isLoading, isError } = useApiQuery<PlatformStats>(
-    ['platform', 'stats'] as const,
-    '/v1/platform/stats',
-  )
+  const stats = usePlatformOverviewStats()
 
   return (
-    <ConsolePage
-      title={<Trans>Platform overview</Trans>}
-      lead={<Trans>Sign-in activity, organizations, and usage across this instance.</Trans>}
-    >
-      {isError ? (
+    <ConsolePage title={<Trans>Overview</Trans>} lead={<OverviewLead data={stats.data} />}>
+      {stats.isError ? (
         <ConsolePageNotice>
           <Alert tone="error">
-            <Trans>Failed to load platform stats. Reload the page to try again.</Trans>
+            <Trans>The overview could not be loaded.</Trans>{' '}
+            <Button variant="secondary" onClick={() => void stats.refetch()}>
+              <Trans>Try again</Trans>
+            </Button>
           </Alert>
         </ConsolePageNotice>
       ) : null}
 
-      {isLoading ? (
-        <div {...stylex.props(page.loadingCenter)}>
-          <Spinner label={t`Loading platform stats`} />
-        </div>
-      ) : data ? (
-        <PlatformStatsSections data={data} />
-      ) : !isError ? (
-        <ConsolePageSection>
-          <EmptyState title={<Trans>No platform stats available.</Trans>} />
+      {stats.isLoading ? (
+        <ConsolePageSection title={<Trans>Needs attention</Trans>}>
+          <div aria-label={t`Loading overview`} {...stylex.props(styles.skeletons)}>
+            <Skeleton height="3.5rem" />
+            <Skeleton height="3.5rem" />
+            <Skeleton height="3.5rem" />
+          </div>
         </ConsolePageSection>
       ) : null}
+
+      {stats.data ? <OverviewSections data={stats.data} /> : null}
     </ConsolePage>
   )
 }

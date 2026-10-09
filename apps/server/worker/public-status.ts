@@ -75,6 +75,7 @@ app.get('/', async (c) => {
       status: incident.status,
       impact: incident.impact,
       summary: incident.summary,
+      components: incident.components,
       startedAt: incident.startedAt.toISOString(),
       resolvedAt: incident.resolvedAt?.toISOString() ?? null,
       updates: updatesByIncident.get(incident.id) ?? [],

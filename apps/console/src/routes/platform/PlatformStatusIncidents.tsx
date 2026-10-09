@@ -1,310 +1,300 @@
+import type { I18n } from '@lingui/core'
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
-import { FormattedDate } from '../../components/FormattedDate'
+import { useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { useState } from 'react'
+import type { StatusIncident } from '@xid-kit/types'
 import {
   Alert,
   Badge,
   Button,
-  EmptyState,
+  Dialog,
   Field,
+  Icon,
   Input,
   Select,
-  Skeleton,
   Textarea,
 } from '@xid-kit/web-ui/ui'
-import {
-  ConsolePage,
-  ConsolePageNotice,
-  ConsolePageSection,
-  ConsolePageSplitSection,
-} from '@xid-kit/web-ui/ui'
+import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
+import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
-import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
-import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { useNavigate, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
 import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import type { StatusIncident, XidError } from '@xid-kit/types'
+import { frame } from '../../components/page/PageFrame'
 import { fromLocalDateTime, nowLocalDateTime } from '../../lib/datetime-local'
+import { formatRelativeTime } from './PlatformAttention'
 import {
-  useAppendStatusIncidentUpdate,
-  useCreateStatusIncident,
-  useDeleteStatusIncident,
-  usePlatformStatusIncidentsList,
-} from './queries'
+  ComponentChoices,
+  STATUS_INCIDENTS_PATH,
+  StatusIncidentDetail,
+  componentList,
+  incidentImpactLabel,
+  incidentStatusLabel,
+  incidentStatusTone,
+} from './StatusIncidentDetail'
+import { useOpenStatusIncident, useStatusIncidents } from './ops-queries'
+import type { PlatformStatusIncident, StatusIncidentComponent } from './ops-queries'
+
+const DAY_MS = 24 * 60 * 60 * 1000
+const NARROW = '@media (max-width: 40rem)'
 
 const styles = stylex.create({
-  form: {
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 48rem)': 'repeat(2, minmax(0, 1fr))',
-    },
-    gap: '1rem',
-  },
-  full: {
-    gridColumn: '1 / -1',
-  },
-  actions: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.625rem',
-    alignItems: 'center',
-  },
-  skeletonStack: {
-    display: 'grid',
-    gap: '0.75rem',
-  },
-  list: {
-    display: 'grid',
-    gap: 0,
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-  },
-  incident: {
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 56rem)': 'minmax(0, 7fr) minmax(17rem, 5fr)',
-    },
-    gap: '1.25rem',
-    paddingBlock: '1.5rem',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  incidentTitle: {
-    margin: 0,
+  title: {
+    display: 'block',
     color: tokens['--xid-fg'],
     fontSize: text.base,
-    fontWeight: weight.display,
+    fontWeight: weight.medium,
   },
-  summary: {
-    margin: '0.375rem 0 0',
+  sub: {
+    display: 'block',
     color: tokens['--xid-muted-foreground'],
-    fontSize: text.sm,
-    lineHeight: 1.55,
+    fontSize: text.xs,
   },
-  meta: {
+  stale: {
+    color: tokens['--xid-warning'],
+    fontWeight: weight.medium,
+  },
+  number: {
+    whiteSpace: 'nowrap',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  note: {
+    margin: 0,
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.xs,
+  },
+  form: {
+    display: 'grid',
+    gap: '1rem',
+  },
+  twoUp: {
+    display: 'grid',
+    gridTemplateColumns: { default: '1fr 1fr', [NARROW]: '1fr' },
+    gap: '1rem',
+  },
+  footer: {
     display: 'flex',
-    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
     gap: '0.5rem',
-    alignItems: 'center',
-    marginTop: '0.75rem',
-  },
-  time: {
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: text.xs,
-  },
-  timeline: {
-    margin: '1rem 0 0',
-    padding: 0,
-    listStyle: 'none',
-  },
-  timelineItem: {
-    display: 'grid',
-    gridTemplateColumns: '7.5rem 1fr',
-    gap: '0.75rem',
-    paddingBlock: '0.5rem',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    color: tokens['--xid-muted-foreground'],
-    fontSize: text.xs,
-    lineHeight: 1.45,
-  },
-  updateForm: {
-    display: 'grid',
-    gap: '0.75rem',
-    alignContent: 'start',
   },
 })
 
-function statusLabel(status: StatusIncident['status']): ReactNode {
-  if (status === 'investigating') return <Trans>Investigating</Trans>
-  if (status === 'identified') return <Trans>Identified</Trans>
-  if (status === 'monitoring') return <Trans>Monitoring</Trans>
-  return <Trans>Resolved</Trans>
+function lastUpdateText(i18n: I18n, incident: PlatformStatusIncident): string {
+  const at = incident.lastUpdateAt ?? incident.updatedAt
+  if (Date.now() - new Date(at).getTime() < DAY_MS) return formatRelativeTime(i18n, at)
+  return i18n.date(new Date(at), {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
 }
 
-function impactLabel(impact: StatusIncident['impact']): ReactNode {
-  if (impact === 'critical') return <Trans>Critical impact</Trans>
-  if (impact === 'major') return <Trans>Major impact</Trans>
-  if (impact === 'minor') return <Trans>Minor impact</Trans>
-  return <Trans>No impact</Trans>
-}
-
-function incidentTone(incident: StatusIncident): 'neutral' | 'success' | 'warning' | 'danger' {
-  if (incident.status === 'resolved') return 'success'
-  if (incident.impact === 'critical' || incident.impact === 'major') return 'danger'
-  if (incident.impact === 'minor') return 'warning'
-  return 'neutral'
-}
-
-type IncidentItemProps = {
-  incident: StatusIncident
-  isAppending: boolean
-  onAppend: (
-    incident: StatusIncident,
-    status: StatusIncident['status'],
-    message: string,
-    onSuccess: () => void,
-  ) => void
-  onDelete: (incident: StatusIncident) => void
-}
-
-function IncidentItem({ incident, isAppending, onAppend, onDelete }: IncidentItemProps): ReactNode {
-  const { t } = useLingui()
-  const [status, setStatus] = useState<StatusIncident['status']>(incident.status)
-  const [message, setMessage] = useState('')
-
-  function submit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault()
-    onAppend(incident, status, message, () => setMessage(''))
-  }
-
-  return (
-    <article {...stylex.props(styles.incident)}>
-      <div>
-        <h3 {...stylex.props(styles.incidentTitle)}>{incident.title}</h3>
-        <p {...stylex.props(styles.summary)}>{incident.summary}</p>
-        <div {...stylex.props(styles.meta)}>
-          <Badge tone={incidentTone(incident)}>{statusLabel(incident.status)}</Badge>
-          <Badge tone={incident.impact === 'critical' ? 'danger' : 'neutral'}>
-            {impactLabel(incident.impact)}
+function useIncidentColumns(): ColumnDef<PlatformStatusIncident>[] {
+  const { i18n } = useLingui()
+  return useMemo<ColumnDef<PlatformStatusIncident>[]>(
+    () => [
+      {
+        id: 'incident',
+        header: () => <Trans>Incident</Trans>,
+        cell: ({ row }) => (
+          <>
+            <span {...stylex.props(styles.title)}>{row.original.title}</span>
+            <span {...stylex.props(styles.sub)}>
+              {componentList(i18n, row.original.components)}
+            </span>
+          </>
+        ),
+        meta: { priority: 'primary' },
+      },
+      {
+        id: 'status',
+        header: () => <Trans>Status</Trans>,
+        cell: ({ row }) => (
+          <Badge tone={incidentStatusTone(row.original.status)}>
+            {incidentStatusLabel(i18n, row.original.status)}
           </Badge>
-          <span {...stylex.props(styles.time)}>
-            <FormattedDate value={incident.startedAt} time />
+        ),
+        meta: { width: '9rem', priority: 'primary' },
+      },
+      {
+        id: 'impact',
+        header: () => <Trans>Impact</Trans>,
+        cell: ({ row }) => incidentImpactLabel(i18n, row.original.impact),
+        meta: { width: '9rem', priority: 'secondary' },
+      },
+      {
+        id: 'started',
+        header: () => <Trans>Started</Trans>,
+        cell: ({ row }) => (
+          <span {...stylex.props(styles.number)}>
+            {i18n.date(new Date(row.original.startedAt), {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hourCycle: 'h23',
+            })}
           </span>
-        </div>
-        {incident.updates.length ? (
-          <ol {...stylex.props(styles.timeline)}>
-            {incident.updates.map((update) => (
-              <li key={update.id} {...stylex.props(styles.timelineItem)}>
-                <time dateTime={update.createdAt}>
-                  <FormattedDate value={update.createdAt} time />
-                </time>
-                <span>
-                  {statusLabel(update.status)}: {update.message}
-                </span>
-              </li>
-            ))}
-          </ol>
-        ) : null}
-      </div>
-      <form {...stylex.props(styles.updateForm)} onSubmit={submit}>
-        <Field label={t`Next status`}>
-          <Select
-            value={status}
-            onChange={(event) => setStatus(event.target.value as StatusIncident['status'])}
+        ),
+        meta: { width: '9rem', align: 'end', priority: 'secondary' },
+      },
+      {
+        id: 'lastUpdate',
+        header: () => <Trans>Last update</Trans>,
+        cell: ({ row }) => (
+          <span
+            {...stylex.props(styles.number, row.original.status !== 'resolved' && styles.stale)}
           >
-            <option value="investigating">{t`Investigating`}</option>
-            <option value="identified">{t`Identified`}</option>
-            <option value="monitoring">{t`Monitoring`}</option>
-            <option value="resolved">{t`Resolved`}</option>
-          </Select>
-        </Field>
-        <Field
-          label={t`Public update`}
-          hint={
-            <Trans>
-              To resolve the incident, choose Resolved and describe the fix. Every status change is
-              published on the status page timeline.
-            </Trans>
-          }
-        >
-          <Textarea
-            required
-            maxLength={4000}
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-          />
-        </Field>
-        <div {...stylex.props(styles.actions)}>
-          <Button type="submit" isLoading={isAppending}>
-            <Trans>Publish update</Trans>
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => onDelete(incident)}
-            aria-label={t`Delete incident ${incident.title}`}
-            {...stylex.props(consoleShell.actionButton)}
-          >
-            <Trans>Delete</Trans>
-          </Button>
-        </div>
-      </form>
-    </article>
+            {lastUpdateText(i18n, row.original)}
+          </span>
+        ),
+        meta: { width: '9rem', align: 'end', priority: 'secondary' },
+      },
+    ],
+    [i18n],
   )
 }
 
-export default function PlatformStatusIncidents(): ReactNode {
+type OpenForm = {
+  title: string
+  summary: string
+  impact: StatusIncident['impact']
+  startedAt: string
+  components: StatusIncidentComponent[]
+}
+
+function emptyForm(): OpenForm {
+  return { title: '', summary: '', impact: 'minor', startedAt: nowLocalDateTime(), components: [] }
+}
+
+function OpenIncidentDialog({
+  open,
+  onOpenChange,
+  onOpened,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onOpened: (incident: PlatformStatusIncident) => void
+}): ReactNode {
   const { t } = useLingui()
   const errorMessage = useApiErrorMessage()
-  const incidents = usePlatformStatusIncidentsList()
-  const incidentRows = incidents.data?.data ?? []
-  const create = useCreateStatusIncident()
-  const append = useAppendStatusIncidentUpdate()
-  const remove = useDeleteStatusIncident()
-  const [pendingDelete, setPendingDelete] = useState<StatusIncident | null>(null)
-  const [title, setTitle] = useState('')
-  const [summary, setSummary] = useState('')
-  const [impact, setImpact] = useState<StatusIncident['impact']>('minor')
-  const [startedAt, setStartedAt] = useState(nowLocalDateTime)
+  const create = useOpenStatusIncident()
+  const [form, setForm] = useState<OpenForm>(emptyForm)
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    const startedAtIso = fromLocalDateTime(startedAt)
-    if (!startedAtIso) return
+    const startedAt = fromLocalDateTime(form.startedAt)
+    if (!startedAt) return
     create.mutate(
       {
-        title,
-        summary,
-        impact,
+        title: form.title,
+        summary: form.summary,
+        impact: form.impact,
         status: 'investigating',
-        startedAt: startedAtIso,
+        startedAt,
+        components: form.components,
       },
       {
-        onSuccess: () => {
-          setTitle('')
-          setSummary('')
-          setImpact('minor')
-          setStartedAt(nowLocalDateTime())
+        onSuccess: (incident) => {
+          setForm(emptyForm())
+          onOpened(incident)
         },
       },
     )
   }
 
-  function writeError(error: XidError | null): string | undefined {
-    if (!error) return undefined
-    if (error.code === 'conflict') {
-      return t`Another administrator updated this incident. The list was refreshed; review it and try again.`
-    }
-    return errorMessage(error, { surface: 'general' })
-  }
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={<Trans>Open incident</Trans>}
+      description={
+        <Trans>
+          Customers see the title, impact and summary on the public status API right away.
+        </Trans>
+      }
+    >
+      <form {...stylex.props(styles.form)} onSubmit={submit}>
+        <Field label={t`Title`}>
+          <Input
+            required
+            maxLength={160}
+            value={form.title}
+            onChange={(event) => setForm({ ...form, title: event.target.value })}
+          />
+        </Field>
+        <div {...stylex.props(styles.twoUp)}>
+          <Field label={t`Impact`}>
+            <Select
+              value={form.impact}
+              onChange={(event) =>
+                setForm({ ...form, impact: event.target.value as StatusIncident['impact'] })
+              }
+            >
+              <option value="minor">{t`Degraded`}</option>
+              <option value="major">{t`Partial outage`}</option>
+              <option value="critical">{t`Major outage`}</option>
+              <option value="none">{t`No customer impact`}</option>
+            </Select>
+          </Field>
+          <Field label={t`Started at`}>
+            <Input
+              type="datetime-local"
+              required
+              value={form.startedAt}
+              onChange={(event) => setForm({ ...form, startedAt: event.target.value })}
+            />
+          </Field>
+        </div>
+        <Field
+          label={t`Summary`}
+          hint={<Trans>Shown publicly as written. Do not include customer names.</Trans>}
+        >
+          <Textarea
+            required
+            rows={3}
+            maxLength={4000}
+            value={form.summary}
+            onChange={(event) => setForm({ ...form, summary: event.target.value })}
+          />
+        </Field>
+        <ComponentChoices
+          value={form.components}
+          onChange={(components) => setForm({ ...form, components })}
+        />
+        {create.error ? (
+          <Alert tone="error">{errorMessage(create.error, { surface: 'general' })}</Alert>
+        ) : null}
+        <div {...stylex.props(styles.footer)}>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+            <Trans>Cancel</Trans>
+          </Button>
+          <Button type="submit" isLoading={create.isPending}>
+            <Trans>Open incident</Trans>
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
 
-  function handleAppend(
-    incident: StatusIncident,
-    status: StatusIncident['status'],
-    message: string,
-    onSuccess: () => void,
-  ): void {
-    append.mutate({ id: incident.id, status, message }, { onSuccess })
-  }
+function IncidentList(): ReactNode {
+  const { i18n } = useLingui()
+  const navigate = useNavigate()
+  const incidents = useStatusIncidents()
+  const columns = useIncidentColumns()
+  const [opening, setOpening] = useState(false)
+  const rows = incidents.data?.data ?? []
+  const openIncident = rows.find((incident) => incident.status !== 'resolved')
+  const lastPublic = openIncident ? lastUpdateText(i18n, openIncident) : null
 
-  function confirmDelete(): void {
-    if (!pendingDelete) return
-    remove.mutate({ id: pendingDelete.id }, { onSuccess: () => setPendingDelete(null) })
-  }
-
-  function openDelete(incident: StatusIncident): void {
-    remove.reset()
-    setPendingDelete(incident)
+  function openDetail(incident: PlatformStatusIncident): void {
+    navigate(`${STATUS_INCIDENTS_PATH}?incidentId=${encodeURIComponent(incident.id)}`)
   }
 
   return (
@@ -312,121 +302,66 @@ export default function PlatformStatusIncidents(): ReactNode {
       title={<Trans>Status incidents</Trans>}
       lead={
         <Trans>
-          Keep the public status page current with incident impact, state, and timestamped updates.
+          What customers see through the public status API. Incidents are opened by people; this
+          instance does not probe itself.
         </Trans>
       }
+      actions={
+        <Button onClick={() => setOpening(true)}>
+          <Icon name="plus" />
+          <Trans>Open incident</Trans>
+        </Button>
+      }
     >
-      {incidents.isError || create.error || create.isSuccess || append.error ? (
+      {incidents.isError ? (
         <ConsolePageNotice>
-          {incidents.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to load status incidents.</Trans>
-            </Alert>
-          ) : null}
-          {create.error ? <Alert tone="error">{writeError(create.error)}</Alert> : null}
-          {create.isSuccess ? (
-            <Alert tone="success">
-              <Trans>Incident opened.</Trans>
-            </Alert>
-          ) : null}
-          {append.error ? <Alert tone="error">{writeError(append.error)}</Alert> : null}
+          <Alert tone="error">
+            <Trans>Status incidents could not be loaded.</Trans>{' '}
+            <Button variant="secondary" onClick={() => void incidents.refetch()}>
+              <Trans>Try again</Trans>
+            </Button>
+          </Alert>
         </ConsolePageNotice>
       ) : null}
 
-      <ConsolePageSplitSection
-        title={<Trans>Open incident</Trans>}
-        description={<Trans>Declare the incident, its public impact, and when it started.</Trans>}
-      >
-        <form {...stylex.props(styles.form)} onSubmit={submit}>
-          <Field label={t`Incident title`}>
-            <Input
-              required
-              maxLength={160}
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </Field>
-          <Field label={t`Impact`}>
-            <Select
-              value={impact}
-              onChange={(event) => setImpact(event.target.value as StatusIncident['impact'])}
-            >
-              <option value="none">{t`None`}</option>
-              <option value="minor">{t`Minor`}</option>
-              <option value="major">{t`Major`}</option>
-              <option value="critical">{t`Critical`}</option>
-            </Select>
-          </Field>
-          <div {...stylex.props(styles.full)}>
-            <Field label={t`Public summary`}>
-              <Textarea
-                required
-                maxLength={4000}
-                value={summary}
-                onChange={(event) => setSummary(event.target.value)}
-              />
-            </Field>
-          </div>
-          <Field label={t`Started at`}>
-            <Input
-              type="datetime-local"
-              required
-              value={startedAt}
-              onChange={(event) => setStartedAt(event.target.value)}
-            />
-          </Field>
-          <div {...stylex.props(styles.actions)}>
-            <Button type="submit" isLoading={create.isPending}>
-              <Trans>Open incident</Trans>
-            </Button>
-          </div>
-        </form>
-      </ConsolePageSplitSection>
-
-      <ConsolePageSection title={<Trans>Incident ledger</Trans>}>
-        {incidents.isLoading ? (
-          <div {...stylex.props(styles.skeletonStack)}>
-            <Skeleton height="8rem" />
-            <Skeleton height="8rem" />
-            <Skeleton height="8rem" />
-          </div>
-        ) : null}
-        {!incidents.isLoading && !incidents.isError && incidentRows.length === 0 ? (
-          <EmptyState title={<Trans>No incidents have been reported.</Trans>} />
-        ) : null}
-        {incidentRows.length > 0 ? (
-          <>
-            <div {...stylex.props(styles.list)}>
-              {incidentRows.map((incident) => (
-                <IncidentItem
-                  key={`${incident.id}:${incident.updatedAt}`}
-                  incident={incident}
-                  isAppending={append.isPending && append.variables?.id === incident.id}
-                  onAppend={handleAppend}
-                  onDelete={openDelete}
-                />
-              ))}
-            </div>
-            <LoadMore query={incidents} loadMoreLabel={<Trans>Load more</Trans>} />
-          </>
+      <ConsolePageSection>
+        <DataTable
+          columns={columns}
+          data={rows}
+          getRowId={(row) => row.id}
+          isLoading={incidents.isLoading}
+          onRowClick={openDetail}
+          emptyMessage={
+            <Trans>
+              No incidents yet. Open one when customers are affected so they can follow along.
+            </Trans>
+          }
+        />
+        <LoadMore query={incidents} loadMoreLabel={<Trans>Load more incidents</Trans>} />
+        {lastPublic ? (
+          <p {...stylex.props(styles.note)}>
+            <Trans>
+              The open incident's last public update was {lastPublic}. Customers see that time next
+              to it.
+            </Trans>
+          </p>
         ) : null}
       </ConsolePageSection>
 
-      {pendingDelete ? (
-        <ConfirmDialog
-          title={<Trans>Delete incident?</Trans>}
-          description={
-            <Trans>
-              The incident {pendingDelete.title} and all of its updates will be permanently deleted.
-            </Trans>
-          }
-          confirmLabel={<Trans>Delete</Trans>}
-          isLoading={remove.isPending}
-          error={writeError(remove.error)}
-          onConfirm={confirmDelete}
-          onCancel={() => setPendingDelete(null)}
-        />
-      ) : null}
+      <OpenIncidentDialog open={opening} onOpenChange={setOpening} onOpened={openDetail} />
     </ConsolePage>
   )
+}
+
+export default function PlatformStatusIncidents(): ReactNode {
+  const [searchParams] = useSearchParams()
+  const incidentId = searchParams.get('incidentId')
+  if (incidentId) {
+    return (
+      <div {...stylex.props(frame.root)}>
+        <StatusIncidentDetail key={incidentId} incidentId={incidentId} />
+      </div>
+    )
+  }
+  return <IncidentList />
 }

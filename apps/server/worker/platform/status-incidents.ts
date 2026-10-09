@@ -8,6 +8,7 @@ import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
+import { loadUserDisplayNames } from './audit-events'
 import {
   enqueuePersistedPlatformAudit,
   prepareConditionalPlatformAuditOutboxInsert,
@@ -27,12 +28,32 @@ const INCIDENT_IMPACTS = ['none', 'minor', 'major', 'critical'] as const
 const CURSOR_SEPARATOR = '|'
 const timestampSchema = v.pipe(v.string(), v.trim(), v.minLength(1))
 
+// 公开状态页的固定组件清单;新增组件需同时更新 Console 文案与公共状态 API 消费方。
+export const STATUS_INCIDENT_COMPONENTS = [
+  'hosted_sign_in',
+  'token_endpoint',
+  'management_api',
+  'console',
+  'email_delivery',
+  'sms_delivery',
+  'whatsapp_delivery',
+  'webhooks',
+] as const
+export type StatusIncidentComponent = (typeof STATUS_INCIDENT_COMPONENTS)[number]
+
+const componentsSchema = v.pipe(
+  v.array(v.picklist(STATUS_INCIDENT_COMPONENTS)),
+  v.maxLength(STATUS_INCIDENT_COMPONENTS.length),
+  v.transform((components) => [...new Set(components)]),
+)
+
 const createIncidentSchema = v.object({
   title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(160)),
   status: v.picklist(INCIDENT_STATUSES),
   impact: v.picklist(INCIDENT_IMPACTS),
   summary: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4_000)),
   startedAt: timestampSchema,
+  components: v.optional(componentsSchema, []),
 })
 
 // 状态只经 POST /:id/updates 流转,保证每次状态变化(包括解决)都在公开时间线留下说明。
@@ -41,15 +62,25 @@ const patchIncidentSchema = v.strictObject({
   impact: v.optional(v.picklist(INCIDENT_IMPACTS)),
   summary: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4_000))),
   startedAt: v.optional(timestampSchema),
+  components: v.optional(componentsSchema),
 })
 
 const createUpdateSchema = v.object({
   status: v.picklist(INCIDENT_STATUSES),
   message: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4_000)),
+  components: v.optional(componentsSchema),
 })
 
 type IncidentRow = typeof schema.statusIncidents.$inferSelect
 type IncidentUpdateRow = typeof schema.statusIncidentUpdates.$inferSelect
+
+export type PlatformStatusIncidentUpdate = StatusIncidentUpdate & { createdByName: string | null }
+
+export type PlatformStatusIncident = Omit<StatusIncident, 'updates'> & {
+  components: string[]
+  lastUpdateAt: string | null
+  updates: PlatformStatusIncidentUpdate[]
+}
 
 function parseTimestamp(value: string, paramName: string): Date {
   const date = new Date(value)
@@ -65,31 +96,45 @@ async function throwIncidentWriteRejected(env: Env, id: string): Promise<never> 
   throw new AppError('not_found', { httpStatus: 404 })
 }
 
-function mapIncidentUpdate(row: IncidentUpdateRow): StatusIncidentUpdate {
+type IncidentUpdates = { rows: readonly IncidentUpdateRow[]; names: Map<string, string> }
+
+const NO_UPDATES: IncidentUpdates = { rows: [], names: new Map() }
+
+function mapIncidentUpdate(
+  row: IncidentUpdateRow,
+  names: Map<string, string>,
+): PlatformStatusIncidentUpdate {
   return {
     id: row.id,
     incidentId: row.incidentId,
     status: row.status as StatusIncidentStatus,
     message: row.message,
     createdBy: row.createdBy,
+    createdByName: names.get(row.createdBy) ?? null,
     createdAt: row.createdAt.toISOString(),
   }
 }
 
-function mapIncident(row: IncidentRow, updates: readonly IncidentUpdateRow[] = []): StatusIncident {
+// updates 已按 created_at DESC 排序,第一条即最近一次公开更新。
+function mapIncident(
+  row: IncidentRow,
+  updates: IncidentUpdates = NO_UPDATES,
+): PlatformStatusIncident {
   return {
     id: row.id,
     title: row.title,
     status: row.status as StatusIncidentStatus,
     impact: row.impact as StatusIncident['impact'],
     summary: row.summary,
+    components: row.components,
     startedAt: row.startedAt.toISOString(),
     resolvedAt: row.resolvedAt?.toISOString() ?? null,
     createdBy: row.createdBy,
     updatedBy: row.updatedBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    updates: updates.map(mapIncidentUpdate),
+    lastUpdateAt: updates.rows[0]?.createdAt.toISOString() ?? null,
+    updates: updates.rows.map((update) => mapIncidentUpdate(update, updates.names)),
   }
 }
 
@@ -121,23 +166,37 @@ function encodeIncidentCursor(row: IncidentRow): string {
   return encodeCursor(`${row.startedAt.getTime()}${CURSOR_SEPARATOR}${row.id}`)
 }
 
+type IncidentUpdateIndex = {
+  byIncident: Map<string, IncidentUpdateRow[]>
+  names: Map<string, string>
+}
+
+function updatesFor(index: IncidentUpdateIndex, incidentId: string): IncidentUpdates {
+  return { rows: index.byIncident.get(incidentId) ?? [], names: index.names }
+}
+
 async function incidentUpdatesById(
   env: Env,
   incidentIds: readonly string[],
-): Promise<Map<string, IncidentUpdateRow[]>> {
-  if (incidentIds.length === 0) return new Map()
-  const rows = await managementDb(env)
+): Promise<IncidentUpdateIndex> {
+  if (incidentIds.length === 0) return { byIncident: new Map(), names: new Map() }
+  const db = managementDb(env)
+  const rows = await db
     .select()
     .from(schema.statusIncidentUpdates)
     .where(inArray(schema.statusIncidentUpdates.incidentId, incidentIds))
     .orderBy(desc(schema.statusIncidentUpdates.createdAt), desc(schema.statusIncidentUpdates.id))
-  const updates = new Map<string, IncidentUpdateRow[]>()
+  const byIncident = new Map<string, IncidentUpdateRow[]>()
   for (const row of rows) {
-    const list = updates.get(row.incidentId) ?? []
+    const list = byIncident.get(row.incidentId) ?? []
     list.push(row)
-    updates.set(row.incidentId, list)
+    byIncident.set(row.incidentId, list)
   }
-  return updates
+  const names = await loadUserDisplayNames(
+    db,
+    rows.map((row) => row.createdBy),
+  )
+  return { byIncident, names }
 }
 
 async function findIncident(env: Env, id: string): Promise<IncidentRow | undefined> {
@@ -149,9 +208,9 @@ async function findIncident(env: Env, id: string): Promise<IncidentRow | undefin
   return rows[0]
 }
 
-async function responseIncident(env: Env, row: IncidentRow) {
+async function responseIncident(env: Env, row: IncidentRow): Promise<PlatformStatusIncident> {
   const updates = await incidentUpdatesById(env, [row.id])
-  return mapIncident(row, updates.get(row.id) ?? [])
+  return mapIncident(row, updatesFor(updates, row.id))
 }
 
 app.get('/', async (c) => {
@@ -174,7 +233,7 @@ app.get('/', async (c) => {
   )
   const last = pageRows.at(-1)
   return c.json({
-    data: pageRows.map((row) => mapIncident(row, updates.get(row.id) ?? [])),
+    data: pageRows.map((row) => mapIncident(row, updatesFor(updates, row.id))),
     nextCursor: hasMore && last ? encodeIncidentCursor(last) : null,
     total: totalRow?.value ?? 0,
   })
@@ -201,7 +260,7 @@ app.post('/', async (c) => {
     status: input.status,
     impact: input.impact,
     summary: input.summary,
-    components: [],
+    components: input.components,
     startedAt,
     resolvedAt: input.status === 'resolved' ? now : null,
     createdBy: session.userId,
@@ -220,6 +279,7 @@ app.post('/', async (c) => {
         targetId: id,
         status: row.status,
         impact: row.impact,
+        components: row.components,
       },
     },
     now.getTime(),
@@ -227,15 +287,16 @@ app.post('/', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO status_incidents (
-         id, title, status, impact, summary, started_at, resolved_at,
+         id, title, status, impact, summary, components, started_at, resolved_at,
          created_by, updated_by, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       row.id,
       row.title,
       row.status,
       row.impact,
       row.summary,
+      JSON.stringify(row.components),
       row.startedAt.getTime(),
       row.resolvedAt?.getTime() ?? null,
       row.createdBy,
@@ -275,6 +336,7 @@ app.patch('/:id', async (c) => {
     title: patch.title ?? existing.title,
     impact: patch.impact ?? existing.impact,
     summary: patch.summary ?? existing.summary,
+    components: patch.components ?? existing.components,
     startedAt,
     updatedBy: session.userId,
     updatedAt: now,
@@ -290,6 +352,7 @@ app.patch('/:id', async (c) => {
         targetId: updated.id,
         status: updated.status,
         impact: updated.impact,
+        components: updated.components,
       },
     },
     {
@@ -304,14 +367,15 @@ app.patch('/:id', async (c) => {
     audit.statement,
     c.env.DB.prepare(
       `UPDATE status_incidents
-       SET title = ?, status = ?, impact = ?, summary = ?, started_at = ?, resolved_at = ?,
-           updated_by = ?, updated_at = ?
+       SET title = ?, status = ?, impact = ?, summary = ?, components = ?, started_at = ?,
+           resolved_at = ?, updated_by = ?, updated_at = ?
        WHERE id = ? AND updated_at = ? AND ${audit.mutationGate.sql}`,
     ).bind(
       updated.title,
       updated.status,
       updated.impact,
       updated.summary,
+      JSON.stringify(updated.components),
       updated.startedAt.getTime(),
       updated.resolvedAt?.getTime() ?? null,
       updated.updatedBy,
@@ -345,6 +409,7 @@ app.post('/:id/updates', async (c) => {
     createdAt: now,
   }
   const resolvedAt = input.status === 'resolved' ? now : null
+  const components = input.components ?? existing.components
   const audit = prepareConditionalPlatformAuditOutboxInsert(
     c.env,
     {
@@ -356,6 +421,7 @@ app.post('/:id/updates', async (c) => {
         targetId: existing.id,
         status: input.status,
         updateId: update.id,
+        components,
       },
     },
     {
@@ -385,10 +451,11 @@ app.post('/:id/updates', async (c) => {
     ),
     c.env.DB.prepare(
       `UPDATE status_incidents
-       SET status = ?, resolved_at = ?, updated_by = ?, updated_at = ?
+       SET status = ?, components = ?, resolved_at = ?, updated_by = ?, updated_at = ?
        WHERE id = ? AND updated_at = ? AND ${audit.mutationGate.sql}`,
     ).bind(
       input.status,
+      JSON.stringify(components),
       resolvedAt?.getTime() ?? null,
       session.userId,
       now.getTime(),
@@ -409,6 +476,7 @@ app.post('/:id/updates', async (c) => {
     await responseIncident(c.env, {
       ...existing,
       status: input.status,
+      components,
       resolvedAt,
       updatedBy: session.userId,
       updatedAt: now,

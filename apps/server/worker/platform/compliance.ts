@@ -9,7 +9,7 @@ import {
   isComplianceChecksum,
   isComplianceStorageKey,
 } from '../compliance-artifact'
-import { AppError } from '../lib/errors'
+import { AppError, isAppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
@@ -18,6 +18,7 @@ import {
   prepareConditionalPlatformAuditOutboxInsert,
   preparePlatformAuditOutboxInsert,
 } from './audit-outbox'
+import { loadUserDisplayNames } from './audit-events'
 import {
   decodeCursor,
   encodeCursor,
@@ -80,19 +81,39 @@ async function loadOrganizationNames(
   return new Map(organizations.map((organization) => [organization.id, organization.name]))
 }
 
+export type PlatformComplianceDocument = ComplianceDocument & {
+  sizeBytes: number | null
+  lastCheckedAt: string | null
+  lastCheckResult: 'matched' | 'mismatch' | null
+  registeredBy: string | null
+}
+
+type DocumentNames = { organizations: Map<string, string>; users: Map<string, string> }
+
 async function complianceDocumentResponses(
   env: Env,
   rows: readonly ComplianceDocumentRow[],
-): Promise<ComplianceDocument[]> {
-  const names = await loadOrganizationNames(env, rows)
-  return rows.map((row) => mapComplianceDocument(row, names))
+): Promise<PlatformComplianceDocument[]> {
+  const [organizations, users] = await Promise.all([
+    loadOrganizationNames(env, rows),
+    loadUserDisplayNames(
+      managementDb(env),
+      rows.flatMap((row) => (row.generatedBy ? [row.generatedBy] : [])),
+    ),
+  ])
+  return rows.map((row) => mapComplianceDocument(row, { organizations, users }))
 }
 
 function mapComplianceDocument(
   row: ComplianceDocumentRow,
-  organizationNames: Map<string, string>,
-): ComplianceDocument {
+  names: DocumentNames,
+): PlatformComplianceDocument {
+  const organizationNames = names.organizations
   return {
+    sizeBytes: row.sizeBytes ?? null,
+    lastCheckedAt: row.lastCheckedAt?.toISOString() ?? null,
+    lastCheckResult: row.lastCheckResult ?? null,
+    registeredBy: row.generatedBy ? (names.users.get(row.generatedBy) ?? null) : null,
     id: row.id,
     tenantId: row.tenantId ?? null,
     organizationName: row.tenantId ? (organizationNames.get(row.tenantId) ?? null) : null,
@@ -133,6 +154,33 @@ function assertArtifactPair(storageKey: string | null, checksum: string | null):
       meta: { paramName: 'checksum' },
     })
   }
+}
+
+// 与 complianceArtifactResponse 的下载上限一致:超限对象登记后也无法下载。
+const MAX_REGISTERED_ARTIFACT_BYTES = 10 * 1024 * 1024
+
+// 登记时对象必须已在私有存储里;只读 head 元数据取大小,不读取内容。
+async function artifactSize(env: Env, storageKey: string | null): Promise<number | null> {
+  if (!storageKey) return null
+  const object = await env.STORAGE.head(storageKey)
+  if (!object || object.size > MAX_REGISTERED_ARTIFACT_BYTES) {
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'storageKey' } })
+  }
+  return object.size
+}
+
+async function recordDownloadCheck(
+  env: Env,
+  documentId: string,
+  result: 'matched' | 'mismatch',
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE compliance_documents
+        SET last_checked_at = ?, last_check_result = ?
+      WHERE id = ?`,
+  )
+    .bind(Date.now(), result, documentId)
+    .run()
 }
 
 async function assertTenant(env: Env, tenantId: string | null): Promise<void> {
@@ -225,7 +273,18 @@ app.get('/:id/artifact', async (c) => {
   await requireInstanceManager(c)
   const document = await findDocument(c.env, c.req.param('id'))
   if (!document) throw new AppError('not_found', { httpStatus: 404 })
-  return complianceArtifactResponse(c.env, document)
+  let response: Response
+  try {
+    response = await complianceArtifactResponse(c.env, document)
+  } catch (error) {
+    // 存储对象与登记的校验和不一致(或已超出下载上限)时阻断下载,并留下检查结果供 Console 展示。
+    if (isAppError(error) && error.code === 'temporarily_unavailable') {
+      await recordDownloadCheck(c.env, document.id, 'mismatch')
+    }
+    throw error
+  }
+  await recordDownloadCheck(c.env, document.id, 'matched')
+  return response
 })
 
 app.post('/', async (c) => {
@@ -234,6 +293,7 @@ app.post('/', async (c) => {
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const input = normalizeInput(validateBody(createDocumentSchema, json.value))
   await assertTenant(c.env, input.tenantId)
+  const sizeBytes = await artifactSize(c.env, input.storageKey)
   const now = new Date()
   const row: ComplianceDocumentRow = {
     id: createPersistedId('complianceDocument'),
@@ -243,7 +303,7 @@ app.post('/', async (c) => {
     status: input.status,
     storageKey: input.storageKey,
     checksum: input.checksum,
-    sizeBytes: null,
+    sizeBytes,
     lastCheckedAt: null,
     lastCheckResult: null,
     version: input.version,
@@ -273,9 +333,9 @@ app.post('/', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO compliance_documents (
-         id, tenant_id, document_type, title, status, storage_key, checksum, version,
+         id, tenant_id, document_type, title, status, storage_key, checksum, size_bytes, version,
          accepted_by, accepted_at, generated_by, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)`,
     ).bind(
       row.id,
       row.tenantId,
@@ -284,6 +344,7 @@ app.post('/', async (c) => {
       row.status,
       row.storageKey,
       row.checksum,
+      row.sizeBytes,
       row.version,
       row.generatedBy,
       row.createdAt.getTime(),
@@ -323,6 +384,9 @@ app.patch('/:id', async (c) => {
     version: patch.version ?? existing.version,
   })
   await assertTenant(c.env, input.tenantId)
+  // 换了对象或校验和,旧的大小与下载检查结果不再描述新对象。
+  const artifactChanged =
+    input.storageKey !== existing.storageKey || input.checksum !== existing.checksum
   const now = new Date()
   const updated: ComplianceDocumentRow = {
     ...existing,
@@ -330,6 +394,9 @@ app.patch('/:id', async (c) => {
     tenantId: input.tenantId,
     storageKey: input.storageKey,
     checksum: input.checksum,
+    sizeBytes: artifactChanged ? await artifactSize(c.env, input.storageKey) : existing.sizeBytes,
+    lastCheckedAt: artifactChanged ? null : existing.lastCheckedAt,
+    lastCheckResult: artifactChanged ? null : existing.lastCheckResult,
     generatedBy: session.userId,
     updatedAt: now,
   }
@@ -364,7 +431,8 @@ app.patch('/:id', async (c) => {
     c.env.DB.prepare(
       `UPDATE compliance_documents
        SET tenant_id = ?, document_type = ?, title = ?, status = ?, storage_key = ?,
-           checksum = ?, version = ?, generated_by = ?, updated_at = ?
+           checksum = ?, size_bytes = ?, last_checked_at = ?, last_check_result = ?,
+           version = ?, generated_by = ?, updated_at = ?
        WHERE id = ? AND accepted_at IS NULL AND updated_at = ?
          AND ${NO_ACCEPTED_DEPENDENT_DOCUMENT}
          AND ${audit.mutationGate.sql}`,
@@ -375,6 +443,9 @@ app.patch('/:id', async (c) => {
       updated.status,
       updated.storageKey,
       updated.checksum,
+      updated.sizeBytes,
+      updated.lastCheckedAt?.getTime() ?? null,
+      updated.lastCheckResult,
       updated.version,
       updated.generatedBy,
       updated.updatedAt.getTime(),

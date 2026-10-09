@@ -37,6 +37,13 @@ const verifyQuerySchema = v.object({
   to_seq: v.optional(positiveSeqSchema),
 })
 
+// 断点处存储值与重算值,供运维比对;只含哈希,不含审计内容。
+export type AuditChainMismatch = {
+  field: 'prev_hash' | 'hash'
+  expected: string
+  stored: string
+}
+
 export type AuditChainVerificationState = {
   nextSeq: number
   expectedPrevHash: string
@@ -44,6 +51,14 @@ export type AuditChainVerificationState = {
   chainValid: boolean
   brokenAtSeq: number | null
   failureReason: AuditChainFailureReason | null
+  mismatch: AuditChainMismatch | null
+  batchCount: number
+}
+
+export type AuditChainVerificationReport = AuditChainVerification & {
+  mismatch: AuditChainMismatch | null
+  batch_count: number
+  duration_ms: number
 }
 
 type VerifiableAuditRow = {
@@ -73,6 +88,8 @@ export function createAuditVerificationState(
     chainValid: true,
     brokenAtSeq: null,
     failureReason: null,
+    mismatch: null,
+    batchCount: 0,
   }
 }
 
@@ -80,10 +97,12 @@ function failAuditVerification(
   state: AuditChainVerificationState,
   brokenAtSeq: number,
   failureReason: AuditChainFailureReason,
+  mismatch: AuditChainMismatch | null = null,
 ): void {
   state.chainValid = false
   state.brokenAtSeq = brokenAtSeq
   state.failureReason = failureReason
+  state.mismatch = mismatch
 }
 
 export async function verifyAuditRows(
@@ -103,7 +122,11 @@ export async function verifyAuditRows(
       return
     }
     if (row.prevHash !== state.expectedPrevHash) {
-      failAuditVerification(state, row.seq, 'audit_chain_broken')
+      failAuditVerification(state, row.seq, 'audit_chain_broken', {
+        field: 'prev_hash',
+        expected: state.expectedPrevHash,
+        stored: row.prevHash,
+      })
       return
     }
 
@@ -124,7 +147,11 @@ export async function verifyAuditRows(
       }),
     )
     if (computedHash !== row.hash) {
-      failAuditVerification(state, row.seq, 'audit_chain_broken')
+      failAuditVerification(state, row.seq, 'audit_chain_broken', {
+        field: 'hash',
+        expected: computedHash,
+        stored: row.hash,
+      })
       return
     }
 
@@ -163,8 +190,12 @@ type VerifiedRange = {
 function responseFor(
   range: VerifiedRange,
   state: AuditChainVerificationState,
-): AuditChainVerification {
+  startedAt: number,
+): AuditChainVerificationReport {
   return {
+    mismatch: state.mismatch,
+    batch_count: state.batchCount,
+    duration_ms: Date.now() - startedAt,
     tenant_id: range.tenantId,
     verified_range: { from: range.fromSeq, to: range.toSeq },
     truncated: range.toSeq < range.latestSeq,
@@ -179,6 +210,7 @@ function responseFor(
 
 app.get('/', async (c) => {
   await requireInstanceManager(c)
+  const startedAt = Date.now()
   const query = validateQuery(verifyQuerySchema, {
     tenant_id: c.req.query('tenant_id'),
     from_seq: c.req.query('from_seq'),
@@ -204,7 +236,11 @@ app.get('/', async (c) => {
     }
     const emptyState = createAuditVerificationState(1, GENESIS_HASH)
     return c.json(
-      responseFor({ tenantId: query.tenant_id, fromSeq: 1, toSeq: 0, latestSeq: 0 }, emptyState),
+      responseFor(
+        { tenantId: query.tenant_id, fromSeq: 1, toSeq: 0, latestSeq: 0 },
+        emptyState,
+        startedAt,
+      ),
     )
   }
 
@@ -237,7 +273,7 @@ app.get('/', async (c) => {
     if (!predecessor) {
       const missingPredecessor = createAuditVerificationState(fromSeq, GENESIS_HASH)
       failAuditVerification(missingPredecessor, fromSeq, 'audit_seq_gap')
-      return c.json(responseFor(range, missingPredecessor))
+      return c.json(responseFor(range, missingPredecessor, startedAt))
     }
     expectedPrevHash = predecessor.hash
   }
@@ -273,13 +309,14 @@ app.get('/', async (c) => {
       .limit(VERIFY_BATCH_SIZE)
 
     if (rows.length === 0) break
+    state.batchCount += 1
     await verifyAuditRows(state, rows)
     cursorSeq = rows[rows.length - 1]?.seq ?? cursorSeq
     if (rows.length < VERIFY_BATCH_SIZE) break
   }
 
   finishAuditVerification(state, toSeq)
-  return c.json(responseFor(range, state))
+  return c.json(responseFor(range, state, startedAt))
 })
 
 export function registerPlatformAuditVerifyRoutes(honoApp: Hono<XidHonoEnv>): void {
