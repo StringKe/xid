@@ -12,7 +12,8 @@ const SUBJECT_CONFIRMATION_BEARER = 'urn:oasis:names:tc:SAML:2.0:cm:bearer'
 const A = SAML_ASSERTION_NS
 
 export type SemanticInput = {
-  responseRoot: Element
+  // 断言单独作为根元素(WS-Fed)时缺省,跳过 Response 的 Status 与 Destination 校验。
+  responseRoot?: Element
   assertion: Element
   expectedIssuer: string
   expectedAudience: string
@@ -192,11 +193,14 @@ export function validateAssertionSemantics(input: SemanticInput): SamlResult<Sem
     return failResult('assertion_expired', 'invalid SAML clock tolerance')
   }
 
-  const status = checkStatus(input.responseRoot)
-  if (!status.ok) return failResult(status.error.code, status.error.reason, status.error.idpStatus)
-
-  const destination = checkResponseDestination(input.responseRoot, input.acsUrl)
-  if (!destination.ok) return failResult(destination.error.code, destination.error.reason)
+  if (input.responseRoot) {
+    const status = checkStatus(input.responseRoot)
+    if (!status.ok) {
+      return failResult(status.error.code, status.error.reason, status.error.idpStatus)
+    }
+    const destination = checkResponseDestination(input.responseRoot, input.acsUrl)
+    if (!destination.ok) return failResult(destination.error.code, destination.error.reason)
+  }
 
   const issuer = checkIssuer(input.assertion, input.expectedIssuer)
   if (!issuer.ok) return failResult(issuer.error.code, issuer.error.reason)

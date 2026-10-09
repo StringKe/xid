@@ -33,6 +33,9 @@ export { verifySamlResponse, readAssertionId } from './verify'
 export type { VerifySamlOptions } from './verify'
 export type { SamlDecryptKeyProvider, SamlOaepHash } from './oaep'
 
+export { verifySamlAssertion } from './verify-assertion'
+export type { VerifySamlAssertionOptions } from './verify-assertion'
+
 export { verifySaml11Assertion } from './saml11'
 export type { VerifySaml11Options } from './saml11'
 

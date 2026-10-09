@@ -129,14 +129,14 @@ export async function verifySignedElement(
   doc: Document,
   signedElement: Element,
   keys: readonly IdpVerifyKey[],
-): Promise<SamlResult<true>> {
+): Promise<SamlResult<string>> {
   const selected = selectSingleSignature(signedElement)
   if (!selected.ok) return failResult(selected.error.code, selected.error.reason)
   const loaded = loadAndCheckSignature(doc, selected.value.signature, signedElement)
   if (!loaded.ok) return failResult(loaded.error.code, loaded.error.reason)
   for (const key of keys) {
     try {
-      if (await loaded.value.Verify(key.publicKey)) return okResult(true)
+      if (await loaded.value.Verify(key.publicKey)) return okResult(key.fingerprint)
     } catch {
       // 证书轮换:单把失败继续试下一把。
     }
