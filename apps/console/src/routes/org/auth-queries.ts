@@ -17,6 +17,7 @@ import {
 import { useCanManageOrg } from './useOrgTarget'
 import type {
   OrgAuthPolicy,
+  OrgLoginPolicy,
   OrgDeliveryChannels,
   OrgSocialProviderPolicy,
   OutboundSamlApp,
@@ -33,7 +34,8 @@ export type OrgAuthPolicyView = OrgAuthPolicy & {
   effectiveMfaPolicy: MfaPolicy
 }
 
-export type SaveOrgAuthPolicyInput = Partial<UpdateOrgAuthPolicyInput> & {
+export type SaveOrgAuthPolicyInput = Partial<Omit<UpdateOrgAuthPolicyInput, 'loginPolicy'>> & {
+  loginPolicy?: Partial<OrgLoginPolicy>
   mfaPolicy?: MfaPolicy | null
 }
 

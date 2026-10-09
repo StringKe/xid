@@ -7,7 +7,7 @@ import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
 import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
 import { SettingsSections } from './AuthSettingsLayout'
 import type { SettingsSectionLink } from './AuthSettingsLayout'
-import { SignInMethodsSection, TwoStepSection } from './AuthPolicySections'
+import { SignInMethodsSection, TwoStepSection, passwordSignInEnabled } from './AuthPolicySections'
 import { SessionsSection } from './AuthPolicySessionsSection'
 import { AttestationSection } from './AuthPolicyAttestationSection'
 import { SignUpSection } from './AuthPolicySignUpSection'
@@ -21,15 +21,16 @@ function useSectionLinks(
 ): SettingsSectionLink[] {
   const { t } = useLingui()
   const hosted = policy?.hostedAuth
-  const methods = hosted
-    ? [
-        hosted.passkey.enabled ? t`Passkeys` : null,
-        hosted.password.enabled ? t`password` : null,
-        hosted.emailOtp.enabled ? t`email code` : null,
-        hosted.magicLink.enabled ? t`magic link` : null,
-        hosted.smsOtp.enabled || hosted.whatsappOtp.enabled ? t`SMS and WhatsApp` : null,
-      ].filter((name): name is string => name !== null)
-    : []
+  const methods =
+    policy && hosted
+      ? [
+          hosted.passkey.enabled ? t`Passkeys` : null,
+          passwordSignInEnabled(policy) ? t`password` : null,
+          hosted.emailOtp.enabled ? t`email code` : null,
+          hosted.magicLink.enabled ? t`magic link` : null,
+          hosted.smsOtp.enabled || hosted.whatsappOtp.enabled ? t`SMS and WhatsApp` : null,
+        ].filter((name): name is string => name !== null)
+      : []
   const mfa = policy?.effectiveMfaPolicy
   const notSetUp = insights?.usersWithoutSecondFactor ?? 0
   const absoluteDays = policy?.sessionPolicy.absoluteTimeoutDays ?? null
@@ -68,8 +69,6 @@ function useSectionLinks(
       summary:
         policy && effectiveForceSso(policy) ? (
           <Trans>Required, other sign-in methods are off</Trans>
-        ) : policy?.loginPolicy.allowPasswordLogin === false ? (
-          <Trans>Not required, password sign-in is off</Trans>
         ) : (
           <Trans>Not required</Trans>
         ),

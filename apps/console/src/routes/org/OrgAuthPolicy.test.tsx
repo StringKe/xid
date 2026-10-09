@@ -175,7 +175,23 @@ describe('OrgAuthPolicyPage', () => {
     const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
 
     expect(html).toContain('Required, other sign-in methods are off')
-    expect(html).toContain('Allow password sign-in')
+    currentPolicy = policy
+  })
+
+  it('has a single password switch, under sign-in methods', () => {
+    const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
+
+    expect(html).not.toContain('Allow password sign-in')
+    expect(html).toContain('Passkeys, password, email code')
+  })
+
+  it('shows password as off when the organization policy disallows password sign-in', () => {
+    currentPolicy = { ...policy, loginPolicy: { forceSso: false, allowPasswordLogin: false } }
+
+    const html = renderToStaticMarkup(<OrgAuthPolicyPage />)
+
+    expect(html).toContain('Passkeys, email code')
+    expect(html).not.toContain('Passkeys, password')
     currentPolicy = policy
   })
 

@@ -14,7 +14,7 @@ import type {
   OrgAuthPolicyView,
   SaveOrgAuthPolicyInput,
 } from './auth-queries'
-import type { HostedAuthMethodPolicy, HostedAuthPolicy } from './types'
+import type { HostedAuthMethodPolicy } from './types'
 
 export const sectionStyles = stylex.create({
   fieldGroup: {
@@ -57,10 +57,16 @@ type MethodToggles = {
   phoneOtp: boolean
 }
 
-function methodToggles(hostedAuth: HostedAuthPolicy): MethodToggles {
+// 密码登录由 hostedAuth.password 与 org_policies.allow_password_login 共同决定,两者都允许才算开启。
+export function passwordSignInEnabled(policy: OrgAuthPolicyView): boolean {
+  return policy.hostedAuth.password.enabled && policy.loginPolicy.allowPasswordLogin
+}
+
+function methodToggles(policy: OrgAuthPolicyView): MethodToggles {
+  const hostedAuth = policy.hostedAuth
   return {
     passkey: hostedAuth.passkey.enabled,
-    password: hostedAuth.password.enabled,
+    password: passwordSignInEnabled(policy),
     emailOtp: hostedAuth.emailOtp.enabled,
     magicLink: hostedAuth.magicLink.enabled,
     phoneOtp: hostedAuth.smsOtp.enabled || hostedAuth.whatsappOtp.enabled,
@@ -68,12 +74,12 @@ function methodToggles(hostedAuth: HostedAuthPolicy): MethodToggles {
 }
 
 export function SignInMethodsSection({ orgId, policy, insights }: SectionProps): ReactNode {
-  const [toggles, setToggles] = useState(() => methodToggles(policy.hostedAuth))
+  const [toggles, setToggles] = useState(() => methodToggles(policy))
   const { save, saved, isPending, error } = useSectionSave(orgId)
   const readiness = policy.deliveryChannelReadiness
   const phoneReady = readiness.smsOtp.configured || readiness.whatsappOtp.configured
 
-  useEffect(() => setToggles(methodToggles(policy.hostedAuth)), [policy.hostedAuth])
+  useEffect(() => setToggles(methodToggles(policy)), [policy])
 
   function set(key: keyof MethodToggles, value: boolean): void {
     setToggles((prev) => ({ ...prev, [key]: value }))
@@ -82,6 +88,7 @@ export function SignInMethodsSection({ orgId, policy, insights }: SectionProps):
   function submit(): void {
     const current = policy.hostedAuth
     save({
+      loginPolicy: { allowPasswordLogin: toggles.password },
       hostedAuth: {
         ...current,
         passkey: withMethod(current.passkey, toggles.passkey),

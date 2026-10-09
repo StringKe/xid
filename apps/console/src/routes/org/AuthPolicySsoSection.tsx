@@ -1,4 +1,4 @@
-// Sign-in & MFA 的「Single sign-on」分节:强制企业 SSO 与密码登录总开关。
+// Sign-in & MFA 的「Single sign-on」分节:强制企业 SSO。
 // 强制 SSO 同时写 loginPolicy.forceSso 与 hostedAuth.forceSso:生效值取两者之一,只写一处会关不掉。
 
 import { Plural, Trans } from '@lingui/react/macro'
@@ -66,21 +66,18 @@ export function SingleSignOnSection({
   connection: SsoConnectionView | null
 }): ReactNode {
   const enforced = effectiveForceSso(policy)
-  const passwordAllowed = policy.loginPolicy.allowPasswordLogin
   const [forceSso, setForceSso] = useState(enforced)
-  const [allowPassword, setAllowPassword] = useState(passwordAllowed)
   const [saved, setSaved] = useState(false)
   const mutation = useSaveOrgAuthPolicy(orgId)
   const routed = (insights?.routedDomains ?? []).filter((domain) => domain.verified)
 
   useEffect(() => setForceSso(enforced), [enforced])
-  useEffect(() => setAllowPassword(passwordAllowed), [passwordAllowed])
 
   function submit(): void {
     setSaved(false)
     mutation.mutate(
       {
-        loginPolicy: { forceSso, allowPasswordLogin: allowPassword },
+        loginPolicy: { forceSso },
         hostedAuth: { ...policy.hostedAuth, forceSso },
       },
       { onSuccess: () => setSaved(true) },
@@ -113,18 +110,6 @@ export function SingleSignOnSection({
             ),
             checked: forceSso,
             onChange: setForceSso,
-          },
-          {
-            key: 'password-login',
-            label: <Trans>Allow password sign-in</Trans>,
-            description: (
-              <Trans>
-                Turn off to stop everyone in this organization from signing in with a password, even
-                when Password is on under Sign-in methods.
-              </Trans>
-            ),
-            checked: allowPassword,
-            onChange: setAllowPassword,
           },
         ]}
       />
