@@ -70,6 +70,46 @@ export function readPrivateMetadata(
   return isRecord(org.privateMetadata) ? org.privateMetadata : {}
 }
 
+export type LoginPolicyPatch = {
+  forceSso?: boolean
+  allowPasswordLogin?: boolean
+}
+
+function invalidLoginPolicy(paramName: string): AppError {
+  return new AppError('validation_failed', { httpStatus: 422, meta: { paramName } })
+}
+
+function readBooleanField(
+  raw: Record<string, unknown>,
+  keys: readonly string[],
+  paramName: string,
+): boolean | undefined {
+  const key = keys.find((candidate) => hasOwn(raw, candidate))
+  if (key === undefined) return undefined
+  const value = raw[key]
+  if (typeof value !== 'boolean') throw invalidLoginPolicy(paramName)
+  return value
+}
+
+// org_policies.force_sso / allow_password_login:字段缺失不动,非布尔 422。
+export function readLoginPolicyPatch(raw: unknown): LoginPolicyPatch | null {
+  if (raw === undefined) return null
+  if (!isRecord(raw)) throw invalidLoginPolicy('loginPolicy')
+  const forceSso = readBooleanField(raw, ['forceSso', 'force_sso'], 'loginPolicy.forceSso')
+  const allowPasswordLogin = readBooleanField(
+    raw,
+    ['allowPasswordLogin', 'allow_password_login'],
+    'loginPolicy.allowPasswordLogin',
+  )
+  if (forceSso === undefined && allowPasswordLogin === undefined) {
+    throw invalidLoginPolicy('loginPolicy')
+  }
+  return {
+    ...(forceSso === undefined ? {} : { forceSso }),
+    ...(allowPasswordLogin === undefined ? {} : { allowPasswordLogin }),
+  }
+}
+
 export function assertOptionalPublicHttpsUrl(
   value: string | null | undefined,
   paramName: string,

@@ -184,6 +184,19 @@ export type FakeEnv = Env & {
   emailSend: ReturnType<typeof vi.fn>
 }
 
+function makeMemoryKv(): KVNamespace {
+  const store = new Map<string, string>()
+  return {
+    get: async (key: string) => store.get(key) ?? null,
+    put: async (key: string, value: string) => {
+      store.set(key, value)
+    },
+    delete: async (key: string) => {
+      store.delete(key)
+    },
+  } as unknown as KVNamespace
+}
+
 export function envOf(d1: SqliteD1, options: { rateLimitAllowed?: boolean } = {}): FakeEnv {
   const sessionRevocations: string[] = []
   const auditSend = vi.fn().mockResolvedValue(undefined)
@@ -195,6 +208,7 @@ export function envOf(d1: SqliteD1, options: { rateLimitAllowed?: boolean } = {}
     WEBHOOK_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
     EMAIL_QUEUE: { send: emailSend },
     SCIM_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
+    CACHE: makeMemoryKv(),
     SESSION_REVOCATION: {
       idFromName: (name: string) => {
         sessionRevocations.push(name)
