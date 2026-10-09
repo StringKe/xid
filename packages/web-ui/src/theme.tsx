@@ -1,5 +1,6 @@
 // light/dark + 运行时品牌覆盖:darkTheme class 必须挂 documentElement(body 背景、portal、
 // top-layer dialog 在 React 树外,挂内层会停在 light 基线);品牌只 inline 覆盖 accent 家族与圆角。
+// 品牌固定的配色只影响当前页面,不写入访客保存的明暗偏好。
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -7,7 +8,7 @@ import * as stylex from '@stylexjs/stylex'
 import { darkTheme } from './styles/tokens.stylex'
 import { BRAND_LOGO_TRANSPARENT } from './brand-assets'
 import { deriveAccentPalette, type ColorScheme } from './brand-color'
-import { hasCustomBranding, type OrgBranding } from '@xid-kit/types'
+import { BRAND_RADIUS_CSS, hasCustomBranding, type OrgBranding } from '@xid-kit/types'
 import {
   THEME_COLOR,
   THEME_STORAGE_KEY,
@@ -24,6 +25,8 @@ type ResolvedScheme = ColorScheme
 export type BrandConfig = {
   accent: string | null
   radius: string | null
+  // 组织固定的配色;null 时跟随访客自己的明暗偏好。
+  scheme?: ResolvedScheme | null
   logoUrl?: string
   logoDarkUrl?: string
   appName?: string
@@ -32,6 +35,7 @@ export type BrandConfig = {
 export const DEFAULT_BRAND: BrandConfig = {
   accent: null,
   radius: null,
+  scheme: null,
   logoUrl: BRAND_LOGO_TRANSPARENT,
   appName: 'XID',
 }
@@ -51,7 +55,11 @@ export function brandFromOrgBranding(branding: OrgBranding | null | undefined): 
   if (!branding || !hasCustomBranding(branding)) return DEFAULT_BRAND
   return {
     accent: branding.primaryColor ?? branding.accentColor ?? null,
-    radius: branding.borderRadius ?? null,
+    radius: branding.borderRadius ? BRAND_RADIUS_CSS[branding.borderRadius] : null,
+    scheme:
+      branding.colorScheme === 'light' || branding.colorScheme === 'dark'
+        ? branding.colorScheme
+        : null,
     logoUrl: branding.logoUrl ?? DEFAULT_BRAND.logoUrl,
     logoDarkUrl: branding.logoDarkUrl ?? branding.logoUrl ?? DEFAULT_BRAND.logoUrl,
     appName: DEFAULT_BRAND.appName,
@@ -130,7 +138,7 @@ export function ThemeProvider({
     setModeState(next)
   }, [])
 
-  const scheme = resolveThemeScheme(mode, systemDark)
+  const scheme = brand.scheme ?? resolveThemeScheme(mode, systemDark)
   const isDark = scheme === 'dark'
 
   useEffect(() => {

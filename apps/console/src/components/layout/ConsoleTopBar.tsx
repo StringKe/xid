@@ -74,7 +74,7 @@ export function AccountMenu({
   const themeGroup = useThemeMenuGroup()
   const items: DropdownEntry[] = onEndImpersonation
     ? [
-        themeGroup,
+        ...(themeGroup ? [themeGroup] : []),
         {
           key: 'end-impersonation',
           label: <Trans>End impersonation</Trans>,
@@ -90,7 +90,7 @@ export function AccountMenu({
           icon: 'user-circle',
           href: '/account',
         },
-        { ...themeGroup, separatorBefore: true },
+        ...(themeGroup ? [{ ...themeGroup, separatorBefore: true }] : []),
         {
           key: 'sign-out',
           label: <Trans>Sign out</Trans>,

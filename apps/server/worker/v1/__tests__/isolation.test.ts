@@ -8702,10 +8702,9 @@ describe('v1 organizations logo 上传', () => {
     expect(body.logo_url).toMatch(
       /^https:\/\/acme\.xid\.dev\/storage\/logos\/t_1\/org_1\/[0-9a-f-]{36}$/u,
     )
-    expect(body.organization.logo_url).toBe(body.logo_url)
-    expect(org['logo_url']).toBe(body.logo_url)
+    expect(org['logo_url']).toBeNull()
     expect(JSON.parse(String(org['private_metadata']))).toMatchObject({
-      branding: { logoUrl: body.logo_url },
+      brandingDraft: { logoUrl: body.logo_url },
     })
 
     const entries = [...stored.entries()]
@@ -9268,7 +9267,9 @@ describe('Console 组织页契约:webhook 订阅、API key、品牌、域名、�
 
     expect(set.status).toBe(200)
     expect(cleared.status).toBe(200)
-    expect(await cleared.json()).toMatchObject({ primaryColor: null, accentColor: '#445566' })
+    expect(await cleared.json()).toMatchObject({
+      draft: { primaryColor: null, accentColor: '#445566' },
+    })
     expect(invalid.status).toBe(422)
     expect(crossTenant.status).toBe(404)
   })
@@ -9327,7 +9328,7 @@ describe('Console 组织页契约:webhook 订阅、API key、品牌、域名、�
     )
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ primaryColor: '#112233', logoUrl })
+    expect(await res.json()).toMatchObject({ draft: { primaryColor: '#112233', logoUrl } })
     expect(org['logo_url']).toBe(logoUrl)
   })
 

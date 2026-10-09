@@ -56,11 +56,13 @@ const styles = stylex.create({
 
 export function ThemeSwitcher(): ReactNode {
   const { t, i18n } = useLingui()
-  const { mode, setMode } = useTheme()
+  const { mode, setMode, brand } = useTheme()
 
   function handleChange(event: ChangeEvent<HTMLSelectElement>): void {
     if (isThemeMode(event.target.value)) setMode(event.target.value)
   }
+
+  if (brand.scheme) return null
 
   return (
     <label {...stylex.props(styles.root)}>
@@ -84,9 +86,11 @@ export function ThemeSwitcher(): ReactNode {
   )
 }
 
-export function useThemeMenuGroup(): DropdownGroup {
+// 组织品牌固定了配色时没有可选项,返回 null,调用方不显示这一组。
+export function useThemeMenuGroup(): DropdownGroup | null {
   const { t, i18n } = useLingui()
-  const { mode, setMode } = useTheme()
+  const { mode, setMode, brand } = useTheme()
+  if (brand.scheme) return null
   return {
     key: 'theme',
     label: t`Theme`,

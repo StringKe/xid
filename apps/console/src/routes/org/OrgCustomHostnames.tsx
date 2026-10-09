@@ -1,463 +1,522 @@
-import { Trans, useLingui } from '@lingui/react/macro'
+import { Plural, Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { ConfirmDialog } from '@xid-kit/web-ui'
-import { useApiMutation, useApiQuery } from '@xid-kit/web-ui/queries'
-import { Alert, Badge, Button, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { Alert, Badge, Button, Dropdown, Field, Icon, Input, Spinner } from '@xid-kit/web-ui/ui'
+import { CopyButton } from '@xid-kit/web-ui/ui/CopyButton'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { useCanManageOrg } from './useOrgTarget'
+import {
+  useBrandingQuery,
+  useCreateCustomHostname,
+  useCustomHostnamesQuery,
+  useDeleteCustomHostname,
+  useRefreshCustomHostname,
+  type CustomHostname,
+  type DnsRecord,
+} from './brand-queries'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
 // 主机名语法各 locale 必须保持可原样提交,不可本地化占位符。
 const HOSTNAME_EXAMPLE = 'login.example.com'
 
-type DnsRecord = {
-  type: string
-  name: string
-  value: string
-}
-
-type CustomHostname = {
-  id: string
-  organization_id: string
-  hostname: string
-  status: string
-  hostname_status: string
-  ssl_status: string | null
-  ownership_expires_at: string | null
-  activated_at: string | null
-  last_polled_at: string | null
-  requires_passkey_reregistration: boolean
-  dns_records: {
-    ownership: DnsRecord | null
-    dcv_delegation: DnsRecord[]
-    certificate_validation: DnsRecord[]
-    traffic: DnsRecord
-  }
-  verification_errors: string[]
-}
-
-type CustomHostnamePage = {
-  data: CustomHostname[]
-  next_cursor: string | null
-  has_more: boolean
-}
-
-type DeletedCustomHostname = {
-  id: string
-  status: 'deleted'
-  remove_dns_record: DnsRecord
-}
+type CheckState = 'done' | 'working' | 'waiting' | 'failed'
 
 const styles = stylex.create({
-  section: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.25rem',
+  stack: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
+  head: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' },
+  headText: { display: 'flex', flexDirection: 'column', gap: '0.375rem', minWidth: 0 },
+  hostnameRow: { display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' },
+  hostname: {
+    margin: 0,
+    color: tokens['--xid-fg'],
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: text.lg,
+    fontWeight: weight.medium,
+    overflowWrap: 'anywhere',
   },
-  headingRow: {
+  lead: {
+    margin: 0,
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.base,
+    lineHeight: '1.25rem',
+  },
+  steps: {
     display: 'grid',
     gridTemplateColumns: {
       default: '1fr',
-      '@media (min-width: 64rem)': 'minmax(0, 5fr) minmax(0, 7fr)',
+      '@media (min-width: 48rem)': 'repeat(3, minmax(0, 1fr))',
     },
-    gap: {
-      default: '1rem',
-      '@media (min-width: 64rem)': '0',
-    },
+    borderRadius: tokens['--xid-radius'],
+    boxShadow: `inset 0 0 0 1px ${tokens['--xid-border']}`,
   },
-  sectionMeta: {
-    paddingInlineEnd: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
+  step: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
+    flexDirection: { default: 'row', '@media (min-width: 48rem)': 'column' },
+    alignItems: { default: 'center', '@media (min-width: 48rem)': 'flex-start' },
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+    padding: '1rem',
+    borderTopWidth: { default: '1px', ':first-child': '0', '@media (min-width: 48rem)': '0' },
+    borderInlineStartWidth: { default: '0', '@media (min-width: 48rem)': '1px' },
+    borderStyle: 'solid',
+    borderColor: tokens['--xid-border'],
   },
-  sectionDesc: {
-    margin: 0,
+  stepFirst: { borderInlineStartWidth: '0' },
+  stepTitle: { color: tokens['--xid-fg'], fontSize: text.sm },
+  stepNote: {
+    display: { default: 'none', '@media (min-width: 48rem)': 'block' },
     color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
     fontSize: text.sm,
-    lineHeight: 1.55,
-    maxWidth: '32rem',
   },
-  controlCol: {
-    paddingInlineStart: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    borderInlineStartWidth: {
-      default: '0',
-      '@media (min-width: 64rem)': '1px',
-    },
-    borderInlineStartStyle: 'solid',
-    borderInlineStartColor: tokens['--xid-border'],
+  sectionHead: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '0.875rem',
-    maxWidth: '42rem',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  sectionTitle: {
+    margin: 0,
+    color: tokens['--xid-fg'],
+    fontSize: text.lg,
+    fontWeight: weight.display,
+    letterSpacing: tokens['--xid-tracking-heading'],
+  },
+  sectionHint: { margin: 0, color: tokens['--xid-muted-foreground'], fontSize: text.sm },
+  records: { display: 'flex', flexDirection: 'column' },
+  recordHead: {
+    display: { default: 'none', '@media (min-width: 48rem)': 'grid' },
+    gridTemplateColumns: '5rem minmax(0, 1.4fr) minmax(0, 1.4fr) 7.5rem',
+    gap: '1rem',
+    paddingBlock: '0.5rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+  },
+  record: {
+    display: 'grid',
+    gridTemplateColumns: {
+      default: 'minmax(0, 1fr) auto',
+      '@media (min-width: 48rem)': '5rem minmax(0, 1.4fr) minmax(0, 1.4fr) 7.5rem',
+    },
+    alignItems: 'center',
+    gap: '0.25rem 1rem',
+    paddingBlock: '0.625rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  mono: {
+    minWidth: 0,
+    color: tokens['--xid-fg'],
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: text.sm,
+    overflowWrap: 'anywhere',
+  },
+  valueCell: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    minWidth: 0,
+    gridColumn: { default: '1 / -1', '@media (min-width: 48rem)': 'auto' },
+  },
+  found: { color: tokens['--xid-success'], fontSize: text.sm },
+  pending: { color: tokens['--xid-warning'], fontSize: text.sm },
+  iconButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    minHeight: '2.25rem',
+    paddingInline: '0.875rem',
+    borderRadius: tokens['--xid-radius'],
+    boxShadow: `inset 0 0 0 1px ${tokens['--xid-border-strong']}`,
+    color: tokens['--xid-fg'],
+    fontSize: text.base,
+    fontWeight: weight.medium,
   },
   addRow: {
     display: 'flex',
     alignItems: 'flex-end',
     gap: '0.75rem',
-  },
-  inputWrap: {
-    flex: '1 1 18rem',
-    minWidth: 0,
-  },
-  list: {
-    display: 'grid',
-    gap: '0.875rem',
-  },
-  card: {
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    borderRadius: tokens['--xid-radius'],
-    backgroundColor: tokens['--xid-surface'],
-    padding: 'clamp(1rem, 1.5vw, 1.5rem)',
-    display: 'grid',
-    gap: '1rem',
-  },
-  cardHeader: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: '1rem',
     flexWrap: 'wrap',
+    maxWidth: '36rem',
   },
-  hostname: {
-    margin: 0,
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: text.base,
-    fontWeight: weight.display,
-    wordBreak: 'break-all',
-  },
-  statusRow: {
-    display: 'flex',
-    gap: '0.5rem',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  recordGrid: {
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 52rem)': 'repeat(2, minmax(0, 1fr))',
-    },
-    gap: '0.75rem',
-  },
-  record: {
-    minWidth: 0,
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingTop: '0.75rem',
-    display: 'grid',
-    gap: '0.25rem',
-  },
-  recordLabel: {
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: text.xs,
-    lineHeight: 1.4,
-  },
-  recordCode: {
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: text.xs,
-    lineHeight: 1.5,
-    wordBreak: 'break-all',
-  },
-  actions: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '0.5rem',
-    flexWrap: 'wrap',
-  },
-  empty: {
-    margin: 0,
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: text.base,
-  },
-  metaText: {
-    margin: 0,
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: text.xs,
-    lineHeight: 1.5,
-  },
+  inputWrap: { flex: '1 1 18rem', minWidth: 0 },
+  center: { display: 'flex', justifyContent: 'center', paddingBlock: '2.25rem' },
 })
 
-function StatusBadge({ status }: { status: string }): ReactNode {
-  if (status === 'active') {
-    return (
-      <Badge tone="success">
-        <Trans>Active</Trans>
-      </Badge>
-    )
-  }
-  if (status === 'deletion_failed' || status === 'provisioning_failed') {
-    return (
-      <Badge tone="danger">
-        <Trans>Action required</Trans>
-      </Badge>
-    )
-  }
-  return (
-    <Badge tone="warning">
-      <Trans>Pending DNS</Trans>
-    </Badge>
-  )
+function stepStates(item: CustomHostname): [CheckState, CheckState, CheckState] {
+  const ownership: CheckState = item.dns_checks.txt === 'pending' ? 'working' : 'done'
+  const failed = item.status === 'provisioning_failed' || item.status === 'deletion_failed'
+  const certificate: CheckState = failed
+    ? 'failed'
+    : item.ssl_status === 'active'
+      ? 'done'
+      : 'working'
+  const routing: CheckState =
+    item.status === 'active' ? 'done' : certificate === 'done' ? 'working' : 'waiting'
+  return [ownership, certificate, routing]
 }
 
-function DnsInstruction({ label, record }: { label: ReactNode; record: DnsRecord }): ReactNode {
+function StepBadge({
+  state,
+  labels,
+}: {
+  state: CheckState
+  labels: Record<CheckState, ReactNode>
+}): ReactNode {
+  const tone =
+    state === 'done'
+      ? 'success'
+      : state === 'working'
+        ? 'warning'
+        : state === 'failed'
+          ? 'danger'
+          : 'neutral'
+  return <Badge tone={tone}>{labels[state]}</Badge>
+}
+
+function ChecksStrip({ item }: { item: CustomHostname }): ReactNode {
+  const [ownership, certificate, routing] = stepStates(item)
   return (
-    <div {...stylex.props(styles.record)}>
-      <span {...stylex.props(styles.recordLabel)}>{label}</span>
-      <code {...stylex.props(styles.recordCode)}>
-        {record.type} {record.name}
-      </code>
-      <code {...stylex.props(styles.recordCode)}>{record.value}</code>
+    <div {...stylex.props(styles.steps)}>
+      <div {...stylex.props(styles.step, styles.stepFirst)}>
+        <span {...stylex.props(styles.stepTitle)}>
+          <Trans>1. Ownership</Trans>
+        </span>
+        <StepBadge
+          state={ownership}
+          labels={{
+            done: <Trans>Verified</Trans>,
+            working: <Trans>Waiting for TXT</Trans>,
+            waiting: null,
+            failed: null,
+          }}
+        />
+        <span {...stylex.props(styles.stepNote)}>
+          {ownership === 'done' ? (
+            <Trans>TXT record found</Trans>
+          ) : (
+            <Trans>Add the TXT record below</Trans>
+          )}
+        </span>
+      </div>
+      <div {...stylex.props(styles.step)}>
+        <span {...stylex.props(styles.stepTitle)}>
+          <Trans>2. Certificate</Trans>
+        </span>
+        <StepBadge
+          state={certificate}
+          labels={{
+            done: <Trans>Active</Trans>,
+            working: <Trans>Being issued</Trans>,
+            waiting: null,
+            failed: <Trans>Action required</Trans>,
+          }}
+        />
+        <span {...stylex.props(styles.stepNote)}>
+          {certificate === 'done' ? (
+            <Trans>Certificate is active</Trans>
+          ) : (
+            <Trans>Needs the CNAME below to resolve</Trans>
+          )}
+        </span>
+      </div>
+      <div {...stylex.props(styles.step)}>
+        <span {...stylex.props(styles.stepTitle)}>
+          <Trans>3. Routing</Trans>
+        </span>
+        <StepBadge
+          state={routing}
+          labels={{
+            done: <Trans>Live</Trans>,
+            working: <Trans>Starting</Trans>,
+            waiting: <Trans>Not started</Trans>,
+            failed: null,
+          }}
+        />
+        <span {...stylex.props(styles.stepNote)}>
+          {routing === 'done' ? (
+            <Trans>Sign-in pages are served here</Trans>
+          ) : (
+            <Trans>Starts after the certificate is active</Trans>
+          )}
+        </span>
+      </div>
     </div>
   )
 }
 
-function DnsInstructions({ hostname }: { hostname: CustomHostname }): ReactNode {
+function RecordRow({ record, found }: { record: DnsRecord; found: boolean | null }): ReactNode {
+  const { t } = useLingui()
   return (
-    <div {...stylex.props(styles.recordGrid)}>
-      {hostname.dns_records.ownership ? (
-        <DnsInstruction
-          label={<Trans>Hostname ownership</Trans>}
-          record={hostname.dns_records.ownership}
+    <div {...stylex.props(styles.record)}>
+      <span {...stylex.props(styles.mono)}>{record.type}</span>
+      <span {...stylex.props(styles.mono)}>{record.name}</span>
+      <span {...stylex.props(styles.valueCell)}>
+        <span {...stylex.props(styles.mono)}>{record.value}</span>
+        <CopyButton value={record.value} subject={t`${record.type} record value`} />
+      </span>
+      {found === null ? (
+        <span />
+      ) : found ? (
+        <span {...stylex.props(styles.found)}>
+          <Trans>Found</Trans>
+        </span>
+      ) : (
+        <span {...stylex.props(styles.pending)}>
+          <Trans>Not found yet</Trans>
+        </span>
+      )}
+    </div>
+  )
+}
+
+function HostnameDetail({
+  orgId,
+  item,
+  defaultHost,
+}: {
+  orgId: string
+  item: CustomHostname
+  defaultHost: string
+}): ReactNode {
+  const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
+  const refresh = useRefreshCustomHostname(orgId)
+  const remove = useDeleteCustomHostname(orgId)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const live = item.status === 'active'
+  const failed = item.status === 'provisioning_failed' || item.status === 'deletion_failed'
+  const certificateRecords = [
+    ...item.dns_records.dcv_delegation,
+    ...item.dns_records.certificate_validation,
+  ]
+  const error = refresh.error ?? remove.error
+
+  return (
+    <div {...stylex.props(styles.stack)}>
+      <div {...stylex.props(styles.head)}>
+        <div {...stylex.props(styles.headText)}>
+          <div {...stylex.props(styles.hostnameRow)}>
+            <h2 {...stylex.props(styles.hostname)}>{item.hostname}</h2>
+            {live ? (
+              <Badge tone="success">
+                <Trans>Live</Trans>
+              </Badge>
+            ) : failed ? (
+              <Badge tone="danger">
+                <Trans>Action required</Trans>
+              </Badge>
+            ) : (
+              <Badge tone="warning">
+                <Trans>Not live yet</Trans>
+              </Badge>
+            )}
+          </div>
+          <p {...stylex.props(styles.lead)}>
+            {live ? (
+              <Trans>
+                Your sign-in pages are served at {item.hostname}. Apps keep the same issuer.
+              </Trans>
+            ) : (
+              <Trans>
+                Your sign-in pages move here once all three checks pass. Until then people keep
+                signing in at {defaultHost}. Apps keep the same issuer either way.
+              </Trans>
+            )}
+          </p>
+        </div>
+        <Dropdown
+          ariaLabel={t`Sign-in domain actions`}
+          align="end"
+          trigger={
+            <span {...stylex.props(styles.iconButton)}>
+              <Trans>Actions</Trans>
+              <Icon name="chevrons-up-down" size={14} />
+            </span>
+          }
+          items={[
+            {
+              key: 'refresh',
+              label: <Trans>Check now</Trans>,
+              onSelect: () => refresh.mutate(item.id),
+            },
+            {
+              key: 'delete',
+              label: <Trans>Remove sign-in domain</Trans>,
+              tone: 'danger',
+              separatorBefore: true,
+              onSelect: () => setConfirmDelete(true),
+            },
+          ]}
+        />
+      </div>
+
+      {error ? <Alert tone="error">{errorMessage(error)}</Alert> : null}
+      <ChecksStrip item={item} />
+
+      <div {...stylex.props(styles.sectionHead)}>
+        <div>
+          <h3 {...stylex.props(styles.sectionTitle)}>
+            <Trans>DNS records</Trans>
+          </h3>
+          <p {...stylex.props(styles.sectionHint)}>
+            <Trans>
+              Keep these records in place. Removing one takes the sign-in pages offline.
+            </Trans>
+          </p>
+        </div>
+        <Button
+          variant="secondary"
+          isLoading={refresh.isPending}
+          onClick={() => refresh.mutate(item.id)}
+        >
+          <Trans>Check now</Trans>
+        </Button>
+      </div>
+      <div {...stylex.props(styles.records)}>
+        <div {...stylex.props(styles.recordHead)} aria-hidden="true">
+          <span>
+            <Trans>Type</Trans>
+          </span>
+          <span>
+            <Trans>Name</Trans>
+          </span>
+          <span>
+            <Trans>Value</Trans>
+          </span>
+          <span>
+            <Trans>Status</Trans>
+          </span>
+        </div>
+        <RecordRow record={item.dns_records.traffic} found={item.dns_checks.cname === 'found'} />
+        {item.dns_records.ownership ? (
+          <RecordRow record={item.dns_records.ownership} found={item.dns_checks.txt === 'found'} />
+        ) : null}
+        {certificateRecords.map((record) => (
+          <RecordRow
+            key={`${record.type}:${record.name}:${record.value}`}
+            record={record}
+            found={item.ssl_status === 'active'}
+          />
+        ))}
+      </div>
+
+      {!live && item.requires_passkey_reregistration ? (
+        <Alert
+          tone="warning"
+          title={<Trans>Passkeys won&apos;t carry over to {item.hostname}</Trans>}
+        >
+          <Plural
+            value={item.affected_passkey_user_count}
+            one={`Passkeys are tied to the address they were created on. When this domain goes live, # person with passkeys for ${defaultHost} will sign in another way once and be asked to create a new passkey. Tell them before you switch.`}
+            other={`Passkeys are tied to the address they were created on. When this domain goes live, # people with passkeys for ${defaultHost} will sign in another way once and be asked to create a new passkey. Tell them before you switch.`}
+          />
+        </Alert>
+      ) : null}
+
+      {confirmDelete ? (
+        <ConfirmDialog
+          title={<Trans>Remove sign-in domain?</Trans>}
+          description={
+            <Trans>
+              XID deletes the Cloudflare custom hostname before marking it removed. Sign-in returns
+              to {defaultHost}. Remove the traffic CNAME after this succeeds.
+            </Trans>
+          }
+          error={remove.error ? errorMessage(remove.error) : undefined}
+          confirmLabel={<Trans>Remove domain</Trans>}
+          isLoading={remove.isPending}
+          onConfirm={() => remove.mutate(item.id, { onSuccess: () => setConfirmDelete(false) })}
+          onCancel={() => setConfirmDelete(false)}
         />
       ) : null}
-      {hostname.dns_records.dcv_delegation.map((record) => (
-        <DnsInstruction
-          key={`${record.name}:${record.value}`}
-          label={<Trans>Certificate validation</Trans>}
-          record={record}
-        />
-      ))}
-      {hostname.dns_records.certificate_validation.map((record) => (
-        <DnsInstruction
-          key={`${record.type}:${record.name}:${record.value}`}
-          label={<Trans>Certificate validation</Trans>}
-          record={record}
-        />
-      ))}
-      <DnsInstruction
-        label={<Trans>Traffic routing</Trans>}
-        record={hostname.dns_records.traffic}
-      />
+    </div>
+  )
+}
+
+function AddHostname({ orgId }: { orgId: string }): ReactNode {
+  const errorMessage = useManagementErrorMessage()
+  const create = useCreateCustomHostname(orgId)
+  const [hostname, setHostname] = useState('')
+  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault()
+    const normalized = hostname.trim()
+    if (!normalized) return
+    create.mutate({ hostname: normalized }, { onSuccess: () => setHostname('') })
+  }
+  return (
+    <div {...stylex.props(styles.stack)}>
+      <div>
+        <h2 {...stylex.props(styles.sectionTitle)}>
+          <Trans>No sign-in domain yet</Trans>
+        </h2>
+        <p {...stylex.props(styles.lead)}>
+          <Trans>
+            Serve the sign-in pages from a hostname you own. XID provisions it and its certificate,
+            and switches over only after both are ready.
+          </Trans>
+        </p>
+      </div>
+      <Alert tone="warning">
+        <Trans>
+          Passkeys are tied to the address they were created on. People with passkeys will create
+          new ones the first time they sign in at your own hostname.
+        </Trans>
+      </Alert>
+      <form onSubmit={handleSubmit} noValidate>
+        <div {...stylex.props(styles.addRow)}>
+          <div {...stylex.props(styles.inputWrap)}>
+            <Field
+              label={<Trans>Hostname</Trans>}
+              error={create.error ? errorMessage(create.error) : undefined}
+              required
+            >
+              <Input
+                value={hostname}
+                onChange={(event) => setHostname(event.target.value)}
+                placeholder={HOSTNAME_EXAMPLE}
+                autoComplete="off"
+                inputMode="url"
+                required
+              />
+            </Field>
+          </div>
+          <Button type="submit" isLoading={create.isPending}>
+            <Trans>Add hostname</Trans>
+          </Button>
+        </div>
+      </form>
     </div>
   )
 }
 
 export function OrgCustomHostnames({ orgId }: { orgId: string }): ReactNode {
-  const { t } = useLingui()
-  const canManage = useCanManageOrg(orgId)
-  const queryKey = ['organizations', orgId, 'custom-hostnames'] as const
-  const hostnamesQuery = useApiQuery<CustomHostnamePage>(
-    queryKey,
-    `/v1/organizations/${orgId}/custom-hostnames`,
-    { enabled: canManage, query: { limit: 100 } },
-  )
-  const createHostname = useApiMutation<CustomHostname, { hostname: string }>(
-    (api, payload) =>
-      api.post<CustomHostname>(`/v1/organizations/${orgId}/custom-hostnames`, payload),
-    { invalidate: [queryKey] },
-  )
-  const refreshHostname = useApiMutation<CustomHostname, string>(
-    (api, id) =>
-      api.post<CustomHostname>(`/v1/organizations/${orgId}/custom-hostnames/${id}/refresh`),
-    { invalidate: [queryKey] },
-  )
-  const deleteHostname = useApiMutation<DeletedCustomHostname, string>(
-    (api, id) =>
-      api.del<DeletedCustomHostname>(`/v1/organizations/${orgId}/custom-hostnames/${id}`),
-    { invalidate: [queryKey] },
-  )
-
-  const [hostname, setHostname] = useState('')
-  const [lastCreated, setLastCreated] = useState<CustomHostname | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<CustomHostname | null>(null)
-
-  async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault()
-    const normalized = hostname.trim()
-    if (!normalized) return
-    const created = await createHostname.mutateAsync({ hostname: normalized })
-    setLastCreated(created)
-    setHostname('')
-  }
-
-  async function confirmDelete(): Promise<void> {
-    if (!pendingDelete) return
-    await deleteHostname.mutateAsync(pendingDelete.id)
-    setPendingDelete(null)
-    if (lastCreated?.id === pendingDelete.id) setLastCreated(null)
-  }
-
-  const actionError =
-    createHostname.error?.message ?? refreshHostname.error?.message ?? deleteHostname.error?.message
-  const hostnames = hostnamesQuery.data?.data ?? []
-
-  return (
-    <section aria-labelledby="custom-hostnames-heading" {...stylex.props(styles.section)}>
-      <div {...stylex.props(styles.headingRow)}>
-        <div {...stylex.props(styles.sectionMeta)}>
-          <h2 id="custom-hostnames-heading" {...stylex.props(page.sectionLabel)}>
-            <Trans>Custom sign-in hostnames</Trans>
-          </h2>
-          <p {...stylex.props(styles.sectionDesc)}>
-            <Trans>
-              Use a customer-owned hostname for Hosted Auth. XID provisions the hostname and
-              certificate through Cloudflare for SaaS, then activates routing only after both are
-              ready.
-            </Trans>
-          </p>
-        </div>
-        <div {...stylex.props(styles.controlCol)}>
-          <Alert tone="warning">
-            <Trans>
-              A custom hostname changes the WebAuthn RP ID. Existing passkeys will not work on the
-              new hostname, so users must register passkeys again there before you rely on it for
-              sign-in.
-            </Trans>
-          </Alert>
-          <form onSubmit={(event) => void handleCreate(event)} noValidate>
-            <div {...stylex.props(styles.addRow)}>
-              <div {...stylex.props(styles.inputWrap)}>
-                <Field
-                  label={<Trans>Custom hostname</Trans>}
-                  error={createHostname.error?.message}
-                  required
-                >
-                  <Input
-                    value={hostname}
-                    onChange={(event) => setHostname(event.target.value)}
-                    placeholder={HOSTNAME_EXAMPLE}
-                    autoComplete="off"
-                    inputMode="url"
-                    required
-                  />
-                </Field>
-              </div>
-              <Button type="submit" isLoading={createHostname.isPending}>
-                <Trans>Add hostname</Trans>
-              </Button>
-            </div>
-          </form>
-        </div>
+  const hostnames = useCustomHostnamesQuery(orgId)
+  const branding = useBrandingQuery(orgId)
+  const defaultHost = branding.data?.signInHost ?? ''
+  if (hostnames.isLoading) {
+    return (
+      <div {...stylex.props(styles.center)}>
+        <Spinner />
       </div>
-
-      {lastCreated ? (
-        <Alert tone="success">
-          <Trans>
-            Hostname reserved. Add every DNS record shown below. Ownership instructions expire if
-            they are not completed in time.
-          </Trans>
-        </Alert>
-      ) : null}
-
-      {actionError ? <Alert tone="error">{actionError}</Alert> : null}
-
-      {hostnamesQuery.isLoading ? (
-        <div {...stylex.props(page.loadingCenter)}>
-          <Spinner />
-        </div>
-      ) : hostnamesQuery.isError ? (
-        <Alert tone="error">
-          <Trans>Failed to load custom hostnames. Reload the page to try again.</Trans>
-        </Alert>
-      ) : hostnames.length === 0 ? (
-        <p {...stylex.props(styles.empty)}>
-          <Trans>No custom sign-in hostnames added yet.</Trans>
-        </p>
-      ) : (
-        <div {...stylex.props(styles.list)}>
-          {hostnames.map((item) => (
-            <article key={item.id} {...stylex.props(styles.card)}>
-              <div {...stylex.props(styles.cardHeader)}>
-                <div>
-                  <h3 {...stylex.props(styles.hostname)}>{item.hostname}</h3>
-                  <p {...stylex.props(styles.metaText)}>
-                    <Trans>Hostname status:</Trans> {item.hostname_status}
-                    {' / '}
-                    <Trans>Certificate status:</Trans> {item.ssl_status ?? t`Waiting`}
-                  </p>
-                </div>
-                <div {...stylex.props(styles.statusRow)}>
-                  <StatusBadge status={item.status} />
-                  {item.requires_passkey_reregistration ? (
-                    <Badge tone="info">
-                      <Trans>Passkey re-registration required</Trans>
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
-
-              <DnsInstructions hostname={item} />
-
-              {item.verification_errors.length > 0 ? (
-                <Alert tone="warning">
-                  <Trans>Cloudflare is still waiting for DNS verification.</Trans>
-                </Alert>
-              ) : null}
-
-              <div {...stylex.props(styles.actions)}>
-                <Button
-                  variant="secondary"
-                  isLoading={refreshHostname.isPending && refreshHostname.variables === item.id}
-                  onClick={() => void refreshHostname.mutateAsync(item.id)}
-                  aria-label={t`Refresh status for ${item.hostname}`}
-                >
-                  <Trans>Refresh status</Trans>
-                </Button>
-                <Button
-                  variant="danger"
-                  onClick={() => setPendingDelete(item)}
-                  aria-label={t`Delete custom hostname ${item.hostname}`}
-                >
-                  <Trans>Delete</Trans>
-                </Button>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-
-      {pendingDelete ? (
-        <ConfirmDialog
-          title={<Trans>Delete custom hostname?</Trans>}
-          description={
-            <Trans>
-              XID will delete the Cloudflare custom hostname before marking it deleted locally.
-              Remove the traffic CNAME after this succeeds.
-            </Trans>
-          }
-          confirmLabel={<Trans>Delete hostname</Trans>}
-          isLoading={deleteHostname.isPending}
-          onConfirm={() => void confirmDelete()}
-          onCancel={() => setPendingDelete(null)}
-        />
-      ) : null}
-    </section>
+    )
+  }
+  if (hostnames.isError) {
+    return (
+      <Alert tone="error">
+        <Trans>Failed to load the sign-in domain. Reload the page to try again.</Trans>
+      </Alert>
+    )
+  }
+  const item = hostnames.data?.data[0]
+  return item ? (
+    <HostnameDetail orgId={orgId} item={item} defaultHost={defaultHost} />
+  ) : (
+    <AddHostname orgId={orgId} />
   )
 }

@@ -207,11 +207,21 @@ describe('pollDomainVerification', () => {
       json: () => Promise.resolve({ Answer: [{ data: '"xid-verify=tok"' }] }),
     }) as unknown as typeof fetch
     const db = new FakeD1({
-      domains: [{ id: 'dom_1', domain: 'example.com', verification_token: 'tok' }],
+      domains: [
+        { id: 'dom_1', tenant_id: 'org_a', domain: 'example.com', verification_token: 'tok' },
+      ],
     })
     await pollDomainVerification({ DB: db } as unknown as Env)
-    expect(db.runs.some((run) => run.sql.includes('SET verification_status ='))).toBe(true)
-    expect(db.runs[0]?.args[2]).toBe('dom_1')
+    expect(db.runs.some((run) => run.sql.includes('verification_status = ?'))).toBe(true)
+    expect(db.runs[0]?.args).toEqual([
+      expect.any(Number),
+      'found',
+      'verified',
+      expect.any(Number),
+      expect.any(Number),
+      'org_a',
+      'dom_1',
+    ])
   })
 })
 

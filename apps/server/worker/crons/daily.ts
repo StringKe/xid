@@ -29,6 +29,7 @@ type MeteringCountStub = {
 
 type DomainRow = {
   id: string
+  tenant_id: string
   domain: string
   verification_token: string
 }
@@ -200,7 +201,7 @@ export async function pollCertificateStatus(env: Env): Promise<void> {
 // 域名验证轮询:pending 域名重新校验 DNS TXT(organization_domains)。
 export async function pollDomainVerification(env: Env): Promise<void> {
   const rows = await env.DB.prepare(
-    `SELECT id, domain, verification_token
+    `SELECT id, tenant_id, domain, verification_token
        FROM organization_domains
        WHERE status = 'active'
          AND verification_method = 'dns_txt'
@@ -223,15 +224,22 @@ export async function pollDomainVerification(env: Env): Promise<void> {
       })
       continue
     }
-    if (verified) {
-      await env.DB.prepare(
-        `UPDATE organization_domains
-           SET verification_status = 'verified', verified_at = ?, updated_at = ?
-           WHERE id = ? AND verification_status = 'pending' AND status = 'active'`,
+    await env.DB.prepare(
+      `UPDATE organization_domains
+         SET last_checked_at = ?, last_check_result = ?, verification_status = ?,
+             verified_at = ?, updated_at = ?
+         WHERE tenant_id = ? AND id = ? AND verification_status = 'pending' AND status = 'active'`,
+    )
+      .bind(
+        now,
+        verified ? 'found' : 'not_found',
+        verified ? 'verified' : 'pending',
+        verified ? now : null,
+        now,
+        row.tenant_id,
+        row.id,
       )
-        .bind(now, now, row.id)
-        .run()
-    }
+      .run()
   }
 }
 

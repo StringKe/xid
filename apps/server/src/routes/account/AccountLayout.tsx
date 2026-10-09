@@ -1,5 +1,6 @@
 // 账户门户外壳:≥48rem 左侧导航(租户、身份、5 个入口),工作区顶栏放控制台入口、主题、语言与退出;
 // <48rem 顶部一行租户与账户菜单(含主题),下方横向分段导航(AccountSegmentedNav)。
+// 模拟登录会话的横幅放在整个外壳之上,侧栏与工作区都在它下方。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
@@ -17,6 +18,7 @@ import { tokens } from '../../styles/tokens.stylex'
 import { AccountIcon } from './account-icons'
 import { ACCOUNT_NAV_ITEMS, isActiveAccountPath } from './account-nav-items'
 import { AccountSegmentedNav } from './AccountSegmentedNav'
+import { ImpersonationBanner } from './ImpersonationBanner'
 import { PendingDeletionBanner } from './PendingDeletionBanner'
 import { StepUpProvider } from './step-up'
 import { useAccountBrand } from './use-account-brand'
@@ -312,7 +314,7 @@ function AccountMenu(): ReactNode {
         ...(showConsoleLink
           ? [{ key: 'console', label: <Trans>Open console</Trans>, href: CONSOLE_EXACT_PATH }]
           : []),
-        { ...themeGroup, separatorBefore: showConsoleLink },
+        ...(themeGroup ? [{ ...themeGroup, separatorBefore: showConsoleLink }] : []),
         {
           key: 'sign-out',
           label: <Trans>Sign out</Trans>,
@@ -333,6 +335,7 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
 
   return (
     <StepUpProvider>
+      <ImpersonationBanner />
       <div {...stylex.props(styles.root)}>
         <aside {...stylex.props(styles.sidebar)}>
           <TenantBlock />

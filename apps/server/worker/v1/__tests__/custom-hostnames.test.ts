@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => {
   const orgDb = { customHostnames }
   const tenantDb = {
     customHostnames,
+    passkeyCredentials: { countDistinct: vi.fn().mockResolvedValue(0) },
     forOrg: vi.fn(() => orgDb),
   }
   return {

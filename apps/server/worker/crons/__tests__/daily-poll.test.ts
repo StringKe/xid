@@ -77,10 +77,12 @@ describe('verifyDomainDnsTxt', () => {
 
 type DomainRow = {
   id: string
+  tenant_id: string
   domain: string
   verification_token: string
   verification_status: string
   status: string
+  last_check_result?: string
 }
 
 class DomainPollD1 {
@@ -99,10 +101,13 @@ class DomainPollD1 {
           return { results: [] as T[] }
         },
         run: async () => {
-          if (sql.toLowerCase().includes("verification_status = 'verified'")) {
-            const id = String(args[2])
-            const row = this.domains.find((d) => d.id === id)
-            if (row) row.verification_status = 'verified'
+          if (sql.toLowerCase().includes('set last_checked_at')) {
+            const [, result, status, , , tenantId, id] = args
+            const row = this.domains.find((d) => d.id === id && d.tenant_id === tenantId)
+            if (row) {
+              row.verification_status = String(status)
+              row.last_check_result = String(result)
+            }
           }
           return { success: true }
         },
@@ -111,41 +116,46 @@ class DomainPollD1 {
   }
 }
 
+function pendingDomain(id: string, domain: string, token: string): DomainRow {
+  return {
+    id,
+    tenant_id: 'org_a',
+    domain,
+    verification_token: token,
+    verification_status: 'pending',
+    status: 'active',
+  }
+}
+
 describe('pollDomainVerification', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('leaves domain pending when DNS TXT does not match', async () => {
+  it('leaves domain pending and records the miss when DNS TXT does not match', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => Response.json({ Answer: [{ data: '"other=value"' }] })),
     )
     const db = new DomainPollD1()
-    db.domains.push({
-      id: 'dom_1',
-      domain: 'acme.com',
-      verification_token: 'abc123',
-      verification_status: 'pending',
-      status: 'active',
-    })
+    db.domains.push(pendingDomain('dom_1', 'acme.com', 'abc123'))
+
     await pollDomainVerification({ DB: db } as unknown as Env)
+
     expect(db.domains[0]?.verification_status).toBe('pending')
+    expect(db.domains[0]?.last_check_result).toBe('not_found')
   })
 
-  it('marks domain verified when DNS TXT matches token', async () => {
+  it('marks domain verified and records the hit when DNS TXT matches token', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => Response.json({ Answer: [{ data: '"xid-verify=abc123"' }] })),
     )
     const db = new DomainPollD1()
-    db.domains.push({
-      id: 'dom_1',
-      domain: 'acme.com',
-      verification_token: 'abc123',
-      verification_status: 'pending',
-      status: 'active',
-    })
+    db.domains.push(pendingDomain('dom_1', 'acme.com', 'abc123'))
+
     await pollDomainVerification({ DB: db } as unknown as Env)
+
     expect(db.domains[0]?.verification_status).toBe('verified')
+    expect(db.domains[0]?.last_check_result).toBe('found')
   })
 
   it('bounds each DNS lookup and keeps polling remaining domains after a timeout', async () => {
@@ -159,20 +169,8 @@ describe('pollDomainVerification', () => {
     vi.stubGlobal('fetch', fetchMock)
     const db = new DomainPollD1()
     db.domains.push(
-      {
-        id: 'dom_slow',
-        domain: 'slow.com',
-        verification_token: 'slow_token',
-        verification_status: 'pending',
-        status: 'active',
-      },
-      {
-        id: 'dom_fast',
-        domain: 'fast.com',
-        verification_token: 'fast_token',
-        verification_status: 'pending',
-        status: 'active',
-      },
+      pendingDomain('dom_slow', 'slow.com', 'slow_token'),
+      pendingDomain('dom_fast', 'fast.com', 'fast_token'),
     )
 
     await pollDomainVerification({ DB: db } as unknown as Env)

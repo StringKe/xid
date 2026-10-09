@@ -60,6 +60,47 @@ export const tokens = stylex.defineVars({
   '--xid-tracking-small': '0.01em',
 })
 
+// 与 defineVars 的颜色和阴影基线相同;在深色页面里局部还原浅色,例如品牌预览。
+export const lightTheme = stylex.createTheme(tokens, {
+  '--xid-primary': '#161616',
+  '--xid-primary-foreground': '#ffffff',
+  '--xid-bg': '#ffffff',
+  '--xid-surface': '#ffffff',
+  '--xid-sidebar': '#f6f6f6',
+  '--xid-muted': '#eeeeee',
+  '--xid-fg': '#161616',
+  '--xid-muted-foreground': '#5c5c5c',
+  '--xid-faint-foreground': '#6b6b6b',
+  '--xid-border': '#e6e6e6',
+  '--xid-border-strong': '#8c8c8c',
+
+  '--xid-accent': '#2e5fa3',
+  '--xid-accent-strong': '#244c84',
+  '--xid-accent-wash': '#eaf0f8',
+  '--xid-accent-foreground': '#ffffff',
+
+  '--xid-danger': '#b42318',
+  '--xid-danger-foreground': '#ffffff',
+  '--xid-danger-bg': '#fdeeec',
+  '--xid-warning': '#9a5b00',
+  '--xid-warning-foreground': '#ffffff',
+  '--xid-warning-bg': '#fdf3e3',
+  '--xid-success': '#1e7a46',
+  '--xid-success-foreground': '#ffffff',
+  '--xid-success-bg': '#eaf6ef',
+  '--xid-info': '#2e5fa3',
+  '--xid-info-foreground': '#ffffff',
+  '--xid-info-bg': '#eaf0f8',
+
+  '--xid-code': '#141414',
+  '--xid-code-foreground': '#e6e6e6',
+  '--xid-scrim': 'rgb(0 0 0 / 0.4)',
+
+  '--xid-shadow-sm': '0 1px 2px rgb(0 0 0 / 0.06)',
+  '--xid-shadow-md': '0 8px 24px rgb(0 0 0 / 0.08)',
+  '--xid-shadow-lg': '0 16px 40px rgb(0 0 0 / 0.16)',
+})
+
 export const darkTheme = stylex.createTheme(tokens, {
   '--xid-primary': '#ededed',
   '--xid-primary-foreground': '#141414',

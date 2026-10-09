@@ -49,9 +49,22 @@ describe('normalizeOrgBranding', () => {
     expect(branding).toEqual({
       ...DEFAULT_ORG_BRANDING,
       primaryColor: '#123abc',
-      borderRadius: '8px',
+      borderRadius: 'round',
       logoDarkUrl: 'https://cdn.example.com/dark.svg',
     })
+  })
+
+  it('maps legacy CSS radius lengths to the nearest radius step', () => {
+    const radii = ['0', '4px', '0.375rem', '12px', 'medium', '2vw'].map(
+      (borderRadius) => normalizeOrgBranding({ borderRadius }).borderRadius,
+    )
+
+    expect(radii).toEqual(['square', 'small', 'medium', 'round', 'medium', null])
+  })
+
+  it('keeps only known color schemes', () => {
+    expect(normalizeOrgBranding({ colorScheme: 'dark' }).colorScheme).toBe('dark')
+    expect(normalizeOrgBranding({ colorScheme: 'sepia' }).colorScheme).toBeNull()
   })
 
   it('returns defaults for non-object input', () => {

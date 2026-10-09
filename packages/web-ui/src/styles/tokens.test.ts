@@ -50,7 +50,14 @@ const css = read('./tokens.css')
 const constants = sourceConstants(tokensSource)
 
 const lightTs = objectEntries(block(tokensSource, 'stylex.defineVars({'), constants)
-const darkTs = objectEntries(block(tokensSource, 'stylex.createTheme(tokens, {'), constants)
+const darkTs = objectEntries(
+  block(tokensSource, 'darkTheme = stylex.createTheme(tokens, {'),
+  constants,
+)
+const lightThemeTs = objectEntries(
+  block(tokensSource, 'lightTheme = stylex.createTheme(tokens, {'),
+  constants,
+)
 
 const scaleTs: Entries = new Map()
 for (const match of scaleSource.matchAll(
@@ -75,6 +82,11 @@ describe('tokens.css', () => {
   it('declares exactly the darkTheme overrides for an explicit dark theme', () => {
     expect(darkTs.size).toBeGreaterThan(30)
     expect(Object.fromEntries(darkCss)).toEqual(Object.fromEntries(darkTs))
+  })
+
+  it('restores the light baseline for every token the dark theme overrides', () => {
+    expect([...lightThemeTs.keys()].sort()).toEqual([...darkTs.keys()].sort())
+    for (const [key, value] of lightThemeTs) expect(value).toBe(lightTs.get(key))
   })
 
   it('applies the same dark overrides when the system is dark and no light theme is chosen', () => {

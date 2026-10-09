@@ -1,5 +1,5 @@
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, ne } from 'drizzle-orm'
+import { and, asc, eq, isNull, ne } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -72,7 +72,28 @@ function toIso(value: Date | null): string | null {
   return value?.toISOString() ?? null
 }
 
-function toResponse(row: CustomHostnameRow) {
+// 本租户持有未撤销 passkey 的人数。passkey 绑定租户子域名 RPID,自定义主机名上线后他们都需要重新创建。
+async function affectedPasskeyUserCount(c: Context<XidHonoEnv>): Promise<number> {
+  return createTenantDb(c.env.DB, c.get('tenant')).passkeyCredentials.countDistinct(
+    schema.passkeyCredentials.userId,
+    isNull(schema.passkeyCredentials.revokedAt),
+  )
+}
+
+// 两条 DNS 记录各自的检查结果取自 Cloudflare 回报:主机名 active 说明 TXT 所有权记录已找到,
+// 证书 active 说明流量 CNAME 已解析到目标(HTTP 证书验证依赖它)。
+function dnsChecks(row: CustomHostnameRow) {
+  return {
+    txt: row.ownershipVerificationName
+      ? row.hostnameStatus === 'active'
+        ? 'found'
+        : 'pending'
+      : 'not_required',
+    cname: row.sslStatus === 'active' ? 'found' : 'pending',
+  } as const
+}
+
+function toResponse(row: CustomHostnameRow, passkeyUserCount: number) {
   const certificateValidation = row.validationRecords.flatMap((record) => {
     const records: Array<{ type: 'TXT' | 'CNAME'; name: string; value: string }> = []
     if (record.txtName && record.txtValue) {
@@ -94,6 +115,8 @@ function toResponse(row: CustomHostnameRow) {
     activated_at: toIso(row.activatedAt),
     last_polled_at: toIso(row.lastPolledAt),
     requires_passkey_reregistration: row.requiresPasskeyReregistration,
+    affected_passkey_user_count: passkeyUserCount,
+    dns_checks: dnsChecks(row),
     dns_records: {
       ownership:
         row.ownershipVerificationName && row.ownershipVerificationValue
@@ -164,7 +187,14 @@ function appFor(options: RegisterCustomHostnamesOptions): Hono<XidHonoEnv> {
       orderBy: asc(schema.customHostnames.id),
       limit: limit + 1,
     })
-    return c.json(paginate(rows.map(toResponse), (row) => row.id, limit))
+    const passkeyUsers = await affectedPasskeyUserCount(c)
+    return c.json(
+      paginate(
+        rows.map((row) => toResponse(row, passkeyUsers)),
+        (row) => row.id,
+        limit,
+      ),
+    )
   })
 
   app.get('/:orgId/custom-hostnames/:customHostnameId', async (c) => {
@@ -178,7 +208,7 @@ function appFor(options: RegisterCustomHostnamesOptions): Hono<XidHonoEnv> {
       ),
     )
     if (!row) throw new AppError('not_found', { httpStatus: 404 })
-    return c.json(toResponse(row))
+    return c.json(toResponse(row, await affectedPasskeyUserCount(c)))
   })
 
   app.post('/:orgId/custom-hostnames', async (c) => {
@@ -345,7 +375,7 @@ function appFor(options: RegisterCustomHostnamesOptions): Hono<XidHonoEnv> {
       throw new AppError('internal_error', { cause: dbError })
     }
     if (!updated) throw new AppError('internal_error')
-    return c.json(toResponse(updated), 201)
+    return c.json(toResponse(updated, await affectedPasskeyUserCount(c)), 201)
   })
 
   app.post('/:orgId/custom-hostnames/:customHostnameId/refresh', async (c) => {
@@ -371,7 +401,7 @@ function appFor(options: RegisterCustomHostnamesOptions): Hono<XidHonoEnv> {
         action: 'custom_hostname.refreshed',
         actorId: auditActorId(auth),
       })
-      return c.json(toResponse(updated))
+      return c.json(toResponse(updated, await affectedPasskeyUserCount(c)))
     } catch (error) {
       if (error instanceof AppError) throw error
       throw mapCloudflareError(error)
