@@ -1,47 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 
-import { pollCertificateStatus, pollDomainVerification, verifyDomainDnsTxt } from '../daily'
-
-type CertRow = {
-  id: string
-  usage: string
-  status: string
-  not_after: number | null
-  updated_at: number
-}
-
-class CertStoreD1 {
-  certs: CertRow[] = []
-  readonly runs: Array<{ sql: string; args: unknown[] }> = []
-
-  prepare = (sql: string) => {
-    const stmt = {
-      bind: (...args: unknown[]) => ({
-        run: async () => {
-          this.runs.push({ sql, args })
-          const normalized = sql.toLowerCase()
-          if (normalized.includes("set status = 'retiring'")) {
-            const soon = Number(args[1])
-            const now = Number(args[0])
-            for (const row of this.certs) {
-              if (
-                row.usage === 'saml_idp_signing' &&
-                row.status === 'active' &&
-                row.not_after !== null &&
-                row.not_after < soon
-              ) {
-                row.status = 'retiring'
-                row.updated_at = now
-              }
-            }
-          }
-          return { success: true }
-        },
-      }),
-    }
-    return stmt
-  }
-}
+import { pollDomainVerification, verifyDomainDnsTxt } from '../daily'
 
 describe('verifyDomainDnsTxt', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -181,55 +140,5 @@ describe('pollDomainVerification', () => {
       expect.objectContaining({ event: 'cron.daily.domain_dns_lookup_failed' }),
     )
     consoleError.mockRestore()
-  })
-})
-
-describe('pollCertificateStatus', () => {
-  it('no-ops when no active certs are within the 30-day window', async () => {
-    const db = new CertStoreD1()
-    const now = Date.now()
-    db.certs.push({
-      id: 'c_far',
-      usage: 'saml_idp_signing',
-      status: 'active',
-      not_after: now + 60 * 24 * 60 * 60 * 1000,
-      updated_at: now,
-    })
-    await pollCertificateStatus({ DB: db } as unknown as Env)
-    expect(db.certs[0]?.status).toBe('active')
-    expect(db.runs).toHaveLength(1)
-  })
-
-  it('marks active certs retiring within 30 days', async () => {
-    const db = new CertStoreD1()
-    const now = Date.now()
-    db.certs.push(
-      {
-        id: 'c1',
-        usage: 'saml_idp_signing',
-        status: 'active',
-        not_after: now + 1_000,
-        updated_at: now,
-      },
-      {
-        id: 'c2',
-        usage: 'saml_idp_signing',
-        status: 'active',
-        not_after: now + 40 * 24 * 60 * 60 * 1000,
-        updated_at: now,
-      },
-      {
-        id: 'c3',
-        usage: 'saml_sp_encryption',
-        status: 'active',
-        not_after: now + 1_000,
-        updated_at: now,
-      },
-    )
-    const env = { DB: db } as unknown as Env
-    await pollCertificateStatus(env)
-    expect(db.certs.find((c) => c.id === 'c1')?.status).toBe('retiring')
-    expect(db.certs.find((c) => c.id === 'c2')?.status).toBe('active')
-    expect(db.certs.find((c) => c.id === 'c3')?.status).toBe('active')
   })
 })

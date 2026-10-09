@@ -1,12 +1,10 @@
-// /console/org/outbound-sso?appId= 的 SAML app 详情。IdP 签名证书由 XID 在到期前 30 天自动轮换,
-// 这里只读展示,不提供手动创建下一张证书。
+// /console/org/outbound-sso?appId= 的 SAML app 详情。
 
 import { Plural, Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import {
-  Badge,
   Breadcrumb,
   Button,
   Dropdown,
@@ -18,15 +16,14 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import { leading, text } from '@xid-kit/web-ui/styles/scale.stylex'
-import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { detail } from '../../components/page/detail-styles'
 import { list } from '../../components/page/list-styles'
 import { formatDate } from '../../lib/date-format'
 import { useDeleteOutboundSamlApp, useUpdateOutboundSamlApp } from './queries'
 import { useOutboundSamlAppActivity } from './auth-queries'
-import type { OutboundSamlAppView, SigningCertificate } from './auth-queries'
-import { CERTIFICATE_WARNING_DAYS, daysUntil, shortFingerprint } from './auth-format'
+import type { OutboundSamlAppView } from './auth-queries'
+import { CERTIFICATE_WARNING_DAYS, daysUntil } from './auth-format'
+import { OutboundSamlCertificates } from './OutboundSamlCertificates'
 import {
   ActivityList,
   DetailSection,
@@ -59,39 +56,6 @@ const styles = stylex.create({
     justifyContent: 'center',
     width: '100%',
   },
-  certRow: {
-    display: 'grid',
-    gridTemplateColumns: {
-      default: 'minmax(0, 1fr) auto',
-      [WIDE]: 'minmax(0, 1fr) 7rem 13rem auto',
-    },
-    alignItems: 'center',
-    gap: '0.375rem 1rem',
-    paddingBlock: '0.625rem',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-    fontSize: text.base,
-  },
-  certHead: {
-    display: { default: 'none', [WIDE]: 'grid' },
-    gridTemplateColumns: 'minmax(0, 1fr) 7rem 13rem auto',
-    gap: '1rem',
-    paddingBlock: '0.5rem',
-    color: tokens['--xid-muted-foreground'],
-    fontSize: text.sm,
-  },
-  certValid: {
-    color: tokens['--xid-fg'],
-    fontSize: text.sm,
-    lineHeight: leading.sm,
-  },
-  note: {
-    margin: 0,
-    color: tokens['--xid-muted-foreground'],
-    fontSize: text.sm,
-    lineHeight: leading.base,
-  },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -108,75 +72,6 @@ const NAME_ID_LABELS: Record<string, string> = {
   'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent': 'persistent',
   'urn:oasis:names:tc:SAML:2.0:nameid-format:transient': 'transient',
   'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified': 'unspecified',
-}
-
-function algorithmLabel(cert: SigningCertificate): string {
-  const { key, size, hash } = cert.algorithm
-  return [size ? `${key} ${size}` : key, hash].filter(Boolean).join(', ')
-}
-
-function CertificateList({ app }: { app: OutboundSamlAppView }): ReactNode {
-  const { i18n } = useLingui()
-  if (app.signingCertificates.length === 0) {
-    return (
-      <p {...stylex.props(styles.note)}>
-        <Trans>
-          XID creates the signing certificate the first time someone signs in to this app.
-        </Trans>
-      </p>
-    )
-  }
-  return (
-    <div>
-      <div aria-hidden {...stylex.props(styles.certHead)}>
-        <span>
-          <Trans>Certificate</Trans>
-        </span>
-        <span>
-          <Trans>Status</Trans>
-        </span>
-        <span>
-          <Trans>Valid</Trans>
-        </span>
-        <span />
-      </div>
-      <ul {...stylex.props(detailParts.rows)}>
-        {app.signingCertificates.map((cert) => {
-          const from = formatDate(i18n, cert.notBefore)
-          const to = formatDate(i18n, cert.notAfter)
-          return (
-            <li key={cert.id} {...stylex.props(styles.certRow)}>
-              <span>
-                {algorithmLabel(cert)}
-                <span title={cert.fingerprint} {...stylex.props(detailParts.subValue)}>
-                  SHA-256 {shortFingerprint(cert.fingerprint)}
-                </span>
-              </span>
-              <span>
-                {cert.status === 'active' ? (
-                  <Badge tone={cert.id === app.idpSigningCertId ? 'success' : 'neutral'}>
-                    <Trans>Active</Trans>
-                  </Badge>
-                ) : (
-                  <Badge tone="warning">
-                    <Trans>Retiring</Trans>
-                  </Badge>
-                )}
-              </span>
-              <span {...stylex.props(styles.certValid)}>
-                <Trans>
-                  {from} to {to}
-                </Trans>
-              </span>
-              <a href={app.idpMetadataUrl} download {...stylex.props(list.filterButton)}>
-                <Trans>Metadata</Trans>
-              </a>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
 }
 
 function AttributesPanel({
@@ -364,8 +259,8 @@ export function OutboundSamlAppDetail({
                   body={
                     <Trans>
                       After that, {name} rejects every sign-in from XID. XID publishes the next
-                      certificate 30 days before expiry; download the IdP metadata again and upload
-                      it in {name} once it appears below.
+                      certificate 60 days before expiry. Download the IdP metadata again, upload it
+                      in {name}, then switch to the next certificate below.
                     </Trans>
                   }
                 />
@@ -374,12 +269,16 @@ export function OutboundSamlAppDetail({
                 title={<Trans>Signing certificates</Trans>}
                 description={
                   <Trans>
-                    XID signs every {name} assertion with the active certificate. Both stay
-                    published during a rollover.
+                    XID signs every {name} assertion with the active certificate. The next and
+                    retiring certificates stay published in the metadata during a rollover.
                   </Trans>
                 }
               >
-                <CertificateList app={app} />
+                <OutboundSamlCertificates
+                  orgId={orgId}
+                  metadataUrl={app.idpMetadataUrl}
+                  locked={locked}
+                />
               </DetailSection>
               <DetailSection
                 title={<Trans>{name} settings</Trans>}

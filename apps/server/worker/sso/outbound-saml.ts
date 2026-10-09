@@ -13,7 +13,8 @@ import {
   resolveSp,
   withOutboundTenant,
 } from './outbound-saml-shared'
-import { loadSigningCert } from './outbound-saml-signing'
+import { NAME_ID_FORMAT } from './outbound-saml-name-id'
+import { publishedSigningCertificates } from './outbound-saml-signing'
 import { handleOutboundSlo } from './outbound-saml-slo'
 import { handleSso } from './outbound-saml-sso'
 
@@ -28,13 +29,16 @@ outbound.get('/saml/:appId/metadata', async (c) => {
   const appId = requiredParam(c, 'appId')
   return withOutboundTenant(c, appId, async () => {
     const sp = await resolveSp(c, appId)
-    const cert = await loadSigningCert(c, sp)
+    const signingCertsB64 = await publishedSigningCertificates(c, sp)
     const xml = buildIdpMetadataXml({
       entityId: idpEntityId(c, appId),
       ssoUrl: idpSsoUrl(c, appId),
       sloUrl: idpSloUrl(c, appId),
-      signingCertsB64: [cert.certificate],
-      nameIdFormats: [sp.nameIdFormat],
+      signingCertsB64,
+      nameIdFormats: [
+        sp.nameIdFormat,
+        ...Object.values(NAME_ID_FORMAT).filter((format) => format !== sp.nameIdFormat),
+      ],
       wantAuthnRequestsSigned: OUTBOUND_AUTHN_REQUEST_SIGNATURE_REQUIRED,
     })
     return c.body(xml, 200, { 'content-type': 'application/samlmetadata+xml' })

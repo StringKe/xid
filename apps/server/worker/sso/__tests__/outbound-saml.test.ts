@@ -135,6 +135,7 @@ vi.mock('../../lib/session', () => ({
 
 const spFindOne = vi.fn()
 const certFindOne = vi.fn()
+const certFindMany = vi.fn()
 const userFindOne = vi.fn()
 const emailFindOne = vi.fn()
 const membershipFindOne = vi.fn()
@@ -144,7 +145,7 @@ const sessionUpdate = vi.fn()
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(() => ({
     samlServiceProviders: { findOne: spFindOne },
-    certStore: { findOne: certFindOne },
+    certStore: { findOne: certFindOne, findMany: certFindMany },
     users: { findOne: userFindOne },
     userEmails: { findOne: emailFindOne },
     memberships: { findOne: membershipFindOne },
@@ -159,7 +160,7 @@ vi.mock('@xid-kit/db', () => ({
       scopeId: 'scopeId',
     },
     samlServiceProviders: { id: 'id' },
-    certStore: { id: 'id', usage: 'usage', status: 'status' },
+    certStore: { id: 'id', usage: 'usage', status: 'status', createdAt: 'createdAt' },
     users: { id: 'id', status: 'status' },
     userEmails: { id: 'id', userId: 'userId' },
     memberships: { userId: 'userId', orgId: 'orgId', status: 'status' },
@@ -297,6 +298,7 @@ describe('outbound SAML SLO', () => {
     })
     spFindOne.mockResolvedValue(SP)
     certFindOne.mockResolvedValue(CERT)
+    certFindMany.mockResolvedValue([CERT])
     membershipFindOne.mockResolvedValue({ role: 'member', status: 'active' })
     decodeSamlBindingPayloadMock.mockResolvedValue({ ok: true, value: '<samlp:LogoutRequest/>' })
     verifySamlLogoutRequestMock.mockResolvedValue({

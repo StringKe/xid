@@ -1,32 +1,37 @@
-// 每天 02:00 UTC Cron(0 2 * * *):JWKS 密钥轮换检查 + 证书状态轮询 + 域名验证轮询 + MAU 归档。
+// 每天 02:00 UTC Cron(0 2 * * *):JWKS 密钥轮换检查 + SAML 签名证书维护 + 域名验证轮询 + MAU 归档。
 // 见 docs/design/07-platform-operations.md 7.1.4、signing-keys rule(四步轮换)。
 
 import { generateTenantSigningKey } from '@xid-kit/crypto'
-import { USER_PROVISIONED_BY_ANONYMOUS } from '@xid-kit/db'
 import type { SigningAlg } from '@xid-kit/types'
 import { decodeKek } from '../oidc/shared'
 import { createPersistedId } from '../lib/persisted-id'
 import { domainVerificationRecord } from '../lib/domain-verification'
-import { sessionDoRevokeAll } from '../lib/session'
-import { GUEST_GC_INACTIVE_DAYS } from '../lib/ttl'
 import {
   cloudflareForSaasConfigFromEnv,
   type CloudflareForSaasEnv,
 } from '../lib/cloudflare-custom-hostnames'
 import { logWorkerError } from '../lib/safe-log'
 import { maintainCustomHostnames } from './custom-hostnames'
+import { gcInactiveGuests } from './guest-gc'
+import { runMonthlyUsageMaintenance } from './monthly-usage'
 import { enqueueDuePrivacyRequests, expirePrivacyExports } from './privacy'
 import { enqueueScheduledScimTargetSyncs } from './scim-targets'
 import { reportStripeMauUsage } from '../billing/stripe-metering'
 import { pollSamlIdpMetadata } from './saml-idp-metadata'
+import { maintainOutboundSamlSigningCertificates } from './saml-signing-certificates'
 
-export { pollSamlIdpMetadata }
-
-// MeteringDO RPC stub(取最终 MAU 数值)。
-type MeteringCountStub = {
-  getMau(tenantId: string, yearMonth: string): Promise<number>
-  evictMonth(yearMonth: string): Promise<void>
-}
+export { gcInactiveGuests } from './guest-gc'
+export {
+  cleanupOldMonthlyUsage,
+  evictStaleMeteringMonth,
+  getPrevYearMonth,
+  hardDeleteOldMonthlyUsage,
+  reportMonthlyMau,
+  runMonthlyUsageMaintenance,
+  shouldArchivePrevMonth,
+  snapshotCurrentMonthMau,
+} from './monthly-usage'
+export { maintainOutboundSamlSigningCertificates, pollSamlIdpMetadata }
 
 type DomainRow = {
   id: string
@@ -42,27 +47,10 @@ type InstanceSigningKeyRow = {
 
 const RETIRING_KEY_GRACE_MS = 60 * 60 * 1000
 const ACTIVE_KEY_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000
-const TENANT_PAGE_SIZE = 50
+const SIGNING_KEY_PAGE_SIZE = 50
 const DOMAIN_PAGE_SIZE = 50
 const DNS_TXT_FETCH_TIMEOUT_MS = 5_000
-const METERING_EVICT_PAGE_SIZE = 50
 const KEK_VERSION = 1
-
-// 上月 "YYYY-MM"(UTC)。
-export function getPrevYearMonth(now: Date = new Date()): string {
-  const y = now.getUTCFullYear()
-  const m = now.getUTCMonth() // 0-based,当前月
-  // 上一个月:m===0 时跨年
-  const prev = m === 0 ? new Date(Date.UTC(y - 1, 11, 1)) : new Date(Date.UTC(y, m - 1, 1))
-  const py = prev.getUTCFullYear()
-  const pm = String(prev.getUTCMonth() + 1).padStart(2, '0')
-  return `${py}-${pm}`
-}
-
-// 当月第一天只归档上月,避免每天重复上报同一周期。
-export function shouldArchivePrevMonth(now: Date = new Date()): boolean {
-  return now.getUTCDate() === 1
-}
 
 function toBuffer(bytes: Uint8Array): Buffer {
   return Buffer.from(bytes)
@@ -115,7 +103,7 @@ export async function rotateSigningKeysCheck(env: Env): Promise<void> {
        ORDER BY active.activated_at ASC, active.instance_id ASC
        LIMIT ?`,
   )
-    .bind(cutoff, TENANT_PAGE_SIZE)
+    .bind(cutoff, SIGNING_KEY_PAGE_SIZE)
     .all<InstanceSigningKeyRow>()
 
   if (staleActive.results.length === 0) return
@@ -173,21 +161,6 @@ export async function backfillRetiringKeyRetireAfter(env: Env): Promise<void> {
     .run()
 }
 
-// 证书状态轮询:临近 not_after 的证书继续为现有 SP 签名,但不再分配给新 SP。
-export async function pollCertificateStatus(env: Env): Promise<void> {
-  const soon = Date.now() + 1000 * 60 * 60 * 24 * 30 // 30 天内到期
-  await env.DB.prepare(
-    `UPDATE cert_store SET status = 'retiring', updated_at = ?
-       WHERE tenant_id IS NOT NULL
-         AND usage = 'saml_idp_signing'
-         AND status = 'active'
-         AND not_after IS NOT NULL
-         AND not_after < ?`,
-  )
-    .bind(Date.now(), soon)
-    .run()
-}
-
 // 域名验证轮询:pending 域名重新校验 DNS TXT(organization_domains)。
 export async function pollDomainVerification(env: Env): Promise<void> {
   const rows = await env.DB.prepare(
@@ -233,488 +206,6 @@ export async function pollDomainVerification(env: Env): Promise<void> {
   }
 }
 
-type UsageMonthlyInput = {
-  tenantId: string
-  yearMonth: string
-  mau: number
-  archivedAt: string
-}
-
-async function upsertUsageMonthly(env: Env, input: UsageMonthlyInput): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO usage_monthly (tenant_id, year_month, mau, archived_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT (tenant_id, year_month) DO UPDATE SET mau = MAX(usage_monthly.mau, excluded.mau), archived_at = excluded.archived_at`,
-  )
-    .bind(input.tenantId, input.yearMonth, input.mau, input.archivedAt)
-    .run()
-}
-
-async function eachActiveTenant(
-  env: Env,
-  visit: (tenantId: string) => Promise<void>,
-): Promise<void> {
-  let cursor: string | null = null
-  while (true) {
-    const where: string = cursor === null ? '' : 'AND id > ?'
-    const params: unknown[] = cursor === null ? [TENANT_PAGE_SIZE] : [cursor, TENANT_PAGE_SIZE]
-    const tenants: D1Result<{ tenant_id: string }> = await env.DB.prepare(
-      `SELECT id AS tenant_id FROM organizations
-         WHERE status = 'active' AND parent_org_id IS NULL ${where}
-         ORDER BY id
-         LIMIT ?`,
-    )
-      .bind(...params)
-      .all<{ tenant_id: string }>()
-    if (tenants.results.length === 0) break
-    for (const { tenant_id } of tenants.results) {
-      await visit(tenant_id)
-    }
-    cursor = tenants.results[tenants.results.length - 1]?.tenant_id ?? null
-    if (tenants.results.length < TENANT_PAGE_SIZE) break
-  }
-}
-
-// MAU 归档:从 MeteringDO 取上月最终 MAU,写 usage_monthly。
-export async function reportMonthlyMau(env: Env, now: Date = new Date()): Promise<void> {
-  if (!shouldArchivePrevMonth(now)) return
-  const yearMonth = getPrevYearMonth(now)
-  const archivedAt = now.toISOString()
-  await eachActiveTenant(env, async (tenantId) => {
-    const stub = meteringStub(env, tenantId)
-    const mau = await stub.getMau(tenantId, yearMonth)
-    await upsertUsageMonthly(env, { tenantId, yearMonth, mau, archivedAt })
-    await stub.evictMonth(yearMonth)
-  })
-}
-
-function meteringStub(env: Env, tenantId: string): DurableObjectStub & MeteringCountStub {
-  return env.METERING.get(
-    env.METERING.idFromName(`metering:${tenantId}`),
-  ) as unknown as DurableObjectStub & MeteringCountStub
-}
-
-// 月初归档失败或租户已非 active 时,上月 DO 计数不会被 reportMonthlyMau 清掉。
-// 每日按 usage_monthly 有用量的租户补清两个月前的月份,不依赖单次月初运行成功。
-export async function evictStaleMeteringMonth(env: Env, now: Date = new Date()): Promise<void> {
-  const staleYearMonth = getPrevYearMonth(
-    new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)),
-  )
-  let cursor: string | null = null
-  while (true) {
-    const where: string = cursor === null ? '' : 'AND tenant_id > ?'
-    const params: unknown[] =
-      cursor === null
-        ? [staleYearMonth, METERING_EVICT_PAGE_SIZE]
-        : [staleYearMonth, cursor, METERING_EVICT_PAGE_SIZE]
-    const rows: D1Result<{ tenant_id: string }> = await env.DB.prepare(
-      `SELECT tenant_id FROM usage_monthly
-         WHERE year_month = ? AND mau > 0 ${where}
-         ORDER BY tenant_id
-         LIMIT ?`,
-    )
-      .bind(...params)
-      .all<{ tenant_id: string }>()
-    if (rows.results.length === 0) return
-    for (const { tenant_id } of rows.results) {
-      await meteringStub(env, tenant_id).evictMonth(staleYearMonth)
-    }
-    cursor = rows.results[rows.results.length - 1]?.tenant_id ?? null
-    if (rows.results.length < METERING_EVICT_PAGE_SIZE) return
-  }
-}
-
-// 当月快照:platform billing/stats 读取 usage_monthly 当月行,每日补齐 active tenant 当前 MAU。
-export async function snapshotCurrentMonthMau(env: Env, now: Date = new Date()): Promise<void> {
-  const yearMonth = now.toISOString().slice(0, 7)
-  const archivedAt = now.toISOString()
-  await eachActiveTenant(env, async (tenantId) => {
-    const mau = await meteringStub(env, tenantId).getMau(tenantId, yearMonth)
-    await upsertUsageMonthly(env, { tenantId, yearMonth, mau, archivedAt })
-  })
-}
-
-export async function cleanupOldMonthlyUsage(env: Env, now: Date = new Date()): Promise<void> {
-  const cutoff = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 13, 1))
-  const cutoffYearMonth = cutoff.toISOString().slice(0, 7)
-  await hardDeleteOldMonthlyUsage(env, cutoffYearMonth)
-}
-
-// 物理删除只用于按保留期滚动清理聚合计量事实。审计事件和身份资源不走此路径。
-export async function hardDeleteOldMonthlyUsage(env: Env, cutoffYearMonth: string): Promise<void> {
-  await env.DB.prepare(`DELETE FROM usage_monthly WHERE year_month < ?`).bind(cutoffYearMonth).run()
-}
-
-export async function runMonthlyUsageMaintenance(env: Env, now: Date = new Date()): Promise<void> {
-  await snapshotCurrentMonthMau(env, now)
-  await reportMonthlyMau(env, now)
-  await evictStaleMeteringMonth(env, now)
-  if (shouldArchivePrevMonth(now)) {
-    await cleanupOldMonthlyUsage(env, now)
-  }
-}
-
-// ---- guest GC:不活跃满 GUEST_GC_INACTIVE_DAYS 天的 anonymous 用户软删(01 章 guest 模式)----
-
-const GUEST_GC_PAGE_SIZE = 100
-const DAY_MS = 24 * 60 * 60 * 1000
-
-type GuestGcRow = { id: string; delete_tenant: number }
-
-const GUEST_GC_TENANT_BLOCKING_TABLES = [
-  'projects',
-  'applications',
-  'project_grants',
-  'org_policies',
-  'roles',
-  'permissions',
-  'role_permissions',
-  'user_grants',
-  'manager_assignments',
-  'invitations',
-  'organization_domains',
-  'sso_connections',
-  'cert_store',
-  'saml_service_providers',
-  'saml_session_bindings',
-  'directories',
-  'directory_users',
-  'directory_groups',
-  'directory_group_members',
-  'directory_pending_members',
-  'scim_targets',
-  'api_keys',
-  'webhooks',
-  'authorization_codes',
-  'refresh_tokens',
-  'access_token_revocations',
-  'access_token_issuances',
-  'oauth_consents',
-  'resource_servers',
-] as const
-
-function ownedOnboardingTenantExists(userRef: string): string {
-  return `EXISTS (
-    SELECT 1
-      FROM organizations owned
-      JOIN memberships owner_membership
-        ON owner_membership.tenant_id = owned.tenant_id
-       AND owner_membership.org_id = owned.id
-       AND owner_membership.user_id = ${userRef}.id
-       AND owner_membership.role = 'owner'
-       AND owner_membership.status = 'active'
-     WHERE owned.id = ${userRef}.tenant_id
-       AND owned.tenant_id = ${userRef}.tenant_id
-       AND owned.parent_org_id IS NULL
-       AND owned.slug <> 'default'
-       AND owned.status = 'active'
-       AND owned.deleted_at IS NULL
-  )`
-}
-
-function tenantHasNoBlockingResources(userRef: string): string {
-  return GUEST_GC_TENANT_BLOCKING_TABLES.map(
-    (table) =>
-      `NOT EXISTS (
-        SELECT 1 FROM ${table}
-         WHERE tenant_id = ${userRef}.tenant_id
-      )`,
-  ).join('\n          AND ')
-}
-
-function userHasNoBlockingBusinessRows(userRef: string): string {
-  return `NOT EXISTS (
-      SELECT 1 FROM manager_assignments
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND user_id = ${userRef}.id
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM user_grants
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND user_id = ${userRef}.id
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM invitations
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND (
-           invited_by_user_id = ${userRef}.id
-           OR accepted_by_user_id = ${userRef}.id
-         )
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM authorization_codes
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND user_id = ${userRef}.id
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM refresh_tokens
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND user_id = ${userRef}.id
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM oauth_consents
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND user_id = ${userRef}.id
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM saml_session_bindings
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND user_id = ${userRef}.id
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM directory_users
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND user_id = ${userRef}.id
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM access_token_issuances
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND subject = ${userRef}.id
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM access_token_revocations
-       WHERE tenant_id = ${userRef}.tenant_id
-         AND subject = ${userRef}.id
-    )`
-}
-
-function safeOwnedOnboardingTenant(userRef: string): string {
-  return `${ownedOnboardingTenantExists(userRef)}
-    AND NOT EXISTS (
-      SELECT 1 FROM users other_user
-       WHERE other_user.tenant_id = ${userRef}.tenant_id
-         AND other_user.id <> ${userRef}.id
-         AND other_user.deleted_at IS NULL
-         AND other_user.status <> 'deleted'
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM memberships other_membership
-       WHERE other_membership.tenant_id = ${userRef}.tenant_id
-         AND other_membership.status = 'active'
-         AND NOT (
-           other_membership.org_id = ${userRef}.tenant_id
-           AND other_membership.user_id = ${userRef}.id
-           AND other_membership.role = 'owner'
-         )
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM organizations child
-       WHERE child.tenant_id = ${userRef}.tenant_id
-         AND child.id <> ${userRef}.tenant_id
-         AND child.deleted_at IS NULL
-         AND child.status <> 'deleted'
-    )
-    AND ${tenantHasNoBlockingResources(userRef)}`
-}
-
-function safeGuestGcTarget(userRef: string, deleteTenant: boolean): string {
-  const membershipGuard = deleteTenant
-    ? safeOwnedOnboardingTenant(userRef)
-    : `NOT ${ownedOnboardingTenantExists(userRef)}
-       AND NOT EXISTS (
-         SELECT 1 FROM memberships active_membership
-          WHERE active_membership.tenant_id = ${userRef}.tenant_id
-            AND active_membership.user_id = ${userRef}.id
-            AND active_membership.status = 'active'
-       )`
-  return `${userRef}.provisioned_by = ?
-    AND ${userRef}.deleted_at IS NULL
-    AND ${userRef}.status = 'active'
-    AND NOT EXISTS (
-      SELECT 1 FROM user_emails verified_email
-       WHERE verified_email.tenant_id = ${userRef}.tenant_id
-         AND verified_email.user_id = ${userRef}.id
-         AND verified_email.verified = 1
-    )
-    AND COALESCE(
-      (
-        SELECT MAX(active_session.last_active_at)
-          FROM sessions active_session
-         WHERE active_session.tenant_id = ${userRef}.tenant_id
-           AND active_session.user_id = ${userRef}.id
-      ),
-      ${userRef}.created_at
-    ) < ?
-    AND ${userHasNoBlockingBusinessRows(userRef)}
-    AND ${membershipGuard}`
-}
-
-function claimedGuestExists(): string {
-  return `EXISTS (
-    SELECT 1 FROM users claimed_guest
-     WHERE claimed_guest.tenant_id = ?
-       AND claimed_guest.id = ?
-       AND claimed_guest.provisioned_by = ?
-       AND claimed_guest.status = 'deleted'
-       AND claimed_guest.deleted_at = ?
-  )`
-}
-
-function guestGcClosureStatements(opts: {
-  env: Env
-  tenantId: string
-  userId: string
-  deleteTenant: boolean
-  nowMs: number
-}): D1PreparedStatement[] {
-  const { env, tenantId, userId, deleteTenant, nowMs } = opts
-  const claimed = claimedGuestExists()
-  const claimParams = [tenantId, userId, USER_PROVISIONED_BY_ANONYMOUS, nowMs] as const
-  return [
-    env.DB.prepare(
-      `UPDATE sessions
-          SET status = 'revoked'
-        WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,
-    ).bind(tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE memberships
-          SET status = 'inactive', updated_at = ?
-        WHERE tenant_id = ? AND user_id = ? AND status = 'active' AND ${claimed}`,
-    ).bind(nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE user_emails
-          SET verification_status = 'expired', updated_at = ?
-        WHERE tenant_id = ? AND user_id = ? AND verified = 0 AND ${claimed}`,
-    ).bind(nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE user_phones
-          SET verification_status = 'expired', updated_at = ?
-        WHERE tenant_id = ? AND user_id = ? AND verified = 0 AND ${claimed}`,
-    ).bind(nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE user_identities
-          SET revoked_at = COALESCE(revoked_at, ?), updated_at = ?
-        WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,
-    ).bind(nowMs, nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE password_reset_tokens
-          SET consumed_at = COALESCE(consumed_at, ?)
-        WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,
-    ).bind(nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE magic_link_tokens
-          SET consumed_at = COALESCE(consumed_at, ?)
-        WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,
-    ).bind(nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE verification_tokens
-          SET consumed_at = COALESCE(consumed_at, ?)
-        WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,
-    ).bind(nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE passkey_credentials
-          SET revoked_at = COALESCE(revoked_at, ?), updated_at = ?
-        WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,
-    ).bind(nowMs, nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE mfa_factors
-          SET status = 'disabled', updated_at = ?
-        WHERE tenant_id = ? AND user_id = ? AND status <> 'disabled' AND ${claimed}`,
-    ).bind(nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE backup_codes
-          SET used = 1, used_at = COALESCE(used_at, ?)
-        WHERE tenant_id = ? AND user_id = ? AND used = 0 AND ${claimed}`,
-    ).bind(nowMs, tenantId, userId, ...claimParams),
-    env.DB.prepare(
-      `UPDATE trusted_devices
-          SET revoked_at = COALESCE(revoked_at, ?)
-        WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,
-    ).bind(nowMs, tenantId, userId, ...claimParams),
-    ...(deleteTenant
-      ? [
-          env.DB.prepare(
-            `UPDATE organizations
-                SET deleted_at = ?, status = 'deleted', updated_at = ?
-              WHERE tenant_id = ?
-                AND id = ?
-                AND parent_org_id IS NULL
-                AND slug <> 'default'
-                AND status = 'active'
-                AND deleted_at IS NULL
-                AND ${claimed}`,
-          ).bind(nowMs, nowMs, tenantId, tenantId, ...claimParams),
-        ]
-      : []),
-  ]
-}
-
-// 单租户一轮:按"最后活跃"窗口软删 guest。
-// 活跃基准:无 session 按 users.created_at;有 session 按该 user 最新 session.last_active_at。
-// cron 无 TenantContext,raw SQL 显式绑 tenant_id(tenant-isolation rule 允许场景)。
-async function gcInactiveGuestsForTenant(
-  env: Env,
-  tenantId: string,
-  cutoffMs: number,
-  nowMs: number,
-): Promise<void> {
-  // 软删后行被 deleted_at IS NULL 条件排除,同一 SELECT 循环翻页直到无命中。
-  while (true) {
-    const rows = await env.DB.prepare(
-      `SELECT u.id AS id,
-              CASE WHEN ${ownedOnboardingTenantExists('u')} THEN 1 ELSE 0 END AS delete_tenant
-         FROM users u
-        WHERE u.tenant_id = ?
-          AND (
-            (${safeGuestGcTarget('u', false)})
-            OR (${safeGuestGcTarget('u', true)})
-          )
-        ORDER BY u.id
-        LIMIT ?`,
-    )
-      .bind(
-        tenantId,
-        USER_PROVISIONED_BY_ANONYMOUS,
-        cutoffMs,
-        USER_PROVISIONED_BY_ANONYMOUS,
-        cutoffMs,
-        GUEST_GC_PAGE_SIZE,
-      )
-      .all<GuestGcRow>()
-    if (rows.results.length === 0) return
-
-    for (const row of rows.results) {
-      const deleteTenant = row.delete_tenant === 1
-      const statements = [
-        env.DB.prepare(
-          `UPDATE users
-              SET deleted_at = ?, status = 'deleted', updated_at = ?
-            WHERE tenant_id = ?
-              AND id = ?
-              AND ${safeGuestGcTarget('users', deleteTenant)}`,
-        ).bind(nowMs, nowMs, tenantId, row.id, USER_PROVISIONED_BY_ANONYMOUS, cutoffMs),
-        ...guestGcClosureStatements({
-          env,
-          tenantId,
-          userId: row.id,
-          deleteTenant,
-          nowMs,
-        }),
-      ]
-      const results = await env.DB.batch(statements)
-      if ((results[0]?.meta.changes ?? 0) !== 1) continue
-      await sessionDoRevokeAll(env, row.id)
-      // 审计链 INSERT only:GC 也是身份资源变更,必须留痕(actor 为系统,不填 actorId)。
-      await env.AUDIT_QUEUE.send({
-        tenantId,
-        action: 'guest.gc_deleted',
-        ts: nowMs,
-        payload: { targetType: 'user', targetId: row.id },
-      })
-    }
-    if (rows.results.length < GUEST_GC_PAGE_SIZE) return
-  }
-}
-
-// 每日扫全量 active tenant 的不活跃 guest 并软删(复用 eachActiveTenant 的租户分页)。
-export async function gcInactiveGuests(env: Env, now: Date = new Date()): Promise<void> {
-  const nowMs = now.getTime()
-  const cutoffMs = nowMs - GUEST_GC_INACTIVE_DAYS * DAY_MS
-  await eachActiveTenant(env, (tenantId) =>
-    gcInactiveGuestsForTenant(env, tenantId, cutoffMs, nowMs),
-  )
-}
-
 async function runDailyPhase(
   name: string,
   run: () => Promise<void>,
@@ -743,7 +234,11 @@ export async function runDaily(env: Env): Promise<void> {
     },
     failures,
   )
-  await runDailyPhase('certificate_status', () => pollCertificateStatus(env), failures)
+  await runDailyPhase(
+    'saml_signing_certificates',
+    () => maintainOutboundSamlSigningCertificates(env),
+    failures,
+  )
   await runDailyPhase('domain_verification', () => pollDomainVerification(env), failures)
   await runDailyPhase(
     'custom_hostname_maintenance',

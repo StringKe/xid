@@ -1,7 +1,7 @@
 // 出站 SAML NameID:按 SAML Core 8.3 的格式语义生成值,并按 AuthnRequest 的 NameIDPolicy 选择格式。
 // persistent 是 (tenant, app, user) 的成对假名:同一 SP 稳定,不同 SP 之间不可关联,也不暴露内部 user id。
 
-import { base64UrlDecode, base64UrlEncode } from '@xid-kit/crypto'
+import { base64UrlDecode, base64UrlEncode, toBufferSource } from '@xid-kit/crypto'
 
 export const NAME_ID_FORMAT = {
   emailAddress: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
@@ -64,7 +64,9 @@ async function persistentNameId(input: {
 }): Promise<string> {
   const pepper = decodePepper(input.pepper)
   try {
-    const baseKey = await crypto.subtle.importKey('raw', pepper, 'HKDF', false, ['deriveKey'])
+    const baseKey = await crypto.subtle.importKey('raw', toBufferSource(pepper), 'HKDF', false, [
+      'deriveKey',
+    ])
     const key = await crypto.subtle.deriveKey(
       {
         name: 'HKDF',
