@@ -7,7 +7,9 @@ import { MockDurableObjectState } from '../../durable-objects/__tests__/mock-do-
 import { isAppError } from '../../lib/errors'
 import type { XidHonoEnv } from '../../lib/types'
 import {
+  assertionReplayTtlMs,
   consumeOnce,
+  isAssertionReplay,
   consumeOutboundLogoutRequestContext,
   isLogoutRequestReplay,
   markOnce,
@@ -242,6 +244,60 @@ describe('saml-do outbound SLO state', () => {
         validUntil: Date.now() + 10 * 60 * 1000 + 1,
       }),
     )
+  })
+})
+
+describe('saml-do isAssertionReplay', () => {
+  it('rejects the same assertion again after ten minutes while it is still acceptable', async () => {
+    vi.useFakeTimers()
+    try {
+      const now = Date.parse('2026-07-29T09:00:00Z')
+      vi.setSystemTime(now)
+      const context = makeContext(makeChallengeStoreEnv(makeChallengeStore()))
+      const notOnOrAfter = now + 70 * 60 * 1000
+
+      const first = await isAssertionReplay(context, 'conn_1', '_assertion_1', notOnOrAfter)
+      vi.setSystemTime(notOnOrAfter + 4 * 60 * 1000)
+      const replay = await isAssertionReplay(context, 'conn_1', '_assertion_1', notOnOrAfter)
+
+      expect(first).toBe(false)
+      expect(replay).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the replay key until NotOnOrAfter plus the maximum clock skew', async () => {
+    const calls: unknown[] = []
+    const env = makeEnv('/claim', new Response(null, { status: 201 }), calls)
+    const notOnOrAfter = Date.now() + 60 * 60 * 1000
+
+    await isAssertionReplay(makeContext(env), 'conn_1', '_assertion_2', notOnOrAfter)
+
+    const ttlMs = (calls[0] as { ttlMs: number }).ttlMs
+    expect(ttlMs).toBeGreaterThan(65 * 60 * 1000 - 1000)
+    expect(ttlMs).toBeLessThanOrEqual(65 * 60 * 1000)
+  })
+
+  it('rejects an assertion whose lifetime exceeds the replay window instead of truncating it', async () => {
+    const calls: unknown[] = []
+    const env = makeEnv('/claim', new Response(null, { status: 201 }), calls)
+
+    const result = isAssertionReplay(
+      makeContext(env),
+      'conn_1',
+      '_assertion_3',
+      Date.now() + 25 * 60 * 60 * 1000,
+    )
+
+    await expect(result).rejects.toSatisfy(
+      (err: unknown) => isAppError(err) && err.code === 'assertion_expired',
+    )
+    expect(calls).toHaveLength(0)
+  })
+
+  it('computes the ttl from NotOnOrAfter and the five minute skew', () => {
+    expect(assertionReplayTtlMs(1_000_000, 400_000)).toBe(600_000 + 5 * 60 * 1000)
   })
 })
 

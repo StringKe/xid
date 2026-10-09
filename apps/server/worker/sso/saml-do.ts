@@ -5,9 +5,11 @@
 // ChallengeStore 提供 create(put)/consume(get+delete),DO 单线程保证一次性(见 challenge-store.ts)。
 
 import { sha256Hex } from '@xid-kit/crypto'
+import { MAX_SAML_CLOCK_SKEW_MS } from '@xid-kit/saml'
 import { defaultLandingPathFor } from '@xid-kit/types'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
+import { SAML_ASSERTION_REPLAY_MAX_TTL_MS } from '../lib/ttl'
 import type { XidHonoEnv } from '../lib/types'
 
 export type {
@@ -297,6 +299,12 @@ export async function releaseLogoutRequestReplay(
   if (released !== null && released !== '1') throw new AppError('server_error')
 }
 
+// 断言被接受的条件是 now - skew < Conditions/@NotOnOrAfter(SubjectConfirmationData 的上界
+// 只会更早或相同,两者都须满足),所以占位保留到 Conditions/@NotOnOrAfter + 最大偏差即覆盖整个可接受期。
+export function assertionReplayTtlMs(notOnOrAfter: number, now: number): number {
+  return notOnOrAfter + MAX_SAML_CLOCK_SKEW_MS - now
+}
+
 // Assertion ID 重放检测:ChallengeStore 单次 claim 成功表示首次出现。
 export async function isAssertionReplay(
   c: Context<XidHonoEnv>,
@@ -305,6 +313,16 @@ export async function isAssertionReplay(
   notOnOrAfter: number,
 ): Promise<boolean> {
   const key = `saml:assertion:${connectionId}:${assertionId}`
-  const ttlMs = Math.max(0, notOnOrAfter - Date.now()) + 5 * 60 * 1000
+  const ttlMs = assertionReplayTtlMs(notOnOrAfter, Date.now())
+  if (!Number.isSafeInteger(notOnOrAfter) || ttlMs <= 0) {
+    throw new AppError('assertion_expired', { httpStatus: 403 })
+  }
+  // 截短保留时间会重新打开重放窗口,所以有效期过长的断言整体拒绝。
+  if (ttlMs > SAML_ASSERTION_REPLAY_MAX_TTL_MS) {
+    throw new AppError('assertion_expired', {
+      httpStatus: 403,
+      longMessage: 'saml:assertion_lifetime_exceeds_replay_window',
+    })
+  }
   return claimReplayKey(c.env, key, ttlMs)
 }

@@ -2,6 +2,8 @@
 // 四验证之 challenge:存 DO 强一致,消费后销毁,不可重复消费。
 // 见 webauthn rule / docs/design/01-authentication.md 第 1 节。
 
+import { SAML_ASSERTION_REPLAY_MAX_TTL_MS } from '../lib/ttl'
+
 // challenge 记录存储格式
 type ChallengeRecord = {
   value: string
@@ -12,10 +14,12 @@ type ChallengeRecord = {
 //   POST /create  body: { key, value, ttlMs }  -> 201 {}
 //   POST /consume body: { key }                 -> 200 { value } | 404 | 410
 //   POST /peek    body: { key }                 -> 200 { value } | 404 | 410
-//   POST /claim   body: { key, value, ttlMs }    -> 201 | 409
+//   POST /claim   body: { key, value, ttlMs }    -> 201 | 409 | 400(ttlMs 越界)
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000 // 5min
 const MAX_TTL_MS = 10 * 60 * 1000 // 10min
+// 重放集要保留到被占用凭证的整个有效期结束,上限单独放宽;越界直接拒绝,不回退默认值。
+const MAX_CLAIM_TTL_MS = SAML_ASSERTION_REPLAY_MAX_TTL_MS
 const ALARM_LAG_MS = 60 * 1000 // 1min 后触发 alarm 兜底清理
 const MAX_DELETE_KEYS = 128 // storage.delete 单次 key 上限
 
@@ -179,14 +183,23 @@ export class ChallengeStore {
       return jsonError(400, 'invalid_request', 'value is required')
     }
 
+    if (
+      ttlMs !== undefined &&
+      (typeof ttlMs !== 'number' ||
+        !Number.isFinite(ttlMs) ||
+        ttlMs <= 0 ||
+        ttlMs > MAX_CLAIM_TTL_MS)
+    ) {
+      return jsonError(400, 'invalid_request', 'ttlMs out of range')
+    }
+
     const existing = await this.ctx.storage.get<ChallengeRecord>(key)
     if (existing !== undefined && existing.expiresAt > Date.now()) {
       return jsonError(409, 'replay_detected', 'Challenge already claimed')
     }
     if (existing !== undefined) await this.ctx.storage.delete(key)
 
-    const resolvedTtl =
-      typeof ttlMs === 'number' && ttlMs > 0 && ttlMs <= MAX_TTL_MS ? ttlMs : DEFAULT_TTL_MS
+    const resolvedTtl = ttlMs ?? DEFAULT_TTL_MS
     const expiresAt = Date.now() + resolvedTtl
     await this.ctx.storage.put(key, { value, expiresAt })
     await this.scheduleAlarm(expiresAt + ALARM_LAG_MS)

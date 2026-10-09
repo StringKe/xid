@@ -88,6 +88,43 @@ describe('ChallengeStore.claim - 重放栅栏', () => {
     expect(replay.status).toBe(409)
     expect((await replay.json()) as { code: string }).toMatchObject({ code: 'replay_detected' })
   })
+
+  it('keeps a claim longer than the create cap until its requested ttl', async () => {
+    vi.useFakeTimers()
+    try {
+      const { store } = makeStore()
+      const ttlMs = 70 * 60 * 1000
+      await post(store, '/claim', { key: 'assertion-long', value: '1', ttlMs })
+
+      vi.advanceTimersByTime(ttlMs - 1000)
+      const replay = await post(store, '/claim', { key: 'assertion-long', value: '1', ttlMs })
+
+      expect(replay.status).toBe(409)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([0, -1, 24 * 60 * 60 * 1000 + 1, 'soon'])(
+    'rejects ttlMs=%s instead of falling back to the default',
+    async (ttlMs) => {
+      const { store, state } = makeStore()
+
+      const res = await post(store, '/claim', { key: 'assertion-bad', value: '1', ttlMs })
+
+      expect(res.status).toBe(400)
+      expect(await state.storage.get('assertion-bad')).toBeUndefined()
+    },
+  )
+
+  it('does not widen the create ttl cap', async () => {
+    const { store, state } = makeStore()
+
+    await post(store, '/create', { key: 'k-long', value: 'v', ttlMs: 60 * 60 * 1000 })
+
+    const record = (await state.storage.get('k-long')) as { expiresAt: number }
+    expect(record.expiresAt - Date.now()).toBeLessThanOrEqual(5 * 60 * 1000)
+  })
 })
 
 describe('ChallengeStore.consume - 过期失效', () => {

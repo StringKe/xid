@@ -52,6 +52,9 @@ export const TOTP_STEP_SEC = 30
 // TOTP 防重放 DO claim TTL 上限:30s step 与 +-1 容忍下,一个 counter 最长可接受 90s。
 // 实际 claim TTL 由命中的 counter 动态收窄到其剩余有效时间。
 export const TOTP_REPLAY_TTL_MS = 90 * 1000
+// SAML / WS-Fed 断言重放集最长保留时间:须覆盖断言整个可接受期(NotOnOrAfter + 时钟偏差),
+// 有效期超过此值的断言直接拒绝,不截短保留时间。
+export const SAML_ASSERTION_REPLAY_MAX_TTL_MS = 24 * 60 * 60 * 1000
 // step-up token 与 __Host-xid.acr cookie 共用的有效期(01 章 5:敏感操作重新验证)
 export const STEP_UP_TTL_SEC = 5 * 60
 // SCIM token 轮换时旧 token 宽限窗口(07 章:轮换不中断在途同步)
