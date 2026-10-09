@@ -13,7 +13,7 @@ import type { ExternalIdentityFields } from '../lib/user-identity'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
 import { provisionAccountAtomically } from './account-provisioning'
 import { auditPolicyDeniedError } from './hosted-audit'
-import { assertSocialProviderAllowed } from './hosted-policy'
+import { assertSocialProviderAllowed } from './social-policy'
 import { encryptToken, hasProviderSecret } from './social-providers'
 import type { Provider, ProviderProfile, TokenResponse } from './social-providers'
 
