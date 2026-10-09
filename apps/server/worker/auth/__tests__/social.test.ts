@@ -2053,6 +2053,86 @@ describe('POST /auth/apple/callback -- Apple form_post', () => {
     const res = await app.request('/auth/apple/callback', { method: 'POST', body: form }, env)
     expect(res.status).toBe(400)
   })
+
+  it('stores the first-authorization user name when creating an Apple account', async () => {
+    vi.mocked(resolveProfile).mockResolvedValueOnce({
+      idpUserId: 'apple-001',
+      email: 'relay@privaterelay.appleid.com',
+      emailVerified: true,
+      name: null,
+      profileRaw: {},
+    })
+    const env = {
+      ...makeEnv(async (req) => {
+        if (new URL(req.url).pathname === '/consume') {
+          return Response.json({
+            record: {
+              tenantId: 'tenant-1',
+              provider: 'apple',
+              codeVerifier: 'cv',
+              nonce: 'nonce',
+              redirectAfterLogin: '/account',
+              returnToOrigin: 'https://test.xid.dev',
+              createdAt: Date.now(),
+            },
+          })
+        }
+        return new Response(null, { status: 201 })
+      }),
+      APPLE_CLIENT_SECRET: 'apple-secret',
+    } as unknown as Env
+    vi.mocked(createTenantDb).mockReturnValue(
+      existingIdentityCallbackDb(
+        undefined as unknown as Record<string, unknown>,
+      ) as unknown as ReturnType<typeof createTenantDb>,
+    )
+    vi.mocked(provisionAccountAtomically).mockClear()
+    const { registerSocialRoutes } = await import('../social')
+    const app = new Hono<XidHonoEnv>()
+    app.onError(testErrorHandler)
+    app.use('*', async (c, next) => {
+      c.set('tenant', {
+        ...makeTenant(),
+        policy: {
+          hostedAuth: makeHostedAuthPolicy(),
+          socialProviders: {
+            apple: makeGithubPolicy({
+              clientId: 'apple-client',
+              issuer: 'https://appleid.apple.com',
+              jwksUri: 'https://appleid.apple.com/auth/keys',
+            }),
+          },
+        },
+      } as unknown as TenantVar)
+      c.set('session', null)
+      await next()
+    })
+    registerSocialRoutes(app)
+    const form = new FormData()
+    form.append('code', 'apple-code')
+    form.append('state', 'valid-state')
+    form.append(
+      'user',
+      JSON.stringify({
+        name: { firstName: ' Ada ', lastName: 'Lovelace' },
+        email: 'other@example.com',
+      }),
+    )
+
+    const res = await app.request('/auth/apple/callback', { method: 'POST', body: form }, env)
+
+    expect(res.status).toBe(302)
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          displayName: 'Ada Lovelace',
+        }),
+        primaryEmail: expect.objectContaining({ email: 'relay@privaterelay.appleid.com' }),
+      }),
+    )
+  })
 })
 
 function existingIdentityCallbackDb(identity: Record<string, unknown>) {

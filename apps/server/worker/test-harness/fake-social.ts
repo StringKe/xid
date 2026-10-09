@@ -71,6 +71,14 @@ function profileFor(provider: string): FakeSocialProfile {
   return base
 }
 
+function profileNameClaims(profile: FakeSocialProfile): Record<string, string> {
+  return {
+    name: profile.name,
+    ...(profile.given_name ? { given_name: profile.given_name } : {}),
+    ...(profile.family_name ? { family_name: profile.family_name } : {}),
+  }
+}
+
 async function issueIdToken(
   c: Context<XidHonoEnv>,
   provider: string,
@@ -95,9 +103,7 @@ async function issueIdToken(
         sub: profile.sub,
         email: profile.email,
         ...emailProof,
-        name: profile.name,
-        ...(profile.given_name ? { given_name: profile.given_name } : {}),
-        ...(profile.family_name ? { family_name: profile.family_name } : {}),
+        ...(provider === 'apple' ? {} : profileNameClaims(profile)),
         ...(nonce ? { nonce } : {}),
         iat: now,
         exp: now + 300,
@@ -122,7 +128,12 @@ fakeSocial.get('/:provider/authorize', async (c) => {
   const tenantId = c.get('tenant').tenantId
   pendingCodes.set(pendingKey(tenantId, code), { provider, redirectUri, state, nonce })
   if (provider === 'apple') {
-    const html = `<!DOCTYPE html><html><body onload="document.forms[0].submit()"><form method="POST" action="${redirectUri}"><input type="hidden" name="code" value="${code}" /><input type="hidden" name="state" value="${state}" /></form></body></html>`
+    // Apple 首次授权在 form_post 的 user 字段里回传姓名,id_token 不含 name。
+    const profile = profileFor(provider)
+    const user = JSON.stringify({
+      name: { firstName: profile.given_name, lastName: profile.family_name },
+    }).replaceAll('"', '&quot;')
+    const html = `<!DOCTYPE html><html><body onload="document.forms[0].submit()"><form method="POST" action="${redirectUri}"><input type="hidden" name="code" value="${code}" /><input type="hidden" name="state" value="${state}" /><input type="hidden" name="user" value="${user}" /></form></body></html>`
     return c.html(html, 200)
   }
   const url = new URL(redirectUri)

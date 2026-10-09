@@ -27,8 +27,8 @@ import { withTenant } from '../me-auth/instance-login'
 import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 import { auditPolicyDeniedError } from './hosted-audit'
 import { assertProviderLoginAllowed, handleSocialAuthorize } from './social-authorize'
-import { readCallbackParams } from './social-callback-params'
-import type { CallbackParams } from './social-callback-params'
+import { readCallbackParams, withAppleUserName } from './social-callback-params'
+import type { AppleUserName, CallbackParams } from './social-callback-params'
 import { consumeOAuthFlow, flowReturnContext } from './social-flow'
 import type { OAuthFlowPayload } from './social-flow'
 import { completeSocialLink, redirectToSocialLinkResult } from './social-link'
@@ -117,6 +117,7 @@ async function exchangeAndResolveProfile(input: {
   provider: Provider
   flow: OAuthFlowPayload
   code: string
+  appleUserName: AppleUserName | null
 }): Promise<{ tokens: TokenResponse; profile: ProviderProfile; scopes: string[] }> {
   const { c, tenant, provider, flow, code } = input
   const config = getProviderConfig(c.env, tenant, provider)
@@ -138,7 +139,11 @@ async function exchangeAndResolveProfile(input: {
       tokens,
       nonce: flow.nonce,
     })
-    return { tokens, profile, scopes: config.scopes }
+    return {
+      tokens,
+      profile: provider === 'apple' ? withAppleUserName(profile, input.appleUserName) : profile,
+      scopes: config.scopes,
+    }
   } catch (error) {
     throw await auditPolicyDeniedError(c, error, {
       tenant,
@@ -155,6 +160,7 @@ async function signInLinkedUser(input: {
   provider: Provider
   flow: OAuthFlowPayload
   code: string
+  appleUserName: AppleUserName | null
 }): Promise<Response> {
   const { c, tenant, provider, flow } = input
   const { tokens, profile, scopes } = await exchangeAndResolveProfile(input)
@@ -213,7 +219,7 @@ async function handleCallback(
 ): Promise<Response> {
   const params = await readCallbackParams(c)
   if (params.error) return handleProviderError(c, { provider, params })
-  const { code, state } = params
+  const { code, state, appleUserName } = params
   if (!state || !code) throw new AppError('invalid_request', { longMessage: STATE_INVALID })
 
   const flow = await consumeOAuthFlow(c.env, state)
@@ -231,11 +237,14 @@ async function handleCallback(
         tenant,
         provider,
         flow: link,
-        exchange: () => exchangeAndResolveProfile({ c, tenant, provider, flow, code }),
+        exchange: () =>
+          exchangeAndResolveProfile({ c, tenant, provider, flow, code, appleUserName }),
       }),
     )
   }
-  return withTenant(c, tenant, () => signInLinkedUser({ c, tenant, provider, flow, code }))
+  return withTenant(c, tenant, () =>
+    signInLinkedUser({ c, tenant, provider, flow, code, appleUserName }),
+  )
 }
 
 async function callbackRoute(c: Context<XidHonoEnv>): Promise<Response> {
