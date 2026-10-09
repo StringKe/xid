@@ -12,6 +12,7 @@ import { countRemainingBackupCodes, generateBackupCodes } from '../auth/backup-c
 import { excludedMfaMethods, listEligiblePasskeyCredentials } from '../auth/passkey-mfa-eligibility'
 import { activateTotp, createTotpFactor } from '../auth/mfa'
 import { smsDeliveryReady } from '../auth/delivery-channels'
+import { isAllowedPhoneOtpTarget } from '../auth/phone-otp-regions'
 import { AppError } from '../lib/errors'
 import {
   assertStrongFactorRemovable,
@@ -125,7 +126,7 @@ async function smsFactor(
 ): Promise<MfaFactor[]> {
   if (!input.smsReady || excludedMfaMethods(input.session).includes('sms')) return []
   const factor = await findActiveSmsFactor(db, input.session.userId)
-  if (!factor) return []
+  if (!factor || !isAllowedPhoneOtpTarget(factor.phone)) return []
   return [{ id: factor.factorId, type: 'sms', createdAt: factor.createdAt.toISOString() }]
 }
 

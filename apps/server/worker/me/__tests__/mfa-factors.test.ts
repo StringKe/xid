@@ -221,6 +221,29 @@ describe('GET /v1/me/mfa-factors', () => {
     })
   })
 
+  it('does not list an SMS factor whose phone is outside the allowed regions', async () => {
+    const db = makeFakeD1({
+      mfa_factors: [totpRow(), smsFactorRow()],
+      backup_codes: [],
+      user_phones: [{ ...verifiedPhoneRow(), phone: '+18765554567' }],
+    })
+    const app = buildApp({
+      register: registerMfaFactorsRoutes,
+      session: makeSession({ userId: 'u_1' }),
+      tenant: SMS_TENANT,
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/mfa-factors',
+      { method: 'GET' },
+      smsEnv(db),
+    )
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>[]
+    expect(body.some((factor) => factor['type'] === 'sms')).toBe(false)
+  })
+
   it('does not offer the SMS factor for step-up on a session signed in by SMS', async () => {
     const db = makeFakeD1({
       mfa_factors: [totpRow(), smsFactorRow()],
