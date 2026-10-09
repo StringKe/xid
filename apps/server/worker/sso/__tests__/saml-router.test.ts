@@ -127,6 +127,15 @@ describe('samlAssertionToSso idpId 映射', () => {
     expect(assertion.legacyIdpId).toBe('alice@corp.example')
   })
 
+  it('早期预设写入的 nameID 标记按未配置处理,继续使用 NameID', () => {
+    const assertion = samlAssertionToSso(samlConnection({ idpId: 'nameID' }), SUBJECT, {
+      custom: {},
+    })
+
+    expect(assertion.idpId).toBe('alice@corp.example')
+    expect(assertion.legacyIdpId).toBeUndefined()
+  })
+
   it('配置了 idpId 属性但断言缺值时拒绝,不回退 NameID', () => {
     expect(() =>
       samlAssertionToSso(samlConnection({ idpId: 'oid' }), SUBJECT, { custom: {} }),

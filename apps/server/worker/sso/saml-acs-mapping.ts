@@ -16,7 +16,9 @@ import { RELAY_STATE_MAX } from './saml-form'
 function configuredIdpIdAttribute(raw: unknown): string | null {
   if (!raw || typeof raw !== 'object') return null
   const name = (raw as Record<string, unknown>)['idpId']
-  return typeof name === 'string' && name.trim().length > 0 ? name : null
+  if (typeof name !== 'string' || name.trim().length === 0) return null
+  // Earlier presets stored 'nameID' as a marker meaning "use the NameID", not an attribute name.
+  return name.trim().toLowerCase() === 'nameid' ? null : name
 }
 
 // 配置了 idpId 属性时用它作稳定主键(Entra 默认 NameID 是会变的 UPN);未配置才回退 NameID。
