@@ -186,11 +186,13 @@ export async function verifySamlAuthnRequest(
   if (destination !== options.expectedDestination) {
     return failResult('recipient_mismatch', 'AuthnRequest destination mismatch')
   }
-  const acsUrl = root.getAttribute('AssertionConsumerServiceURL') ?? ''
+  // ACS URL 与 ProtocolBinding 可选:缺省(或只给 index)时用登记的唯一 ACS 与 HTTP-POST。
+  const acsUrl = root.getAttribute('AssertionConsumerServiceURL') ?? options.expectedAcsUrl
   if (acsUrl !== options.expectedAcsUrl) {
     return failResult('recipient_mismatch', 'AuthnRequest ACS URL mismatch')
   }
-  if (root.getAttribute('ProtocolBinding') !== POST_BINDING) {
+  const binding = root.getAttribute('ProtocolBinding') ?? POST_BINDING
+  if (binding !== POST_BINDING) {
     return failResult('recipient_mismatch', 'AuthnRequest ProtocolBinding must be HTTP-POST')
   }
 

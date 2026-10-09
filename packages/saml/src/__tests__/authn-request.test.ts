@@ -69,6 +69,12 @@ describe('generateAuthnRequest', () => {
         destination: IDP_SSO_URL,
         acsUrl: ACS_URL,
         signatureVerified: false,
+        forceAuthn: false,
+        isPassive: false,
+        nameIdPolicy: {
+          format: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+          allowCreate: true,
+        },
       },
     })
   })
