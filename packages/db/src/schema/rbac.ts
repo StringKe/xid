@@ -5,6 +5,8 @@ import { index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { boolCol, createdAt, numCol, tenantId, timestamps, tsMs } from './common'
 import type { ManagerRole, ManagerScopeType, OrganizationMembershipRole } from '@xid-kit/types'
 
+export type DomainCheckResult = 'found' | 'not_found'
+
 export const roles = sqliteTable(
   'roles',
   {
@@ -107,6 +109,7 @@ export const managerAssignments = sqliteTable(
     managerRole: text('manager_role').$type<ManagerRole>().notNull(),
     scopeType: text('scope_type').$type<ManagerScopeType>().notNull(),
     scopeId: text('scope_id'),
+    grantedBy: text('granted_by'),
     ...timestamps(),
   },
   (t) => [
@@ -224,6 +227,8 @@ export const organizationDomains = sqliteTable(
     isWildcard: boolCol('is_wildcard').notNull().default(false),
     enrollmentMode: text('enrollment_mode').notNull().default('invite_required'),
     verifiedAt: tsMs('verified_at'),
+    lastCheckedAt: tsMs('last_checked_at'),
+    lastCheckResult: text('last_check_result').$type<DomainCheckResult>(),
     deletedAt: tsMs('deleted_at'),
     ...timestamps(),
   },

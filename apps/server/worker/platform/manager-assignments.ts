@@ -181,6 +181,7 @@ app.post('/', async (c) => {
     managerRole: 'instance_manager',
     scopeType: 'instance',
     scopeId: null,
+    grantedBy: null,
     createdAt: now,
     updatedAt: now,
   }

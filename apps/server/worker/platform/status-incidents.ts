@@ -201,6 +201,7 @@ app.post('/', async (c) => {
     status: input.status,
     impact: input.impact,
     summary: input.summary,
+    components: [],
     startedAt,
     resolvedAt: input.status === 'resolved' ? now : null,
     createdBy: session.userId,

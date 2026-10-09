@@ -4,6 +4,9 @@ import { sql } from 'drizzle-orm'
 import { index, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { createdAt, numCol, tenantId, timestamps, tsMs } from './common'
 
+export type WebhookDeliveryError = 'timeout' | 'network' | 'http'
+export type ComplianceCheckResult = 'matched' | 'mismatch'
+
 // append-only 审计,复合 PK(tenant_id, seq)。
 export const auditEvents = sqliteTable(
   'audit_events',
@@ -127,6 +130,8 @@ export const webhookDeliveries = sqliteTable(
     status: text('status').notNull().default('pending'),
     attemptCount: numCol('attempt_count').notNull().default(0),
     responseStatus: numCol('response_status'),
+    responseMs: numCol('response_ms'),
+    lastError: text('last_error').$type<WebhookDeliveryError>(),
     nextRetryAt: tsMs('next_retry_at'),
     deliveredAt: tsMs('delivered_at'),
     ...timestamps(),
@@ -136,6 +141,12 @@ export const webhookDeliveries = sqliteTable(
       .on(t.deliveryKey)
       .where(sql`${t.deliveryKey} IS NOT NULL`),
     index('webhook_deliveries_tenant_webhook_status_idx').on(t.tenantId, t.webhookId, t.status),
+    index('webhook_deliveries_tenant_webhook_created_id_idx').on(
+      t.tenantId,
+      t.webhookId,
+      t.createdAt,
+      t.id,
+    ),
     index('webhook_deliveries_status_retry_idx').on(t.status, t.nextRetryAt),
   ],
 )
@@ -150,6 +161,7 @@ export const apiKeys = sqliteTable(
     keyPrefix: text('key_prefix').notNull(),
     environment: text('environment').notNull().default('live'),
     scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    createdBy: text('created_by'),
     lastUsedAt: tsMs('last_used_at'),
     expiresAt: tsMs('expires_at'),
     revokedAt: tsMs('revoked_at'),
@@ -463,6 +475,7 @@ export const statusIncidents = sqliteTable(
     status: text('status').notNull().default('investigating'),
     impact: text('impact').notNull().default('minor'),
     summary: text('summary').notNull(),
+    components: text('components', { mode: 'json' }).$type<string[]>().notNull().default([]),
     startedAt: tsMs('started_at').notNull(),
     resolvedAt: tsMs('resolved_at'),
     createdBy: text('created_by').notNull(),
@@ -525,6 +538,9 @@ export const complianceDocuments = sqliteTable(
     status: text('status').notNull().default('available'),
     storageKey: text('storage_key'),
     checksum: text('checksum'),
+    sizeBytes: numCol('size_bytes'),
+    lastCheckedAt: tsMs('last_checked_at'),
+    lastCheckResult: text('last_check_result').$type<ComplianceCheckResult>(),
     version: text('version').notNull(),
     acceptedBy: text('accepted_by'),
     acceptedAt: tsMs('accepted_at'),
