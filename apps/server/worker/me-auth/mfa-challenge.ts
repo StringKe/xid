@@ -54,7 +54,8 @@ export async function handleMfaSmsSend(c: Context<XidHonoEnv>): Promise<Response
   const factor = await loadSmsFactorForSession(c, tenant, session)
   if (!factor) throw new AppError('mfa_setup_required')
 
-  await reservePhoneOtpIpBudget(c.env, requestIp(c))
+  const ip = requestIp(c)
+  if (ip) await reservePhoneOtpIpBudget(c.env, ip)
   await reservePhoneOtpTenantBudget(c.env, tenant.tenantId)
   await enforceSendRateLimit(c.env, `mfasms:${tenant.tenantId}`, factor.phone)
   await persistAndSendOtp({

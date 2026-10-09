@@ -23,11 +23,9 @@ import type {
   UserProfile,
 } from './types'
 
-// conditional:密码登录刚完成时由浏览器静默提议保存 passkey(Conditional Create),不弹窗打断。
 export type PasskeyRegistrationRequest = {
   deviceName?: string
   securityKey?: boolean
-  mediation?: 'conditional'
   signal?: AbortSignal
 }
 
@@ -100,7 +98,7 @@ export function useRegisterPasskey(): UseMutationResult<
   PasskeyRegistrationRequest
 > {
   return useApiMutation<unknown, PasskeyRegistrationRequest>(
-    async (api, { deviceName, securityKey, mediation, signal }) => {
+    async (api, { deviceName, securityKey, signal }) => {
       const options = await api.post<PasskeyRegistrationOptions>('/auth/passkey/register/options')
       if (!options.ok) return options
 
@@ -122,7 +120,6 @@ export function useRegisterPasskey(): UseMutationResult<
         ? Object.assign({}, publicKey, { hints: ['security-key'] })
         : publicKey
       const credential = await navigator.credentials.create({
-        ...(mediation ? { mediation } : {}),
         ...(signal ? { signal } : {}),
         publicKey: hinted,
       } as CredentialCreationOptions)

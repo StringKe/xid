@@ -26,6 +26,7 @@ import { registerCustomHostnameRoutes } from './custom-hostnames'
 import { registerProjects } from './projects'
 import { registerRolePermissions } from './role-permissions'
 import { registerManagerAssignments } from './manager-assignments'
+import { registerWebAuthnTrustedRootRoutes } from './webauthn-trusted-roots'
 
 export function registerV1Routes(app: Hono<XidHonoEnv>): void {
   registerApplications(app)
@@ -50,4 +51,5 @@ export function registerV1Routes(app: Hono<XidHonoEnv>): void {
   registerProjects(app)
   registerRolePermissions(app)
   registerManagerAssignments(app)
+  registerWebAuthnTrustedRootRoutes(app)
 }
