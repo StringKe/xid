@@ -1,6 +1,6 @@
 // Legacy SSO connection settings live in sso_connections.attributeMapping._legacy.
-// Secrets never appear here: header secrets are stored as a digest, LDAP gateway secrets and SWA
-// credentials as KEK envelopes under top-level internal keys.
+// Secrets never appear here: header secrets are stored as a digest, LDAP gateway secrets as a KEK
+// envelope under a top-level internal key, and SWA member credentials in swa_credentials.
 
 export type LegacyConfig = {
   redirectAfterLogin?: string
@@ -18,9 +18,6 @@ export type LegacyConfig = {
   swaUsernameField: string
   swaPasswordField: string
 }
-
-// Per-user SWA credential envelopes, keyed by XID user id.
-export const SWA_CREDENTIALS_KEY = '_swaCredentials'
 
 export const DEFAULT_SWA_USERNAME_FIELD = 'username'
 export const DEFAULT_SWA_PASSWORD_FIELD = 'password'

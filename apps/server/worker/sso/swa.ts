@@ -14,7 +14,8 @@ import { findActiveMembership } from '../me/shared'
 import { legacyConfig, resolveLegacyConnection, type LegacyConnection } from './legacy-shared'
 import { isUsableLegacyTargetUrl } from './legacy-target-url'
 import { swaLaunchResponse } from './swa-launch-page'
-import { readSwaCredential, saveSwaCredential } from './swa-vault'
+import { listSwaMemberApps } from './swa-member-apps'
+import { deleteSwaCredential, readSwaCredential, saveSwaCredential } from './swa-vault'
 import { resolveSsoConnectionTenant, withTenant } from './tenant'
 
 const vaultBodySchema = v.object({
@@ -47,9 +48,17 @@ async function withSwaMember(
   })
 }
 
+async function handleListApps(c: Context<XidHonoEnv>): Promise<Response> {
+  const data = await listSwaMemberApps(c)
+  return c.json({ data }, 200, { 'Cache-Control': 'no-store' })
+}
+
 async function handleVaultRead(c: Context<XidHonoEnv>): Promise<Response> {
   return withSwaMember(c, async ({ connection, session }) => {
-    const credential = await readSwaCredential(c.env, connection, session.userId)
+    const credential = await readSwaCredential(c.env, c.get('tenant'), {
+      connectionId: connection.id,
+      userId: session.userId,
+    })
     return c.json({ stored: credential !== null, username: credential?.username ?? null }, 200, {
       'Cache-Control': 'no-store',
     })
@@ -64,7 +73,7 @@ async function handleVaultWrite(c: Context<XidHonoEnv>): Promise<Response> {
     await saveSwaCredential({
       env: c.env,
       tenant: c.get('tenant'),
-      connectionId: connection.id,
+      connection,
       userId: session.userId,
       credential: { username: body.username, password: body.password },
     })
@@ -76,12 +85,9 @@ async function handleVaultWrite(c: Context<XidHonoEnv>): Promise<Response> {
 
 async function handleVaultDelete(c: Context<XidHonoEnv>): Promise<Response> {
   return withSwaMember(c, async ({ connection, session }) => {
-    await saveSwaCredential({
-      env: c.env,
-      tenant: c.get('tenant'),
+    await deleteSwaCredential(c.env, c.get('tenant'), {
       connectionId: connection.id,
       userId: session.userId,
-      credential: null,
     })
     return c.body(null, 204)
   })
@@ -93,7 +99,10 @@ async function handleLaunch(c: Context<XidHonoEnv>): Promise<Response> {
     if (!isUsableLegacyTargetUrl(config.swaTargetUrl)) {
       throw new AppError('connection_not_found', { httpStatus: 404 })
     }
-    const credential = await readSwaCredential(c.env, connection, session.userId)
+    const credential = await readSwaCredential(c.env, c.get('tenant'), {
+      connectionId: connection.id,
+      userId: session.userId,
+    })
     if (!credential) throw new AppError('not_found', { longMessage: 'swa_credential_not_stored' })
     return swaLaunchResponse({
       targetUrl: config.swaTargetUrl,
@@ -105,6 +114,7 @@ async function handleLaunch(c: Context<XidHonoEnv>): Promise<Response> {
 }
 
 const swa = new Hono<XidHonoEnv>()
+swa.get('/apps', handleListApps)
 swa.get('/:connectionId/vault', handleVaultRead)
 swa.post('/:connectionId/vault', handleVaultWrite)
 swa.delete('/:connectionId/vault', handleVaultDelete)

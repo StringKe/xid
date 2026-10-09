@@ -7,12 +7,14 @@ import { AppError } from '../lib/errors'
 import { publicHttpsUrlSchema } from '../lib/validate'
 import { assertHeaderConnectionConfig, prepareHeaderProxySecret } from './header-proxy-secret'
 import { LDAP_GATEWAY_SECRET_KEY, prepareLdapGatewaySecret } from './ldap-gateway-secret'
-import { legacyObject, readLegacyConfigFromMapping, SWA_CREDENTIALS_KEY } from './legacy-config'
+import { legacyObject, readLegacyConfigFromMapping } from './legacy-config'
 import { isUsableLegacyTargetUrl } from './legacy-target-url'
 
+// SWA vault keys are retired formats (credentials now live in swa_credentials); they are dropped
+// on every write and never carried over.
 const SERVER_OWNED_KEYS = [
   LDAP_GATEWAY_SECRET_KEY,
-  SWA_CREDENTIALS_KEY,
+  '_swaCredentials',
   '_swaVault',
   '_swaVaultEnvelope',
 ] as const
@@ -82,13 +84,7 @@ export async function prepareLegacyAttributeMapping(
     })
   }
   if (protocol === 'wsfed') assertWsfedConfig(legacy)
-  if (protocol === 'swa') {
-    assertSwaConfig(legacy)
-    const credentials = previousMapping?.[SWA_CREDENTIALS_KEY]
-    if (credentials && typeof credentials === 'object' && !Array.isArray(credentials)) {
-      prepared[SWA_CREDENTIALS_KEY] = credentials
-    }
-  }
+  if (protocol === 'swa') assertSwaConfig(legacy)
 
   prepared['_legacy'] = legacy
   assertHeaderConnectionConfig(protocol, prepared)

@@ -236,6 +236,7 @@ const TENANT_TABLES = {
   oauthConsents: schema.oauthConsents,
   resourceServers: schema.resourceServers,
   ssoConnections: schema.ssoConnections,
+  swaCredentials: schema.swaCredentials,
   certStore: schema.certStore,
   samlServiceProviders: schema.samlServiceProviders,
   samlSessionBindings: schema.samlSessionBindings,

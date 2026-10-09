@@ -1,61 +1,65 @@
-// SWA password vaulting: member-owned downstream credentials, KEK envelopes, and the launch form.
+// SWA password vaulting: member-owned downstream credentials in swa_credentials, the launch form
+// and the account portal listing, including cross-tenant isolation.
 
 import { Hono } from 'hono'
 import type { ErrorHandler } from 'hono'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isAppError } from '../../lib/errors'
+import { AppError, isAppError } from '../../lib/errors'
 import type { SessionData, XidHonoEnv } from '../../lib/types'
 import { registerSwaRoutes } from '../swa'
 
-type Predicate = { eq: [string, unknown] } | { and: Predicate[] }
-type Row = Record<string, unknown> & {
-  id: string
-  tenantId: string
-  updatedAt: Date
-  attributeMapping: Record<string, unknown>
-}
+type Predicate = { eq: [string, unknown] } | { and: Predicate[] } | { inArray: [string, unknown[]] }
+type Row = Record<string, unknown> & { tenantId: string }
 
-const rows: Row[] = []
-let beforeUpdate: (() => void) | null = null
+const tables: Record<string, Row[]> = {}
 
-function matches(row: Row, predicate: Predicate): boolean {
+function matches(row: Row, predicate: Predicate | undefined): boolean {
+  if (!predicate) return true
   if ('and' in predicate) return predicate.and.every((part) => matches(row, part))
-  const [column, value] = predicate.eq
-  const actual = row[column]
-  return actual instanceof Date && value instanceof Date
-    ? actual.getTime() === value.getTime()
-    : actual === value
+  if ('inArray' in predicate) return predicate.inArray[1].includes(row[predicate.inArray[0]])
+  return row[predicate.eq[0]] === predicate.eq[1]
 }
 
 vi.mock('drizzle-orm', () => ({
   eq: (column: string, value: unknown) => ({ eq: [column, value] }),
   and: (...parts: Predicate[]) => ({ and: parts }),
+  inArray: (column: string, values: unknown[]) => ({ inArray: [column, values] }),
 }))
 
-vi.mock('@xid-kit/db', () => ({
-  createTenantDb: (_db: unknown, tenant: { tenantId: string }) => {
-    const scoped = () => rows.filter((row) => row.tenantId === tenant.tenantId)
-    return {
-      ssoConnections: {
-        findOne: async (where: Predicate) => {
-          const row = scoped().find((candidate) => matches(candidate, where))
-          return row ? structuredClone(row) : undefined
+vi.mock('@xid-kit/db', () => {
+  const columns = (names: string[]) => Object.fromEntries(names.map((name) => [name, name]))
+  return {
+    createTenantDb: (_db: unknown, tenant: { tenantId: string }) => {
+      const scoped = (name: string) =>
+        (tables[name] ?? []).filter((row) => row.tenantId === tenant.tenantId)
+      const accessor = (name: string) => ({
+        findOne: async (where?: Predicate) => scoped(name).find((row) => matches(row, where)),
+        findMany: async (where?: Predicate) => scoped(name).filter((row) => matches(row, where)),
+        hardDelete: async (where?: Predicate) => {
+          tables[name] = (tables[name] ?? []).filter(
+            (row) => row.tenantId !== tenant.tenantId || !matches(row, where),
+          )
         },
-        update: async (values: Partial<Row>, where: Predicate) => {
-          beforeUpdate?.()
-          beforeUpdate = null
-          const hit = scoped().filter((row) => matches(row, where))
-          for (const row of hit) Object.assign(row, structuredClone(values))
-          return hit
-        },
-      },
-    }
-  },
-  resolveTenantContextBySsoConnection: vi.fn(),
-  schema: { ssoConnections: { id: 'id', updatedAt: 'updatedAt' } },
-}))
+      })
+      return {
+        ssoConnections: accessor('ssoConnections'),
+        swaCredentials: accessor('swaCredentials'),
+        memberships: accessor('memberships'),
+        organizations: accessor('organizations'),
+      }
+    },
+    resolveTenantContextBySsoConnection: vi.fn(),
+    schema: {
+      ssoConnections: columns(['id', 'orgId', 'protocol', 'status']),
+      swaCredentials: columns(['connectionId', 'userId']),
+      memberships: columns(['userId', 'status']),
+      organizations: columns(['id']),
+    },
+  }
+})
 
 const mockReadSessionForTenant = vi.fn()
+const mockRequireSession = vi.fn()
 const mockFindActiveMembership = vi.fn()
 
 vi.mock('../../lib/session', () => ({
@@ -64,10 +68,43 @@ vi.mock('../../lib/session', () => ({
 }))
 vi.mock('../../me/shared', () => ({
   findActiveMembership: (...args: unknown[]) => mockFindActiveMembership(...args),
+  requireSession: (...args: unknown[]) => mockRequireSession(...args),
 }))
 
+const upsertBinds: unknown[][] = []
+
+// Applies the UPSERT the way D1 would, keyed by (tenant_id, connection_id, user_id).
+const fakeD1 = {
+  prepare: (sql: string) => ({
+    bind: (...args: unknown[]) => ({
+      run: async () => {
+        expect(sql).toContain('ON CONFLICT (tenant_id, connection_id, user_id) DO UPDATE')
+        upsertBinds.push(args)
+        const [id, tenantId, orgId, connectionId, userId, iv, ciphertext, tag, kekVersion, now] =
+          args as [string, string, string, string, string, string, string, string, number, number]
+        const rows = (tables['swaCredentials'] ??= [])
+        const values = {
+          orgId,
+          secretIv: iv,
+          secretCiphertext: ciphertext,
+          secretTag: tag,
+          kekVersion,
+          updatedAt: new Date(now),
+        }
+        const existing = rows.find(
+          (row) =>
+            row.tenantId === tenantId && row.connectionId === connectionId && row.userId === userId,
+        )
+        if (existing) Object.assign(existing, values)
+        else rows.push({ id, tenantId, connectionId, userId, ...values })
+        return { success: true }
+      },
+    }),
+  }),
+}
+
 const env = {
-  DB: {},
+  DB: fakeD1,
   ENVIRONMENT: 'production',
   KEK: btoa(String.fromCharCode(...new Uint8Array(32).fill(0x44))),
 } as unknown as Env
@@ -84,15 +121,15 @@ function session(userId: string, overrides: Partial<SessionData> = {}): SessionD
   } as SessionData
 }
 
-function swaRow(overrides: Partial<Row> = {}): Row {
+function swaConnection(overrides: Partial<Row> = {}): Row {
   return {
     id: 'conn-swa',
     tenantId: 'tenant-1',
     orgId: 'org-1',
     protocol: 'swa',
     status: 'active',
+    displayName: 'Acme Portal',
     idpSsoUrl: null,
-    updatedAt: new Date(1_000),
     attributeMapping: {
       _legacy: { swaTargetUrl: TARGET, swaUsernameField: 'login', swaPasswordField: 'secret' },
     },
@@ -105,14 +142,14 @@ const errorHandler: ErrorHandler<XidHonoEnv> = (err, c) =>
     ? c.json({ code: err.code }, err.httpStatus as Parameters<typeof c.json>[1])
     : c.json({ code: 'server_error' }, 500)
 
-function buildApp(): Hono<XidHonoEnv> {
+function buildApp(tenantId = 'tenant-1'): Hono<XidHonoEnv> {
   const app = new Hono<XidHonoEnv>()
   app.onError(errorHandler)
   app.use('*', async (c, next) => {
     c.set('tenant', {
-      tenantId: 'tenant-1',
-      issuer: 'https://tenant-1.xid.dev',
-      rpId: 'tenant-1.xid.dev',
+      tenantId,
+      issuer: `https://${tenantId}.xid.dev`,
+      rpId: `${tenantId}.xid.dev`,
     } as never)
     await next()
   })
@@ -140,11 +177,12 @@ function launch(): Promise<Response> {
 
 describe('SWA password vault', () => {
   beforeEach(() => {
-    rows.length = 0
-    beforeUpdate = null
+    for (const key of Object.keys(tables)) delete tables[key]
+    upsertBinds.length = 0
     vi.clearAllMocks()
-    rows.push(swaRow())
+    tables['ssoConnections'] = [swaConnection()]
     mockReadSessionForTenant.mockResolvedValue(session('user-1'))
+    mockRequireSession.mockResolvedValue(session('user-1'))
     mockFindActiveMembership.mockResolvedValue({ id: 'm-1', status: 'active' })
   })
 
@@ -154,7 +192,7 @@ describe('SWA password vault', () => {
     const res = await saveCredential('', '')
 
     expect(res.status).toBe(401)
-    expect(rows[0]?.attributeMapping).not.toHaveProperty('_swaCredentials')
+    expect(upsertBinds).toHaveLength(0)
   })
 
   it('refuses to store or replay credentials during impersonation', async () => {
@@ -173,26 +211,38 @@ describe('SWA password vault', () => {
     const res = await saveCredential('alice', 'downstream-pass')
 
     expect(res.status).toBe(404)
-    expect(rows[0]?.attributeMapping).not.toHaveProperty('_swaCredentials')
+    expect(upsertBinds).toHaveLength(0)
   })
 
   it('returns 404 for a connection that belongs to another tenant', async () => {
-    rows.length = 0
-    rows.push(swaRow({ tenantId: 'tenant-2' }))
+    tables['ssoConnections'] = [swaConnection({ tenantId: 'tenant-2' })]
 
-    const res = await saveCredential('alice', 'downstream-pass')
+    const saved = await saveCredential('alice', 'downstream-pass')
+    const launched = await launch()
 
-    expect(res.status).toBe(404)
-    expect(rows[0]?.attributeMapping).not.toHaveProperty('_swaCredentials')
+    expect(saved.status).toBe(404)
+    expect(launched.status).toBe(404)
+    expect(upsertBinds).toHaveLength(0)
   })
 
-  it('stores credentials encrypted and reports only the username', async () => {
+  it('binds tenant_id from TenantContext in the upsert and stores no plaintext', async () => {
     const saved = await saveCredential('alice', 'downstream-pass')
     const status = await buildApp().request('/sso/swa/conn-swa/vault', {}, env)
 
     expect(saved.status).toBe(200)
-    expect(JSON.stringify(rows[0]?.attributeMapping)).not.toContain('downstream-pass')
+    expect(upsertBinds[0]?.slice(1, 5)).toEqual(['tenant-1', 'org-1', 'conn-swa', 'user-1'])
+    expect(JSON.stringify(tables['swaCredentials'])).not.toContain('downstream-pass')
     expect(await status.json()).toEqual({ stored: true, username: 'alice' })
+  })
+
+  it('overwrites the existing row when the member saves again', async () => {
+    await saveCredential('alice', 'first-pass')
+    await saveCredential('alice2', 'second-pass')
+
+    const html = await (await launch()).text()
+
+    expect(tables['swaCredentials']).toHaveLength(1)
+    expect(html).toContain('value="alice2"')
   })
 
   it('launches an auto-submitting form to the configured target with strict headers', async () => {
@@ -220,34 +270,35 @@ describe('SWA password vault', () => {
     expect(res.status).toBe(404)
   })
 
-  it('ignores the retired shared vault format and removes it on the next save', async () => {
-    rows[0]!.attributeMapping = {
-      ...rows[0]!.attributeMapping,
-      _swaVault: { alice: { username: 'alice', passwordHash: 'abc' } },
-    }
+  it('ignores retired vault data left in attribute_mapping', async () => {
+    tables['ssoConnections'] = [
+      swaConnection({
+        attributeMapping: {
+          _legacy: { swaTargetUrl: TARGET },
+          _swaVault: { alice: { username: 'alice', passwordHash: 'abc' } },
+          _swaCredentials: { 'user-1': { iv: 'a', ciphertext: 'b', tag: 'c', kekVersion: 1 } },
+        },
+      }),
+    ]
 
-    const before = await launch()
-    await saveCredential('alice', 'downstream-pass')
+    const res = await launch()
 
-    expect(before.status).toBe(404)
-    expect(rows[0]?.attributeMapping).not.toHaveProperty('_swaVault')
+    expect(res.status).toBe(404)
   })
 
-  it('keeps each member separate and never replays another member credential', async () => {
+  it('never replays a credential row stored under another tenant', async () => {
     await saveCredential('alice', 'alice-pass')
-    mockReadSessionForTenant.mockResolvedValue(session('user-2'))
-    await saveCredential('bob', 'bob-pass')
+    for (const row of tables['swaCredentials'] ?? []) row.tenantId = 'tenant-2'
 
-    const bobLaunch = await (await launch()).text()
+    const res = await launch()
 
-    expect(bobLaunch).toContain('value="bob"')
-    expect(bobLaunch).not.toContain('alice')
+    expect(res.status).toBe(404)
   })
 
-  it('rejects an envelope copied into another member slot', async () => {
+  it('rejects an envelope copied into another member row', async () => {
     await saveCredential('alice', 'alice-pass')
-    const credentials = rows[0]!.attributeMapping['_swaCredentials'] as Record<string, unknown>
-    credentials['user-2'] = credentials['user-1']
+    const original = tables['swaCredentials']![0]!
+    tables['swaCredentials']!.push({ ...original, id: 'copy', userId: 'user-2' })
     mockReadSessionForTenant.mockResolvedValue(session('user-2'))
 
     const res = await launch()
@@ -263,23 +314,7 @@ describe('SWA password vault', () => {
     const res = await buildApp().request('/sso/swa/conn-swa/vault', { method: 'DELETE' }, env)
 
     expect(res.status).toBe(204)
-    expect(Object.keys(rows[0]!.attributeMapping['_swaCredentials'] as object)).toEqual(['user-1'])
-  })
-
-  it('retries when another write lands between read and update, keeping both entries', async () => {
-    await saveCredential('alice', 'alice-pass')
-    mockReadSessionForTenant.mockResolvedValue(session('user-2'))
-    beforeUpdate = () => {
-      rows[0]!.updatedAt = new Date(rows[0]!.updatedAt.getTime() + 5)
-    }
-
-    const res = await saveCredential('bob', 'bob-pass')
-
-    expect(res.status).toBe(200)
-    expect(Object.keys(rows[0]!.attributeMapping['_swaCredentials'] as object).sort()).toEqual([
-      'user-1',
-      'user-2',
-    ])
+    expect(tables['swaCredentials']?.map((row) => row.userId)).toEqual(['user-1'])
   })
 
   it.each([
@@ -297,5 +332,74 @@ describe('SWA password vault', () => {
     )
 
     expect(res.status).toBe(422)
+  })
+})
+
+describe('SWA member app list', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(tables)) delete tables[key]
+    vi.clearAllMocks()
+    mockReadSessionForTenant.mockResolvedValue(session('user-1'))
+    mockRequireSession.mockResolvedValue(session('user-1'))
+    mockFindActiveMembership.mockResolvedValue({ id: 'm-1', status: 'active' })
+    tables['memberships'] = [
+      { tenantId: 'tenant-1', userId: 'user-1', orgId: 'org-1', status: 'active' },
+      { tenantId: 'tenant-1', userId: 'user-1', orgId: 'org-3', status: 'suspended' },
+    ]
+    tables['organizations'] = [
+      { tenantId: 'tenant-1', id: 'org-1', name: 'Acme' },
+      { tenantId: 'tenant-1', id: 'org-2', name: 'Other' },
+    ]
+    tables['ssoConnections'] = [
+      swaConnection(),
+      swaConnection({ id: 'conn-other-org', orgId: 'org-2' }),
+      swaConnection({ id: 'conn-suspended-member', orgId: 'org-3' }),
+      swaConnection({ id: 'conn-inactive', status: 'inactive' }),
+      swaConnection({ id: 'conn-saml', protocol: 'saml' }),
+      swaConnection({
+        id: 'conn-placeholder',
+        attributeMapping: { _legacy: { swaTargetUrl: 'https://app.example.com/login' } },
+      }),
+      swaConnection({ id: 'conn-other-tenant', tenantId: 'tenant-2' }),
+    ]
+  })
+
+  it('lists only active SWA connections of the caller organizations with saved state', async () => {
+    await saveCredential('alice', 'alice-pass')
+
+    const res = await buildApp().request('/sso/swa/apps', {}, env)
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({
+      data: [
+        {
+          id: 'conn-swa',
+          orgId: 'org-1',
+          organizationName: 'Acme',
+          name: 'Acme Portal',
+          targetOrigin: 'https://portal.acme-corp.net',
+          stored: true,
+          username: 'alice',
+        },
+      ],
+    })
+  })
+
+  it('does not report a credential saved in another tenant', async () => {
+    await saveCredential('alice', 'alice-pass')
+    for (const row of tables['swaCredentials'] ?? []) row.tenantId = 'tenant-2'
+
+    const res = await buildApp().request('/sso/swa/apps', {}, env)
+    const body = (await res.json()) as { data: Array<{ stored: boolean }> }
+
+    expect(body.data.map((app) => app.stored)).toEqual([false])
+  })
+
+  it('requires an XID session', async () => {
+    mockRequireSession.mockRejectedValue(new AppError('unauthorized', { httpStatus: 401 }))
+
+    const res = await buildApp().request('/sso/swa/apps', {}, env)
+
+    expect(res.status).toBe(401)
   })
 })

@@ -162,7 +162,7 @@ describe('prepareLegacyAttributeMapping for SWA', () => {
     expect(result.paramName).toBe('attribute_mapping._legacy.swaPasswordField')
   })
 
-  it('carries stored member credentials over and drops client-written vault keys', async () => {
+  it('drops retired vault keys from both the request and the stored mapping', async () => {
     const stored = { 'user-1': { iv: 'a', ciphertext: 'b', tag: 'c', kekVersion: 1 } }
     const previous = { _legacy: { swaTargetUrl: SWA_TARGET }, _swaCredentials: stored }
 
@@ -178,7 +178,7 @@ describe('prepareLegacyAttributeMapping for SWA', () => {
       env,
     )
 
-    expect(prepared['_swaCredentials']).toEqual(stored)
+    expect(prepared).not.toHaveProperty('_swaCredentials')
     expect(prepared).not.toHaveProperty('_swaVault')
     expect(prepared).not.toHaveProperty('_swaVaultEnvelope')
   })
