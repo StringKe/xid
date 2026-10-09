@@ -35,6 +35,8 @@ export type { AttributeMapping } from './extract'
 
 export { generateAuthnRequest, signAuthnRequest, verifySamlAuthnRequest } from './authn-request'
 export type {
+  AuthnContextComparison,
+  RequestedAuthnContext,
   AuthnRequestInput,
   GeneratedAuthnRequest,
   VerifiedAuthnRequest,

@@ -1,13 +1,15 @@
-// AuthnRequest 标准可选元素与属性(SAML Core 3.4.1),以及 ForceAuthn/IsPassive/NameIDPolicy 的解析。
+// AuthnRequest 标准可选元素与属性(SAML Core 3.4.1)的放行与负向校验。
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { generateAuthnRequest, verifySamlAuthnRequest } from '../authn-request'
 import { setSamlEngine } from '../engine'
-import { SP_ENTITY_ID } from './fixtures'
+import {
+  ACS_URL,
+  NAME_ID_POLICY,
+  requestXml,
+  verify,
+  withoutAttribute,
+} from './authn-request-helpers'
 
-const IDP_SSO_URL = 'https://idp.example.com/sso'
-const ACS_URL = 'https://sp.example.com/acs'
-const NAME_ID_POLICY = /<samlp:NameIDPolicy [^>]*\/>/
 const REQUESTED_AUTHN_CONTEXT =
   '<samlp:RequestedAuthnContext Comparison="exact"><saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef></samlp:RequestedAuthnContext>'
 const SCOPING =
@@ -17,25 +19,8 @@ const EXTENSIONS =
 const CONDITIONS =
   '<saml:Conditions NotOnOrAfter="2030-01-01T00:00:00Z"><saml:AudienceRestriction><saml:Audience>https://idp.example.com/metadata</saml:Audience></saml:AudienceRestriction></saml:Conditions>'
 
-function requestXml(mutate: (xml: string) => string = (xml) => xml): string {
-  const request = generateAuthnRequest({
-    spEntityId: SP_ENTITY_ID,
-    idpSsoUrl: IDP_SSO_URL,
-    acsUrl: ACS_URL,
-  })
-  return mutate(request.xml)
-}
-
-function withoutAttribute(xml: string, name: string): string {
-  return xml.replace(new RegExp(` ${name}="[^"]*"`), '')
-}
-
-function verify(xml: string) {
-  return verifySamlAuthnRequest(xml, {
-    expectedIssuer: SP_ENTITY_ID,
-    expectedDestination: IDP_SSO_URL,
-    expectedAcsUrl: ACS_URL,
-  })
+function withoutAcsUrlAndBinding(xml: string): string {
+  return withoutAttribute(withoutAttribute(xml, 'AssertionConsumerServiceURL'), 'ProtocolBinding')
 }
 
 describe('verifySamlAuthnRequest optional SAML Core elements', () => {
@@ -72,11 +57,7 @@ describe('verifySamlAuthnRequest optional SAML Core elements', () => {
   })
 
   it('falls back to the registered ACS and HTTP-POST when the request names neither', async () => {
-    const xml = requestXml((raw) =>
-      withoutAttribute(withoutAttribute(raw, 'AssertionConsumerServiceURL'), 'ProtocolBinding'),
-    )
-
-    const result = await verify(xml)
+    const result = await verify(requestXml(withoutAcsUrlAndBinding))
 
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.value.acsUrl).toBe(ACS_URL)
@@ -84,10 +65,7 @@ describe('verifySamlAuthnRequest optional SAML Core elements', () => {
 
   it('accepts AssertionConsumerServiceIndex and AttributeConsumingServiceIndex instead of an ACS URL', async () => {
     const xml = requestXml((raw) =>
-      withoutAttribute(
-        withoutAttribute(raw, 'AssertionConsumerServiceURL'),
-        'ProtocolBinding',
-      ).replace(
+      withoutAcsUrlAndBinding(raw).replace(
         '<samlp:AuthnRequest ',
         '<samlp:AuthnRequest AssertionConsumerServiceIndex="0" AttributeConsumingServiceIndex="1" ',
       ),
@@ -164,10 +142,7 @@ describe('verifySamlAuthnRequest optional SAML Core elements', () => {
     [
       'a non-numeric ACS index',
       (xml: string) =>
-        withoutAttribute(
-          withoutAttribute(xml, 'AssertionConsumerServiceURL'),
-          'ProtocolBinding',
-        ).replace(
+        withoutAcsUrlAndBinding(xml).replace(
           '<samlp:AuthnRequest ',
           '<samlp:AuthnRequest AssertionConsumerServiceIndex="first" ',
         ),
@@ -207,83 +182,5 @@ describe('verifySamlAuthnRequest optional SAML Core elements', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('schema_invalid')
-  })
-})
-
-describe('verifySamlAuthnRequest ForceAuthn, IsPassive and NameIDPolicy parsing', () => {
-  beforeAll(() => {
-    setSamlEngine(globalThis.crypto)
-  })
-
-  it.each([
-    ['true', true],
-    ['1', true],
-    ['false', false],
-    ['0', false],
-  ])('reads ForceAuthn="%s" and IsPassive="%s" as %s', async (value, expected) => {
-    const xml = requestXml((raw) =>
-      raw.replace(
-        '<samlp:AuthnRequest ',
-        `<samlp:AuthnRequest ForceAuthn="${value}" IsPassive="${value}" `,
-      ),
-    )
-
-    const result = await verify(xml)
-
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.value.forceAuthn).toBe(expected)
-      expect(result.value.isPassive).toBe(expected)
-    }
-  })
-
-  it('defaults ForceAuthn and IsPassive to false when absent', async () => {
-    const result = await verify(requestXml())
-
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.value.forceAuthn).toBe(false)
-      expect(result.value.isPassive).toBe(false)
-    }
-  })
-
-  it('schema_invalid when ForceAuthn is not an XML boolean', async () => {
-    const xml = requestXml((raw) =>
-      raw.replace('<samlp:AuthnRequest ', '<samlp:AuthnRequest ForceAuthn="yes" '),
-    )
-
-    const result = await verify(xml)
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
-  })
-
-  it('reads a NameIDPolicy with Format but without AllowCreate', async () => {
-    const xml = requestXml((raw) =>
-      raw.replace(
-        NAME_ID_POLICY,
-        '<samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"/>',
-      ),
-    )
-
-    const result = await verify(xml)
-
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.value.nameIdPolicy).toEqual({
-        format: 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent',
-      })
-    }
-  })
-
-  it('reads a NameIDPolicy with AllowCreate="0" and no Format', async () => {
-    const xml = requestXml((raw) =>
-      raw.replace(NAME_ID_POLICY, '<samlp:NameIDPolicy AllowCreate="0"/>'),
-    )
-
-    const result = await verify(xml)
-
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.value.nameIdPolicy).toEqual({ allowCreate: false })
   })
 })

@@ -75,6 +75,7 @@ describe('generateAuthnRequest', () => {
           format: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
           allowCreate: true,
         },
+        requestedAuthnContext: null,
       },
     })
   })

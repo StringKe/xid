@@ -3,7 +3,7 @@
 
 import { Parse, SignedXml, Stringify } from 'xmldsigjs'
 import { loadIdpVerifyKeys } from './cert'
-import { assertionChild } from './extract'
+import { assertionChild, assertionChildren } from './extract'
 import { SAMLP_NS, SAML_ASSERTION_NS } from './precheck'
 import { parseSecureXml } from './precheck'
 import { failResult, okResult } from './errors'
@@ -40,6 +40,16 @@ export type VerifiedAuthnRequest = {
   forceAuthn: boolean
   isPassive: boolean
   nameIdPolicy: { format?: string; allowCreate?: boolean } | null
+  requestedAuthnContext: RequestedAuthnContext | null
+}
+
+export type AuthnContextComparison = 'exact' | 'minimum' | 'maximum' | 'better'
+
+// 结构层保证 classRefs 与 declRefs 只有一个非空;comparison 缺省为 exact(SAML Core 3.3.2.2.1)。
+export type RequestedAuthnContext = {
+  comparison: AuthnContextComparison
+  classRefs: readonly string[]
+  declRefs: readonly string[]
 }
 
 export type VerifyAuthnRequestOptions = {
@@ -213,7 +223,27 @@ export async function verifySamlAuthnRequest(
           ...(allowCreate === null ? {} : { allowCreate: isXmlTrue(allowCreate) }),
         }
       : null,
+    requestedAuthnContext: readRequestedAuthnContext(root),
   })
+}
+
+function readRequestedAuthnContext(root: Element): RequestedAuthnContext | null {
+  const element = assertionChild(root, SAMLP_NS, 'RequestedAuthnContext')
+  if (!element) return null
+  const refs = (localName: string): string[] =>
+    assertionChildren(element, SAML_ASSERTION_NS, localName).map(
+      (ref) => ref.textContent?.trim() ?? '',
+    )
+  const comparison = element.getAttribute('Comparison')
+  return {
+    comparison: isAuthnContextComparison(comparison) ? comparison : 'exact',
+    classRefs: refs('AuthnContextClassRef'),
+    declRefs: refs('AuthnContextDeclRef'),
+  }
+}
+
+function isAuthnContextComparison(value: string | null): value is AuthnContextComparison {
+  return value === 'exact' || value === 'minimum' || value === 'maximum' || value === 'better'
 }
 
 function isXmlTrue(value: string | null | undefined): boolean {
