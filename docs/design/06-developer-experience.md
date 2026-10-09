@@ -476,8 +476,8 @@ The table below is the current implemented surface, not a roadmap:
 | access-requests      | list/get within an Organization, with status and project filters (see below)                                                                                                                                                 |
 | project-grants       | list/get/create/revoke/delete                                                                                                                                                                                                |
 | user-grants          | list (per Project, or per user across Projects for tenant admins)/get/create/reactivate/revoke/delete                                                                                                                        |
-| webhooks             | CRUD, delete, and restore                                                                                                                                                                                                    |
-| apiKeys              | create/list/revoke                                                                                                                                                                                                           |
+| webhooks             | CRUD, delete, and restore; `active` / `disabled` status, delivery history with status filter, 7-day delivery counts                                                                                                          |
+| apiKeys              | create/list/revoke, recorded creator, and the scopes the caller may grant                                                                                                                                                    |
 
 Authentication uses `Authorization: Bearer sk_live_xxx` or `sk_test_xxx`. M2M clients use
 `client_credentials` at the root token endpoint, `POST /token`; there is no `/oauth/token` route.
@@ -580,7 +580,14 @@ names are maintained in `webhook-event-contract`; the Nimbus public page lists o
 - Subscriptions: an empty `event_types` list receives every event. Otherwise each entry MUST be an
   emitted event name, `<object>.*`, or `*`; any other value is rejected with 422 and
   `meta.paramName` pointing at `event_types`. The Console offers the emitted catalog as choices
-- Retries: exponential backoff with automatic retries; dead letters go to D1
+- Retries: up to 5 attempts with growing pauses; exhausted deliveries are marked `dead` in D1
+  `webhook_deliveries`. A failed attempt keeps its row as pending with the next retry time, and every
+  attempt records `response_ms` and `last_error` (`timeout`, `network`, or `http`)
+- Endpoint status is `active` or `disabled`; a disabled endpoint keeps its configuration and history
+  but receives no new deliveries
+- Delivery history: `GET /v1/webhooks/:id/deliveries` lists deliveries newest first with a cursor and
+  an `all` / `failed` / `pending` filter. Each row carries a summary built from display names, never
+  the payload
 - Manual replay by message or time range is a design target and is not implemented. Queue-level
   dead-letter replay is an Instance Manager operational surface, not product-level webhook replay.
 - Signature verification: the `{ type, data }` body is signed with HMAC-SHA256 and carries
@@ -594,8 +601,12 @@ names are maintained in `webhook-event-contract`; the Nimbus public page lists o
 - API keys are a first-class resource with scoped permissions, managed from the frontend through
   `useAPIKeys` and through backend CRUD. `environment` is `live` or `test` and only selects the
   `sk_live_` / `sk_test_` prefix; both carry exactly the permissions of their scopes. `expires_at` is
-  optional and MUST be a future instant. The Console selects scopes from the resource allowlist and
-  mints `*` only when the full-access option is chosen explicitly
+  optional and MUST be a future instant. Each key records its creator (`created_by`: the user of a
+  Console session or the key of an API caller). `GET /v1/api-keys/grantable-scopes` returns what the
+  caller may grant, so the Console disables scopes the caller does not hold; minting still re-checks
+  `apiKeyScopesCover` on the server. The Console sets each resource to no access, read, or read and
+  write, offers 30 days, 90 days, 1 year, or no expiry, and mints `sk_live_` keys only; `sk_test_`
+  keys are created through the API
 - Structured errors: XidAPIError (code/message/longMessage/meta.paramName), mapping precisely onto
   form fields
 - Local development: a dev instance with `sk_test_` Management API keys, OAuth `client_id` values

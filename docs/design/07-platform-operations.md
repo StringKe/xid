@@ -6,18 +6,35 @@
 
 ### Platform operations admin (cross-tenant)
 
-- Global tenant list: cursor-paginated search by name or slug and one-at-a-time status changes are
-  implemented. Each row shows the Organization ID, and the default Organization offers no suspend
-  action because Core rejects it. Platform lists append the next page on "Load more" instead of
-  replacing the loaded rows. Status/creation-time filters and bulk suspend/resume/delete remain
-  design targets
+- Overview: what needs an instance manager (dead letters, an open status incident, a `next` signing
+  key past the JWKS cache window, MAU above 90% of an observe-only quota, suspended Organizations),
+  DAU/MAU/sign-in success/organization/user figures against the previous period, and the latest
+  platform audit entries. The API returns facts only; the Console writes the sentences
+- Global tenant list: search by name, slug, or ID, a status filter, highest-MAU-first ordering with
+  MAU against the observe-only quota, and Previous / Next pages. Each row shows the Organization ID,
+  and the default Organization offers no suspend action because Core rejects it. Instance managers
+  create a top-level Organization with an owner invitation, open its detail (owner, hosts, seats,
+  members, domains, audit chain size), suspend or resume it, and delete it only after typing its
+  slug. Bulk suspend/resume/delete remains a design target
 - Impersonate any active user through one of their active Organization Memberships (recorded in the
-  platform audit log)
-- Global user search (cross-tenant, with GDPR access controls)
-- Global event stream: cursor-paginated aggregation across every tenant is implemented.
-  Tenant/event_type/user filters remain design targets
-- Queue dead-letter operations: redacted metadata for every business Queue, encrypted replay, and an
-  auditable operator action inside the global event page
+  platform audit log); the account portal shows a read-only banner with the remaining time and an
+  end button
+- Global user list: browse every user by most recent sign-in or search by email, name, ID, external
+  ID, or phone, filtered by Organization and status; every query is recorded in the platform audit log
+- Instance managers are granted by choosing the account's Organization and typing its exact email
+  (no suggestions); the list shows who granted each assignment and when the manager was last active
+- Global event stream: cursor-paginated aggregation across every tenant, filtered by actor,
+  Organization, and event type (exact or `*` prefix), with expandable redacted details
+- Queue dead-letter operations: redacted metadata for every business Queue, per-queue counts,
+  encrypted replay of one message or up to 25 messages from one source Queue with a per-message
+  result, and an auditable operator action
+- Signing keys: the instance settings page lists the `next`, `active`, and `retiring` keys. Promoting
+  a `next` key to active (rotation step 3) is an explicit action that needs a fresh step-up and is
+  allowed only after the key has been published for the JWKS cache TTL; it writes
+  `platform.signing_key.activated`
+- Instance settings also show read-only deployment state for bot protection, email sending, custom
+  domains, and the billing adapter (`configured`, `not_configured`, or `misconfigured` for a partial
+  pair) without exposing any secret
 - System announcement banner: targeted globally or to one explicit tenant. The tenant target is chosen with an Organization picker, and the start time defaults to the
   operator's local wall-clock time
 - Global feature flags are not implemented. Passkey autofill, magic link, social sign-in, SCIM, and
@@ -37,7 +54,12 @@
 - Global alert rules are a design target. There is no current alert-rule API or PagerDuty/Slack
   delivery path; live notification destinations remain deployment state and are `UNKNOWN` until
   verified
-- Status page management: publish and update incidents
+- Status page management: open incidents with their affected components (hosted sign-in, token
+  endpoint, Management API, Console, email, SMS, WhatsApp, webhooks), post updates to a public
+  timeline, and resolve through an update. Announcements show their live, scheduled, ended, or draft
+  state and can be ended at once
+- Compliance evidence records each object's size at registration and the result of the latest
+  download checksum check; a mismatch keeps blocking the download
 
 Design decisions: the platform admin and tenant admin share one unified React Console product, one
 Management API, and one RBAC model. Its static assets deploy through the separate Console Worker,
@@ -59,10 +81,18 @@ valid, and the response never echoes the failure reason.
 
 ### Tenant admin (single-tenant self-management)
 
-Dashboard (DAU/MAU trends, sign-in success rate, MFA adoption, active orgs), user management,
-application management (OAuth2 clients), SSO connections, organization management, team members
-(Owner/Admin/Member roles), branding, notification settings, audit log, usage, and
-compliance tooling.
+Overview, user management, application management (OAuth2 clients), SSO connections, organization
+management, team members (Owner/Admin/Member roles), branding, notification settings, audit log,
+usage, and compliance tooling.
+
+The Overview leads with what needs attention, computed on request: SAML IdP certificates expiring
+within 30 days, failing webhook endpoints, unverified email domains, and recently expired
+invitations, each linking to the page that fixes it. Below it, monthly active users and successful
+and failed sign-ins over the last 7 days are compared with the same days of the previous month. A new
+Organization without sign-ins sees a three-step setup checklist instead (verify a domain, decide how
+people sign in, invite members). The audit log filters by event type prefix, actor, time range, and
+an exact target ID or IP address, and each entry shows its chain position, source channel, and
+redacted details. Location is not shown because the GeoIP database is not implemented.
 
 Design decisions: the tenant admin pages and platform admin pages belong to the same unified React
 Console Worker. The Worker serves only static assets and owns `/console` and `/console/*` on both the
@@ -84,10 +114,12 @@ fallback; there is no front proxy.
 
 ## 2. Branding customization
 
-Implementation status: the authenticated Management API currently stores seven organization-scoped
-KV fields (`primaryColor`, `backgroundColor`, `accentColor`, `borderRadius`, `fontFamily`, `logoUrl`,
-and `logoDarkUrl`). Hosted Auth runtime application, tenant-wide fallback, custom CSS, layout
-templates, preview/publish state, and per-organization email template upload remain design targets.
+Implementation status: each Organization has a published branding (`primaryColor`,
+`backgroundColor`, `accentColor`, `borderRadius`, `fontFamily`, `logoUrl`, `logoDarkUrl`, and
+`colorScheme`) and an optional draft. Edits and logo uploads change the draft only; publishing copies
+it to the live version after the contrast check below. Hosted Auth applies the published version.
+Tenant-wide fallback, custom CSS, layout templates, and per-organization email template upload remain
+design targets.
 
 - Theme: primary/background/accent color, border radius, and font family (Google Fonts or a custom
   CDN)
@@ -99,14 +131,21 @@ templates, preview/publish state, and per-organization email template upload rem
 - Multi-brand (per-org): each org can override the logo, colors, and background independently, read
   from KV by org_id and falling back to the tenant-wide setting
 
-Design decisions: per-org branding (primary, background, and accent colors, border radius, font
-family, light and dark logo URLs) is stored in D1 at `organizations.private_metadata.branding` and
-reaches the Hosted UI through `TenantContext.policy.branding` and `/auth/config`, without a separate
-KV read. Writes are validated so values cannot inject CSS: six-digit hex colors, a bounded CSS length
-for the radius, font names without punctuation that could start a declaration, and public HTTPS logo
-URLs. The background color applies to the light theme only. Custom CSS (capped at 50 KB, pure CSS
-without `@import` or external `url()`), layout templates, background images, tenant-wide fallback,
-and the sandboxed preview editor remain design targets.
+Design decisions: per-org branding is stored in D1. The published version lives at
+`organizations.private_metadata.branding` and reaches the Hosted UI through
+`TenantContext.policy.branding` and `/auth/config`, without a separate KV read; the draft, its update
+time, and the publisher live beside it in `private_metadata`. Writes are validated so values cannot
+inject CSS: six-digit hex colors, a radius tier (`square`, `small`, `medium`, `round`, mapped to CSS
+lengths by the renderer; stored lengths from older releases map to the nearest tier), a
+`colorScheme` of `light`, `dark`, or `system`, font names without punctuation that could start a
+declaration, and public HTTPS logo URLs. Publishing requires white button text on the accent and the
+derived link color to reach 4.5:1 and the derived focus ring 3:1 on the dark surface (WCAG 1.4.11),
+using the same `@xid-kit/web-ui/brand-color` derivation as Hosted UI. A `light` or `dark`
+`colorScheme` fixes the Hosted UI and account portal to that scheme for the page without changing the
+visitor's saved theme, and hides the theme switcher there. The Console previews light and dark
+side by side with its own light or dark tokens regardless of the Console theme. The background color
+applies to the light theme only. Custom CSS (capped at 50 KB, pure CSS without `@import` or external
+`url()`), layout templates, background images, and tenant-wide fallback remain design targets.
 
 ## 3. Notification system
 

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=5a790cf7da93cc6476362d851bba825471289ec9 -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=1545034c4daa2e11c9f46f0667e6a2bd2f17f9db -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -9,14 +9,28 @@
 
 ### 平台运营 Admin(跨租户)
 
-- 租户全局列表:已实现按 name/slug 搜索的 cursor pagination 和单租户 status 变更。每行显示
-  Organization ID;默认 Organization 不提供冻结操作,因为 Core 会拒绝。平台列表点「加载更多」
-  时把下一页追加到已加载的行之后,不替换已加载内容。status/创建时间过滤与批量冻结/解冻/
-  删除仍是设计目标
-- 通过任一 active Organization Membership impersonate active user(记平台审计)
-- 全局用户搜索(跨租户,GDPR 访问控制)
-- 全局事件流:已实现汇聚所有租户审计的 cursor pagination;tenant/event_type/user 过滤仍是
+- 概览:需要实例管理员处理的事项(死信、未关闭的状态事件、已发布超过 JWKS 缓存时长的 `next`
+  签名密钥、MAU 超过观测配额 90% 的组织、已暂停的组织),DAU/MAU/登录成功率/组织数/用户数与上一
+  周期的对比,以及最新的平台审计条目。接口只返回事实字段,句子由 Console 组装
+- 租户全局列表:按名称、slug 或 ID 搜索,按状态筛选,按 MAU 从高到低排序并显示 MAU 占观测配额的
+  比例,用上一页 / 下一页翻页。每行显示 Organization ID;默认 Organization 不提供冻结操作,
+  因为 Core 会拒绝。实例管理员可以创建顶层组织并邀请所有者,查看组织详情(所有者、主机名、席位、
+  成员、域名、审计链条数),暂停或恢复组织,输入 slug 确认后删除组织。批量冻结/解冻/删除仍是
   设计目标
+- 通过任一 active Organization Membership impersonate active user(记平台审计);账户门户
+  显示只读横幅,包含剩余时间和结束按钮
+- 全局用户列表:按最近登录浏览所有用户,或按邮箱、姓名、ID、外部 ID、手机号搜索,可按组织和
+  状态筛选;每次查询都记入平台审计
+- 授予实例管理员时先选账户所属组织,再输入完整邮箱(不提供候选);列表显示授予人和最后活跃时间
+- 全局事件流:汇聚所有租户审计的 cursor pagination,可按操作者、组织和事件类型(精确或 `*`
+  前缀)筛选,展开查看脱敏后的详情
+- Queue 死信运营:每个业务 Queue 的脱敏元数据和按队列计数,加密重放单条或同一源队列的最多 25
+  条消息并逐条返回结果,操作记入审计
+- 签名密钥:实例设置页列出 `next`、`active`、`retiring` 密钥。把 `next` 密钥设为当前密钥(轮换
+  第 3 步)是显式操作,需要重新 step-up,且密钥发布满 JWKS 缓存时长后才允许;写入
+  `platform.signing_key.activated`
+- 实例设置还只读显示机器人防护、邮件发送、自定义域名和计费适配器的部署状态(`configured`、
+  `not_configured`,或只配了一半时为 `misconfigured`),不暴露任何密钥
 - 系统公告 Banner:全局发布,或定向到一个显式 tenant。tenant 目标通过
   Organization 选择器选择,开始时间默认取操作者本地时间
 - 全局 Feature Flags 未实现。Passkey autofill、magic link、社交登录、SCIM 和 Organization
@@ -28,7 +42,10 @@
   状态和 Customer Portal 入口
 - 全局告警规则是设计目标。当前没有 alert-rule API 或 PagerDuty/Slack delivery path;线上
   notification destination 属于部署状态,验证前保持 `UNKNOWN`
-- 状态页管理:发布/更新 incident
+- 状态页管理:开启事件并标注受影响的组件(托管登录、token endpoint、Management API、Console、
+  邮件、短信、WhatsApp、Webhook),向公开时间线发布更新,通过一次更新标记解决。公告显示上线中、
+  已排期、已结束或草稿状态,可立即结束
+- 合规证据在登记时记录对象大小,并记录最近一次下载时的校验和核对结果;不一致时持续阻止下载
 
 设计决策:平台 admin 与租户 admin 共用一个统一 React Console 产品、一套 Management API
 与一套 RBAC 模型。静态 assets 通过独立 Console Worker 部署,所有管理端点与授权决策仍在
@@ -47,7 +64,9 @@ session-token exchange 和所有 mutation path 均拒绝它,登出也被拒绝,�
 
 ### 租户 Admin(单租户自管理)
 
-仪表盘(DAU/MAU 趋势/登录成功率/MFA 采用率/活跃 Org)、用户管理、应用管理(OAuth2 Client)、SSO 连接、组织管理、团队成员(角色 Owner/Admin/Member)、品牌定制、通知设置、审计日志、用量、合规工具。
+概览、用户管理、应用管理(OAuth2 Client)、SSO 连接、组织管理、团队成员(角色 Owner/Admin/Member)、品牌定制、通知设置、审计日志、用量、合规工具。
+
+概览先列出需要处理的事项,按请求实时计算:30 天内到期的 SAML IdP 证书、投递失败的 Webhook 端点、未验证的邮箱域名和近期过期的邀请,每项都链接到处理它的页面。下方把近 7 天的月活跃用户、成功登录和失败登录与上月同期对比。还没有登录记录的新组织改为显示三步设置清单(验证域名、决定登录方式、邀请成员)。审计日志可按事件类型前缀、操作者、时间范围以及精确的目标 ID 或 IP 地址筛选,每条显示链上位置、来源渠道和脱敏详情。GeoIP 数据库未实现,因此不显示地理位置。
 
 设计决策:租户 admin 页面与平台 admin 页面同属统一 React Console Worker。该 Worker 只
 服务静态 assets,在 apex 与 tenant hosts 上拥有 `/console` 和 `/console/*`。它没有 D1、
@@ -66,10 +85,11 @@ Domain 与 tenant wildcard fallback 之前选择 Console paths,不引入 front p
 
 ## 2. 品牌定制
 
-实现状态:当前已实现的认证 Management API 只存储 7 个 organization-scoped KV 字段:
-`primaryColor`、`backgroundColor`、`accentColor`、`borderRadius`、`fontFamily`、`logoUrl`、
-`logoDarkUrl`。Hosted Auth 运行时应用、tenant-wide fallback、自定义 CSS、布局模板、
-preview/publish 状态与 per-organization 邮件模板上传仍是设计目标。
+实现状态:每个组织有一份已发布品牌(`primaryColor`、`backgroundColor`、`accentColor`、
+`borderRadius`、`fontFamily`、`logoUrl`、`logoDarkUrl`、`colorScheme`)和一份可选草稿。编辑和
+上传 logo 只改草稿;发布时先做下文的对比度检查,再把草稿复制为线上版本。Hosted Auth 使用已
+发布版本。tenant-wide fallback、自定义 CSS、布局模板与 per-organization 邮件模板上传仍是设计
+目标。
 
 - 主题:primary/background/accent color、border radius、font family(Google Fonts/自定义 CDN)
 - Logo:light/dark(PNG/SVG 存 R2),按 prefers-color-scheme 切换
@@ -78,7 +98,7 @@ preview/publish 状态与 per-organization 邮件模板上传仍是设计目标�
 - 邮件模板定制(见第 3 节)
 - 多品牌(per-org):每 org 独立覆盖 logo/color/背景,按 org_id 从 KV 读,fallback 租户全局
 
-设计决策:按 org 的品牌(主色、背景色、强调色、圆角、字体、浅色和深色 logo URL)存于 D1 的 `organizations.private_metadata.branding`,经 `TenantContext.policy.branding` 与 `/auth/config` 下发到 Hosted UI,不再单独读 KV。写入时校验,防止注入 CSS:六位十六进制颜色、有上限的 CSS 长度圆角、不含可开启声明的标点的字体名、公网 HTTPS logo URL。背景色只作用于浅色主题。自定义 CSS(最大 50KB,仅纯 CSS,禁 @import 和外链 url())、布局模板、背景图、租户级回退和沙盒预览编辑器仍是设计目标。
+设计决策:按 org 的品牌存于 D1。已发布版本在 `organizations.private_metadata.branding`,经 `TenantContext.policy.branding` 与 `/auth/config` 下发到 Hosted UI,不再单独读 KV;草稿、草稿更新时间和发布人与它并列存放在 `private_metadata`。写入时校验,防止注入 CSS:六位十六进制颜色、圆角档位(`square`、`small`、`medium`、`round`,由渲染端换成 CSS 长度;旧版本存的长度读取时映射到最近的档位)、`light` / `dark` / `system` 的 `colorScheme`、不含可开启声明的标点的字体名、公网 HTTPS logo URL。发布要求强调色上的白色按钮文字和派生链接色达到 4.5:1,派生焦点环在深色底上达到 3:1(WCAG 1.4.11),计算方式与 Hosted UI 同用 `@xid-kit/web-ui/brand-color`。`colorScheme` 为 `light` 或 `dark` 时,Hosted UI 和账户门户在本页固定为该配色,不改变访客保存的明暗偏好,并隐藏主题切换。Console 的预览按所选配色并排显示浅色与深色,不受 Console 自身明暗影响。背景色只作用于浅色主题。自定义 CSS(最大 50KB,仅纯 CSS,禁 @import 和外链 url())、布局模板、背景图和租户级回退仍是设计目标。
 
 ## 3. 通知系统
 

@@ -61,6 +61,13 @@ The core entities are SsoConnection (a per-org IdP connection: SAML/OIDC configu
 attribute mapping, domain hints) and SsoProfile (the result of a single authentication) -- see
 chapter 08.
 
+Console: `/console/org/sso` shows a first-run page while the Organization has no connection and the
+connection detail once it has one; `?step=new` opens the three-step creation wizard (choose the IdP,
+exchange metadata, review domain routing). The detail lists the parsed IdP certificates with their
+expiry, the routed domains as read-only routing state (section 5), the last sign-in, and the
+connection's audit activity. A new IdP certificate is added beside the old one so both stay trusted
+until the old one expires.
+
 ### 1.1 Current status
 
 | Direction       | XID role              | External counterpart                                                                                                | Status              | L4 boundary                                                |
@@ -120,6 +127,10 @@ Capabilities already shipped in the SAML IdP baseline:
   missing.
 - Preset and assignment UI: Console provides Slack, GitHub Enterprise Cloud, Microsoft custom app,
   Atlassian, Salesforce, and Zoom presets, plus `all` or restricted user/role assignment gates.
+- App detail: `/console/org/outbound-sso?appId=` lists the `active` and `retiring` IdP signing
+  certificates read-only, the last sign-in (from SAML session bindings, so it is empty once expired
+  bindings are cleaned up), and the app's audit activity. There is no manual certificate creation:
+  rotation is automatic as described above.
 - Outbound SLO is browser-mediated. `/auth/sign-out` prepares the first signed HTTP-Redirect or
   HTTP-POST LogoutRequest action, revokes the local XID session before returning, and never performs
   a server-side fetch to an SP. The Core and Web UI SDKs execute that action in the user agent. A
@@ -274,8 +285,11 @@ attribute updates; it cannot deprovision, so it MUST be paired with SCIM.
 Data model: the core entity is OrganizationDomain (see chapter 08), which carries the domain
 verification status and method.
 
-Domain verification polling runs through Cron Triggers, checking pending domains every 15 minutes. A
-verified domain is a precondition for JIT SSO.
+The daily Cron (`0 2 * * *`) checks every pending domain, and an Organization manager can run the
+same DNS-over-HTTPS check on demand (`POST /v1/organizations/:orgId/domains/:domainId/verify`). Both
+record `last_checked_at` and `last_check_result` (`found` / `not_found`). A verified domain is a
+precondition for JIT SSO. Routing has no per-domain switch: every verified domain of the Organization
+routes to its connection.
 
 ## 6. SCIM 2.0 (Directory Sync)
 

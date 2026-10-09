@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=working-tree source-blob=b695c09268ba7110ddb872c4921ec1bd3407d071 -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=working-tree source-blob=6fcf13336e017967ecc37cf348936be0fa83f965 -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -401,8 +401,8 @@ JWT handoff。Core 浏览器 session 必须先完成一次同源 cookie-to-JWT e
 | access-requests      | Organization 内 list/get,支持 status 与 project 过滤(见下文)                                                                                                                      |
 | project-grants       | list/get/create/revoke/delete                                                                                                                                                     |
 | user-grants          | list(按 Project,或租户管理员按用户跨 Project)/get/create/reactivate/revoke/delete                                                                                                 |
-| webhooks             | CRUD、delete、restore                                                                                                                                                             |
-| apiKeys              | create/list/revoke                                                                                                                                                                |
+| webhooks             | CRUD、delete、restore;`active` / `disabled` 状态,带状态筛选的投递记录,近 7 天投递统计                                                                                             |
+| apiKeys              | create/list/revoke,记录创建者,返回调用方可授予的 scope                                                                                                                            |
 
 认证使用 `Authorization: Bearer sk_live_xxx` 或 `sk_test_xxx`。M2M Client 在根 token endpoint
 `POST /token` 使用 `client_credentials`;不存在 `/oauth/token` route。分页只支持 cursor,
@@ -495,7 +495,9 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform 用
 
 - 自建投递层(Svix 式)或集成 Svix
 - 订阅:`event_types` 为空列表时接收全部事件;否则每一项必须是已发出的事件名、`<object>.*` 或 `*`,其他值返回 422,`meta.paramName` 指向 `event_types`。Console 以已发出事件目录作为选项
-- 重试:指数退避,失败自动重试,死信入 D1
+- 重试:最多 5 次,间隔逐次拉长;用尽后在 D1 `webhook_deliveries` 标记为 `dead`。尝试失败时保留该行为 pending 并写下次重试时间,每次尝试都记录 `response_ms` 与 `last_error`(`timeout`、`network` 或 `http`)
+- 端点状态为 `active` 或 `disabled`;停用的端点保留配置和历史,但不再产生新投递
+- 投递记录:`GET /v1/webhooks/:id/deliveries` 按时间倒序、游标分页,可按 `all` / `failed` / `pending` 筛选。每行的摘要由显示名生成,不回传 payload
 - 按消息或时间区间手动重放仍是未实现设计目标。Queue 级 dead-letter replay 是
   Instance Manager 运维能力,不是产品级 webhook replay。
 - 签名验证:`{ type, data }` body 使用 HMAC-SHA256 签名,通过
@@ -506,7 +508,7 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform 用
 
 ## 9. 其他 DX
 
-- API Key 一等资源,scoped 权限,前端 useAPIKeys 管理,后端 CRUD。`environment` 取 `live` 或 `test`,只决定 `sk_live_` / `sk_test_` 前缀,两者的权限完全由 scopes 决定。`expires_at` 可选,必须是未来时刻。Console 从资源白名单中选择 scopes,只有显式选择完全访问时才铸造 `*`
+- API Key 一等资源,scoped 权限,前端 useAPIKeys 管理,后端 CRUD。`environment` 取 `live` 或 `test`,只决定 `sk_live_` / `sk_test_` 前缀,两者的权限完全由 scopes 决定。`expires_at` 可选,必须是未来时刻。每个 key 记录创建者(`created_by`:Console 会话为用户,API 调用方为 key)。`GET /v1/api-keys/grantable-scopes` 返回调用方可授予的范围,Console 据此置灰调用方没有的 scope;铸造时服务端仍按 `apiKeyScopesCover` 复核。Console 为每个资源选择无权限、读取或读写,有效期可选 30 天、90 天、1 年或永不过期,只铸造 `sk_live_` key;`sk_test_` key 通过 API 创建
 - 结构化错误:XidAPIError(code/message/longMessage/meta.paramName),精确映射表单字段
 - 本地开发:dev 实例(pk*test*),localhost 免证书(HTTPS 代理),testing tokens 绕过 bot 检测
 - 文档:Nimbus 为每个组件与 hook 发布独立文档页,包含 props 表、示例、playground 与

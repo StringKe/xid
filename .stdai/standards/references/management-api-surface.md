@@ -62,7 +62,28 @@ Registration is centralized in `apps/server/worker/v1/index.ts`; each module exp
 Custom hostnames use `custom_hostnames:read` / `custom_hostnames:write`. Create reserves the concrete
 hostname globally before calling Cloudflare for SaaS. Refresh requires the exact provider id and
 hostname to match. Delete is remote-first and retains a local tombstone. Local evidence exists, but
-real provider, DNS, certificate and traffic evidence remains `UNKNOWN`.
+real provider, DNS, certificate and traffic evidence remains `UNKNOWN`. List and detail add
+`affected_passkey_user_count` and `dns_checks`.
+
+Console read models under `/v1/organizations/:id` (all `organizations:read` through
+`requireApiKeyOrOrgManager`, facts only, copy is built in the Console):
+
+- `attention`, `sign-in-activity?days=1..28`, `setup-progress` (module `v1/org-overview.ts`).
+- `auth-policy/insights`, `sso-connections/:connectionId/activity`,
+  `outbound-saml-apps/:appId/activity` (module `v1/org-auth-insights.ts`). The auth policy also
+  carries `mfaPolicy` / `effectiveMfaPolicy`; delivery channels add `failures24h` without recipient
+  or payload.
+- `audit-events` accepts `actor_id`, `q` (exact target ID or IP), and a `*` suffix on `event_type`.
+
+Branding is draft-then-publish: `PATCH /:id/branding` and `PUT /:id/logo?variant=` write the draft,
+`POST /:id/branding/publish` enforces 4.5:1 text and 3:1 focus-ring contrast (`422`,
+`paramName=accentColor`) and then copies it to the version Hosted UI reads. Scopes `branding:read` /
+`branding:write`. `POST /:id/domains/:domainId/verify` runs one DNS-over-HTTPS check.
+
+Webhooks: `status` is `active` or `disabled`; `GET /v1/webhooks/:id/deliveries` is a cursor page
+with a status filter and a payload-free summary; detail adds `stats7d`, `createdBy`,
+`secretRotatedAt`. API keys record `created_by`, and `GET /v1/api-keys/grantable-scopes` returns
+what the caller may mint (re-checked with `apiKeyScopesCover` on create).
 
 Adjacent but separate route families, do not conflate them with the Management API:
 `/v1/me/*` is the self-service account portal (cookie session, not `sk_*`), and `/v1/platform/*` is the
@@ -75,7 +96,15 @@ announcements, status incidents, compliance evidence, audit views and Queue dead
 the Console exposes the diagnostic. A Queue/KV verification job is not implemented.
 `/v1/platform/dead-letters` exposes only redacted metadata;
 `POST /v1/platform/dead-letters/:id/replay` decrypts inside Core and routes only to the recorded
-source Queue. Neither ciphertext nor plaintext payload is returned to Console.
+source Queue, and `POST /v1/platform/dead-letters/replay` does the same for 1 to 25 ids from one
+source Queue with a per-message outcome. Neither ciphertext nor plaintext payload is returned to
+Console. The platform family also creates top-level Organizations with an owner invitation
+(`POST /v1/platform/organizations`, detail, members, domains, `confirmSlug` on delete), browses users
+without a search term, grants Instance Managers by Organization plus exact email, lists signing keys
+(`GET /v1/platform/signing-keys`), and promotes a `next` key only through
+`POST /v1/platform/signing-keys/:kid/activate`, which needs a step-up token, the JWKS cache window,
+and writes `platform.signing_key.activated`. `GET /v1/platform/settings` reports deployment
+configuration status without secrets.
 
 The signed Stripe callback is the public `/v1/billing/stripe/webhook` route and is registered before
 tenant middleware. It is not a Management API or Console mutation. Repository evidence covers

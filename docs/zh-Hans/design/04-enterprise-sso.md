@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=4f1874d545080d10d9b0b2fb80c6060a99df6a4f -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=3b0a69c7a7bbf60e09ae2e045c781c8eab66ec99 -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -37,6 +37,8 @@
 ### 数据模型
 
 核心实体 SsoConnection(per-org IdP 连接:SAML/OIDC 配置、证书、属性映射、域名提示)、SsoProfile(单次认证结果)(见 08 章)。
+
+Console:组织还没有连接时,`/console/org/sso` 显示首次为空页;有连接后直接显示连接详情。`?step=new` 打开三步新建向导(选择 IdP、交换 metadata、确认域名路由)。详情列出解析后的 IdP 证书及到期日、只读的已路由域名(见第 5 节)、最近一次登录和该连接的审计活动。新 IdP 证书与旧证书并列添加,旧证书到期前两者都受信任。
 
 ### 1.1 当前状态
 
@@ -81,6 +83,9 @@ SAML IdP baseline 已落地的能力:
 - 验证:package-level XML 签名测试、Worker route L2、fake SaaS SP L3 已覆盖。真实 Slack/GitHub/Microsoft/Atlassian/Salesforce/Zoom admin L4 仍缺。
 - Preset 与 assignment UI:Console 已提供 Slack、GitHub Enterprise Cloud、Microsoft custom
   app、Atlassian、Salesforce、Zoom preset,以及 `all` 或受限 user/role assignment gate。
+- App 详情:`/console/org/outbound-sso?appId=` 只读列出 `active` 与 `retiring` 的 IdP 签名证书、
+  最近一次登录(取自 SAML session binding,过期 binding 清理后为空)和该 app 的审计活动。不提供
+  手动创建证书,轮换按上文自动进行。
 - Outbound SLO 由浏览器驱动。`/auth/sign-out` 准备第一个已签名的 HTTP-Redirect 或
   HTTP-POST LogoutRequest action,在返回前撤销本地 XID session,不会对 SP 执行 server-side
   fetch。Core 和 Web UI SDK 在 user agent 中执行该 action。选择第一个可用 action 时,缺失
@@ -172,7 +177,7 @@ JIT 新建用户打 `provisioned_by: jit_sso` 标记。约束:JIT 仅处理上�
 
 数据模型:核心实体 OrganizationDomain(见 08 章),含域名验证状态与方式。
 
-域名验证轮询由 Cron Triggers 每 15min 检查 pending 域名。Verified domain 是 JIT SSO 前置条件。
+每日 Cron(`0 2 * * *`)检查所有 pending 域名,组织管理员也可以随时触发同一个 DNS-over-HTTPS 检查(`POST /v1/organizations/:orgId/domains/:domainId/verify`)。两者都记录 `last_checked_at` 和 `last_check_result`(`found` / `not_found`)。Verified domain 是 JIT SSO 前置条件。路由没有逐域名开关:组织的每个已验证域名都路由到它的连接。
 
 ## 6. SCIM 2.0(Directory Sync)
 
