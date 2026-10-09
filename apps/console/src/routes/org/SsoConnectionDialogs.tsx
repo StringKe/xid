@@ -107,7 +107,12 @@ export function SsoSettingsDialog({ orgId, connection, onClose }: DialogProps): 
         }}
       >
         <div {...stylex.props(ssoFormStyles.formGrid)}>
-          <ConnectionFields form={form} onChange={setForm} allowProtocolSwitch={false} />
+          <ConnectionFields
+            form={form}
+            onChange={setForm}
+            allowProtocolSwitch={false}
+            errorParam={update.error?.meta?.paramName}
+          />
           {formError || update.error ? (
             <p role="alert" {...stylex.props(ssoFormStyles.fullSpan, styles.error)}>
               {formError ?? (update.error ? errorMessage(update.error) : null)}

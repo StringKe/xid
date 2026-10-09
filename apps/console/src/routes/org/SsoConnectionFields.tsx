@@ -230,10 +230,11 @@ export function ConnectionFields({
   form,
   onChange,
   allowProtocolSwitch,
-}: FieldsProps & { allowProtocolSwitch: boolean }): ReactNode {
+  errorParam,
+}: FieldsProps & { allowProtocolSwitch: boolean; errorParam?: string | undefined }): ReactNode {
   const patch = (next: Partial<ConnectionForm>) => onChange({ ...form, ...next })
   const protocolFields = LEGACY_PROTOCOLS.has(form.protocol) ? (
-    <LegacyFields form={form} onChange={onChange} />
+    <LegacyFields form={form} onChange={onChange} errorParam={errorParam} />
   ) : form.protocol === 'saml' ? (
     <SamlFields form={form} onChange={onChange} />
   ) : (

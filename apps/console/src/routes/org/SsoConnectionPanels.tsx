@@ -14,6 +14,9 @@ import { shortFingerprint } from './auth-format'
 import { DetailSection, ValueRows, detailParts } from './AuthDetailParts'
 import type { ValueRow } from './AuthDetailParts'
 import { SaveStatus } from './AuthSettingsControls'
+import { useLegacyFieldLabels } from './SsoConnectionInputs'
+import { LEGACY_DEFAULTS, LEGACY_PROTOCOLS, LEGACY_SECRET_KEY } from './sso-connection-form'
+import type { SsoConnectionExtras } from './sso-connection-form'
 
 const styles = stylex.create({
   form: {
@@ -100,11 +103,67 @@ function idpRows(
       value: orNotSet(connection.idp_sso_url),
       mono: true,
     },
+    ...(connection.idp_metadata_url
+      ? [
+          {
+            key: 'metadata',
+            label: <Trans>Metadata URL</Trans>,
+            value: connection.idp_metadata_url,
+            mono: true,
+          },
+        ]
+      : []),
     ...certificates,
   ]
 }
 
+function legacyRows(
+  connection: SsoConnectionView & SsoConnectionExtras,
+  labels: Record<string, ReactNode>,
+): ValueRow[] {
+  const config = connection.legacy_config ?? {}
+  const text = (value: unknown): string | null => (typeof value === 'string' ? value : null)
+  const upstream: ValueRow[] =
+    connection.type === 'wsfed'
+      ? [
+          {
+            key: 'upstream',
+            label: <Trans>Upstream sign-in URL</Trans>,
+            value: orNotSet(connection.idp_sso_url),
+            mono: true,
+          },
+        ]
+      : []
+  const fields = Object.keys(LEGACY_DEFAULTS[connection.type] ?? {}).map((key) => ({
+    key,
+    label: labels[key] ?? key,
+    value: orNotSet(text(config[key])),
+    mono: true,
+  }))
+  const secretKey = LEGACY_SECRET_KEY[connection.type]
+  const secretSaved =
+    connection.type === 'ldap'
+      ? connection.ldap_gateway_secret_configured === true
+      : connection.trusted_proxy_secret_configured === true
+  const secret: ValueRow[] = secretKey
+    ? [
+        {
+          key: secretKey,
+          label:
+            connection.type === 'ldap' ? (
+              <Trans>Gateway secret</Trans>
+            ) : (
+              <Trans>Trusted proxy secret</Trans>
+            ),
+          value: secretSaved ? <Trans>Saved</Trans> : <Trans>Not set</Trans>,
+        },
+      ]
+    : []
+  return [...upstream, ...fields, ...secret]
+}
+
 function spRows(connection: SsoConnectionView, t: ReturnType<typeof useLingui>['t']): ValueRow[] {
+  if (LEGACY_PROTOCOLS.has(connection.type)) return []
   if (connection.type === 'oidc') {
     return (connection.oidc_callback_urls ?? []).map((url, index) => ({
       key: `callback-${index}`,
@@ -142,7 +201,10 @@ export function SsoSettingsPanel({
 }): ReactNode {
   const { t, i18n } = useLingui()
   const navigate = useNavigate()
+  const legacyLabels = useLegacyFieldLabels()
   const name = connection.name
+  const isLegacy = LEGACY_PROTOCOLS.has(connection.type)
+  const handoff = spRows(connection, t)
   return (
     <>
       <DetailSection
@@ -166,18 +228,22 @@ export function SsoSettingsPanel({
         description={<Trans>The values XID uses to trust sign-ins from {name}.</Trans>}
         action={
           <Button type="button" variant="secondary" disabled={locked} onClick={onEdit}>
-            <Trans>Replace metadata…</Trans>
+            {isLegacy ? <Trans>Edit settings…</Trans> : <Trans>Replace metadata…</Trans>}
           </Button>
         }
       >
-        <ValueRows rows={idpRows(connection, i18n)} />
+        <ValueRows
+          rows={isLegacy ? legacyRows(connection, legacyLabels) : idpRows(connection, i18n)}
+        />
       </DetailSection>
-      <DetailSection
-        title={<Trans>Give these to {name}</Trans>}
-        description={<Trans>Paste them into the app you created for XID in {name}.</Trans>}
-      >
-        <ValueRows rows={spRows(connection, t)} />
-      </DetailSection>
+      {handoff.length > 0 ? (
+        <DetailSection
+          title={<Trans>Give these to {name}</Trans>}
+          description={<Trans>Paste them into the app you created for XID in {name}.</Trans>}
+        >
+          <ValueRows rows={handoff} />
+        </DetailSection>
+      ) : null}
     </>
   )
 }

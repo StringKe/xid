@@ -46,6 +46,10 @@ export const wizardStyles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1rem',
+    minWidth: 0,
+    margin: 0,
+    padding: 0,
+    borderWidth: 0,
   },
   footer: {
     display: 'flex',

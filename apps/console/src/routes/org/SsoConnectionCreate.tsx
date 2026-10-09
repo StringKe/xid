@@ -160,7 +160,7 @@ export function SsoProviderStep({
   onCreated: () => void
   onCancel: () => void
 }): ReactNode {
-  const { t } = useLingui()
+  const { t, i18n } = useLingui()
   const errorMessage = useManagementErrorMessage()
   const create = useCreateSsoConnection(orgId)
   const options = useProviderOptions()
@@ -168,8 +168,8 @@ export function SsoProviderStep({
   const option = options.find((item) => item.key === selected) ?? options[0]!
   const [protocol, setProtocol] = useState<SsoProtocol>(option.protocols[0]!)
   const [legacyForm, setLegacyForm] = useState<ConnectionForm>(EMPTY_FORM)
-  const label = option.label
   const isLegacy = LEGACY_PROTOCOLS.has(protocol)
+  const label = isLegacy ? protocolLabel(i18n, protocol) : option.label
 
   function selectProtocol(next: SsoProtocol): void {
     setProtocol(next)
@@ -237,19 +237,26 @@ export function SsoProviderStep({
       {option.protocols.length > 1 ? (
         <div {...stylex.props(styles.protocol)}>
           <p {...stylex.props(styles.label)}>
-            <Trans>Protocol for {label}</Trans>
+            <Trans>Protocol</Trans>
           </p>
           <SegmentedControl
-            ariaLabel={t`Protocol for ${label}`}
+            ariaLabel={t`Protocol`}
             value={protocol}
             onValueChange={(value) => selectProtocol(value as SsoProtocol)}
-            options={option.protocols.map((value) => ({ value, label: protocolLabel(value) }))}
+            options={option.protocols.map((value) => ({
+              value,
+              label: protocolLabel(i18n, value),
+            }))}
           />
         </div>
       ) : null}
       {isLegacy ? (
         <fieldset disabled={locked} {...stylex.props(wizardStyles.fields)}>
-          <LegacyFields form={{ ...legacyForm, protocol }} onChange={setLegacyForm} />
+          <LegacyFields
+            form={{ ...legacyForm, protocol }}
+            onChange={setLegacyForm}
+            errorParam={create.error?.meta?.paramName}
+          />
         </fieldset>
       ) : null}
       {create.error ? <Alert tone="error">{errorMessage(create.error)}</Alert> : null}

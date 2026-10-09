@@ -7,7 +7,7 @@ import * as stylex from '@stylexjs/stylex'
 import { Alert, Button, Field, Input, Textarea } from '@xid-kit/web-ui/ui'
 import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useUpdateSsoConnection } from './queries'
-import { connectionToForm, updatePayload } from './sso-connection-form'
+import { LEGACY_PROTOCOLS, connectionToForm, updatePayload } from './sso-connection-form'
 import type { ConnectionForm } from './sso-connection-form'
 import type { SsoConnectionView } from './auth-queries'
 import { ValueRows } from './AuthDetailParts'
@@ -18,9 +18,11 @@ import { StepHeading, wizardStyles as styles } from './SsoWizardLayout'
 function IdpFields({
   form,
   onChange,
+  errorParam,
 }: {
   form: ConnectionForm
   onChange: (form: ConnectionForm) => void
+  errorParam: string | undefined
 }): ReactNode {
   const { t } = useLingui()
   const patch = (next: Partial<ConnectionForm>): void => onChange({ ...form, ...next })
@@ -51,7 +53,9 @@ function IdpFields({
       </>
     )
   }
-  if (form.protocol !== 'saml') return <LegacyFields form={form} onChange={onChange} />
+  if (form.protocol !== 'saml') {
+    return <LegacyFields form={form} onChange={onChange} errorParam={errorParam} />
+  }
   const metadataHint = form.idpMetadataXml ? null : (
     <Trans>XID reads it when you save and refreshes it every day.</Trans>
   )
@@ -148,18 +152,28 @@ export function SsoMetadataStep({
 
   return (
     <div {...stylex.props(styles.frame)}>
-      <StepHeading
-        step={2}
-        title={<Trans>Swap metadata with {name}</Trans>}
-        lead={
-          <Trans>
-            Send these values to the company&apos;s IT admin, then paste what {name} gives back.
-          </Trans>
-        }
-      />
+      {LEGACY_PROTOCOLS.has(connection.type) ? (
+        <StepHeading
+          step={2}
+          title={<Trans>Check the settings for {name}</Trans>}
+          lead={
+            <Trans>XID uses these addresses and fields when people sign in through {name}.</Trans>
+          }
+        />
+      ) : (
+        <StepHeading
+          step={2}
+          title={<Trans>Swap metadata with {name}</Trans>}
+          lead={
+            <Trans>
+              Send these values to the company&apos;s IT admin, then paste what {name} gives back.
+            </Trans>
+          }
+        />
+      )}
       <ValueRows rows={spValueRows(connection, t)} />
       <fieldset disabled={locked} {...stylex.props(styles.fields)}>
-        <IdpFields form={form} onChange={setForm} />
+        <IdpFields form={form} onChange={setForm} errorParam={update.error?.meta?.paramName} />
       </fieldset>
       {update.error ? <Alert tone="error">{errorMessage(update.error)}</Alert> : null}
       <div {...stylex.props(styles.footer)}>

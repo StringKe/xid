@@ -68,11 +68,11 @@ export function SsoConnectionDetail({
     .filter((domain) => domain.verified)
     .reduce((sum, domain) => sum + domain.memberCount, 0)
   const name = connection.name
-  const protocol = protocolLabel(connection.type)
+  const protocol = protocolLabel(i18n, connection.type)
   const expiryDate = formatDate(i18n, expiring?.notAfter ?? null)
   const signInUrl = `${globalThis.location?.origin ?? ''}/sign-in`
   const extras: SsoConnectionView & SsoConnectionExtras = connection
-  const metadataError = extras.idp_metadata_last_error ?? null
+  const metadataError = connection.type === 'saml' ? (extras.idp_metadata_last_error ?? null) : null
   const metadataErrorDate = formatDate(i18n, extras.idp_metadata_last_error_at ?? null)
 
   return (
@@ -130,11 +130,15 @@ export function SsoConnectionDetail({
                       label: t`Edit settings…`,
                       onSelect: () => setDialog('settings'),
                     },
-                    {
-                      key: 'certificate',
-                      label: t`Upload certificate…`,
-                      onSelect: () => setDialog('certificate'),
-                    },
+                    ...(connection.type === 'saml'
+                      ? [
+                          {
+                            key: 'certificate',
+                            label: t`Upload certificate…`,
+                            onSelect: () => setDialog('certificate'),
+                          },
+                        ]
+                      : []),
                     {
                       key: 'delete',
                       label: t`Delete connection…`,
@@ -156,84 +160,86 @@ export function SsoConnectionDetail({
             </div>
           </div>
         </header>
-        <Tabs
-          ariaLabel={t`Connection sections`}
-          value={tab}
-          onValueChange={setTab}
-          items={[
-            { value: 'settings', label: <Trans>Settings</Trans> },
-            { value: 'mapping', label: <Trans>Attribute mapping</Trans> },
-            { value: 'activity', label: <Trans>Activity</Trans> },
-          ]}
-        >
-          <TabPanel value="settings">
-            <div {...stylex.props(detailParts.column)}>
-              {metadataError ? (
-                <Alert tone="error">
-                  <Trans>
-                    The daily metadata refresh failed on {metadataErrorDate}. Sign-in keeps using
-                    the last saved certificates. Check that the metadata URL is still reachable.
-                  </Trans>
-                </Alert>
-              ) : null}
-              {showExpiry && expiring ? (
-                <ExpiryNotice
-                  isExpired={days <= 0}
-                  title={
-                    days <= 0 ? (
-                      <Trans>
-                        {name}&apos;s signing certificate expired {expiryDate}
-                      </Trans>
-                    ) : (
-                      <Trans>
-                        {name}&apos;s signing certificate expires {expiryDate}
-                      </Trans>
-                    )
-                  }
-                  body={
-                    <>
-                      <Trans>After that, XID rejects every sign-in from {name}.</Trans>{' '}
-                      {affected > 0 ? (
-                        <Plural
-                          value={affected}
-                          one="# person on a routed domain can't sign in."
-                          other="# people on routed domains can't sign in."
-                        />
-                      ) : null}{' '}
-                      <Trans>
-                        Download the new certificate from {name}, then upload it here. Both stay
-                        trusted until the old one expires.
-                      </Trans>
-                    </>
-                  }
-                  action={
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={locked}
-                      onClick={() => setDialog('certificate')}
-                    >
-                      <Trans>Upload certificate…</Trans>
-                    </Button>
-                  }
+        <div {...stylex.props(consoleShell.gutter)}>
+          <Tabs
+            ariaLabel={t`Connection sections`}
+            value={tab}
+            onValueChange={setTab}
+            items={[
+              { value: 'settings', label: <Trans>Settings</Trans> },
+              { value: 'mapping', label: <Trans>Attribute mapping</Trans> },
+              { value: 'activity', label: <Trans>Activity</Trans> },
+            ]}
+          >
+            <TabPanel value="settings">
+              <div {...stylex.props(detailParts.column)}>
+                {metadataError ? (
+                  <Alert tone="error">
+                    <Trans>
+                      The daily metadata refresh failed on {metadataErrorDate}. Sign-in keeps using
+                      the last saved certificates. Check that the metadata URL is still reachable.
+                    </Trans>
+                  </Alert>
+                ) : null}
+                {showExpiry && expiring ? (
+                  <ExpiryNotice
+                    isExpired={days <= 0}
+                    title={
+                      days <= 0 ? (
+                        <Trans>
+                          {name}&apos;s signing certificate expired {expiryDate}
+                        </Trans>
+                      ) : (
+                        <Trans>
+                          {name}&apos;s signing certificate expires {expiryDate}
+                        </Trans>
+                      )
+                    }
+                    body={
+                      <>
+                        <Trans>After that, XID rejects every sign-in from {name}.</Trans>{' '}
+                        {affected > 0 ? (
+                          <Plural
+                            value={affected}
+                            one="# person on a routed domain can't sign in."
+                            other="# people on routed domains can't sign in."
+                          />
+                        ) : null}{' '}
+                        <Trans>
+                          Download the new certificate from {name}, then upload it here. Both stay
+                          trusted until the old one expires.
+                        </Trans>
+                      </>
+                    }
+                    action={
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={locked}
+                        onClick={() => setDialog('certificate')}
+                      >
+                        <Trans>Upload certificate…</Trans>
+                      </Button>
+                    }
+                  />
+                ) : null}
+                <SsoSettingsPanel
+                  connection={connection}
+                  locked={locked}
+                  onEdit={() => setDialog('settings')}
                 />
-              ) : null}
-              <SsoSettingsPanel
-                connection={connection}
-                locked={locked}
-                onEdit={() => setDialog('settings')}
-              />
-            </div>
-          </TabPanel>
-          <TabPanel value="mapping">
-            <SsoAttributePanel orgId={orgId} connection={connection} locked={locked} />
-          </TabPanel>
-          <TabPanel value="activity">
-            <div {...stylex.props(detailParts.column)}>
-              <ActivityList query={activity} />
-            </div>
-          </TabPanel>
-        </Tabs>
+              </div>
+            </TabPanel>
+            <TabPanel value="mapping">
+              <SsoAttributePanel orgId={orgId} connection={connection} locked={locked} />
+            </TabPanel>
+            <TabPanel value="activity">
+              <div {...stylex.props(detailParts.column)}>
+                <ActivityList query={activity} />
+              </div>
+            </TabPanel>
+          </Tabs>
+        </div>
       </div>
       {dialog === 'settings' ? (
         <SsoSettingsDialog orgId={orgId} connection={connection} onClose={() => setDialog(null)} />

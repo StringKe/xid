@@ -1,6 +1,7 @@
 // 证书到期与最近登录时间的显示计算。
 
 import type { I18n } from '@lingui/core'
+import { msg } from '@lingui/core/macro'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MINUTE_MS = 60 * 1000
@@ -34,10 +35,11 @@ export function relativeTime(i18n: I18n, value: string, now = Date.now()): strin
   return i18n.date(new Date(value), { dateStyle: 'medium' })
 }
 
-export function protocolLabel(type: string): string {
+export function protocolLabel(i18n: I18n, type: string): string {
   if (type === 'saml') return 'SAML 2.0'
   if (type === 'oidc') return 'OpenID Connect'
   if (type === 'wsfed') return 'WS-Federation'
+  if (type === 'header') return i18n._(msg`Header`)
   return type.toUpperCase()
 }
 
