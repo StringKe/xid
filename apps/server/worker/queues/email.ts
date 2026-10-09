@@ -405,7 +405,7 @@ XID`,
 }
 
 const DEFAULT_LOCALE = 'en'
-const DEFAULT_FROM: EmailAddress = { email: 'no-reply@xid.dev', name: 'XID' }
+export const DEFAULT_FROM: EmailAddress = { email: 'no-reply@xid.dev', name: 'XID' }
 const TEMPLATE_KEY_PREFIX = 'email-templates'
 const emailFromAddressSchema = v.pipe(v.string(), v.trim(), v.maxLength(254), v.email())
 const emailFromNameSchema = v.pipe(

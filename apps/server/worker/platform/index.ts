@@ -11,6 +11,7 @@ import { registerPlatformAuditEventsRoutes } from './audit-events'
 import { registerPlatformAuditVerifyRoutes } from './audit-verify'
 import { registerPlatformUsageRoutes } from './usage'
 import { registerPlatformSettingsRoutes } from './settings'
+import { registerPlatformSigningKeyRoutes } from './signing-keys'
 import { registerPlatformDeadLetterRoutes } from './dead-letters'
 import { registerPlatformQuotaRoutes } from './quotas'
 import { registerPlatformAnnouncementRoutes } from './announcements'
@@ -27,6 +28,7 @@ export function registerPlatformConsoleRoutes(app: Hono<XidHonoEnv>): void {
   registerPlatformAuditVerifyRoutes(app)
   registerPlatformUsageRoutes(app)
   registerPlatformSettingsRoutes(app)
+  registerPlatformSigningKeyRoutes(app)
   registerPlatformDeadLetterRoutes(app)
   registerPlatformQuotaRoutes(app)
   registerPlatformAnnouncementRoutes(app)

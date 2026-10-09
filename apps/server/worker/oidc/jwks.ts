@@ -7,14 +7,14 @@ import type { Context, Hono } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
 import { JWKS_CACHE_TTL_SEC } from '../lib/ttl'
 
-function cacheKey(issuer: string, activeKid: string): string {
+export function jwksCacheKey(issuer: string, activeKid: string): string {
   // 含 activeKid:轮换 publish_next 改变密钥集时 key 变化,旧缓存自然失效。
   return `jwks:${issuer}:${activeKid}`
 }
 
 async function getJwks(c: Context<XidHonoEnv>): Promise<Jwks> {
   const ctx = c.get('tenant')
-  const key = cacheKey(ctx.issuer, ctx.signingKeys.activeKid)
+  const key = jwksCacheKey(ctx.issuer, ctx.signingKeys.activeKid)
   const cached = await c.env.CACHE.get(key, 'json')
   if (cached) return cached as Jwks
   const jwks = buildJwks(ctx.signingKeys.keys)

@@ -9,14 +9,16 @@ import {
   normalizeSessionPolicy,
   normalizeTokenPolicy,
 } from '@xid-kit/types'
+import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { SUPPORTED_LOCALES } from '../lib/locale'
 import { readJsonBody, validateBody } from '../lib/validate'
+import { DEFAULT_FROM } from '../queues/email'
 import { enqueuePersistedPlatformAudit, preparePlatformAuditOutboxInsert } from './audit-outbox'
-import { managementDb, requireInstanceManager } from './shared'
+import { managementDb, requireInstanceManager, topLevelOrgFilter } from './shared'
 
 const app = new Hono<XidHonoEnv>()
 
@@ -64,6 +66,83 @@ const SETTINGS_COLUMNS = {
 } as const satisfies Record<string, string>
 
 type SettingsUpdate = Partial<Record<keyof typeof SETTINGS_COLUMNS, string>>
+
+type ConfigurationStatus = 'configured' | 'not_configured' | 'misconfigured'
+
+type DeploymentStatus = {
+  turnstile: { status: ConfigurationStatus; siteKey: string | null }
+  emailSending: { provider: 'cloudflare_email_service'; fromAddress: string; fromName: string }
+  customDomains: { status: ConfigurationStatus; cnameTarget: string | null }
+  billingAdapter: { kind: 'stripe_metered_mau' | 'off'; status: ConfigurationStatus }
+}
+
+type InstanceSettingsResponse = PlatformSettings &
+  DeploymentStatus & { orgsFollowingDefaults: { following: number; total: number } }
+
+function configured(value: string | undefined): string | null {
+  const normalized = value?.trim() ?? ''
+  return normalized.length > 0 ? normalized : null
+}
+
+// 只报告部署变量是否成组出现。成组校验函数在部分配置时抛错,这里要让运营方看到「配了一半」。
+function groupStatus(values: readonly (string | null)[]): ConfigurationStatus {
+  const present = values.filter((value) => value !== null).length
+  if (present === 0) return 'not_configured'
+  return present === values.length ? 'configured' : 'misconfigured'
+}
+
+function deploymentStatus(env: Env): DeploymentStatus {
+  const siteKey = configured(env.TURNSTILE_SITE_KEY)
+  const zoneId = configured(env.CLOUDFLARE_FOR_SAAS_ZONE_ID)
+  const cnameTarget = configured(env.CLOUDFLARE_FOR_SAAS_CNAME_TARGET)
+  const saasStatus = groupStatus([zoneId, configured(env.CLOUDFLARE_FOR_SAAS_API_TOKEN)])
+  const billingStatus = groupStatus([
+    configured(env.STRIPE_SECRET_KEY),
+    configured(env.STRIPE_WEBHOOK_SECRET),
+    configured(env.STRIPE_METER_EVENT_NAME),
+  ])
+  return {
+    turnstile: { status: groupStatus([siteKey, configured(env.TURNSTILE_SECRET)]), siteKey },
+    emailSending: {
+      provider: 'cloudflare_email_service',
+      fromAddress: configured(env.EMAIL_FROM_ADDRESS) ?? DEFAULT_FROM.email,
+      fromName: configured(env.EMAIL_FROM_NAME) ?? DEFAULT_FROM.name,
+    },
+    customDomains: {
+      status: saasStatus === 'not_configured' && cnameTarget ? 'misconfigured' : saasStatus,
+      cnameTarget,
+    },
+    billingAdapter: {
+      kind: billingStatus === 'configured' ? 'stripe_metered_mau' : 'off',
+      status: billingStatus,
+    },
+  }
+}
+
+// 顶层组织没有 org_policies.mfa_policy 时沿用实例默认(与 buildPolicy 的回落一致)。
+async function countOrgsFollowingDefaults(env: Env): Promise<{ following: number; total: number }> {
+  const [row] = await managementDb(env)
+    .select({
+      total: sql<number>`count(*)`,
+      following: sql<number>`coalesce(sum(case when ${schema.orgPolicies.mfaPolicy} is null then 1 else 0 end), 0)`,
+    })
+    .from(schema.organizations)
+    .leftJoin(
+      schema.orgPolicies,
+      and(
+        eq(schema.orgPolicies.orgId, schema.organizations.id),
+        eq(schema.orgPolicies.tenantId, schema.organizations.tenantId),
+      ),
+    )
+    .where(
+      and(
+        topLevelOrgFilter(),
+        isNull(schema.organizations.deletedAt),
+        ne(schema.organizations.status, 'deleted'),
+      ),
+    )
+  return { following: Number(row?.following ?? 0), total: Number(row?.total ?? 0) }
+}
 
 function mapInstance(row: typeof schema.instances.$inferSelect): PlatformSettings {
   return {
@@ -119,7 +198,7 @@ function mergeTokenPolicyPatch(
   }
 }
 
-async function loadInstance(env: Env): Promise<typeof schema.instances.$inferSelect> {
+export async function loadInstance(env: Env): Promise<typeof schema.instances.$inferSelect> {
   const db = managementDb(env)
   const rows = await db.select().from(schema.instances).limit(1)
   const row = rows[0]
@@ -130,7 +209,12 @@ async function loadInstance(env: Env): Promise<typeof schema.instances.$inferSel
 app.get('/', async (c) => {
   await requireInstanceManager(c)
   const row = await loadInstance(c.env)
-  return c.json(mapInstance(row))
+  const orgsFollowingDefaults = await countOrgsFollowingDefaults(c.env)
+  return c.json({
+    ...mapInstance(row),
+    ...deploymentStatus(c.env),
+    orgsFollowingDefaults,
+  } satisfies InstanceSettingsResponse)
 })
 
 app.patch('/', async (c) => {
@@ -183,7 +267,15 @@ app.patch('/', async (c) => {
   ])
   await enqueuePersistedPlatformAudit(c.env, audit)
 
-  return c.json(mapInstance(await loadInstance(c.env)))
+  const [instance, orgsFollowingDefaults] = await Promise.all([
+    loadInstance(c.env),
+    countOrgsFollowingDefaults(c.env),
+  ])
+  return c.json({
+    ...mapInstance(instance),
+    ...deploymentStatus(c.env),
+    orgsFollowingDefaults,
+  } satisfies InstanceSettingsResponse)
 })
 
 export function registerPlatformSettingsRoutes(honoApp: Hono<XidHonoEnv>): void {
