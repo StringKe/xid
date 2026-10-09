@@ -1,11 +1,12 @@
 // 平台表单按名称或 slug 选择顶层组织,提交值是组织 ID,不要求管理员手抄 ID。
+// 组织多于一页时才显示筛选输入框。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useDeferredValue, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Field, Input, Select } from '@xid-kit/web-ui/ui'
-import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
+import { useOrganizationLabel } from '@xid-kit/web-ui/display-names'
 import { usePlatformOrganizationsList } from '../routes/platform/queries'
 
 export type PlatformOrganizationOption = {
@@ -40,6 +41,7 @@ export function PlatformOrganizationPicker({
   error,
 }: PlatformOrganizationPickerProps): ReactNode {
   const { t } = useLingui()
+  const organizationLabel = useOrganizationLabel()
   const [search, setSearch] = useState('')
   const [selectedLabel, setSelectedLabel] = useState<PlatformOrganizationOption | null>(null)
   const query = useDeferredValue(search.trim())
@@ -49,7 +51,7 @@ export function PlatformOrganizationPicker({
     ...extraOptions,
     ...(organizations.data?.data ?? []).map((organization) => ({
       value: organization.id,
-      label: `${organizationDisplayName(organization)} (${organization.slug})`,
+      label: `${organizationLabel(organization)} (${organization.slug})`,
     })),
   ]
   if (value && !options.some((option) => option.value === value)) {
@@ -79,21 +81,23 @@ export function PlatformOrganizationPicker({
           ))}
         </Select>
       </Field>
-      <Field
-        hint={
-          organizations.hasNextPage ? (
-            <Trans>Only the first matches are listed. Refine the search to narrow them.</Trans>
-          ) : undefined
-        }
-      >
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.currentTarget.value)}
-          placeholder={t`Filter organizations by name or slug`}
-          aria-label={t`Filter organizations by name or slug`}
-        />
-      </Field>
+      {organizations.hasNextPage || search !== '' ? (
+        <Field
+          hint={
+            organizations.hasNextPage ? (
+              <Trans>Only the first matches are listed. Refine the search to narrow them.</Trans>
+            ) : undefined
+          }
+        >
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+            placeholder={t`Filter organizations by name or slug`}
+            aria-label={t`Filter organizations by name or slug`}
+          />
+        </Field>
+      ) : null}
     </div>
   )
 }

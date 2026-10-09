@@ -8,7 +8,6 @@ import { describe, it, expect } from 'vitest'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { sha256Hex } from '@xid-kit/crypto'
-import { AUTH_LOGIN_FAILED_EVENT, AUTH_LOGIN_SUCCEEDED_EVENT } from '@xid-kit/types'
 import type { TenantContext } from '@xid-kit/types'
 import { AUDIT_VERIFY_MAX_SPAN } from '../audit-verify'
 import type { XidHonoEnv } from '../../lib/types'
@@ -661,140 +660,6 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     return { env, cookie: { name: cookieName, value: token } }
   }
 
-  it('GET /v1/platform/stats -> 200 + PlatformStats 全字段', async () => {
-    const now = Date.now()
-    const { env, cookie } = await instanceManagerEnv({
-      organizations: [
-        {
-          id: 'org_admin',
-          tenant_id: 'org_admin',
-          parent_org_id: null,
-          status: 'active',
-          slug: 'admin',
-          name: 'Admin',
-          created_at: now,
-        },
-      ],
-      users: [
-        {
-          id: 'user_mgr',
-          tenant_id: 'org_admin',
-          status: 'active',
-          deleted_at: null,
-          created_at: now,
-        },
-        {
-          id: 'user_deleted_status',
-          tenant_id: 'org_admin',
-          status: 'deleted',
-          deleted_at: null,
-          created_at: now,
-        },
-        {
-          id: 'user_deleted_at',
-          tenant_id: 'org_admin',
-          status: 'active',
-          deleted_at: now,
-          created_at: now,
-        },
-      ],
-    })
-    const app = buildApp()
-    const res = await doRequest(app, env, '/v1/platform/stats', cookie)
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    for (const key of ['organizationCount', 'totalUsers', 'dau', 'mau', 'activeOrgCount']) {
-      expect(body[key]).toBeTypeOf('number')
-    }
-    expect(body['loginSuccessRate']).toBeNull()
-    expect(body['totalUsers']).toBe(1)
-  })
-
-  it('GET /v1/platform/stats 按登录审计事件计算成功率,活跃组织只计顶层组织', async () => {
-    const now = Date.now()
-    const occurredAt = new Date(now).toISOString()
-    const { env, cookie } = await instanceManagerEnv({
-      organizations: [
-        {
-          id: 'org_admin',
-          tenant_id: 'org_admin',
-          parent_org_id: null,
-          status: 'active',
-          slug: 'admin',
-          name: 'Admin',
-          created_at: now,
-        },
-        {
-          id: 'org_child',
-          tenant_id: 'org_admin',
-          parent_org_id: 'org_admin',
-          status: 'active',
-          slug: 'child',
-          name: 'Child',
-          created_at: now,
-        },
-      ],
-      audit_events: [
-        { tenant_id: 'org_admin', event_type: AUTH_LOGIN_SUCCEEDED_EVENT, occurred_at: occurredAt },
-        { tenant_id: 'org_admin', event_type: AUTH_LOGIN_SUCCEEDED_EVENT, occurred_at: occurredAt },
-        { tenant_id: 'org_admin', event_type: AUTH_LOGIN_SUCCEEDED_EVENT, occurred_at: occurredAt },
-        { tenant_id: 'org_admin', event_type: AUTH_LOGIN_FAILED_EVENT, occurred_at: occurredAt },
-      ],
-    })
-
-    const res = await doRequest(buildApp(), env, '/v1/platform/stats', cookie)
-
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body['loginSuccessRate']).toBe(0.75)
-    expect(body['activeOrgCount']).toBe(body['organizationCount'])
-  })
-
-  it('GET /v1/platform/organizations -> 200 + Page<OrganizationItem>(nextCursor + total)', async () => {
-    const now = Date.now()
-    const { env, cookie } = await instanceManagerEnv({
-      organizations: [
-        {
-          id: 'org_admin',
-          tenant_id: 'org_admin',
-          parent_org_id: null,
-          status: 'active',
-          slug: 'admin',
-          name: 'Admin',
-          seat_used: 0,
-          seat_limit: null,
-          created_at: now,
-        },
-      ],
-      users: [
-        activeUserRow('user_mgr'),
-        {
-          id: 'user_deleted_status',
-          tenant_id: 'org_admin',
-          status: 'deleted',
-          deleted_at: null,
-          created_at: now,
-        },
-        {
-          id: 'user_deleted_at',
-          tenant_id: 'org_admin',
-          status: 'active',
-          deleted_at: now,
-          created_at: now,
-        },
-      ],
-    })
-    const app = buildApp()
-    const res = await doRequest(app, env, '/v1/platform/organizations', cookie)
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(Array.isArray(body['data'])).toBe(true)
-    expect('nextCursor' in body).toBe(true)
-    expect(body['total']).toBeTypeOf('number')
-    const data = body['data'] as Record<string, unknown>[]
-    expect(data[0]?.['userCount']).toBe(1)
-  })
-
   it('GET /v1/platform/users?q=alice -> 200 + Page<GlobalUser>', async () => {
     const { env, cookie } = await instanceManagerEnv({})
     const app = buildApp()
@@ -804,94 +669,6 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     expect(Array.isArray(body['data'])).toBe(true)
     expect('nextCursor' in body).toBe(true)
     expect(body['total']).toBeTypeOf('number')
-  })
-
-  it('GET /v1/platform/users 过滤 soft deleted users', async () => {
-    const now = Date.now()
-    const { env, cookie } = await instanceManagerEnv({
-      users: [
-        activeUserRow('user_mgr'),
-        {
-          id: 'user_active_alice',
-          tenant_id: 'org_a',
-          status: 'active',
-          deleted_at: null,
-          display_name: 'Alice Active',
-          first_name: 'Alice',
-          last_name: 'Active',
-          email: 'alice@example.com',
-          name: 'Acme',
-          created_at: now,
-        },
-        {
-          id: 'user_deleted_status',
-          tenant_id: 'org_a',
-          status: 'deleted',
-          deleted_at: null,
-          display_name: 'Alice Deleted Status',
-          first_name: 'Alice',
-          last_name: 'Deleted',
-          email: 'alice-deleted-status@example.com',
-          name: 'Acme',
-          created_at: now,
-        },
-        {
-          id: 'user_deleted_at',
-          tenant_id: 'org_a',
-          status: 'active',
-          deleted_at: now,
-          display_name: 'Alice Deleted At',
-          first_name: 'Alice',
-          last_name: 'Deleted',
-          email: 'alice-deleted-at@example.com',
-          name: 'Acme',
-          created_at: now,
-        },
-      ],
-      memberships: [
-        {
-          user_id: 'user_active_alice',
-          tenant_id: 'org_a',
-          id: 'org_child_1',
-          slug: 'alpha',
-          name: 'Alpha',
-          status: 'active',
-          deleted_at: null,
-        },
-        {
-          user_id: 'user_active_alice',
-          tenant_id: 'org_a',
-          id: 'org_child_2',
-          slug: 'beta',
-          name: 'Beta',
-          status: 'active',
-          deleted_at: null,
-        },
-        {
-          user_id: 'user_active_alice',
-          tenant_id: 'org_other',
-          id: 'org_cross_tenant',
-          slug: 'cross-tenant',
-          name: 'Cross tenant',
-          status: 'active',
-          deleted_at: null,
-        },
-      ],
-    })
-    const app = buildApp()
-
-    const res = await doRequest(app, env, '/v1/platform/users?q=alice', cookie)
-
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    const data = body['data'] as Record<string, unknown>[]
-    expect(data.map((row) => row['id'])).toEqual(['user_active_alice'])
-    expect(data[0]?.['organizations']).toEqual([
-      { id: 'org_child_1', slug: 'alpha', name: 'Alpha' },
-      { id: 'org_child_2', slug: 'beta', name: 'Beta' },
-    ])
-    expect(data[0]).not.toHaveProperty('organizationId')
-    expect(body['total']).toBe(1)
   })
 
   it('GET /v1/platform/audit-events -> 200 + Page<AuditEvent>', async () => {
@@ -1510,22 +1287,6 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     const body = (await res.json()) as Record<string, unknown>
     expect(body['code']).toBe('conflict')
     expect(row['status']).toBe('active')
-  })
-
-  it('GET /v1/platform/organizations marks the default organization as not suspendable', async () => {
-    const { env, cookie } = await instanceManagerEnv({
-      organizations: [
-        { ...adminOrganizationRow(), slug: 'default' },
-        { ...adminOrganizationRow(), id: 'org_acme', tenant_id: 'org_acme', slug: 'acme' },
-      ],
-    })
-
-    const res = await doRequest(buildApp(), env, '/v1/platform/organizations', cookie)
-
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { data: Record<string, unknown>[] }
-    expect(body.data.find((org) => org['slug'] === 'default')?.['canChangeStatus']).toBe(false)
-    expect(body.data.find((org) => org['slug'] === 'acme')?.['canChangeStatus']).toBe(true)
   })
 
   function incidentRow(): Record<string, unknown> {

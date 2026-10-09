@@ -89,7 +89,7 @@ function makeD1(store: Store, batchSql: string[][] = []): D1Database {
       return [row]
     }
     if (tableName(sql) === 'manager_assignments' && /\bselect\b/i.test(sql)) {
-      const [id, tenantId, userId, createdAt, updatedAt, auditId] = params
+      const [id, tenantId, userId, grantedBy, createdAt, updatedAt, auditId] = params
       if (!rows('platform_audit_outbox').some((row) => row['id'] === auditId)) return []
       const row: Row = {
         id,
@@ -98,6 +98,7 @@ function makeD1(store: Store, batchSql: string[][] = []): D1Database {
         manager_role: 'instance_manager',
         scope_type: 'instance',
         scope_id: null,
+        granted_by: grantedBy,
         created_at: createdAt,
         updated_at: updatedAt,
       }
