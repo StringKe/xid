@@ -5,6 +5,7 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { smsDeliveryReady } from '../auth/delivery-channels'
+import { isAllowedPhoneOtpTarget } from '../auth/phone-otp-regions'
 import {
   excludedMfaMethods,
   listEligiblePasskeyCredentials,
@@ -136,6 +137,6 @@ export async function listMfaMethods(
   if (totp) methods.push('totp')
   if (backup) methods.push('backup')
   if (passkeys.length > 0) methods.push('passkey')
-  if (sms && !excluded.includes('sms')) methods.push('sms')
+  if (sms && isAllowedPhoneOtpTarget(sms.phone) && !excluded.includes('sms')) methods.push('sms')
   return methods
 }

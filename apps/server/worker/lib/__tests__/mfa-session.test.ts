@@ -35,6 +35,7 @@ import {
   shouldRequireMfaChallenge,
   shouldRequireMfaSetup,
 } from '../mfa-session'
+import { listMfaMethods } from '../mfa-methods'
 import type { SessionData, TenantVar, XidHonoEnv } from '../types'
 
 type FactorState = {
@@ -191,6 +192,17 @@ describe('shouldRequireMfaChallenge', () => {
     })
 
     expect(result).toBe(false)
+  })
+
+  it('does not offer an SMS factor whose phone is outside the allowed regions', async () => {
+    mockFactors({ smsFactor: true, verifiedPhone: true })
+
+    const methods = await listMfaMethods(context(), tenant(), {
+      userId: 'u_1',
+      sessionAmr: ['pwd'],
+    })
+
+    expect(methods).not.toContain('sms')
   })
 
   it('does not accept the SMS factor as second factor after SMS sign-in', async () => {
