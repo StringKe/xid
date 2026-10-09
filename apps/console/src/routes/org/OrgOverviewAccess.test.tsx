@@ -6,29 +6,20 @@ import type { ReactNode } from 'react'
 import type { AuthOrg } from '@xid-kit/web-ui/session'
 
 const authState = vi.hoisted((): { activeOrg: AuthOrg | null } => ({ activeOrg: null }))
-const apiGet = vi.hoisted(() =>
-  vi.fn(() =>
-    Promise.resolve({
-      ok: true,
-      value: {
-        dau: 0,
-        mau: 0,
-        loginSuccessRate: 1,
-        mfaAdoptionRate: 0,
-        activeMemberCount: 0,
-        pendingInvitationCount: 0,
-      },
-    }),
-  ),
-)
+const apiGet = vi.hoisted(() => vi.fn(() => Promise.resolve({ ok: true, value: {} })))
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Plural: ({ value }: { value: number }) => <>{value}</>,
   useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
 }))
 
+vi.mock('@lingui/core/macro', () => ({
+  msg: (strings: TemplateStringsArray) => ({ id: strings.join(''), message: strings.join('') }),
+}))
+
 vi.mock('@xid-kit/web-ui/session', () => ({
-  useAuth: () => ({ activeOrg: authState.activeOrg, api: { get: apiGet } }),
+  useAuth: () => ({ activeOrg: authState.activeOrg, user: null, api: { get: apiGet } }),
 }))
 
 // quick actions/context bar 移出 data 分支后,activeOrg 非空即渲染 Link。
@@ -68,13 +59,19 @@ function renderOverview(): string {
   return renderToStaticMarkup(<OrgOverview />)
 }
 
-describe('OrgOverview org stats request gating', () => {
+const OVERVIEW_PATHS = [
+  '/v1/organizations/org_1/attention',
+  '/v1/organizations/org_1/sign-in-activity',
+  '/v1/organizations/org_1/setup-progress',
+]
+
+describe('OrgOverview request gating', () => {
   beforeEach(() => {
     authState.activeOrg = null
     apiGet.mockClear()
   })
 
-  it('does not request org stats for a member role', () => {
+  it('does not request overview data for a member role', () => {
     authState.activeOrg = { ...managerOrg, role: 'member' }
 
     renderOverview()
@@ -82,26 +79,18 @@ describe('OrgOverview org stats request gating', () => {
     expect(apiGet).not.toHaveBeenCalled()
   })
 
-  it('does not request org stats while the active organization is unresolved', () => {
+  it('does not request overview data while the active organization is unresolved', () => {
     renderOverview()
 
     expect(apiGet).not.toHaveBeenCalled()
   })
 
-  it('requests org stats for an owner role', () => {
-    authState.activeOrg = managerOrg
+  it.each(['owner', 'admin'])('requests attention, activity and setup progress for %s', (role) => {
+    authState.activeOrg = { ...managerOrg, role }
 
     renderOverview()
 
-    expect(apiGet).toHaveBeenCalledWith('/v1/organizations/org_1/stats', expect.anything())
-  })
-
-  it('requests org stats for an admin role', () => {
-    authState.activeOrg = { ...managerOrg, role: 'admin' }
-
-    renderOverview()
-
-    expect(apiGet).toHaveBeenCalledWith('/v1/organizations/org_1/stats', expect.anything())
+    expect(apiGet.mock.calls.map((call) => (call as unknown[])[0])).toEqual(OVERVIEW_PATHS)
   })
 })
 

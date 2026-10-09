@@ -1,4 +1,5 @@
-// /v1/organizations/:id/stats 与 /members:Console 与 Management API 共用的成员只读视图。
+// /v1/organizations/:id/stats、/members 与 Overview 视图(attention / sign-in-activity / setup-progress):
+// Console 与 Management API 共用的只读视图。
 // 成员写操作统一走 memberships.ts(owner 保护与条件更新只有一份实现)。
 
 import { createTenantDb, schema } from '@xid-kit/db'
@@ -11,6 +12,7 @@ import * as v from 'valibot'
 import { loginOutcomeFilters, loginSuccessRate } from '../lib/login-audit'
 import type { XidHonoEnv } from '../lib/types'
 import { paginationQuerySchema, validateQuery } from '../lib/validate'
+import { registerOrgOverviewHandlers } from './org-overview'
 import { ORG_LIST_BATCH_SIZE, readAllByIds, toIso } from './org-shared'
 import { MAX_PAGE_SIZE, idAfterCursor, paginate, requireApiKeyOrOrgManager } from './shared'
 
@@ -227,6 +229,8 @@ app.get('/:id/members', async (c) => {
     counts: { owner: owners, admin: admins },
   })
 })
+
+registerOrgOverviewHandlers(app)
 
 export function registerOrgMembersRoutes(parent: Hono<XidHonoEnv>): void {
   parent.route('/v1/organizations', app)
