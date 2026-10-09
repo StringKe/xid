@@ -42,19 +42,19 @@ const styles = stylex.create({
   },
   info: {
     backgroundColor: tokens['--xid-info-bg'],
-    color: tokens['--xid-info-foreground'],
+    color: tokens['--xid-fg'],
   },
   success: {
     backgroundColor: tokens['--xid-success-bg'],
-    color: tokens['--xid-success-foreground'],
+    color: tokens['--xid-fg'],
   },
   warning: {
     backgroundColor: tokens['--xid-warning-bg'],
-    color: tokens['--xid-warning-foreground'],
+    color: tokens['--xid-fg'],
   },
   critical: {
     backgroundColor: tokens['--xid-danger-bg'],
-    color: tokens['--xid-danger-foreground'],
+    color: tokens['--xid-fg'],
   },
   message: {
     flex: '1 1 auto',

@@ -8,6 +8,7 @@ export const tableStyles = stylex.create({
     minWidth: 0,
   },
   scroll: {
+    position: 'relative',
     overflowX: 'auto',
     overscrollBehaviorX: 'contain',
   },

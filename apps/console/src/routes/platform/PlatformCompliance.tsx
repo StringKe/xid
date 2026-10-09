@@ -563,6 +563,7 @@ export default function PlatformCompliance(): ReactNode {
           data={rows}
           getRowId={(row) => row.id}
           isLoading={documents.isLoading}
+          narrowMode="priority"
           emptyMessage={
             <Trans>
               No evidence registered yet. Register a report once it is in private storage.

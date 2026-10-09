@@ -153,6 +153,7 @@ const styles = stylex.create({
     fontSize: text.xs,
   },
   scroller: {
+    position: 'relative',
     overflowX: 'auto',
     marginInline: { default: '-1rem', '@media (min-width: 48rem)': 0 },
     paddingInlineStart: { default: '1rem', '@media (min-width: 48rem)': 0 },
@@ -197,7 +198,7 @@ const styles = stylex.create({
     display: 'inline-flex',
     flexShrink: 0,
     paddingTop: '0.125rem',
-    color: tokens['--xid-warning-foreground'],
+    color: tokens['--xid-warning'],
   },
   errorText: {
     display: 'flex',

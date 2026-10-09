@@ -156,11 +156,11 @@ const styles = stylex.create({
   },
   badgeCritical: {
     backgroundColor: tokens['--xid-danger-bg'],
-    color: tokens['--xid-danger-foreground'],
+    color: tokens['--xid-danger'],
   },
   badgeWarning: {
     backgroundColor: tokens['--xid-warning-bg'],
-    color: tokens['--xid-warning-foreground'],
+    color: tokens['--xid-warning'],
   },
   compact: {
     display: { default: 'flex', '@media (min-width: 48rem)': 'none' },

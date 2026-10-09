@@ -331,6 +331,7 @@ function IncidentList(): ReactNode {
           getRowId={(row) => row.id}
           isLoading={incidents.isLoading}
           onRowClick={openDetail}
+          narrowMode="priority"
           emptyMessage={
             <Trans>
               No incidents yet. Open one when customers are affected so they can follow along.

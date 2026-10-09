@@ -509,6 +509,7 @@ export default function PlatformAnnouncements(): ReactNode {
           data={rows}
           getRowId={(row) => row.id}
           isLoading={announcements.isLoading}
+          narrowMode="priority"
           emptyMessage={
             <Trans>
               No announcements yet. Post one before maintenance or a change admins act on.

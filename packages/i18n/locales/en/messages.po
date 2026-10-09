@@ -426,16 +426,9 @@ msgstr "{components}, {impact}. Started {started}."
 msgid "{confirmedPrimary} is now your primary address."
 msgstr "{confirmedPrimary} is now your primary address."
 
-#. placeholder {0}: <># selected from {selectedQueue}</>
-#. placeholder {0}: <>Replay # message to {queue}</>
-#. placeholder {0}: <>{names} is above 90% of its MAU quota</>
-#. placeholder {1}: <># selected from {selectedQueue}</>
-#. placeholder {1}: <>Replay # messages to {queue}</>
-#. placeholder {1}: <>{names} are above 90% of their MAU quota</>
 #: apps/console/src/routes/platform/PlatformAttention.tsx
-#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
-msgid "{count, plural, one {{0}} other {{1}}}"
-msgstr "{count, plural, one {{0}} other {{1}}}"
+msgid "{count, plural, one {{names} is above 90% of its MAU quota} other {{names} are above 90% of their MAU quota}}"
+msgstr "{count, plural, one {{names} is above 90% of its MAU quota} other {{names} are above 90% of their MAU quota}}"
 
 #: apps/console/src/routes/users/tabs/SessionsTab.tsx
 msgid "{count, plural, one {# active session} other {# active sessions}}"
@@ -453,9 +446,17 @@ msgstr "{count, plural, one {# item} other {# items}}"
 msgid "{count, plural, one {# message is waiting in dead letter queues} other {# messages are waiting in dead letter queues}}"
 msgstr "{count, plural, one {# message is waiting in dead letter queues} other {# messages are waiting in dead letter queues}}"
 
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
+msgid "{count, plural, one {# selected from {selectedQueue}} other {# selected from {selectedQueue}}}"
+msgstr "{count, plural, one {# selected from {selectedQueue}} other {# selected from {selectedQueue}}}"
+
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 msgid "{count, plural, one {# will be invited} other {# will be invited}}"
 msgstr "{count, plural, one {# will be invited} other {# will be invited}}"
+
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
+msgid "{count, plural, one {Replay # message to {queue}} other {Replay # messages to {queue}}}"
+msgstr "{count, plural, one {Replay # message to {queue}} other {Replay # messages to {queue}}}"
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "{count, plural, one {Replay # message…} other {Replay # messages…}}"
@@ -803,11 +804,9 @@ msgstr "{org} signs in people with {0} addresses through {idp}. After {idp}, you
 msgid "{organization}, suspended"
 msgstr "{organization}, suspended"
 
-#. placeholder {0}: <>{host} runs # organization.</>
-#. placeholder {1}: <>{host} runs # organizations.</>
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
-msgid "{organizations, plural, one {{0}} other {{1}}}"
-msgstr "{organizations, plural, one {{0}} other {{1}}}"
+msgid "{organizations, plural, one {{host} runs # organization.} other {{host} runs # organizations.}}"
+msgstr "{organizations, plural, one {{host} runs # organization.} other {{host} runs # organizations.}}"
 
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 msgid "{organizations, plural, one {Counts from exact metering, updated hourly. Totals cover # organization.} other {Counts from exact metering, updated hourly. Totals cover all # organizations.}}"

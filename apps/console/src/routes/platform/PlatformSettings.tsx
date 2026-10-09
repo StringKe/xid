@@ -9,6 +9,7 @@ import type { PlatformMfaPolicy } from '@xid-kit/types'
 import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, isSupportedLocale } from '@xid-kit/web-ui/locale'
 import type { SupportedLocale } from '@xid-kit/web-ui/locale'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Link, useLocation, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
@@ -806,7 +807,7 @@ export default function PlatformSettingsPage(): ReactNode {
       ) : !settings ? (
         <Skeleton height="20rem" />
       ) : (
-        <div {...stylex.props(styles.layout)}>
+        <div {...stylex.props(consoleShell.sectionPad, styles.layout)}>
           <SectionNav selected={selected} pathname={pathname} />
           {selected === null ? (
             <SectionSummaryList settings={settings} keys={keys} pathname={pathname} />

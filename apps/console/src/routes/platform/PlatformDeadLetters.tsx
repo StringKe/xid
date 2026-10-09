@@ -342,8 +342,8 @@ function ReplayDialog({
       title={
         <Plural
           value={count}
-          one={<>Replay # message to {queue}</>}
-          other={<>Replay # messages to {queue}</>}
+          one={`Replay # message to ${queue}`}
+          other={`Replay # messages to ${queue}`}
         />
       }
       description={<Trans>{breakdown}. Each goes back only to the queue it came from.</Trans>}
@@ -536,8 +536,8 @@ export default function PlatformDeadLetters(): ReactNode {
             <span {...stylex.props(styles.selectionText)}>
               <Plural
                 value={count}
-                one={<># selected from {selectedQueue}</>}
-                other={<># selected from {selectedQueue}</>}
+                one={`# selected from ${selectedQueue}`}
+                other={`# selected from ${selectedQueue}`}
               />
             </span>
             <button

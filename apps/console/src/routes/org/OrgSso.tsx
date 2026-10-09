@@ -191,13 +191,15 @@ export default function OrgSso(): ReactNode {
         <div {...stylex.props(consoleShell.contentCap)}>
           <WizardBreadcrumb current={<Trans>Add connection</Trans>} />
           {lockNotice}
-          <SsoProviderStep
-            orgId={orgId}
-            orgName={orgName}
-            locked={locked}
-            onCreated={() => goStep('metadata')}
-            onCancel={() => goStep(null)}
-          />
+          <div {...stylex.props(consoleShell.sectionPad)}>
+            <SsoProviderStep
+              orgId={orgId}
+              orgName={orgName}
+              locked={locked}
+              onCreated={() => goStep('metadata')}
+              onCancel={() => goStep(null)}
+            />
+          </div>
         </div>
       </div>
     )
@@ -209,16 +211,18 @@ export default function OrgSso(): ReactNode {
         <div {...stylex.props(consoleShell.contentCap)}>
           <WizardBreadcrumb current={<Trans>Add connection</Trans>} />
           {lockNotice}
-          {step === 'metadata' ? (
-            <SsoMetadataStep
-              orgId={orgId}
-              connection={connection}
-              locked={locked}
-              onNext={() => goStep('domains')}
-            />
-          ) : (
-            <SsoDomainsStep connection={connection} onFinish={() => goStep(null)} />
-          )}
+          <div {...stylex.props(consoleShell.sectionPad)}>
+            {step === 'metadata' ? (
+              <SsoMetadataStep
+                orgId={orgId}
+                connection={connection}
+                locked={locked}
+                onNext={() => goStep('domains')}
+              />
+            ) : (
+              <SsoDomainsStep connection={connection} onFinish={() => goStep(null)} />
+            )}
+          </div>
         </div>
       </div>
     )

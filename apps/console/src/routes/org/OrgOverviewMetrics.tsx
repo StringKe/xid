@@ -72,7 +72,7 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
   },
   deltaWarning: {
-    color: tokens['--xid-warning-foreground'],
+    color: tokens['--xid-warning'],
   },
   spark: {
     gridArea: 'spark',

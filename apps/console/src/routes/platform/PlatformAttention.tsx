@@ -211,8 +211,8 @@ function quotaCopy(
     title: (
       <Plural
         value={count}
-        one={<>{names} is above 90% of its MAU quota</>}
-        other={<>{names} are above 90% of their MAU quota</>}
+        one={`${names} is above 90% of its MAU quota`}
+        other={`${names} are above 90% of their MAU quota`}
       />
     ),
     detail: <Trans>Sign-in keeps working past the quota. MAU quotas are observed only.</Trans>,

@@ -54,7 +54,7 @@ const styles = stylex.create({
   markerDone: {
     boxShadow: 'none',
     backgroundColor: tokens['--xid-success-bg'],
-    color: tokens['--xid-success-foreground'],
+    color: tokens['--xid-success'],
   },
   main: {
     display: 'flex',

@@ -72,8 +72,8 @@ function OverviewLead({ data }: { data: PlatformOverviewStats | undefined }): Re
     <>
       <Plural
         value={organizations}
-        one={<>{host} runs # organization.</>}
-        other={<>{host} runs # organizations.</>}
+        one={`${host} runs # organization.`}
+        other={`${host} runs # organizations.`}
       />{' '}
       <Plural
         value={pending}
