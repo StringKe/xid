@@ -8,7 +8,10 @@ import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { isPublicHttpsUrl } from '../lib/validate'
 import { readBoundedJson } from '../sso/bounded-json'
+import { appleClientSecret } from './apple-client-secret'
+import type { AppleSigningConfig } from './apple-client-secret'
 import { HostedAuthPolicyError } from './hosted-policy-core'
+import { providerClientCredential } from './social-provider-secrets'
 
 // provider 标识:内置 google/github/microsoft/apple,亦支持自定义 provider key(任意字符串)。
 export type Provider = string
@@ -30,6 +33,8 @@ export type ProviderConfig = {
   tokenEndpoint: string
   clientId: string
   clientSecret?: string
+  // Apple 配置了签发私钥时,client_secret 在换 code 时按需签发。
+  appleSigning?: AppleSigningConfig
   userInfoEndpoint?: string
   scopes: string[]
   usesPkce: boolean
@@ -50,48 +55,14 @@ export const MICROSOFT_TENANT_ISSUER_PLACEHOLDER = '{tenantid}'
 
 export const GITHUB_EMU_ISSUER_BOUNDARIES = ['https://token.actions.githubusercontent.com'] as const
 
-export const BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS = {
-  google: 'GOOGLE_CLIENT_SECRET',
-  github: 'GITHUB_CLIENT_SECRET',
-  microsoft: 'MICROSOFT_CLIENT_SECRET',
-  apple: 'APPLE_CLIENT_SECRET',
-  github_emu: 'GITHUB_EMU_CLIENT_SECRET',
-} as const
+export {
+  BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS,
+  hasProviderSecret,
+  socialProviderSecretBinding,
+} from './social-provider-secrets'
 
 export const SOCIAL_PROVIDER_TIMEOUT_MS = 5_000
 const TOKEN_RESPONSE_MAX_BYTES = 64 * 1024
-
-const CUSTOM_SOCIAL_SECRET_BINDING = /^SOCIAL_[A-Z0-9_]+_CLIENT_SECRET$/
-const PROVIDER_KEY = /^[a-z0-9_-]+$/
-
-function operatorSocialProviderBindings(env: Env): Readonly<Record<string, string>> {
-  const raw = env.SOCIAL_PROVIDER_SECRET_BINDINGS
-  if (!raw) return {}
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        (entry): entry is [string, string] =>
-          PROVIDER_KEY.test(entry[0]) &&
-          typeof entry[1] === 'string' &&
-          CUSTOM_SOCIAL_SECRET_BINDING.test(entry[1]),
-      ),
-    )
-  } catch {
-    return {}
-  }
-}
-
-// Secret binding names are deployment-controlled. Tenant policy can select a provider but cannot
-// turn an arbitrary Env key into a credential oracle.
-export function socialProviderSecretBinding(env: Env, provider: string): string | undefined {
-  const builtIn =
-    BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS[
-      provider as keyof typeof BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS
-    ]
-  return builtIn ?? operatorSocialProviderBindings(env)[provider]
-}
 
 // SSRF 防护:provider 端点来自租户策略(org admin 可写,写面校验管不到所有路径),
 // worker 出网 fetch / 302 前必须确认 https + 公网,防内网与云 metadata 探测。
@@ -157,15 +128,14 @@ function providerConfigFromPolicy(
   provider: string,
   policy: SocialProviderPolicy,
 ): ProviderConfig {
-  const secretRef = socialProviderSecretBinding(env, provider)
-  const envRecord = env as unknown as Record<string, unknown>
-  const secretValue = secretRef ? envRecord[secretRef] : undefined
-  if (!secretRef || typeof secretValue !== 'string') throw new AppError('invalid_request')
+  const credential = providerClientCredential(env, provider)
   return {
     authorizationEndpoint: policy.authorizationEndpoint,
     tokenEndpoint: policy.tokenEndpoint,
     clientId: policy.clientId,
-    clientSecret: secretValue,
+    ...(credential.kind === 'static'
+      ? { clientSecret: credential.clientSecret }
+      : { appleSigning: credential.signing }),
     userInfoEndpoint: policy.userInfoEndpoint,
     scopes: [...policy.scopes],
     usesPkce: policy.usesPkce,
@@ -209,17 +179,6 @@ export function socialProviderConfigIssue(
   return null
 }
 
-export function hasProviderSecret(
-  env: Env,
-  _policy: SocialProviderPolicy,
-  provider: string,
-): boolean {
-  const secretRef = socialProviderSecretBinding(env, provider)
-  if (!secretRef) return false
-  const envRecord = env as unknown as Record<string, unknown>
-  return typeof envRecord[secretRef] === 'string'
-}
-
 // 获取 provider 配置:TenantContext 是唯一来源,provider secret 只通过 Workers Secret 引用读取。
 export function getProviderConfig(
   env: Env,
@@ -248,7 +207,10 @@ export async function exchangeCode(opts: {
     redirect_uri: redirectUri,
     client_id: config.clientId,
   })
-  if (config.clientSecret) tokenParams.set('client_secret', config.clientSecret)
+  const clientSecret = config.appleSigning
+    ? await appleClientSecret(config.appleSigning, config.clientId)
+    : config.clientSecret
+  if (clientSecret) tokenParams.set('client_secret', clientSecret)
   if (config.usesPkce) tokenParams.set('code_verifier', codeVerifier)
 
   const tokenRes = await fetch(config.tokenEndpoint, {
