@@ -369,6 +369,57 @@ describe('jitProvision -- 分支 A/B', () => {
   )
 })
 
+describe('jitProvision -- 已有成员角色', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakeAuditQueue.send.mockResolvedValue(undefined)
+    mockUserIdentitiesFindOne.mockResolvedValue({ id: 'identity-1', userId: 'user-existing' })
+    mockUsersUpdate.mockResolvedValue([])
+  })
+
+  it('owner 用空 roleMapping 登录后仍是 owner', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection({ roleMapping: {} }))
+    mockMembershipsFindOne.mockResolvedValue({ id: 'mem-1', role: 'owner' })
+
+    await jitProvision(makeContext(), makeAssertion({ groups: ['Engineering'] }))
+
+    expect(mockMembershipsUpdate).not.toHaveBeenCalled()
+  })
+
+  it('admin 的 group 映射到 member 时不降级', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(
+      makeConnection({ roleMapping: { Everyone: 'member' } }),
+    )
+    mockMembershipsFindOne.mockResolvedValue({ id: 'mem-1', role: 'admin' })
+
+    await jitProvision(makeContext(), makeAssertion({ groups: ['Everyone'] }))
+
+    expect(mockMembershipsUpdate).not.toHaveBeenCalled()
+  })
+
+  it('member 的 group 命中 admin 映射时提升为 admin', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(
+      makeConnection({ roleMapping: { Engineering: 'admin' } }),
+    )
+    mockMembershipsFindOne.mockResolvedValue({ id: 'mem-1', role: 'member' })
+
+    await jitProvision(makeContext(), makeAssertion({ groups: ['Engineering'] }))
+
+    expect(mockMembershipsUpdate).toHaveBeenCalledWith({ role: 'admin' }, expect.anything())
+  })
+
+  it('member 的 group 未命中映射时保持 member 且不写库', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(
+      makeConnection({ roleMapping: { Engineering: 'admin' } }),
+    )
+    mockMembershipsFindOne.mockResolvedValue({ id: 'mem-1', role: 'member' })
+
+    await jitProvision(makeContext(), makeAssertion({ groups: ['Sales'] }))
+
+    expect(mockMembershipsUpdate).not.toHaveBeenCalled()
+  })
+})
+
 describe('jitProvision -- 分支 C', () => {
   beforeEach(() => {
     vi.clearAllMocks()

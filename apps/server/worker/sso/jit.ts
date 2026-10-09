@@ -49,19 +49,33 @@ type JitContext = {
   tenantId: string
   orgId: string
   assertion: SsoAssertion
-  orgRole: OrganizationMembershipRole
+  // roleMapping 命中的角色;null 表示未命中,已有成员保留原角色,新成员用 DEFAULT_ORG_ROLE。
+  mappedRole: OrganizationMembershipRole | null
 }
 
-// roleMapping 格式:{ "Engineering": "admin" };取第一个命中的 group,未命中回退 member。
-function resolveOrgRole(
+const DEFAULT_ORG_ROLE: OrganizationMembershipRole = 'member'
+
+const ROLE_RANK: Record<OrganizationMembershipRole, number> = { member: 0, admin: 1, owner: 2 }
+
+// roleMapping 格式:{ "Engineering": "admin" };取第一个命中的 group。
+export function resolveMappedOrgRole(
   groups: readonly string[],
   roleMapping: Record<string, unknown>,
-): OrganizationMembershipRole {
+): OrganizationMembershipRole | null {
   for (const group of groups) {
     const role = roleMapping[group]
     if (isOrganizationMembershipRole(role)) return role
   }
-  return 'member'
+  return null
+}
+
+// IdP 的 group 变化只能提升已有成员角色:owner/admin 是 org 管理入口,被一次 SSO 降级会让 org 失去管理者。
+export function nextMembershipRole(
+  current: OrganizationMembershipRole,
+  mapped: OrganizationMembershipRole | null,
+): OrganizationMembershipRole {
+  if (mapped === null) return current
+  return ROLE_RANK[mapped] > ROLE_RANK[current] ? mapped : current
 }
 
 // IdP 断言的 email 可信:IdP 显式声明已验证,或 email 域是本 org 已验证且有效的域名
@@ -87,8 +101,10 @@ async function upsertMembership(ctx: JitContext, userId: string): Promise<void> 
   const orgDb = ctx.db.forOrg(ctx.orgId)
   const existing = await orgDb.memberships.findOne(eq(schema.memberships.userId, userId))
   if (existing) {
-    if (existing.role !== ctx.orgRole) {
-      await orgDb.memberships.update({ role: ctx.orgRole }, eq(schema.memberships.id, existing.id))
+    if (!isOrganizationMembershipRole(existing.role)) return
+    const next = nextMembershipRole(existing.role, ctx.mappedRole)
+    if (next !== existing.role) {
+      await orgDb.memberships.update({ role: next }, eq(schema.memberships.id, existing.id))
     }
     return
   }
@@ -97,7 +113,7 @@ async function upsertMembership(ctx: JitContext, userId: string): Promise<void> 
     tenantId: ctx.tenantId,
     orgId: ctx.orgId,
     userId,
-    role: ctx.orgRole,
+    role: ctx.mappedRole ?? DEFAULT_ORG_ROLE,
     membershipType: 'member',
     status: 'active',
     isManaged: true,
@@ -178,7 +194,7 @@ async function provisionNewUser(
     },
     managedMembership: options.skipDefaultMembership
       ? null
-      : { id: createPersistedId('membership'), orgId, role: ctx.orgRole },
+      : { id: createPersistedId('membership'), orgId, role: ctx.mappedRole ?? DEFAULT_ORG_ROLE },
   })
   await c.env.AUDIT_QUEUE.send({
     tenantId,
@@ -224,7 +240,10 @@ export async function jitProvision(
     tenantId: tenant.tenantId,
     orgId: connection.orgId,
     assertion,
-    orgRole: resolveOrgRole(assertion.groups, connection.roleMapping as Record<string, unknown>),
+    mappedRole: resolveMappedOrgRole(
+      assertion.groups,
+      connection.roleMapping as Record<string, unknown>,
+    ),
   }
 
   // 分支 A:idp_id 精确匹配(已撤销的绑定不在此命中)。
