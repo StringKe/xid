@@ -11,7 +11,7 @@ import { isAppError } from '../../lib/errors'
 import { registerLdapRoutes } from '../ldap'
 import { registerWsfedRoutes } from '../wsfed'
 import { registerDirectoryConnectorRoutes } from '../directory-connector'
-import { buildFakeWresult, storeFakeWsfedState } from '../../test-harness/fake-wsfed'
+import { buildFakeWresult, fakeWsfedSigner } from '../../test-harness/fake-wsfed-token'
 
 const mockSsoConnectionsFindOne = vi.fn()
 const mockSsoConnectionsUpdate = vi.fn()
@@ -173,6 +173,31 @@ const fakeEnv = {
   OAUTH_STATE: makeOauthStateStore(),
 } as unknown as Env
 
+const WSFED_ISSUER = 'http://127.0.0.1:8787/test-harness/fake-wsfed'
+const WSFED_CLAIMS = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims'
+
+async function signedWsfedConnection() {
+  const signer = await fakeWsfedSigner()
+  const base = makeConnection('wsfed')
+  return {
+    ...base,
+    idpEntityId: WSFED_ISSUER,
+    idpCertificates: [signer.certificateB64],
+    samlClockSkewMs: 3 * 60 * 1000,
+    attributeMapping: { ...base.attributeMapping, email: `${WSFED_CLAIMS}/emailaddress` },
+  }
+}
+
+function signedWresult(tokenType: 'saml2' | 'saml11'): Promise<string> {
+  return buildFakeWresult({
+    issuer: WSFED_ISSUER,
+    realm: 'urn:xid:test:wsfed',
+    reply: 'https://tenant-1.xid.dev/sso/wsfed/conn-1/callback',
+    email: 'wsfed.user@example.com',
+    tokenType,
+  })
+}
+
 const productionEnv = {
   DB: {},
   ENVIRONMENT: 'production',
@@ -270,7 +295,6 @@ describe('enterprise legacy protocols', () => {
     const location = res.headers.get('location') ?? ''
     expect(location).toContain('https://fake-idp.example.com/wsfed/login')
     expect(location).toContain('wa=wsignin1.0')
-    expect(location).toContain('xid_fake_wsfed=1')
   })
 
   it('WS-Fed login rejects a non-public stored IdP SSO URL', async () => {
@@ -299,33 +323,69 @@ describe('enterprise legacy protocols', () => {
     await expect(production.json()).resolves.toEqual({ code: 'connection_not_found' })
   })
 
-  it('WS-Fed callback parses wresult and issues session', async () => {
-    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('wsfed'))
-    const wresult = buildFakeWresult('wsfed.user@example.com')
-    const app = buildApp()
-    const res = await app.request(
-      `/sso/wsfed/conn-1/callback?wresult=${encodeURIComponent(wresult)}`,
-      {},
-      fakeEnv,
-    )
-    expect(res.status).toBe(302)
-    expect(mockJitProvision).toHaveBeenCalled()
-  })
+  it.each(['saml2', 'saml11'] as const)(
+    'WS-Fed IdP-initiated callback verifies a signed %s RSTR and issues session',
+    async (tokenType) => {
+      mockSsoConnectionsFindOne.mockResolvedValue(await signedWsfedConnection())
+      const wresult = await signedWresult(tokenType)
+      const app = buildApp()
 
-  it('WS-Fed callback can consume fake harness state', async () => {
-    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('wsfed'))
+      const res = await app.request(
+        `/sso/wsfed/conn-1/callback?wresult=${encodeURIComponent(wresult)}`,
+        {},
+        fakeEnv,
+      )
+
+      expect(res.status).toBe(302)
+      expect(mockJitProvision).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ idpId: 'wsfed.user@example.com', emailVerified: false }),
+        expect.anything(),
+      )
+    },
+  )
+
+  it('WS-Fed SP-initiated callback matches wctx against server flow state', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(await signedWsfedConnection())
     const app = buildApp()
     const login = await app.request('/sso/wsfed/conn-1/login', {}, fakeEnv)
     const state = new URL(login.headers.get('location')!).searchParams.get('wctx')!
-    storeFakeWsfedState(state, 'wsfed.user@example.com')
 
     const res = await app.request(
-      `/sso/wsfed/conn-1/callback?wctx=${encodeURIComponent(state)}`,
+      `/sso/wsfed/conn-1/callback?wctx=${encodeURIComponent(state)}&wresult=${encodeURIComponent(await signedWresult('saml2'))}`,
       {},
       fakeEnv,
     )
 
     expect(res.status).toBe(302)
+  })
+
+  it('WS-Fed callback rejects an unknown wctx', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(await signedWsfedConnection())
+    const app = buildApp()
+
+    const res = await app.request(
+      `/sso/wsfed/conn-1/callback?wctx=forged&wresult=${encodeURIComponent(await signedWresult('saml2'))}`,
+      {},
+      fakeEnv,
+    )
+
+    expect(res.status).toBe(400)
+  })
+
+  it('WS-Fed callback in development rejects the retired bare samlp:Response format', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(await signedWsfedConnection())
+    const unsigned = `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"><saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"><saml:Subject><saml:NameID>x@example.com</saml:NameID></saml:Subject></saml:Assertion></samlp:Response>`
+    const app = buildApp()
+
+    const res = await app.request(
+      `/sso/wsfed/conn-1/callback?wresult=${encodeURIComponent(unsigned)}`,
+      {},
+      fakeEnv,
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockJitProvision).not.toHaveBeenCalled()
   })
 
   it('WS-Fed callback 超大 wresult -> 400 invalid_request', async () => {
@@ -343,7 +403,7 @@ describe('enterprise legacy protocols', () => {
 
   it('WS-Fed callback rejects unsigned wresult in production', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('wsfed', { idpCertificates: [] }))
-    const wresult = buildFakeWresult('wsfed.user@example.com')
+    const wresult = await signedWresult('saml2')
     const app = buildApp()
     const res = await app.request(
       `/sso/wsfed/conn-1/callback?wresult=${encodeURIComponent(wresult)}`,
@@ -355,7 +415,7 @@ describe('enterprise legacy protocols', () => {
 
   it('WS-Fed callback enforces tenant isolation on unknown connection', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(null)
-    const wresult = buildFakeWresult('wsfed.user@example.com')
+    const wresult = await signedWresult('saml2')
     const app = buildApp()
     const res = await app.request(
       `/sso/wsfed/other-tenant/callback?wresult=${encodeURIComponent(wresult)}`,

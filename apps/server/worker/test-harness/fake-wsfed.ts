@@ -1,36 +1,26 @@
-// 本地 WS-Fed 被动登录 L3 用假 IdP。
+// 本地 WS-Fed 被动登录 L3 用假 IdP:/login 按 wtrealm、wreply 签发 RSTR 后带 wresult/wctx 回跳,
+// /certificate 给出签名证书与 issuer 供连接配置。xid_token=saml11 时签发 SAML 1.1 断言,缺省 SAML 2.0。
 
 import { Hono } from 'hono'
 import type { Context } from 'hono'
+import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
 import { isDevOrTestEnvironment } from './dev-gate'
+import { buildFakeWresult, fakeWsfedSigner } from './fake-wsfed-token'
 
-const pendingStates = new Map<string, string>()
+const FAKE_WSFED_PATH = '/test-harness/fake-wsfed'
+const FAKE_WSFED_EMAIL = 'wsfed.user@example.com'
 
-export function buildFakeWresult(email: string): string {
-  const xml = `<?xml version="1.0"?>
-<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
-  <saml:Assertion>
-    <saml:Subject><saml:NameID>${email}</saml:NameID></saml:Subject>
-    <saml:AttributeStatement>
-      <saml:Attribute Name="email"><saml:AttributeValue>${email}</saml:AttributeValue></saml:Attribute>
-      <saml:Attribute Name="firstName"><saml:AttributeValue>WSFed</saml:AttributeValue></saml:Attribute>
-      <saml:Attribute Name="lastName"><saml:AttributeValue>User</saml:AttributeValue></saml:Attribute>
-    </saml:AttributeStatement>
-  </saml:Assertion>
-</samlp:Response>`
-  return btoa(xml)
-}
+const loginQuerySchema = v.object({
+  wtrealm: v.pipe(v.string(), v.minLength(1)),
+  wreply: v.pipe(v.string(), v.url()),
+  wctx: v.optional(v.string()),
+  xid_token: v.optional(v.picklist(['saml2', 'saml11'])),
+})
 
-export function storeFakeWsfedState(state: string, email: string): void {
-  pendingStates.set(state, email)
-}
-
-export function consumeFakeWsfedState(state: string): string | null {
-  const email = pendingStates.get(state) ?? null
-  if (email) pendingStates.delete(state)
-  return email
+export function fakeWsfedIssuer(origin: string): string {
+  return `${origin}${FAKE_WSFED_PATH}`
 }
 
 function requireHarness(c: Context<XidHonoEnv>): void {
@@ -41,28 +31,40 @@ function requireHarness(c: Context<XidHonoEnv>): void {
 
 async function handleIdpLogin(c: Context<XidHonoEnv>): Promise<Response> {
   requireHarness(c)
-  const wreply = c.req.query('wreply')
-  const state = c.req.query('xid_state') ?? c.req.query('wctx') ?? crypto.randomUUID()
-  const email = 'wsfed.user@example.com'
-  storeFakeWsfedState(state, email)
-  if (!wreply) return c.json({ wresult: buildFakeWresult(email), wctx: state }, 200)
-  const url = new URL(wreply)
-  url.searchParams.set('wresult', buildFakeWresult(email))
-  url.searchParams.set('wctx', state)
+  const query = v.safeParse(loginQuerySchema, {
+    wtrealm: c.req.query('wtrealm'),
+    wreply: c.req.query('wreply'),
+    wctx: c.req.query('wctx'),
+    xid_token: c.req.query('xid_token'),
+  })
+  if (!query.success) throw new AppError('invalid_request')
+  const wresult = await buildFakeWresult({
+    issuer: fakeWsfedIssuer(new URL(c.req.url).origin),
+    realm: query.output.wtrealm,
+    reply: query.output.wreply,
+    email: FAKE_WSFED_EMAIL,
+    tokenType: query.output.xid_token ?? 'saml2',
+  })
+  const url = new URL(query.output.wreply)
+  url.searchParams.set('wa', 'wsignin1.0')
+  url.searchParams.set('wresult', wresult)
+  if (query.output.wctx) url.searchParams.set('wctx', query.output.wctx)
   return c.redirect(url.toString(), 302)
 }
 
-async function handleWresult(c: Context<XidHonoEnv>): Promise<Response> {
+async function handleCertificate(c: Context<XidHonoEnv>): Promise<Response> {
   requireHarness(c)
-  const state = c.req.query('state') ?? ''
-  const email = consumeFakeWsfedState(state) ?? 'wsfed.user@example.com'
-  return c.json({ wresult: buildFakeWresult(email) }, 200)
+  const signer = await fakeWsfedSigner()
+  return c.json({
+    issuer: fakeWsfedIssuer(new URL(c.req.url).origin),
+    certificateB64: signer.certificateB64,
+  })
 }
 
 const fakeWsfed = new Hono<XidHonoEnv>()
 fakeWsfed.get('/login', handleIdpLogin)
-fakeWsfed.get('/wresult', handleWresult)
+fakeWsfed.get('/certificate', handleCertificate)
 
 export function registerFakeWsfedRoutes(app: Hono<XidHonoEnv>): void {
-  app.route('/test-harness/fake-wsfed', fakeWsfed)
+  app.route(FAKE_WSFED_PATH, fakeWsfed)
 }

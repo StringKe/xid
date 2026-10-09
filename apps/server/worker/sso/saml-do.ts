@@ -101,8 +101,9 @@ export async function consumeAuthnRequestContext(
   return parsed as SamlAuthnRequestContext
 }
 
-// 语义校验独立拒绝 now - skew >= Conditions/@NotOnOrAfter,所以无论 SubjectConfirmationData 的上界多晚,
-// 断言的可接受期都不会超过 Conditions/@NotOnOrAfter + skew;占位保留到这个时刻(按最大 skew 取)即可覆盖。
+// notOnOrAfter 是内核算出的断言可接受期上界:SAML 2.0 取 Conditions 与 SubjectConfirmationData 两个
+// NotOnOrAfter 中较早者(Conditions 缺省时只看后者),SAML 1.1 取 Conditions。两者都要满足才接受,
+// 所以占位保留到这个时刻加最大 skew 即覆盖整个可接受期。
 export function assertionReplayTtlMs(notOnOrAfter: number, now: number): number {
   return notOnOrAfter + MAX_SAML_CLOCK_SKEW_MS - now
 }

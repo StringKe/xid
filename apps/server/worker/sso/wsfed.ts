@@ -1,8 +1,6 @@
 // WS-Federation passive sign-in (enterprise legacy protocol).
-// 生产回调按 RSTR 解析 wresult 并经 @xid-kit/saml 验证断言(wsfed-token.ts);wctx 只与服务器端 flow 比对。
-// dev/test 环境保留假 IdP 的正则解析分支。
+// 回调按 RSTR 解析 wresult 并经 @xid-kit/saml 验证断言(wsfed-token.ts);wctx 只与服务器端 flow 比对。
 
-import { sha256Hex } from '@xid-kit/crypto'
 import { samlAssertionToSso, toAttributeMapping } from './saml-acs-mapping'
 import { verifyWsfedWresult } from './wsfed-token'
 import { Hono } from 'hono'
@@ -11,8 +9,6 @@ import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
 import type { XidHonoEnv } from '../lib/types'
-import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
-import { buildFakeWresult, consumeFakeWsfedState } from '../test-harness/fake-wsfed'
 import {
   completeLegacyLogin,
   legacyConfig,
@@ -24,7 +20,7 @@ import { isAssertionReplay } from './saml-do'
 import { resolveSsoConnectionTenant, resolveSsoFlowTenant, withTenant } from './tenant'
 
 // callback 的 wresult/wctx 可来自 query 或 POST form,形状同款。
-// wresult 是 base64 XML,上限 256KB(schema 层拒超大 payload,与 saml.ts ACS 同约束)。
+// wresult 是 RSTR XML 原文,上限 256KB(schema 层拒超大 payload,与 saml.ts ACS 同约束)。
 const wsfedCallbackShapeSchema = v.object({
   wresult: v.optional(v.pipe(v.string(), v.maxLength(256 * 1024))),
   wctx: v.optional(v.string()),
@@ -93,92 +89,45 @@ async function consumeWsfedFlow(env: Env, wctx: string): Promise<WsfedFlow | nul
   }
 }
 
-function decodeWresult(wresult: string): string {
-  try {
-    return atob(wresult.replace(/\s/g, ''))
-  } catch {
-    return wresult
-  }
-}
-
-function profileFromRegex(xml: string): LegacyProfile | null {
-  const email =
-    /<(?:saml:)?Attribute[^>]*Name="(?:email|mail|emailaddress)"[^>]*>[\s\S]*?<(?:saml:)?AttributeValue[^>]*>([^<]+)/i.exec(
-      xml,
-    )?.[1] ?? null
-  const nameId =
-    /<(?:saml:)?NameID[^>]*>([^<]+)<\/(?:saml:)?NameID>/i.exec(xml)?.[1] ?? email ?? null
-  if (!nameId) return null
-  const firstName =
-    /<(?:saml:)?Attribute[^>]*Name="(?:firstName|givenname)"[^>]*>[\s\S]*?<(?:saml:)?AttributeValue[^>]*>([^<]+)/i.exec(
-      xml,
-    )?.[1] ?? null
-  const lastName =
-    /<(?:saml:)?Attribute[^>]*Name="(?:lastName|surname)"[^>]*>[\s\S]*?<(?:saml:)?AttributeValue[^>]*>([^<]+)/i.exec(
-      xml,
-    )?.[1] ?? null
-  return {
-    idpId: nameId,
-    email,
-    emailVerified: email !== null,
-    firstName,
-    lastName,
-    groups: [],
-    customAttributes: { protocol: 'wsfed' },
-  }
-}
-
-async function parseWsfedProfileFromWresult(input: {
-  c: Context<XidHonoEnv>
+// wresult 是 RSTR 的 XML 原文(WS-Federation 1.2 第 13 节),dev/test 与生产走同一条验证路径。
+async function verifyWresultProfile(input: {
   connection: LegacyConnection
   wresult: string
   connectionId: string
-}): Promise<VerifiedWsfedResult | null> {
-  const { c, connection, wresult, connectionId } = input
-  const xml = decodeWresult(wresult)
-
-  if (!isDevOrTestEnvironment(c.env)) {
-    const certs = connection.idpCertificates ?? []
-    if (certs.length === 0) {
-      throw new AppError('signature_invalid', { longMessage: 'wsfed_idp_certificates_missing' })
-    }
-    const config = legacyConfig(connection)
-    const realm = config.wsfedRealm?.trim()
-    const reply = config.wsfedReplyUrl?.replace('{connectionId}', encodeURIComponent(connectionId))
-    if (!realm || !reply) {
-      throw new AppError('internal_error', { longMessage: 'wsfed_connection_misconfigured' })
-    }
-    const verified = await verifyWsfedWresult(xml, {
-      idpCertificatesB64: certs,
-      expectedIssuer: connection.idpEntityId ?? '',
-      realm,
-      replyUrl: reply,
-      clockSkewToleranceMs: connection.samlClockSkewMs,
-      attributeMapping: toAttributeMapping(connection.attributeMapping),
-    })
-    // 与 SAML ACS 同一映射:email 可信度交给 JIT 按 org 已验证域名判断,不把「有 email」当已验证。
-    const assertion = samlAssertionToSso(connection, verified.subject, verified.attributes)
-    return {
-      profile: {
-        idpId: assertion.idpId,
-        email: assertion.email,
-        emailVerified: false,
-        firstName: assertion.firstName,
-        lastName: assertion.lastName,
-        groups: assertion.groups,
-        customAttributes: { protocol: 'wsfed' },
-      },
-      assertionId: verified.assertionId,
-      notOnOrAfter: verified.notOnOrAfter,
-    }
+}): Promise<VerifiedWsfedResult> {
+  const { connection, wresult, connectionId } = input
+  const certs = connection.idpCertificates ?? []
+  if (certs.length === 0) {
+    throw new AppError('signature_invalid', { longMessage: 'wsfed_idp_certificates_missing' })
   }
-
-  const profile = profileFromRegex(xml)
-  if (!profile) return null
+  const config = legacyConfig(connection)
+  const realm = config.wsfedRealm?.trim()
+  const reply = config.wsfedReplyUrl?.replace('{connectionId}', encodeURIComponent(connectionId))
+  if (!realm || !reply) {
+    throw new AppError('internal_error', { longMessage: 'wsfed_connection_misconfigured' })
+  }
+  const verified = await verifyWsfedWresult(wresult, {
+    idpCertificatesB64: certs,
+    expectedIssuer: connection.idpEntityId ?? '',
+    realm,
+    replyUrl: reply,
+    clockSkewToleranceMs: connection.samlClockSkewMs,
+    attributeMapping: toAttributeMapping(connection.attributeMapping),
+  })
+  // 与 SAML ACS 同一映射:email 可信度交给 JIT 按 org 已验证域名判断,不把「有 email」当已验证。
+  const assertion = samlAssertionToSso(connection, verified.subject, verified.attributes)
   return {
-    profile,
-    assertionId: `dev-${await sha256Hex(xml)}`,
-    notOnOrAfter: Date.now() + OAUTH_FLOW_STATE_TTL_MS,
+    profile: {
+      idpId: assertion.idpId,
+      email: assertion.email,
+      emailVerified: false,
+      firstName: assertion.firstName,
+      lastName: assertion.lastName,
+      groups: assertion.groups,
+      customAttributes: { protocol: 'wsfed' },
+    },
+    assertionId: verified.assertionId,
+    notOnOrAfter: verified.notOnOrAfter,
   }
 }
 
@@ -210,10 +159,6 @@ async function handleWsfedLogin(c: Context<XidHonoEnv>): Promise<Response> {
     url.searchParams.set('wtrealm', realm)
     url.searchParams.set('wreply', reply)
     url.searchParams.set('wctx', state)
-    if (isDevOrTestEnvironment(c.env)) {
-      url.searchParams.set('xid_fake_wsfed', '1')
-      url.searchParams.set('xid_state', state)
-    }
     return c.redirect(url.toString(), 302)
   })
 }
@@ -240,14 +185,6 @@ async function handleWsfedCallback(c: Context<XidHonoEnv>): Promise<Response> {
     wresult = formShape.output.wresult ?? wresult
     wctx = formShape.output.wctx ?? wctx
   }
-  if (
-    (!wresult || typeof wresult !== 'string') &&
-    isDevOrTestEnvironment(c.env) &&
-    typeof wctx === 'string'
-  ) {
-    const email = consumeFakeWsfedState(wctx)
-    if (email) wresult = buildFakeWresult(email)
-  }
   if (typeof wresult !== 'string' || !wresult) {
     throw new AppError('invalid_request', { longMessage: 'wresult_required' })
   }
@@ -271,15 +208,7 @@ async function handleWsfedCallback(c: Context<XidHonoEnv>): Promise<Response> {
         longMessage: 'wsfed_idp_initiated_disabled',
       })
     }
-    const assertion = await parseWsfedProfileFromWresult({
-      c,
-      connection,
-      wresult,
-      connectionId,
-    })
-    if (!assertion) {
-      throw new AppError('signature_invalid', { longMessage: 'wsfed_wresult_invalid' })
-    }
+    const assertion = await verifyWresultProfile({ connection, wresult, connectionId })
     if (await isAssertionReplay(c, connectionId, assertion.assertionId, assertion.notOnOrAfter)) {
       throw new AppError('replay_detected', { httpStatus: 403 })
     }
