@@ -2147,6 +2147,158 @@ describe('social callback continue', () => {
   })
 })
 
+describe('social email trust', () => {
+  function unverifiedProfile(email: string | null) {
+    return {
+      idpUserId: 'github-123',
+      email,
+      emailVerified: false,
+      name: 'Unverified User',
+      profileRaw: {},
+    }
+  }
+
+  it('signs in an already linked identity whose provider email is unverified under the default policy', async () => {
+    vi.mocked(resolveProfile).mockResolvedValueOnce(unverifiedProfile('user@contoso.example'))
+    vi.mocked(createTenantDb).mockReturnValue(
+      existingIdentityCallbackDb({
+        id: 'identity-1',
+        userId: 'user-1',
+        revokedAt: null,
+      }) as unknown as ReturnType<typeof createTenantDb>,
+    )
+    const app = await makeGithubPolicyApp({})
+
+    const res = await app.request(
+      '/auth/github/callback?code=authcode&state=valid-state',
+      { method: 'GET' },
+      continueCallbackEnv('/account'),
+    )
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe('https://test.xid.dev/account')
+  })
+
+  it('signs in a linked identity without trusted email even when an allowlist is configured', async () => {
+    vi.mocked(resolveProfile).mockResolvedValueOnce(unverifiedProfile(null))
+    vi.mocked(createTenantDb).mockReturnValue(
+      existingIdentityCallbackDb({
+        id: 'identity-1',
+        userId: 'user-1',
+        revokedAt: null,
+      }) as unknown as ReturnType<typeof createTenantDb>,
+    )
+    const app = await makeGithubPolicyApp({ provider: { allowedEmailDomains: ['example.com'] } })
+
+    const res = await app.request(
+      '/auth/github/callback?code=authcode&state=valid-state',
+      { method: 'GET' },
+      continueCallbackEnv('/account'),
+    )
+
+    expect(res.status).toBe(302)
+  })
+
+  it.each([
+    {
+      label: 'provider',
+      policy: { provider: { requireVerifiedEmail: false, allowedEmailDomains: ['example.com'] } },
+      reason: 'provider_email_domain_not_allowed',
+    },
+    {
+      label: 'tenant',
+      policy: {
+        provider: { requireVerifiedEmail: false },
+        hostedAuth: { allowedEmailDomains: ['example.com'] },
+      },
+      reason: 'email_domain_not_allowed',
+    },
+  ])(
+    'rejects user creation without email when a $label allowlist is configured',
+    async ({ policy, reason }) => {
+      vi.mocked(resolveProfile).mockResolvedValueOnce(unverifiedProfile(null))
+      const auditSend = vi.fn()
+      const env = githubCallbackEnv(auditSend)
+      const db = {
+        userIdentities: { findOne: vi.fn().mockResolvedValue(undefined) },
+        userEmails: { findOne: vi.fn().mockResolvedValue(undefined) },
+        users: { insert: vi.fn() },
+      }
+      vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+      vi.mocked(provisionAccountAtomically).mockClear()
+      const app = await makeGithubPolicyApp(policy)
+
+      const res = await app.request(
+        '/auth/github/callback?code=authcode&state=valid-state',
+        { method: 'GET' },
+        env,
+      )
+
+      expect(res.status).toBe(401)
+      expect(provisionAccountAtomically).not.toHaveBeenCalled()
+      expect(auditSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'auth.policy_denied',
+          payload: expect.objectContaining({ action: 'user_creation', reason }),
+        }),
+      )
+    },
+  )
+
+  it('rejects user creation when the email is in an allowed domain but unverified', async () => {
+    vi.mocked(resolveProfile).mockResolvedValueOnce(unverifiedProfile('new@example.com'))
+    const env = githubCallbackEnv()
+    const db = {
+      userIdentities: { findOne: vi.fn().mockResolvedValue(undefined) },
+      userEmails: { findOne: vi.fn().mockResolvedValue(undefined) },
+      users: { insert: vi.fn() },
+    }
+    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+    vi.mocked(provisionAccountAtomically).mockClear()
+    const app = await makeGithubPolicyApp({
+      provider: { requireVerifiedEmail: false, allowedEmailDomains: ['example.com'] },
+    })
+
+    const res = await app.request(
+      '/auth/github/callback?code=authcode&state=valid-state',
+      { method: 'GET' },
+      env,
+    )
+
+    expect(res.status).toBe(401)
+    expect(provisionAccountAtomically).not.toHaveBeenCalled()
+  })
+
+  it('creates a user with an unverified email when requireVerifiedEmail is off and no allowlist exists', async () => {
+    vi.mocked(resolveProfile).mockResolvedValueOnce(unverifiedProfile('new@contoso.example'))
+    const env = githubCallbackEnv()
+    vi.mocked(createTenantDb).mockReturnValue(
+      existingIdentityCallbackDb(
+        undefined as unknown as Record<string, unknown>,
+      ) as unknown as ReturnType<typeof createTenantDb>,
+    )
+    vi.mocked(provisionAccountAtomically).mockClear()
+    const app = await makeGithubPolicyApp({ provider: { requireVerifiedEmail: false } })
+
+    const res = await app.request(
+      '/auth/github/callback?code=authcode&state=valid-state',
+      { method: 'GET' },
+      env,
+    )
+
+    expect(res.status).toBe(302)
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({
+        primaryEmail: expect.objectContaining({
+          email: 'new@contoso.example',
+          verified: false,
+          verificationStatus: 'unverified',
+        }),
+      }),
+    )
+  })
+})
+
 describe('social identity revival', () => {
   it('断开过的社交账号以已验证 email 再次登录时复活原行而不是再 INSERT', async () => {
     const revoked = { id: 'identity-old', userId: 'user-old', revokedAt: new Date(1) }

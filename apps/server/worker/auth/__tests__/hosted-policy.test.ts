@@ -179,7 +179,24 @@ describe('assertSocialProviderAllowed', () => {
     ).toThrow(expect.objectContaining({ policyReason: 'provider_not_configured' }))
   })
 
-  it('denies when provider requires verified email', () => {
+  it('denies user creation when provider requires verified email', () => {
+    const tenant = makeTenant(
+      {},
+      { policy: { socialProviders: { github: githubProvider({ requireVerifiedEmail: true }) } } },
+    )
+    expect(() =>
+      assertSocialProviderAllowed({
+        tenant,
+        provider: 'github',
+        action: 'user_creation',
+        email: 'user@acme.com',
+        emailVerified: false,
+        hasSecret: () => true,
+      }),
+    ).toThrow(expect.objectContaining({ policyReason: 'provider_email_unverified' }))
+  })
+
+  it('allows login of a linked identity with an unverified email when verified email is required', () => {
     const tenant = makeTenant(
       {},
       { policy: { socialProviders: { github: githubProvider({ requireVerifiedEmail: true }) } } },
@@ -193,7 +210,81 @@ describe('assertSocialProviderAllowed', () => {
         emailVerified: false,
         hasSecret: () => true,
       }),
-    ).toThrow(expect.objectContaining({ policyReason: 'provider_email_unverified' }))
+    ).not.toThrow()
+  })
+
+  it('denies user creation without email when the provider allowlist is set and verification is off', () => {
+    const tenant = makeTenant(
+      {},
+      {
+        policy: {
+          socialProviders: {
+            github: githubProvider({
+              requireVerifiedEmail: false,
+              allowedEmailDomains: ['acme.com'],
+            }),
+          },
+        },
+      },
+    )
+    expect(() =>
+      assertSocialProviderAllowed({
+        tenant,
+        provider: 'github',
+        action: 'user_creation',
+        email: null,
+        emailVerified: false,
+        hasSecret: () => true,
+      }),
+    ).toThrow(expect.objectContaining({ policyReason: 'provider_email_domain_not_allowed' }))
+  })
+
+  it('denies user creation when an allowed-domain email is unverified', () => {
+    const tenant = makeTenant(
+      {},
+      {
+        policy: {
+          hostedAuth: { ...DEFAULT_HOSTED_AUTH_POLICY, allowedEmailDomains: ['acme.com'] },
+          socialProviders: { github: githubProvider({ requireVerifiedEmail: false }) },
+        },
+      },
+    )
+    expect(() =>
+      assertSocialProviderAllowed({
+        tenant,
+        provider: 'github',
+        action: 'user_creation',
+        email: 'user@acme.com',
+        emailVerified: false,
+        hasSecret: () => true,
+      }),
+    ).toThrow(expect.objectContaining({ policyReason: 'email_domain_not_allowed' }))
+  })
+
+  it('applies the blocklist to an unverified claimed email', () => {
+    const tenant = makeTenant(
+      {},
+      {
+        policy: {
+          socialProviders: {
+            github: githubProvider({
+              requireVerifiedEmail: false,
+              blockedEmailDomains: ['blocked.test'],
+            }),
+          },
+        },
+      },
+    )
+    expect(() =>
+      assertSocialProviderAllowed({
+        tenant,
+        provider: 'github',
+        action: 'login',
+        email: 'user@blocked.test',
+        emailVerified: false,
+        hasSecret: () => true,
+      }),
+    ).toThrow(expect.objectContaining({ policyReason: 'provider_email_domain_blocked' }))
   })
 
   it('denies provider-blocked email domain', () => {

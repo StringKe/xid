@@ -332,7 +332,7 @@ describe('resolveProfile OIDC providers', () => {
     vi.unstubAllGlobals()
   })
 
-  it('Microsoft id_token 验签后提取 OIDC profile email claims', async () => {
+  it('Microsoft id_token 忽略 email_verified,没有 xms_edov 时 email 按未验证处理', async () => {
     const issuer = 'https://login.microsoftonline.com/consumers/v2.0'
     const jwksUri = 'https://login.microsoftonline.com/consumers/discovery/v2.0/keys'
     const clientId = 'microsoft-client'
@@ -344,6 +344,41 @@ describe('resolveProfile OIDC providers', () => {
       claims: {
         email: 'user@outlook.com',
         email_verified: true,
+        name: 'Microsoft User',
+      },
+    })
+    const env = { CACHE: makeKv() } as unknown as Env
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(jwks), { status: 200 })),
+    )
+
+    const profile = await resolveProfile({
+      env,
+      provider: 'microsoft',
+      config: makeConfig({ issuer, jwksUri, clientId }),
+      tokens: { accessToken: 'access-token', refreshToken: null, idToken },
+      nonce,
+    })
+
+    expect(profile).toMatchObject({ email: 'user@outlook.com', emailVerified: false })
+
+    vi.unstubAllGlobals()
+  })
+
+  it('Microsoft id_token 带 xms_edov=true 时 email 视为已验证,并规范化大小写', async () => {
+    const issuer = 'https://login.microsoftonline.com/consumers/v2.0'
+    const jwksUri = 'https://login.microsoftonline.com/consumers/discovery/v2.0/keys'
+    const clientId = 'microsoft-client'
+    const nonce = 'microsoft-nonce'
+    const { idToken, jwks } = await setupProviderJwt({
+      issuer,
+      audience: clientId,
+      nonce,
+      claims: {
+        email: ' User@Outlook.com ',
+        email_verified: undefined,
+        xms_edov: true,
         name: 'Microsoft User',
       },
     })

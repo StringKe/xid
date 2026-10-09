@@ -18,6 +18,8 @@ export type ProviderProfile = {
   email: string | null
   emailVerified: boolean
   name: string | null
+  givenName?: string | null
+  familyName?: string | null
   externalId?: string | null
   profileRaw: Record<string, unknown>
 }

@@ -111,6 +111,7 @@ export async function linkOrCreateUser(ctx: LinkContext): Promise<string> {
   const { idpUserId, email, emailVerified } = profile
 
   // 分支 A:active SocialConnection -> 直接登录,刷新 token。断开过的连接不在此命中。
+  // 已绑定身份按 provider_user_id 识别,不要求 email 已验证(Microsoft 通常没有可信 email)。
   const existingIdentity = await db.userIdentities.findOne(
     and(
       eq(schema.userIdentities.provider, provider),
@@ -152,11 +153,30 @@ export async function linkOrCreateUser(ctx: LinkContext): Promise<string> {
   return createNewUser(ctx)
 }
 
+function profileNames(profile: ProviderProfile): {
+  firstName: string | null
+  lastName: string | null
+  displayName: string | null
+} {
+  if (profile.givenName || profile.familyName) {
+    const firstName = profile.givenName ?? null
+    const lastName = profile.familyName ?? null
+    const joined = [firstName, lastName].filter(Boolean).join(' ')
+    return { firstName, lastName, displayName: profile.name ?? (joined || null) }
+  }
+  const nameParts = (profile.name ?? '').split(' ')
+  return {
+    firstName: nameParts[0] || null,
+    lastName: nameParts.slice(1).join(' ') || null,
+    displayName: profile.name ?? null,
+  }
+}
+
 // 新建 user + 主邮箱 + SocialConnection(分支 D),记 user.created + connection.linked 审计。
 async function createNewUser(ctx: LinkContext): Promise<string> {
   const { c, tenant, provider, profile } = ctx
   const userId = createPersistedId('user')
-  const nameParts = (profile.name ?? '').split(' ')
+  const names = profileNames(profile)
   const emailId = profile.email ? crypto.randomUUID() : null
   const fields = await identityFields(ctx)
   const now = new Date()
@@ -167,9 +187,7 @@ async function createNewUser(ctx: LinkContext): Promise<string> {
       id: userId,
       externalId: profile.externalId ?? null,
       primaryEmailId: emailId,
-      firstName: nameParts[0] ?? null,
-      lastName: nameParts.slice(1).join(' ') || null,
-      displayName: profile.name ?? null,
+      ...names,
       profileCompletionStatus: 'incomplete',
       provisionedBy: null,
       isNewUser: true,

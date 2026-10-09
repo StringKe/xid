@@ -1,14 +1,9 @@
 // social-profile.ts:Social provider 的 profile 解析(01 章 3)。
-// GitHub REST profile、OIDC id_token 验签(provider JWKS,KV 缓存)、非 OIDC provider 的 userinfo。
+// GitHub REST profile、OIDC id_token 验签(provider JWKS 见 social-jwks.ts)、非 OIDC provider 的 userinfo。
 
-import { importJwkForVerify, verifyJwt } from '@xid-kit/crypto'
-import type { PublicJwk, VerifyKeySet } from '@xid-kit/crypto'
 import { AppError } from '../lib/errors'
-import { SOCIAL_JWKS_CACHE_TTL_SEC } from '../lib/ttl'
-import { isPublicHttpsUrl } from '../lib/validate'
-import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import { readBoundedJson } from '../sso/bounded-json'
-import { HostedAuthPolicyError } from './hosted-policy'
+import { verifyWithProviderJwks } from './social-jwks'
 import {
   MICROSOFT_TENANT_ISSUER_PLACEHOLDER,
   SOCIAL_PROVIDER_TIMEOUT_MS,
@@ -19,56 +14,6 @@ import type { Provider, ProviderConfig, ProviderProfile, TokenResponse } from '.
 const ENTRA_TENANT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const USERINFO_MAX_BYTES = 64 * 1024
 const GITHUB_USER_ENDPOINT = 'https://api.github.com/user'
-
-// JWKS 响应中的 key(provider 侧,含 kid/alg/kty/use)。
-type ProviderJwk = JsonWebKey & { kid?: string; alg?: string; kty?: string; use?: string }
-
-type VerifyAlg = 'ES256' | 'RS256' | 'PS256'
-
-// Entra 等 provider 的 JWKS key 不带 alg:按 kty/crv 推断。verifyJwt 仍要求 token header alg
-// 与 key alg 一致,推断不会放开 none / HS* 或算法混淆。
-function providerKeyAlg(key: ProviderJwk): VerifyAlg | null {
-  if (key.use !== undefined && key.use !== 'sig') return null
-  if (key.alg !== undefined) {
-    return key.alg === 'ES256' || key.alg === 'RS256' || key.alg === 'PS256' ? key.alg : null
-  }
-  if (key.kty === 'RSA') return 'RS256'
-  if (key.kty === 'EC' && key.crv === 'P-256') return 'ES256'
-  return null
-}
-
-// JWKS 拉取单点校验:只拿到 jwksUri 字符串,单独挡一次(同 assertPublicProviderEndpoints 语义)。
-function assertPublicJwksUri(jwksUri: string, allowNonPublic = false): void {
-  if (allowNonPublic) return
-  if (!isPublicHttpsUrl(jwksUri)) {
-    throw new HostedAuthPolicyError('provider_not_configured', 'invalid_request')
-  }
-}
-
-// 拉 provider JWKS 并构建 VerifyKeySet(KV 缓存 TTL 1h,见 cloudflare-bindings rule)。
-async function fetchProviderVerifyKeys(env: Env, jwksUri: string): Promise<VerifyKeySet> {
-  assertPublicJwksUri(jwksUri, isDevOrTestEnvironment(env))
-  const cacheKey = `provider_jwks:${jwksUri}`
-  let raw = await env.CACHE.get(cacheKey)
-  if (!raw) {
-    const res = await fetch(jwksUri, { signal: AbortSignal.timeout(SOCIAL_PROVIDER_TIMEOUT_MS) })
-    if (!res.ok) throw new AppError('invalid_credentials')
-    raw = await res.text()
-    await env.CACHE.put(cacheKey, raw, { expirationTtl: SOCIAL_JWKS_CACHE_TTL_SEC })
-  }
-  const jwks = JSON.parse(raw) as { keys: ProviderJwk[] }
-  const usable = jwks.keys.flatMap((key) => {
-    const alg = providerKeyAlg(key)
-    return key.kid && alg ? [{ key, kid: key.kid, alg }] : []
-  })
-  const keys = await Promise.all(
-    usable.map(async ({ key, kid, alg }) => {
-      const jwk: PublicJwk = { ...key, kid, use: 'sig', alg }
-      return { kid, alg, publicKey: await importJwkForVerify(jwk) }
-    }),
-  )
-  return { keys }
-}
 
 function issuerTemplateMatches(
   provider: Provider,
@@ -98,10 +43,13 @@ async function verifyOidcIdToken(opts: VerifyIdTokenInput): Promise<Record<strin
   if (!config.jwksUri || (!isGithubEmu && !config.issuer)) {
     throw new AppError('invalid_credentials')
   }
-  const verifyKeys = await fetchProviderVerifyKeys(env, config.jwksUri)
-  const verified = await verifyJwt(idToken, verifyKeys, { expectedAudience: config.clientId })
-  if (!verified.ok) throw new AppError('invalid_credentials')
-  const claims = verified.value.payload as Record<string, unknown>
+  const verified = await verifyWithProviderJwks({
+    env,
+    jwksUri: config.jwksUri,
+    idToken,
+    audience: config.clientId,
+  })
+  const claims = verified.payload as Record<string, unknown>
   const issuerValid = isGithubEmu
     ? isGithubEmuIssuer(typeof claims['iss'] === 'string' ? claims['iss'] : '', config)
     : issuerTemplateMatches(provider, config.issuer ?? '', claims)
@@ -116,13 +64,7 @@ function readClaimString(claims: Record<string, unknown>, key: string): string |
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-type GitHubEmail = {
-  email: string
-  primary: true
-  verified: true
-}
-
-function primaryVerifiedGitHubEmail(value: unknown): GitHubEmail | null {
+function primaryVerifiedGitHubEmail(value: unknown): string | null {
   if (!Array.isArray(value)) throw new AppError('internal_error')
   for (const candidate of value) {
     if (
@@ -132,9 +74,7 @@ function primaryVerifiedGitHubEmail(value: unknown): GitHubEmail | null {
       (candidate as Record<string, unknown>)['verified'] === true
     ) {
       const email = (candidate as Record<string, unknown>)['email']
-      if (typeof email === 'string' && email.trim().length > 0) {
-        return { email: email.trim(), primary: true, verified: true }
-      }
+      if (typeof email === 'string' && email.trim().length > 0) return email
     }
   }
   return null
@@ -169,29 +109,37 @@ async function fetchGitHubProfile(
 
   return {
     idpUserId,
-    email: primaryEmail?.email ?? null,
+    email: primaryEmail,
     emailVerified: primaryEmail !== null,
     name: (user['name'] as string | null) ?? null,
     profileRaw: user,
   }
 }
 
+// Microsoft 不发 email_verified,email 声明可由租户管理员随意设置。只有 xms_edov 可选声明为 true
+// (邮箱域名属于用户所在 Entra 租户且已验证)才算可信。
+function oidcEmailVerified(provider: Provider, claims: Record<string, unknown>): boolean {
+  if (provider === 'microsoft') return claims['xms_edov'] === true
+  const raw = claims['email_verified']
+  return raw === true || raw === 'true' || raw === 1
+}
+
 // 标准 OIDC id_token claims 提取(Google/Microsoft/Apple)。
 function extractOidcProfile(
+  provider: Provider,
   claims: Record<string, unknown>,
   externalIdClaim?: string,
 ): ProviderProfile {
-  const emailVerifiedRaw = claims['email_verified']
-  const emailVerified =
-    emailVerifiedRaw === true || emailVerifiedRaw === 'true' || emailVerifiedRaw === 1
   const externalIdKey = externalIdClaim ?? 'external_id'
   const externalId = readClaimString(claims, externalIdKey) ?? readClaimString(claims, 'sub')
 
   return {
     idpUserId: String(claims['sub']),
-    email: (claims['email'] as string | null) ?? null,
-    emailVerified,
-    name: (claims['name'] as string | null) ?? null,
+    email: readClaimString(claims, 'email'),
+    emailVerified: oidcEmailVerified(provider, claims),
+    name: readClaimString(claims, 'name'),
+    givenName: readClaimString(claims, 'given_name'),
+    familyName: readClaimString(claims, 'family_name'),
     externalId,
     profileRaw: claims,
   }
@@ -233,14 +181,20 @@ async function fetchUserInfoProfile(
     email: readClaimString(claims, 'email'),
     emailVerified: claims['email_verified'] === true,
     name: readClaimString(claims, 'name'),
+    givenName: readClaimString(claims, 'given_name'),
+    familyName: readClaimString(claims, 'family_name'),
     externalId: readClaimString(claims, externalIdKey) ?? sub,
     profileRaw: claims,
   }
 }
 
-// 取 provider profile:GitHub 走 REST profile;OIDC provider 必须返回 id_token 并验签;
-// 只有未配置 issuer / JWKS 的非 OIDC provider 走 userinfo,避免 OIDC 配置被降级跳过 nonce 绑定。
-export async function resolveProfile(opts: {
+// 与其他登录方式一致:trim + 小写后再比较和存储,空串视为没有 email。
+function normalizeProfileEmail(profile: ProviderProfile): ProviderProfile {
+  const email = profile.email?.trim().toLowerCase() || null
+  return { ...profile, email, emailVerified: email !== null && profile.emailVerified }
+}
+
+async function resolveRawProfile(opts: {
   env: Env
   provider: Provider
   config: ProviderConfig
@@ -262,5 +216,17 @@ export async function resolveProfile(opts: {
     config,
     expectedNonce: nonce,
   })
-  return extractOidcProfile(claims, config.externalIdClaim)
+  return extractOidcProfile(provider, claims, config.externalIdClaim)
+}
+
+// 取 provider profile:GitHub 走 REST profile;OIDC provider 必须返回 id_token 并验签;
+// 只有未配置 issuer / JWKS 的非 OIDC provider 走 userinfo,避免 OIDC 配置被降级跳过 nonce 绑定。
+export async function resolveProfile(opts: {
+  env: Env
+  provider: Provider
+  config: ProviderConfig
+  tokens: TokenResponse
+  nonce: string
+}): Promise<ProviderProfile> {
+  return normalizeProfileEmail(await resolveRawProfile(opts))
 }

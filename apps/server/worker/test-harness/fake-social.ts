@@ -81,6 +81,11 @@ async function issueIdToken(
   const material = await keyMaterialFor(provider)
   const kid = material.jwk.kid ?? `fake-${provider}`
   const now = Math.floor(Date.now() / 1000)
+  // Microsoft 不发 email_verified;应用配置了 xms_edov 可选声明时才带域名已验证信号。
+  const emailProof =
+    provider === 'microsoft'
+      ? { xms_edov: profile.email_verified }
+      : { email_verified: profile.email_verified }
   return signJwt(
     {
       header: { alg: 'ES256', kid },
@@ -89,8 +94,10 @@ async function issueIdToken(
         aud: 'fake-social-client',
         sub: profile.sub,
         email: profile.email,
-        email_verified: profile.email_verified,
+        ...emailProof,
         name: profile.name,
+        ...(profile.given_name ? { given_name: profile.given_name } : {}),
+        ...(profile.family_name ? { family_name: profile.family_name } : {}),
         ...(nonce ? { nonce } : {}),
         iat: now,
         exp: now + 300,
