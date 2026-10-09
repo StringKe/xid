@@ -250,7 +250,9 @@ export type OutboundSamlApp = {
 export type CreateOutboundSamlAppInput = {
   preset?: string
   sp_entity_id?: string
-  acs_url: string
+  acs_url?: string
+  sp_metadata_url?: string
+  sp_metadata_xml?: string
   slo_url?: string | null
   slo_binding?: 'redirect' | 'post'
   sp_certificates?: string[]

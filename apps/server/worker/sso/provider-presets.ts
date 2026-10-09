@@ -306,6 +306,7 @@ export const OUTBOUND_SAAS_PRESETS: Record<OutboundSaasPresetKey, OutboundSaasPr
       email: WS_CLAIMS.email,
       firstName: WS_CLAIMS.firstName,
       lastName: WS_CLAIMS.lastName,
+      userId: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
     },
     nameIdFormat: EMAIL_ADDRESS_NAMEID,
     runbookPath: 'docs/protocols/runbooks/atlassian-downstream-saml.md',

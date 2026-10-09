@@ -105,13 +105,6 @@ const EMPTY_FORM: AppForm = {
   spCertificates: '',
 }
 
-// 服务端的 sp_metadata_url / sp_metadata_xml 导入:表单留空的字段由 metadata 补齐。
-type OutboundAppPayload = Omit<CreateOutboundSamlAppInput, 'acs_url'> & {
-  acs_url?: string
-  sp_metadata_url?: string
-  sp_metadata_xml?: string
-}
-
 const FIELD_PARAMS = {
   metadata: ['sp_metadata_url', 'sp_metadata_xml'],
   spEntityId: ['sp_entity_id'],
@@ -141,7 +134,7 @@ function isImporting(form: AppForm): boolean {
   return false
 }
 
-function toPayload(form: AppForm): OutboundAppPayload {
+function toPayload(form: AppForm): CreateOutboundSamlAppInput {
   const certificates = parseCertificates(form.spCertificates)
   const base = {
     preset: form.preset || undefined,
@@ -235,7 +228,7 @@ export function OutboundAppDialog({
     const problem = validate()
     setFormError(problem)
     if (problem) return
-    const payload = toPayload(form) as CreateOutboundSamlAppInput
+    const payload = toPayload(form)
     if (app) {
       update.mutate(
         { appId: app.id, payload },
