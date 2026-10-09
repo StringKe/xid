@@ -92,6 +92,9 @@ function userAttributes(
   if (firstName) out[readMappingString(mapping, 'firstName', 'firstName')] = firstName
   if (lastName) out[readMappingString(mapping, 'lastName', 'lastName')] = lastName
   if (displayName) out[readMappingString(mapping, 'displayName', 'displayName')] = displayName
+  // 只在映射显式配置 userId 时发出 XID user id,供需要不可变 ID 的 SP(如 Atlassian)使用。
+  const userIdAttribute = readMappingString(mapping, 'userId', '')
+  if (userIdAttribute) out[userIdAttribute] = user.id
   return out
 }
 

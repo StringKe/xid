@@ -324,6 +324,34 @@ describe('outbound SAML ForceAuthn', () => {
   })
 })
 
+describe('outbound SAML attribute mapping', () => {
+  function sentAttributes(): Record<string, unknown> {
+    const input = signSamlResponseMock.mock.calls[0]?.[0] as { attributes: Record<string, unknown> }
+    return input.attributes
+  }
+
+  it('sends the XID user id under the attribute named by the userId mapping key', async () => {
+    spFindOne.mockResolvedValue({
+      ...SP,
+      attributeMapping: {
+        userId: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+      },
+    })
+
+    await sso(makeApp(session(new Date())), makeEnv())
+
+    expect(sentAttributes()).toMatchObject({
+      'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name': 'user_1',
+    })
+  })
+
+  it('does not send the user id when the mapping has no userId key', async () => {
+    await sso(makeApp(session(new Date())), makeEnv())
+
+    expect(Object.values(sentAttributes())).not.toContain('user_1')
+  })
+})
+
 describe('outbound SAML NameIDPolicy', () => {
   it('returns InvalidNameIDPolicy for an unsupported requested format', async () => {
     authnRequest({
