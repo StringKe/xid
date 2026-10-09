@@ -4,7 +4,10 @@ import {
   prepareNotificationOutboxInsert,
   redeliverPendingNotificationOutbox,
   executeNotificationDelivery,
+  deliveryRetryDelaySeconds,
   NotificationProviderError,
+  PROVIDER_SEND_ATTEMPT_LIMIT,
+  providerHttpFailure,
   type NotificationDeliveryInput,
 } from '../notification-delivery-state'
 import { recordNotificationSent } from '../notification-audit'
@@ -49,6 +52,13 @@ function makeEnv(options: { failAuditStateWriteOnce?: boolean } = {}): {
       const row = rows.get(keyFor(args[5], args[6]))
       if (row?.status !== args[7]) return { meta: { changes: 0 } }
       row.status = String(args[0])
+      row.leaseUntil = null
+      return { meta: { changes: 1 } }
+    }
+    if (query.includes("SET status = 'pending', lease_until = NULL")) {
+      const row = rows.get(keyFor(args[2], args[3]))
+      if (row?.status !== 'sending') return { meta: { changes: 0 } }
+      row.status = 'pending'
       row.leaseUntil = null
       return { meta: { changes: 1 } }
     }
@@ -261,6 +271,58 @@ describe('notification delivery state', () => {
       executeNotificationDelivery(env, input, { send, recordAudit: vi.fn() }),
     ).resolves.toBe('ack')
     expect(send).toHaveBeenCalledOnce()
+  })
+
+  it('provider 429 回到 pending 并按 Retry-After 重试，下次投递再次调用 provider', async () => {
+    const { env, rows, failures } = makeEnv()
+    const input = makeInput('queue-message-throttled')
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(providerHttpFailure('twilio', 429, '30'))
+      .mockResolvedValueOnce(undefined)
+    const recordAudit = vi.fn().mockResolvedValue(undefined)
+
+    const first = await executeNotificationDelivery(env, input, { send, recordAudit })
+    const statusAfterFirst = rows.get('tenant-1:email:queue-message-throttled')?.status
+    const second = await executeNotificationDelivery(env, input, { send, recordAudit })
+
+    expect(first).toEqual({ providerRetryAfterSeconds: 30 })
+    expect(statusAfterFirst).toBe('pending')
+    expect(second).toBe('ack')
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(failures).toHaveLength(0)
+    expect(rows.get('tenant-1:email:queue-message-throttled')?.status).toBe('delivered')
+  })
+
+  it('provider 5xx 没有 Retry-After 时按尝试次数指数退避', async () => {
+    const { env } = makeEnv()
+    const input = makeInput('queue-message-5xx')
+    const send = vi.fn().mockRejectedValue(providerHttpFailure('infobip', 503))
+
+    const first = await executeNotificationDelivery(env, input, { send, recordAudit: vi.fn() })
+    const second = await executeNotificationDelivery(env, input, { send, recordAudit: vi.fn() })
+
+    expect(first).toEqual({ providerRetryAfterSeconds: 15 })
+    expect(second).toEqual({ providerRetryAfterSeconds: 30 })
+    expect(deliveryRetryDelaySeconds(second as Exclude<typeof second, 'ack'>)).toBe(30)
+  })
+
+  it('可重试失败达到尝试上限后记为失败并 ack', async () => {
+    const { env, rows, failures } = makeEnv()
+    const input = makeInput('queue-message-exhausted')
+    const send = vi.fn().mockRejectedValue(providerHttpFailure('twilio', 429))
+    const results: unknown[] = []
+
+    for (let attempt = 0; attempt < PROVIDER_SEND_ATTEMPT_LIMIT; attempt++) {
+      results.push(await executeNotificationDelivery(env, input, { send, recordAudit: vi.fn() }))
+    }
+
+    expect(results.at(-1)).toBe('ack')
+    expect(results.slice(0, -1).every((result) => typeof result === 'object')).toBe(true)
+    expect(send).toHaveBeenCalledTimes(PROVIDER_SEND_ATTEMPT_LIMIT)
+    expect(rows.get('tenant-1:email:queue-message-exhausted')?.status).toBe('provider_rejected')
+    expect(failures).toHaveLength(1)
+    expect(failures[0]?.[7]).toBe('twilio_429')
   })
 
   it('相同 Queue source id 在 email 和 sms 使用独立状态', async () => {
