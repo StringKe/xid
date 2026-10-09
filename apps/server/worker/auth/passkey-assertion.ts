@@ -91,7 +91,7 @@ export async function verifyPasskeyAssertion(opts: {
   }
 
   await persistSignCount({
-    env: c.env,
+    c,
     tenantId: tenant.tenantId,
     cred: {
       userId: credential.userId,
@@ -100,6 +100,7 @@ export async function verifyPasskeyAssertion(opts: {
     },
     newSignCount: result.value.signCount,
     signCountAnomaly: result.value.signCountAnomaly,
+    backedUp: result.value.credentialBackedUp,
     db,
   })
   return { credential, verification: result.value }

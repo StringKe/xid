@@ -18,3 +18,7 @@ export { verifyEnterpriseAttestation, parseAttestationStatement } from './attest
 export { verifyRegistration } from './verify-registration'
 export type { RegistrationVerificationOptions } from './verify-registration'
 export { verifyAuthentication, detectSignCountAnomaly } from './verify-authentication'
+export type {
+  AuthenticationVerificationInput,
+  StoredPasskeyCredential,
+} from './verify-authentication'

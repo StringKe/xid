@@ -1,9 +1,11 @@
 // assertion 测试向量：合法路径用 Web Crypto 真算，负路径在合法值上单点变异。
 
-import type { StoredCredential, WebAuthnVerificationInput } from '@xid-kit/types'
-
 // 从生产模块 import，避免 fixtures 与克隆检测逻辑漂移。
-import { detectSignCountAnomaly } from '../../verify-authentication'
+import {
+  detectSignCountAnomaly,
+  type AuthenticationVerificationInput as WebAuthnVerificationInput,
+  type StoredPasskeyCredential as StoredCredential,
+} from '../../verify-authentication'
 
 function base64UrlEncode(bytes: Uint8Array): string {
   const base64 = btoa(String.fromCharCode(...bytes))
@@ -102,6 +104,7 @@ export async function buildValidAssertionVector(
     coseAlg: -7,
     signCount: 0,
     aaguid: new Uint8Array(16),
+    backupEligible: false,
   }
 
   return {
@@ -160,6 +163,7 @@ export async function buildOriginTamperedVector(
         coseAlg: -7,
         signCount: 0,
         aaguid: new Uint8Array(16),
+        backupEligible: false,
       },
     },
     expectedErrorCode: 'origin_mismatch',
@@ -205,6 +209,7 @@ export async function buildRpIdHashTamperedVector(
         coseAlg: -7,
         signCount: 0,
         aaguid: new Uint8Array(16),
+        backupEligible: false,
       },
     },
     expectedErrorCode: 'rpid_mismatch',

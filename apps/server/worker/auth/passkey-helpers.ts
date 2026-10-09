@@ -2,12 +2,13 @@
 
 import { base64UrlDecode, base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
-import type { AuthenticatorTransport, CoseAlg, StoredCredential } from '@xid-kit/types'
-import { verifyRegistration } from '@xid-kit/webauthn'
+import type { AuthenticatorTransport, CoseAlg } from '@xid-kit/types'
+import { verifyRegistration, type StoredPasskeyCredential } from '@xid-kit/webauthn'
 import { and, eq, isNull, lte } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
+import { logWorkerError } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
 import { WEBAUTHN_CHALLENGE_TTL_MS } from '../lib/ttl'
 
@@ -106,14 +107,16 @@ export function getOrCreateAnonKey(c: Context<XidHonoEnv>): string {
   return base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
 }
 
-// 从 DB 行构建 StoredCredential(认证时传给 verifyAuthentication)。blob 列在 D1 取回为 Buffer。
+// 从 DB 行构建 StoredPasskeyCredential(认证时传给 verifyAuthentication)。blob 列在 D1 取回为 Buffer。
+// credential_device_type 在注册时由 BE 位派生(multiDevice 即 BE=1),据此还原存储的 backupEligible。
 export function buildStoredCredential(cred: {
   credentialId: string
   publicKey: Uint8Array | ArrayBuffer
   coseAlg: number
   signCount: number
   aaguid: Uint8Array | ArrayBuffer
-}): StoredCredential | undefined {
+  credentialDeviceType: string
+}): StoredPasskeyCredential | undefined {
   if (cred.coseAlg !== -7 && cred.coseAlg !== -257 && cred.coseAlg !== -8) return undefined
   return {
     credentialId: base64UrlDecode(cred.credentialId),
@@ -121,35 +124,53 @@ export function buildStoredCredential(cred: {
     coseAlg: cred.coseAlg as CoseAlg,
     signCount: cred.signCount,
     aaguid: new Uint8Array(cred.aaguid),
+    backupEligible: cred.credentialDeviceType === 'multiDevice',
   }
 }
 
-// sign_count 克隆检测后续处理:写审计 + 更新 DB(01 章 step 7-8)。
+// 异常审计不在登录路径上 await:队列故障不能让已通过四验证的认证失败。
+function enqueueSignCountAnomalyAudit(
+  c: Context<XidHonoEnv>,
+  input: { tenantId: string; cred: { userId: string; signCount: number; credentialId: string } },
+  newSignCount: number,
+): void {
+  const send = Promise.resolve()
+    .then(() =>
+      c.env.AUDIT_QUEUE.send({
+        tenantId: input.tenantId,
+        action: 'passkey.sign_count_anomaly',
+        actorId: input.cred.userId,
+        ts: Date.now(),
+        payload: {
+          credentialId: input.cred.credentialId,
+          storedCount: input.cred.signCount,
+          newCount: newSignCount,
+        },
+      }),
+    )
+    .catch((error: unknown) => {
+      logWorkerError('passkey.sign_count_anomaly_audit.enqueue_failed', error, {
+        component: 'passkey',
+      })
+    })
+  c.executionCtx.waitUntil(send)
+}
+
+// sign_count 克隆检测后续处理:异步写审计 + 更新 DB(01 章 step 7-8)。
 export async function persistSignCount(opts: {
-  env: Env
+  c: Context<XidHonoEnv>
   tenantId: string
   cred: { userId: string; signCount: number; credentialId: string }
   newSignCount: number
   signCountAnomaly: boolean
+  backedUp: boolean
   db: ReturnType<typeof createTenantDb>
 }): Promise<void> {
-  const { env, tenantId, cred, newSignCount, signCountAnomaly, db } = opts
-  if (signCountAnomaly) {
-    await env.AUDIT_QUEUE.send({
-      tenantId,
-      action: 'passkey.sign_count_anomaly',
-      actorId: cred.userId,
-      ts: Date.now(),
-      payload: {
-        credentialId: cred.credentialId,
-        storedCount: cred.signCount,
-        newCount: newSignCount,
-      },
-    })
-  }
+  const { c, tenantId, cred, newSignCount, signCountAnomaly, backedUp, db } = opts
+  if (signCountAnomaly) enqueueSignCountAnomalyAudit(c, { tenantId, cred }, newSignCount)
   const targetSignCount = Math.max(cred.signCount, newSignCount)
   const updated = await db.passkeyCredentials.update(
-    { signCount: targetSignCount, lastUsedAt: new Date() },
+    { signCount: targetSignCount, backedUp, lastUsedAt: new Date() },
     and(
       eq(schema.passkeyCredentials.credentialId, cred.credentialId),
       eq(schema.passkeyCredentials.userId, cred.userId),

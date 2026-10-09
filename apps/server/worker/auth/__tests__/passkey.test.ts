@@ -832,30 +832,67 @@ describe('persistSignCount concurrent transition', () => {
         findOne: vi.fn(async () => ({ signCount })),
       },
     }
-    const env = { AUDIT_QUEUE: { send: vi.fn() } } as unknown as Env
+    const c = {
+      env: { AUDIT_QUEUE: { send: vi.fn() } },
+      executionCtx: { waitUntil: vi.fn() },
+    }
     const credential = { userId: 'user-1', credentialId: 'credential-1', signCount: 10 }
 
     await Promise.all([
       persistSignCount({
-        env,
+        c: c as never,
         tenantId: 'tenant-1',
         cred: credential,
         newSignCount: 12,
         signCountAnomaly: false,
+        backedUp: false,
         db: db as never,
       }),
       persistSignCount({
-        env,
+        c: c as never,
         tenantId: 'tenant-1',
         cred: credential,
         newSignCount: 11,
         signCountAnomaly: false,
+        backedUp: false,
         db: db as never,
       }),
     ])
 
     expect(signCount).toBe(12)
     expect(update).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('persistSignCount anomaly audit', () => {
+  it('updates the credential even when the audit queue rejects', async () => {
+    const update = vi.fn(async () => [{ id: 'credential-1' }])
+    const db = { passkeyCredentials: { update, findOne: vi.fn() } }
+    const pending: Promise<unknown>[] = []
+    const c = {
+      env: { AUDIT_QUEUE: { send: vi.fn().mockRejectedValue(new Error('queue down')) } },
+      executionCtx: { waitUntil: vi.fn((promise: Promise<unknown>) => pending.push(promise)) },
+    }
+
+    await persistSignCount({
+      c: c as never,
+      tenantId: 'tenant-1',
+      cred: { userId: 'user-1', credentialId: 'credential-1', signCount: 10 },
+      newSignCount: 3,
+      signCountAnomaly: true,
+      backedUp: true,
+      db: db as never,
+    })
+    await Promise.all(pending)
+
+    expect(c.executionCtx.waitUntil).toHaveBeenCalledTimes(1)
+    expect(c.env.AUDIT_QUEUE.send).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'passkey.sign_count_anomaly' }),
+    )
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ signCount: 10, backedUp: true }),
+      expect.anything(),
+    )
   })
 })
 

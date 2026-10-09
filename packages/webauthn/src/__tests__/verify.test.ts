@@ -1,10 +1,15 @@
 // 四验证编排与负路径；sign_count 异常标记；注册提取 VerifiedPasskey。
 
 import { derToP1363, p1363ToDer } from '@xid-kit/crypto'
-import type { StoredCredential, WebAuthnVerificationInput } from '@xid-kit/types'
+import type { WebAuthnVerificationInput } from '@xid-kit/types'
 import { describe, expect, it } from 'vitest'
 
-import { detectSignCountAnomaly, verifyAuthentication } from '../verify-authentication'
+import {
+  detectSignCountAnomaly,
+  verifyAuthentication,
+  type AuthenticationVerificationInput,
+  type StoredPasskeyCredential,
+} from '../verify-authentication'
 import { verifyRegistration } from '../verify-registration'
 import {
   buildOriginTamperedVector,
@@ -46,7 +51,7 @@ function buildClientDataJson(
 
 async function buildAuthData(
   rpId: string,
-  opts: { uv: boolean; up?: boolean; signCount: number },
+  opts: { uv: boolean; up?: boolean; be?: boolean; signCount: number },
 ): Promise<Uint8Array> {
   const rpIdHash = new Uint8Array(
     await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rpId)),
@@ -54,6 +59,7 @@ async function buildAuthData(
   let flags = 0
   if (opts.up !== false) flags |= 0x01
   if (opts.uv) flags |= 0x04
+  if (opts.be) flags |= 0x08
   const authData = new Uint8Array(37)
   authData.set(rpIdHash, 0)
   authData[32] = flags
@@ -69,7 +75,9 @@ async function buildValidAuth(opts: {
   newSignCount?: number
   storedSignCount?: number
   aaguid?: Uint8Array
-}): Promise<{ input: WebAuthnVerificationInput; keyPair: CryptoKeyPair }> {
+  assertionBackupEligible?: boolean
+  storedBackupEligible?: boolean
+}): Promise<{ input: AuthenticationVerificationInput; keyPair: CryptoKeyPair }> {
   const rpId = opts.rpId ?? RP_ID
   const origin = opts.origin ?? ORIGIN
   const keyPair = await generateAssertionKeyPair()
@@ -77,6 +85,7 @@ async function buildValidAuth(opts: {
   const clientDataJson = buildClientDataJson('webauthn.get', challenge, origin)
   const authData = await buildAuthData(rpId, {
     uv: opts.uv ?? true,
+    be: opts.assertionBackupEligible ?? false,
     signCount: opts.newSignCount ?? 5,
   })
   const clientDataHash = new Uint8Array(await crypto.subtle.digest('SHA-256', clientDataJson))
@@ -91,12 +100,13 @@ async function buildValidAuth(opts: {
     (await crypto.subtle.exportKey('raw', keyPair.publicKey)) as ArrayBuffer,
   )
 
-  const storedCredential: StoredCredential = {
+  const storedCredential: StoredPasskeyCredential = {
     credentialId: crypto.getRandomValues(new Uint8Array(16)),
     publicKey: coseEncodeEs256(rawPub),
     coseAlg: -7,
     signCount: opts.storedSignCount ?? 0,
     aaguid: opts.aaguid ?? crypto.getRandomValues(new Uint8Array(16)),
+    backupEligible: opts.storedBackupEligible ?? opts.assertionBackupEligible ?? false,
   }
 
   return {
@@ -127,7 +137,7 @@ async function buildValidEdDSAAuth(opts: {
   uv?: boolean
   newSignCount?: number
   storedSignCount?: number
-}): Promise<{ input: WebAuthnVerificationInput }> {
+}): Promise<{ input: AuthenticationVerificationInput }> {
   const rpId = opts.rpId ?? RP_ID
   const origin = opts.origin ?? ORIGIN
   const keyPair = (await crypto.subtle.generateKey({ name: 'Ed25519' }, true, [
@@ -164,6 +174,7 @@ async function buildValidEdDSAAuth(opts: {
         coseAlg: -8,
         signCount: opts.storedSignCount ?? 0,
         aaguid: crypto.getRandomValues(new Uint8Array(16)),
+        backupEligible: false,
       },
     },
   }
@@ -210,7 +221,7 @@ describe('verifyAuthentication: valid path', () => {
 describe('verifyAuthentication: four-verification negative paths', () => {
   it('rejects on challenge mismatch (verification 1)', async () => {
     const { input } = await buildValidAuth({})
-    const tampered: WebAuthnVerificationInput = {
+    const tampered: AuthenticationVerificationInput = {
       ...input,
       expectedChallenge: crypto.getRandomValues(new Uint8Array(32)),
     }
@@ -300,6 +311,45 @@ describe('verifyAuthentication: sign_count clone detection', () => {
     const result = await verifyAuthentication(input)
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.value.signCountAnomaly).toBe(false)
+  })
+
+  it('does not flag a regressing count when the stored credential is backup eligible', async () => {
+    const { input } = await buildValidAuth({
+      newSignCount: 1,
+      storedSignCount: 5,
+      assertionBackupEligible: true,
+    })
+
+    const result = await verifyAuthentication(input)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.signCountAnomaly).toBe(false)
+  })
+
+  it('rejects an assertion that sets BE when the stored credential is not backup eligible', async () => {
+    const { input } = await buildValidAuth({
+      newSignCount: 1,
+      storedSignCount: 5,
+      assertionBackupEligible: true,
+      storedBackupEligible: false,
+    })
+
+    const result = await verifyAuthentication(input)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_credentials')
+  })
+
+  it('rejects an assertion that clears BE when the stored credential is backup eligible', async () => {
+    const { input } = await buildValidAuth({
+      assertionBackupEligible: false,
+      storedBackupEligible: true,
+    })
+
+    const result = await verifyAuthentication(input)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_credentials')
   })
 
   it('detectSignCountAnomaly pure-function cases', () => {

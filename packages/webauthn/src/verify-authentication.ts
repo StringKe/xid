@@ -18,6 +18,16 @@ import { checkClientData, constantTimeEqual } from './parse'
 const ES256: CoseAlg = -7
 const EDDSA: CoseAlg = -8
 
+// backupEligible 是注册时存储的 BE 位；WebAuthn L3 §7.2 要求断言 BE 与之一致。
+export type StoredPasskeyCredential = StoredCredential & { backupEligible: boolean }
+
+export type AuthenticationVerificationInput = Omit<
+  WebAuthnVerificationInput,
+  'storedCredential'
+> & {
+  storedCredential?: StoredPasskeyCredential
+}
+
 // 平台同步 passkey 常见全 0 aaguid，跳过 sign_count 比较以免误报克隆。
 function isPlatformZeroAaguid(aaguid: Uint8Array): boolean {
   return aaguid.every((b) => b === 0)
@@ -85,7 +95,7 @@ function buildResult(
 }
 
 export async function verifyAuthentication(
-  input: WebAuthnVerificationInput,
+  input: AuthenticationVerificationInput,
 ): Promise<Result<VerifiedPasskey, XidError>> {
   const stored = input.storedCredential
   if (!stored || !input.signature) {
@@ -121,6 +131,9 @@ export async function verifyAuthentication(
   // UP 必须；UV 缺失直接拒绝，不降级为可选。
   if (!parsed.flags.userPresent) return fail(webauthnError('invalid_credentials', 'UP not set'))
   if (!parsed.flags.userVerified) return fail(webauthnError('user_verification_required'))
+  if (parsed.flags.backupEligible !== stored.backupEligible) {
+    return invalidCredentials('backup eligibility changed since registration')
+  }
 
   let key: CryptoKey
   try {
@@ -143,8 +156,8 @@ export async function verifyAuthentication(
   )
   if (!valid) return fail(webauthnError('signature_invalid'))
 
-  // BE=1 同步 passkey 与全 0 aaguid 平台密钥不参与 sign_count 异常判定。
-  const syncPasskey = parsed.flags.backupEligible || isPlatformZeroAaguid(stored.aaguid)
+  // 以注册时存储的 BE 为准：断言自带的标志位由认证器控制，不能用来决定是否跳过克隆检测。
+  const syncPasskey = stored.backupEligible || isPlatformZeroAaguid(stored.aaguid)
   const signCountAnomaly = syncPasskey
     ? false
     : detectSignCountAnomaly(parsed.signCount, stored.signCount)
