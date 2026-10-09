@@ -19,12 +19,13 @@ export function useNavCounts(
   const manages = activeOrg !== null && isOrgManagerRole(activeOrg.role)
   const showsUsers = manages && items.some((item) => item.to === ORG_USERS_PATH)
   const showsMembers = manages && items.some((item) => item.to === ORG_MEMBERS_PATH)
-  const users = useApiQuery<{ total?: number }>(['users', 'nav-count'], '/v1/users', {
+  const orgId = activeOrg?.id ?? ''
+  // /v1/users 按会话所在租户计数;键带活跃组织,切换组织或会话后不沿用上一租户的结果或失败状态。
+  const users = useApiQuery<{ total?: number }>(['users', 'nav-count', orgId], '/v1/users', {
     enabled: showsUsers,
     query: { limit: 1 },
     staleTime: COUNT_STALE_MS,
   })
-  const orgId = activeOrg?.id ?? ''
   const members = useApiQuery<{ total?: number }>(
     ['organizations', orgId, 'members', 'nav-count'],
     `/v1/organizations/${orgId}/members`,

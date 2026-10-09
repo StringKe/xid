@@ -310,6 +310,47 @@ describe('SessionProvider session state', () => {
     await act(async () => root.unmount())
   })
 
+  it('drops tenant-scoped query data when the active organization changes', async () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(['users', 'nav-count', 'org_1'], { total: 3 })
+    queryClient.setQueryData(['applications', 'list'], { data: [] })
+    const holder: { refresh: (() => Promise<void>) | null } = { refresh: null }
+    function Capture(): ReactNode {
+      holder.refresh = useSession().refresh
+      return null
+    }
+    const root = createRoot(document.createElement('div'))
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SessionProvider
+            client={scriptedClient([
+              { ok: true, value: makeMeResponse('org_1') },
+              { ok: true, value: makeMeResponse(null) },
+            ])}
+            initialSession={makeMeResponse('org_1')}
+            loadOnMount={false}
+          >
+            <Capture />
+          </SessionProvider>
+        </QueryClientProvider>,
+      )
+    })
+
+    await act(async () => {
+      await holder.refresh?.()
+    })
+    expect(queryClient.getQueryData(['users', 'nav-count', 'org_1'])).toEqual({ total: 3 })
+
+    await act(async () => {
+      await holder.refresh?.()
+    })
+    expect(queryClient.getQueryData(['users', 'nav-count', 'org_1'])).toBeUndefined()
+    expect(queryClient.getQueryData(['applications', 'list'])).toBeUndefined()
+    expect(queryClient.getQueryData<MeResponse | null>(['me'])?.activeOrg).toBeNull()
+    await act(async () => root.unmount())
+  })
+
   it('posts the active session change and refreshes /v1/me', async () => {
     const queryClient = new QueryClient()
     const { client, get, post } = makeApiClient()

@@ -165,6 +165,19 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
     })
   }, [loadSession, queryClient])
 
+  // 租户级资源的 queryKey 不含租户:切换会话或活跃组织后,丢弃上一范围的数据和失败状态并重新拉取。
+  const cacheScope =
+    meState === undefined
+      ? undefined
+      : `${meState?.activeSessionId ?? ''}:${meState?.activeOrg?.id ?? ''}`
+  const cacheScopeRef = useRef(cacheScope)
+  useEffect(() => {
+    const previous = cacheScopeRef.current
+    cacheScopeRef.current = cacheScope
+    if (previous === undefined || cacheScope === undefined || previous === cacheScope) return
+    void queryClient.resetQueries({ predicate: (query) => query.queryKey[0] !== ME_QUERY_KEY[0] })
+  }, [cacheScope, queryClient])
+
   // focus 与 visibilitychange 在切回标签页时成对触发,合并为一次并限制最小间隔。
   const lastVisibleRefreshRef = useRef(0)
   useEffect(() => {
