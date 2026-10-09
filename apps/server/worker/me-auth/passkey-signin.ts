@@ -2,7 +2,11 @@
 // 凭证不存在与验签失败同 invalid_credentials。
 
 import { base64UrlEncode } from '@xid-kit/crypto'
-import { createTenantDb, resolveTenantContextById } from '@xid-kit/db'
+import {
+  createTenantDb,
+  resolveTenantContextByApplicationClientId,
+  resolveTenantContextById,
+} from '@xid-kit/db'
 import { defaultLandingPathFor } from '@xid-kit/types'
 import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 import type { Context } from 'hono'
@@ -86,16 +90,40 @@ async function resolvePasskeyChallengeTenant(c: Context<XidHonoEnv>): Promise<Te
   return resolveEntryTenant(c, loginHintCandidates(identifier))
 }
 
+// 租户子域或自定义域上,WebAuthn 仪式的 RP ID 就是当前主机的 rpId:以当前主机的 TenantContext 为准,
+// client_id 只核对归属。按 client_id 重新解析会得到根域上下文(rpId=实例主域),与仪式 rpIdHash 不符。
+async function assertApplicationBelongsToTenant(
+  c: Context<XidHonoEnv>,
+  tenant: TenantVar,
+  applicationClientId: string,
+): Promise<void> {
+  const application = await resolveTenantContextByApplicationClientId(
+    c.req.raw,
+    c.env,
+    applicationClientId,
+  )
+  if (!application.ok || application.value.tenantId !== tenant.tenantId) {
+    throw new AppError('cross_tenant_access_denied')
+  }
+}
+
 async function resolvePasskeyVerifyTenant(
   c: Context<XidHonoEnv>,
   organizationId: string | undefined,
   applicationClientId: string | undefined,
 ): Promise<TenantVar> {
-  if (applicationClientId?.trim()) {
-    return resolveEntryTenant(c, [], organizationId, { applicationClientId })
-  }
   const current = c.get('tenant')
-  if (!isInstanceEntryContext(current)) return current
+  const clientId = applicationClientId?.trim()
+  if (!isInstanceEntryContext(current)) {
+    if (organizationId && organizationId !== current.tenantId) {
+      throw new AppError('cross_tenant_access_denied')
+    }
+    if (clientId) await assertApplicationBelongsToTenant(c, current, clientId)
+    return current
+  }
+  if (clientId) {
+    return resolveEntryTenant(c, [], organizationId, { applicationClientId: clientId })
+  }
   if (!organizationId) return current
   const result = await resolveTenantContextById(c.req.raw, c.env, organizationId)
   if (!result.ok) throw new AppError('cross_tenant_access_denied')

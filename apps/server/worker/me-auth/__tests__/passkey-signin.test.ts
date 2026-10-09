@@ -11,6 +11,7 @@ vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
   resolveInstanceLoginCandidates: vi.fn(),
   resolveTenantContextById: vi.fn(),
+  resolveTenantContextByApplicationClientId: vi.fn(),
   schema: {
     passkeyCredentials: { credentialId: 'credentialId', userId: 'userId' },
     users: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
@@ -49,6 +50,7 @@ vi.mock('../../auth/passkey-helpers', () => ({
 import {
   createTenantDb,
   resolveInstanceLoginCandidates,
+  resolveTenantContextByApplicationClientId,
   resolveTenantContextById,
 } from '@xid-kit/db'
 import { verifyAuthentication } from '@xid-kit/webauthn'
@@ -393,6 +395,60 @@ describe('POST /auth/passkey/verify', () => {
         expectedOrigins: expect.arrayContaining(['http://localhost']),
       }),
     )
+  })
+
+  it('租户子域带 client_id 时以当前主机 rpId 验签,client_id 只核对归属', async () => {
+    vi.mocked(resolveTenantContextByApplicationClientId).mockResolvedValue({
+      ok: true,
+      value: { ...makeTenant('tenant-1', 'https://xid.dev'), rpId: 'xid.dev' },
+    } as never)
+    vi.mocked(consumeChallenge).mockResolvedValue('chal-abc')
+    vi.mocked(verifyAuthentication).mockResolvedValue({
+      ok: true,
+      value: { signCount: 5, signCountAnomaly: false },
+    } as never)
+    vi.mocked(createTenantDb).mockReturnValue(
+      dbWithCred({ userId: 'user-1', signCount: 4, credentialId: 'cred-1' }),
+    )
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await verifyReq(app, makeEnv(), {
+      ...VERIFY_BODY,
+      clientId: 'client-1',
+      continue: '/authorize?authz_request_id=req-1&client_id=client-1',
+    })
+
+    expect(res.status).toBe(200)
+    expect(verifyAuthentication).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedRpId: 'tenant-1.xid.dev' }),
+    )
+  })
+
+  it('租户子域上 client_id 属于其他租户 -> 拒绝且不消费 challenge', async () => {
+    vi.mocked(resolveTenantContextByApplicationClientId).mockResolvedValue({
+      ok: true,
+      value: makeTenant('tenant-2'),
+    } as never)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await verifyReq(app, makeEnv(), {
+      ...VERIFY_BODY,
+      clientId: 'client-2',
+      continue: '/authorize?authz_request_id=req-1&client_id=client-2',
+    })
+
+    expect(res.status).toBe(404)
+    expect(await res.json()).toMatchObject({ code: 'cross_tenant_access_denied' })
+    expect(consumeChallenge).not.toHaveBeenCalled()
+  })
+
+  it('租户子域上 organizationId 与当前主机不符 -> 拒绝且不消费 challenge', async () => {
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await verifyReq(app, makeEnv(), { ...VERIFY_BODY, organizationId: 'tenant-2' })
+
+    expect(res.status).toBe(404)
+    expect(consumeChallenge).not.toHaveBeenCalled()
   })
 
   it('四验证通过 -> 200 + 签发 session', async () => {
