@@ -2,6 +2,7 @@ import { OUTBOUND_CONSOLE_PRESETS } from '@xid-kit/protocol'
 import { describe, expect, it } from 'vitest'
 import {
   INBOUND_IDP_PRESETS,
+  LEGACY_INBOUND_PRESETS,
   OUTBOUND_SAAS_PRESETS,
   presetKeyFromAttributeMapping,
   withPresetAttributeMapping,
@@ -22,6 +23,35 @@ describe('provider-presets', () => {
       expect(preset.acsUrlPlaceholder).toContain('https://')
       expect(preset.spEntityId).toContain('https://')
     }
+  })
+
+  it('ships no example hosts or secrets in legacy presets', () => {
+    const serialized = JSON.stringify(LEGACY_INBOUND_PRESETS)
+
+    expect(serialized).not.toMatch(/example\.com|Secret|vaultCredentialRef/)
+  })
+
+  it('requires only the assertion signature for IdPs that sign the assertion by default', () => {
+    const entra = INBOUND_IDP_PRESETS['microsoft-entra']
+    const keycloak = INBOUND_IDP_PRESETS.keycloak
+
+    expect([entra.wantAuthnResponseSigned, entra.wantAssertionsSigned]).toEqual([false, true])
+    expect([keycloak.wantAuthnResponseSigned, keycloak.wantAssertionsSigned]).toEqual([true, false])
+    expect(entra.idpMetadataUrlTemplate).toContain('?appid={appId}')
+  })
+
+  it('leaves the metadata URL empty for IdPs that only offer a metadata file', () => {
+    expect(INBOUND_IDP_PRESETS['google-workspace'].idpMetadataUrlTemplate).toBeUndefined()
+    expect(INBOUND_IDP_PRESETS.jumpcloud.idpMetadataUrlTemplate).toBeUndefined()
+  })
+
+  it('uses the documented Entity ID formats for GitHub and Atlassian', () => {
+    expect(OUTBOUND_SAAS_PRESETS['github-enterprise'].spEntityId).toBe(
+      'https://github.com/enterprises/{enterprise}',
+    )
+    expect(OUTBOUND_SAAS_PRESETS.atlassian.acsUrlPlaceholder).toBe(
+      'https://auth.atlassian.com/login/callback?connection=saml-{connectionId}',
+    )
   })
 
   it('round-trips preset keys in attribute mapping', () => {

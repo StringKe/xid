@@ -215,6 +215,45 @@ describe('social provider input', () => {
     })
   })
 
+  it('reports the Apple signing key as the credential source when it is configured', async () => {
+    const d1 = await seed()
+    const env = {
+      ...envOf(d1),
+      APPLE_TEAM_ID: 'TEAM123456',
+      APPLE_KEY_ID: 'KEY1234567',
+      APPLE_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----',
+    }
+    const apple = {
+      authorizationEndpoint: 'https://appleid.apple.com/auth/authorize',
+      tokenEndpoint: 'https://appleid.apple.com/auth/token',
+      clientId: 'com.acme.web',
+      issuer: 'https://appleid.apple.com',
+      jwksUri: 'https://appleid.apple.com/auth/keys',
+      enabled: true,
+      clientSecretRef: 'APPLE_PRIVATE_KEY',
+    }
+
+    const res = await buildApp(registerOrganizationsRoutes, {
+      session: sessionFor('user_a'),
+    }).request(
+      `${BASE}/social-providers`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ socialProviders: { apple } }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(200)
+    const body = await json<{ socialProviders: Record<string, Record<string, unknown>> }>(res)
+    expect(body.socialProviders['apple']).toMatchObject({
+      clientSecretRef: 'APPLE_PRIVATE_KEY',
+      hasClientSecret: true,
+      credentialsReady: true,
+    })
+  })
+
   it('keeps another tenant from changing this organization providers', async () => {
     const d1 = await seed()
 
