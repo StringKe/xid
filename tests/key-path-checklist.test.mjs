@@ -101,8 +101,13 @@ const KEY_PATH_TESTS = [
   },
   {
     path: 'apps/server/worker/crons/__tests__/daily-poll.test.ts',
-    area: 'daily cert/domain poll',
-    minTests: 7,
+    area: 'daily domain and IdP metadata poll',
+    minTests: 6,
+  },
+  {
+    path: 'apps/server/worker/crons/__tests__/saml-signing-certificates.test.ts',
+    area: 'outbound SAML signing certificate rotation',
+    minTests: 5,
   },
   { path: 'packages/i18n/src/catalog.test.ts', area: 'i18n catalog parity', minTests: 1 },
   { path: 'apps/server/src/lib/i18n-ui-audit.test.ts', area: 'lingui ui coverage', minTests: 1 },
