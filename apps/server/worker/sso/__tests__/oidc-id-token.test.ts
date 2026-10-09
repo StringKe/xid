@@ -126,7 +126,7 @@ describe('verifyIdToken unknown kid refresh', () => {
 })
 
 describe('claimsToAssertion attributeMapping', () => {
-  it('reads mapped claims and keeps sub as idpId', () => {
+  it('reads mapped claims and uses sub as idpId when no idpId claim is configured', () => {
     const assertion = claimsToAssertion({
       claims: {
         sub: 'stable-sub',
@@ -138,7 +138,7 @@ describe('claimsToAssertion attributeMapping', () => {
       },
       connectionId: 'conn-1',
       orgId: 'org-1',
-      attributeMapping: { email: 'upn', firstName: 'first', groups: 'roles', idpId: 'oid' },
+      attributeMapping: { email: 'upn', firstName: 'first', groups: 'roles' },
     })
 
     expect(assertion).toMatchObject({
@@ -148,7 +148,68 @@ describe('claimsToAssertion attributeMapping', () => {
       firstName: 'Alice',
       groups: ['Engineering'],
     })
+    expect(assertion.legacyIdpId).toBeUndefined()
   })
+
+  it('uses the configured idpId claim as the key and carries sub as the legacy binding', () => {
+    const assertion = claimsToAssertion({
+      claims: { sub: 'pairwise-sub', oid: '6f1c-object-id' },
+      connectionId: 'conn-1',
+      orgId: 'org-1',
+      attributeMapping: { idpId: 'oid' },
+    })
+
+    expect(assertion.idpId).toBe('6f1c-object-id')
+    expect(assertion.legacyIdpId).toBe('pairwise-sub')
+  })
+
+  it('accepts a numeric idpId claim as its decimal string', () => {
+    const assertion = claimsToAssertion({
+      claims: { sub: 's', employee_number: 1042 },
+      connectionId: 'conn-1',
+      orgId: 'org-1',
+      attributeMapping: { idpId: 'employee_number' },
+    })
+
+    expect(assertion.idpId).toBe('1042')
+  })
+
+  it('omits legacyIdpId when the configured claim equals sub', () => {
+    const assertion = claimsToAssertion({
+      claims: { sub: 'same', oid: 'same' },
+      connectionId: 'conn-1',
+      orgId: 'org-1',
+      attributeMapping: { idpId: 'oid' },
+    })
+
+    expect(assertion.idpId).toBe('same')
+    expect(assertion.legacyIdpId).toBeUndefined()
+  })
+
+  it.each([
+    ['absent', {}],
+    ['empty', { oid: '  ' }],
+    ['non-scalar', { oid: ['a'] }],
+  ])(
+    'rejects a token whose configured idpId claim is %s instead of falling back to sub',
+    (_label, extra) => {
+      let caught: unknown
+
+      try {
+        claimsToAssertion({
+          claims: { sub: 's', ...extra },
+          connectionId: 'conn-1',
+          orgId: 'org-1',
+          attributeMapping: { idpId: 'oid' },
+        })
+      } catch (err) {
+        caught = err
+      }
+
+      expect(isAppError(caught) && caught.code === 'malformed_request').toBe(true)
+      expect(isAppError(caught) ? caught.longMessage : '').toBe('oidc:idp_id_claim_missing')
+    },
+  )
 
   it('falls back to standard claims when the mapped claim is absent', () => {
     const assertion = claimsToAssertion({

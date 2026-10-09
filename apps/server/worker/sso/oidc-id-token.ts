@@ -119,7 +119,32 @@ type ClaimsToAssertionInput = {
   attributeMapping: unknown
 }
 
-// idpId 固定取 sub:OIDC Core 规定 iss + sub 是稳定唯一标识,改用其他 claim 会让已有绑定失效。
+function idpIdClaimValue(value: unknown): string | null {
+  if (typeof value === 'string') return value.trim().length > 0 ? value : null
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : null
+}
+
+// 配置了 idpId claim 时用它作稳定主键,缺值拒绝(回退 sub 会给同一个人建出第二个身份);
+// 未配置时用 sub。按 sub 建立的旧绑定经 legacyIdpId 由 JIT 沿用并补绑。
+function resolveIdpId(
+  claims: Record<string, unknown>,
+  mapping: Record<string, unknown>,
+): { idpId: string; legacyIdpId: string | null } {
+  const sub = typeof claims['sub'] === 'string' ? claims['sub'] : ''
+  const configured = mapping['idpId']
+  if (typeof configured !== 'string' || configured.trim().length === 0) {
+    return { idpId: sub, legacyIdpId: null }
+  }
+  const value = idpIdClaimValue(claims[configured])
+  if (value === null) {
+    throw new AppError('malformed_request', {
+      httpStatus: 400,
+      longMessage: 'oidc:idp_id_claim_missing',
+    })
+  }
+  return { idpId: value, legacyIdpId: sub && value !== sub ? sub : null }
+}
+
 export function claimsToAssertion(input: ClaimsToAssertionInput): SsoAssertion {
   const { claims } = input
   const mapping =
@@ -127,8 +152,10 @@ export function claimsToAssertion(input: ClaimsToAssertionInput): SsoAssertion {
       ? (input.attributeMapping as Record<string, unknown>)
       : {}
   const email = readStringClaim(claims, mapping, 'email')
+  const { idpId, legacyIdpId } = resolveIdpId(claims, mapping)
   return {
-    idpId: typeof claims['sub'] === 'string' ? claims['sub'] : '',
+    idpId,
+    ...(legacyIdpId ? { legacyIdpId } : {}),
     connectionId: input.connectionId,
     orgId: input.orgId,
     email,
