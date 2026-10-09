@@ -148,10 +148,10 @@ describe('SWA password vault', () => {
     mockFindActiveMembership.mockResolvedValue({ id: 'm-1', status: 'active' })
   })
 
-  it('rejects a request without an XID session', async () => {
+  it('rejects a request without an XID session before validating the body', async () => {
     mockReadSessionForTenant.mockResolvedValue(null)
 
-    const res = await saveCredential('alice', 'downstream-pass')
+    const res = await saveCredential('', '')
 
     expect(res.status).toBe(401)
     expect(rows[0]?.attributeMapping).not.toHaveProperty('_swaCredentials')

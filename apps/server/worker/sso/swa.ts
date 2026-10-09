@@ -57,10 +57,10 @@ async function handleVaultRead(c: Context<XidHonoEnv>): Promise<Response> {
 }
 
 async function handleVaultWrite(c: Context<XidHonoEnv>): Promise<Response> {
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
-  const body = validateBody(vaultBodySchema, json.value)
   return withSwaMember(c, async ({ connection, session }) => {
+    const json = await readJsonBody(c)
+    if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
+    const body = validateBody(vaultBodySchema, json.value)
     await saveSwaCredential({
       env: c.env,
       tenant: c.get('tenant'),
