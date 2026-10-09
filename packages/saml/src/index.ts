@@ -25,6 +25,7 @@ export type { CertificateValidityOptions, GeneratedSamlCertificate, IdpVerifyKey
 
 export { verifySamlResponse, readAssertionId } from './verify'
 export type { VerifySamlOptions } from './verify'
+export type { SamlDecryptKeyProvider, SamlOaepHash } from './oaep'
 
 export { validateAssertionSemantics } from './semantics'
 export type { SemanticInput, SemanticOk } from './semantics'

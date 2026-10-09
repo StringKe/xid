@@ -1,33 +1,28 @@
+// EncryptedAssertion 解密:OAEP 摘要组合、AES-GCM/CBC(含 ISO 10126 随机填充)、EncryptedKey 放置方式。
+
 import { beforeAll, describe, it, expect } from 'vitest'
-import { toBufferSource } from '@xid-kit/crypto'
 import { Parse } from 'xmldsigjs'
 
 import { setSamlEngine } from '../engine'
 import { decryptEncryptedAssertion, hasEncryptedAssertion, plaintextAssertion } from '../decrypt'
 import { ACS_URL, IDP_ENTITY_ID, SP_ENTITY_ID } from './fixtures'
+import {
+  AES128_CBC,
+  AES128_GCM,
+  AES256_CBC,
+  AES256_GCM,
+  DIGEST_SHA1,
+  DIGEST_SHA256,
+  MGF1_SHA1,
+  MGF1_SHA256,
+  RSA_OAEP_11,
+  encryptedResponseXml,
+  generateSpKeyMaterial,
+} from './encryption-fixtures'
+import type { EncryptOptions, SpKeyMaterial } from './encryption-fixtures'
 
 const SAMLP_NS = 'urn:oasis:names:tc:SAML:2.0:protocol'
 const ASSERT_NS = 'urn:oasis:names:tc:SAML:2.0:assertion'
-const DS_NS = 'http://www.w3.org/2000/09/xmldsig#'
-const XENC_NS = 'http://www.w3.org/2001/04/xmlenc#'
-const RSA_OAEP = 'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p'
-const AES256_GCM = 'http://www.w3.org/2009/xmlenc11#aes256-gcm'
-const AES128_CBC = 'http://www.w3.org/2001/04/xmlenc#aes128-cbc'
-
-function b64(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes))
-}
-
-function concatBytes(...parts: Uint8Array[]): Uint8Array {
-  const total = parts.reduce((sum, part) => sum + part.byteLength, 0)
-  const out = new Uint8Array(total)
-  let offset = 0
-  for (const part of parts) {
-    out.set(part, offset)
-    offset += part.byteLength
-  }
-  return out
-}
 
 function minimalAssertionXml(): string {
   return [
@@ -52,72 +47,11 @@ function plaintextResponse(assertionXml: string): Element {
   return Parse(xml).documentElement
 }
 
-async function generateSpDecryptKeyPair(): Promise<CryptoKeyPair> {
-  const keyPair = await crypto.subtle.generateKey(
-    {
-      name: 'RSA-OAEP',
-      modulusLength: 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
-      hash: 'SHA-256',
-    },
-    true,
-    ['encrypt', 'decrypt'],
-  )
-  if ('publicKey' in keyPair) return keyPair
-  throw new Error('expected RSA-OAEP key pair')
-}
+let material: SpKeyMaterial
 
-async function encryptedResponseXml(input: {
-  assertionXml: string
-  spPublicKey: CryptoKey
-  dataAlg?: string
-  keyWrapAlg?: string
-}): Promise<string> {
-  const sessionKeyRaw =
-    input.dataAlg === AES128_CBC
-      ? crypto.getRandomValues(new Uint8Array(16))
-      : crypto.getRandomValues(new Uint8Array(32))
-  const iv =
-    input.dataAlg === AES128_CBC
-      ? crypto.getRandomValues(new Uint8Array(16))
-      : crypto.getRandomValues(new Uint8Array(12))
-  const aesName = input.dataAlg === AES128_CBC ? 'AES-CBC' : 'AES-GCM'
-  const aesKey = await crypto.subtle.importKey(
-    'raw',
-    toBufferSource(sessionKeyRaw),
-    { name: aesName },
-    false,
-    ['encrypt'],
-  )
-  const encryptedAssertion = new Uint8Array(
-    await crypto.subtle.encrypt(
-      { name: aesName, iv: toBufferSource(iv) },
-      aesKey,
-      new TextEncoder().encode(input.assertionXml),
-    ),
-  )
-  const wrappedKey = new Uint8Array(
-    await crypto.subtle.encrypt(
-      { name: 'RSA-OAEP' },
-      input.spPublicKey,
-      toBufferSource(sessionKeyRaw),
-    ),
-  )
-  const dataAlg = input.dataAlg ?? AES256_GCM
-  const keyWrapAlg = input.keyWrapAlg ?? RSA_OAEP
-  return [
-    `<samlp:Response xmlns:samlp="${SAMLP_NS}" xmlns:saml="${ASSERT_NS}" xmlns:xenc="${XENC_NS}" xmlns:ds="${DS_NS}"`,
-    ` ID="_resp_encrypted" Version="2.0" IssueInstant="2026-06-01T08:00:00Z" Destination="${ACS_URL}">`,
-    `<saml:Issuer>${IDP_ENTITY_ID}</saml:Issuer>`,
-    `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>`,
-    `<saml:EncryptedAssertion><xenc:EncryptedData Type="http://www.w3.org/2001/04/xmlenc#Element">`,
-    `<xenc:EncryptionMethod Algorithm="${dataAlg}"/>`,
-    `<ds:KeyInfo><xenc:EncryptedKey><xenc:EncryptionMethod Algorithm="${keyWrapAlg}"/>`,
-    `<xenc:CipherData><xenc:CipherValue>${b64(wrappedKey)}</xenc:CipherValue></xenc:CipherData>`,
-    `</xenc:EncryptedKey></ds:KeyInfo>`,
-    `<xenc:CipherData><xenc:CipherValue>${b64(concatBytes(iv, encryptedAssertion))}</xenc:CipherValue></xenc:CipherData>`,
-    `</xenc:EncryptedData></saml:EncryptedAssertion></samlp:Response>`,
-  ].join('')
+async function decrypt(options: EncryptOptions, keys: SpKeyMaterial = material) {
+  const xml = await encryptedResponseXml(minimalAssertionXml(), material, options)
+  return decryptEncryptedAssertion(Parse(xml).documentElement, keys.provider)
 }
 
 describe('hasEncryptedAssertion / plaintextAssertion', () => {
@@ -127,86 +61,172 @@ describe('hasEncryptedAssertion / plaintextAssertion', () => {
 
   it('detects encrypted vs plaintext assertion roots', () => {
     const plain = plaintextResponse(minimalAssertionXml())
+
     expect(hasEncryptedAssertion(plain)).toBe(false)
     expect(plaintextAssertion(plain)?.localName).toBe('Assertion')
   })
 })
 
-describe('decryptEncryptedAssertion', () => {
-  beforeAll(() => {
+describe('decryptEncryptedAssertion key transport', () => {
+  beforeAll(async () => {
     setSamlEngine(crypto)
+    material = await generateSpKeyMaterial()
   })
 
-  it('decrypts AES-256-GCM encrypted assertion XML', async () => {
-    const keyPair = await generateSpDecryptKeyPair()
-    const assertionXml = minimalAssertionXml()
-    const xml = await encryptedResponseXml({
-      assertionXml,
-      spPublicKey: keyPair.publicKey,
-    })
-    const root = Parse(xml).documentElement
-    const result = await decryptEncryptedAssertion(root, keyPair.privateKey)
+  it('decrypts rsa-oaep-mgf1p with the default SHA-1 digest (Okta and ADFS defaults)', async () => {
+    const result = await decrypt({})
+
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.value).toContain('user@example.com')
   })
 
-  it('decrypts AES-128-CBC encrypted assertion XML', async () => {
-    const keyPair = await generateSpDecryptKeyPair()
-    const assertionXml = minimalAssertionXml()
-    const xml = await encryptedResponseXml({
-      assertionXml,
-      spPublicKey: keyPair.publicKey,
-      dataAlg: AES128_CBC,
-    })
-    const root = Parse(xml).documentElement
-    const result = await decryptEncryptedAssertion(root, keyPair.privateKey)
+  it('decrypts rsa-oaep-mgf1p with an explicit SHA-1 DigestMethod (Shibboleth default)', async () => {
+    const result = await decrypt({ digestMethod: DIGEST_SHA1, dataAlg: AES128_GCM })
+
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.value).toContain('<saml:Assertion')
   })
 
-  it('fails when EncryptedAssertion is missing', async () => {
-    const keyPair = await generateSpDecryptKeyPair()
-    const root = plaintextResponse(minimalAssertionXml())
-    const result = await decryptEncryptedAssertion(root, keyPair.privateKey)
+  it('decrypts xmlenc11 rsa-oaep with SHA-256 digest and MGF1-SHA-256', async () => {
+    const result = await decrypt({
+      keyWrapAlg: RSA_OAEP_11,
+      wrapHash: 'SHA-256',
+      digestMethod: DIGEST_SHA256,
+      mgf: MGF1_SHA256,
+    })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('decrypts xmlenc11 rsa-oaep with defaults (SHA-1 digest and MGF1-SHA-1)', async () => {
+    const result = await decrypt({ keyWrapAlg: RSA_OAEP_11, mgf: MGF1_SHA1 })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('decrypts with an OAEPparams label', async () => {
+    const result = await decrypt({ oaepLabel: new TextEncoder().encode('xid-label') })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it.each([
+    [
+      'rsa-oaep-mgf1p with a SHA-256 DigestMethod',
+      { wrapHash: 'SHA-256', digestMethod: DIGEST_SHA256 },
+    ],
+    [
+      'xmlenc11 rsa-oaep with SHA-256 digest and default MGF1-SHA-1',
+      { keyWrapAlg: RSA_OAEP_11, wrapHash: 'SHA-256', digestMethod: DIGEST_SHA256 },
+    ],
+  ] as const)('rejects %s that Web Crypto cannot express', async (_label, options) => {
+    const result = await decrypt(options)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.reason).toContain('not supported by Web Crypto')
+  })
+
+  it('fails when the IdP wrapped with SHA-256 but labelled the key as rsa-oaep-mgf1p', async () => {
+    const result = await decrypt({ wrapHash: 'SHA-256' })
+
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('decryption_failed')
   })
 
-  it('fails when key-wrap algorithm is not allowed', async () => {
-    const keyPair = await generateSpDecryptKeyPair()
-    const xml = await encryptedResponseXml({
-      assertionXml: minimalAssertionXml(),
-      spPublicKey: keyPair.publicKey,
-      keyWrapAlg: 'http://www.w3.org/2001/04/xmlenc#rsa-1_5',
-    })
-    const root = Parse(xml).documentElement
-    const result = await decryptEncryptedAssertion(root, keyPair.privateKey)
+  it('fails when the key-wrap algorithm is not allowed', async () => {
+    const result = await decrypt({ keyWrapAlg: 'http://www.w3.org/2001/04/xmlenc#rsa-1_5' })
+
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.reason).toContain('key-wrap alg not allowed')
   })
 
-  it('fails when data encryption algorithm is not allowed', async () => {
-    const keyPair = await generateSpDecryptKeyPair()
-    const xml = await encryptedResponseXml({
-      assertionXml: minimalAssertionXml(),
-      spPublicKey: keyPair.publicKey,
-      dataAlg: 'http://www.w3.org/2001/04/xmlenc#tripledes-cbc',
-    })
-    const root = Parse(xml).documentElement
-    const result = await decryptEncryptedAssertion(root, keyPair.privateKey)
+  it('fails when the SP private key does not match the wrapped session key', async () => {
+    const other = await generateSpKeyMaterial()
+
+    const result = await decrypt({}, other)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('decryption_failed')
+  })
+})
+
+describe('decryptEncryptedAssertion data encryption', () => {
+  beforeAll(async () => {
+    setSamlEngine(crypto)
+    material ??= await generateSpKeyMaterial()
+  })
+
+  it.each([
+    ['AES-128-CBC with PKCS#7 padding', { dataAlg: AES128_CBC, cbcPadding: 'pkcs7' }],
+    ['AES-128-CBC with ISO 10126 random padding', { dataAlg: AES128_CBC, cbcPadding: 'iso10126' }],
+    ['AES-256-CBC with ISO 10126 random padding', { dataAlg: AES256_CBC, cbcPadding: 'iso10126' }],
+    ['AES-128-GCM', { dataAlg: AES128_GCM }],
+    ['AES-256-GCM', { dataAlg: AES256_GCM }],
+  ] as const)('decrypts %s', async (_label, options) => {
+    const result = await decrypt(options)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value).toBe(minimalAssertionXml())
+  })
+
+  it.each([
+    ['zero', 0],
+    ['larger than a block', 17],
+  ])('fails when the CBC padding length byte is %s', async (_label, lastByte) => {
+    const result = await decrypt({ dataAlg: AES128_CBC, cbcPadding: { lastByte } })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('decryption_failed')
+  })
+
+  it('fails when the session key length does not match the data algorithm', async () => {
+    const result = await decrypt({ dataAlg: AES128_GCM, sessionKeyBytes: 32 })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.reason).toContain('session key length')
+  })
+
+  it('fails when the data encryption algorithm is not allowed', async () => {
+    const result = await decrypt({ dataAlg: 'http://www.w3.org/2001/04/xmlenc#tripledes-cbc' })
+
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.reason).toContain('data alg not allowed')
   })
 
-  it('fails when SP private key does not match wrapped session key', async () => {
-    const encryptPair = await generateSpDecryptKeyPair()
-    const wrongPair = await generateSpDecryptKeyPair()
-    const xml = await encryptedResponseXml({
-      assertionXml: minimalAssertionXml(),
-      spPublicKey: encryptPair.publicKey,
-    })
-    const root = Parse(xml).documentElement
-    const result = await decryptEncryptedAssertion(root, wrongPair.privateKey)
+  it('fails when EncryptedAssertion is missing', async () => {
+    const result = await decryptEncryptedAssertion(
+      plaintextResponse(minimalAssertionXml()),
+      material.provider,
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('decryption_failed')
+  })
+})
+
+describe('decryptEncryptedAssertion EncryptedKey placement', () => {
+  beforeAll(async () => {
+    setSamlEngine(crypto)
+    material ??= await generateSpKeyMaterial()
+  })
+
+  it.each([
+    ['a peer EncryptedKey referenced by RetrievalMethod', 'peer-retrieval'],
+    ['a single peer EncryptedKey without KeyInfo', 'peer'],
+  ] as const)('decrypts %s', async (_label, keyPlacement) => {
+    const result = await decrypt({ keyPlacement })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('fails when RetrievalMethod points at an unknown EncryptedKey id', async () => {
+    const xml = (
+      await encryptedResponseXml(minimalAssertionXml(), material, {
+        keyPlacement: 'peer-retrieval',
+      })
+    ).replace('URI="#_ek_1"', 'URI="#_ek_missing"')
+
+    const result = await decryptEncryptedAssertion(Parse(xml).documentElement, material.provider)
+
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('decryption_failed')
   })

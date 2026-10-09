@@ -4,6 +4,7 @@
 
 import { envelopeDecrypt, toBufferSource } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
+import type { SamlDecryptKeyProvider } from '@xid-kit/saml'
 import type { TenantContext } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
@@ -72,8 +73,13 @@ async function findSpDecryptCert(
   return row ?? null
 }
 
-// 把 CertStore 行信封解密 -> 不可导出 RSA-OAEP 解密私钥(私钥明文清零,不出 isolate,见 signing-keys rule)。
-async function importSpDecryptKey(cert: CertRow, kekB64: string): Promise<CryptoKey> {
+// 把 CertStore 行信封解密 -> 不可导出私钥(私钥明文导入后清零,不出 isolate,见 signing-keys rule)。
+async function importCertPrivateKey(
+  cert: CertRow,
+  kekB64: string,
+  algorithm: RsaHashedImportParams,
+  usage: KeyUsage,
+): Promise<CryptoKey> {
   const pkcs8 = await envelopeDecrypt(
     {
       iv: new Uint8Array(cert.privateKeyIv),
@@ -83,46 +89,23 @@ async function importSpDecryptKey(cert: CertRow, kekB64: string): Promise<Crypto
     },
     decodeKek(kekB64),
   )
-  const key = await crypto.subtle.importKey(
-    'pkcs8',
-    toBufferSource(pkcs8),
-    { name: 'RSA-OAEP', hash: 'SHA-256' },
-    false,
-    ['decrypt'],
-  )
-  pkcs8.fill(0)
-  return key
+  try {
+    return await crypto.subtle.importKey('pkcs8', toBufferSource(pkcs8), algorithm, false, [usage])
+  } finally {
+    pkcs8.fill(0)
+  }
 }
 
 // 解析 connection 的 SP 解密私钥(EncryptedAssertion 路径用)。无配置时返回 undefined(明文 Assertion 不需要)。
+// OAEP 摘要由每条 EncryptedKey 决定,故返回按摘要即时导入的 provider,而不是固定摘要的 CryptoKey。
 export async function loadSpDecryptKey(
   c: Context<XidHonoEnv>,
   connection: SamlConnection,
-): Promise<CryptoKey | undefined> {
+): Promise<SamlDecryptKeyProvider | undefined> {
   const cert = await findSpDecryptCert(c, connection)
   if (!cert) return undefined
-  return importSpDecryptKey(cert, c.env.KEK)
-}
-
-async function importSpSigningKey(cert: CertRow, kekB64: string): Promise<CryptoKey> {
-  const pkcs8 = await envelopeDecrypt(
-    {
-      iv: new Uint8Array(cert.privateKeyIv),
-      ciphertext: new Uint8Array(cert.privateKeyCiphertext),
-      tag: new Uint8Array(cert.privateKeyTag),
-      kekVersion: cert.kekVersion,
-    },
-    decodeKek(kekB64),
-  )
-  const key = await crypto.subtle.importKey(
-    'pkcs8',
-    toBufferSource(pkcs8),
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  pkcs8.fill(0)
-  return key
+  const kekB64 = c.env.KEK
+  return (hash) => importCertPrivateKey(cert, kekB64, { name: 'RSA-OAEP', hash }, 'decrypt')
 }
 
 // 取首个 active SP 签名私钥(SLO LogoutResponse 签名用)。无配置返回 null。
@@ -133,5 +116,10 @@ export async function loadSpSigningKey(c: Context<XidHonoEnv>): Promise<CryptoKe
     and(eq(schema.certStore.usage, 'saml_sp_signing'), eq(schema.certStore.status, 'active')),
   )
   if (!row) return null
-  return importSpSigningKey(row, c.env.KEK)
+  return importCertPrivateKey(
+    row,
+    c.env.KEK,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    'sign',
+  )
 }

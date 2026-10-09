@@ -1,101 +1,46 @@
-// verifySamlResponse EncryptedAssertion:decrypt-then-verify 端到端。
+// verifySamlResponse EncryptedAssertion:decrypt-then-verify 端到端,含结构白名单对真实 IdP 加密参数的放行。
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { toBufferSource } from '@xid-kit/crypto'
 import { setSamlEngine } from '../engine'
 import { verifySamlResponse } from '../verify'
-import { ACS_URL, IDP_ENTITY_ID, buildResponseXml } from './fixtures'
+import { buildResponseXml } from './fixtures'
 import {
-  ASSERT_NS,
-  DS_NS,
-  SAMLP_NS,
-  XENC_NS,
-  b64,
-  concatBytes,
+  AES128_CBC,
+  AES256_GCM,
+  DIGEST_SHA1,
+  encryptedResponseXml,
+  generateSpKeyMaterial,
+} from './encryption-fixtures'
+import type { EncryptOptions, SpKeyMaterial } from './encryption-fixtures'
+import {
   extractSignedAssertion,
   opts,
   signStandaloneAssertion,
   standaloneAssertion,
 } from './verify-helpers'
 
-const RSA_OAEP = 'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p'
-const AES256_GCM = 'http://www.w3.org/2009/xmlenc11#aes256-gcm'
-
-async function generateSpDecryptKeyPair(): Promise<CryptoKeyPair> {
-  const keyPair = await crypto.subtle.generateKey(
-    {
-      name: 'RSA-OAEP',
-      modulusLength: 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
-      hash: 'SHA-256',
-    },
-    true,
-    ['encrypt', 'decrypt'],
-  )
-  if ('publicKey' in keyPair) return keyPair
-  throw new Error('expected RSA-OAEP key pair')
-}
-
-async function encryptedAssertionResponse(
-  assertionXml: string,
-  spPublicKey: CryptoKey,
-): Promise<string> {
-  const sessionKeyRaw = crypto.getRandomValues(new Uint8Array(32))
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  const aesKey = await crypto.subtle.importKey(
-    'raw',
-    toBufferSource(sessionKeyRaw),
-    { name: 'AES-GCM' },
-    false,
-    ['encrypt'],
-  )
-  const encryptedAssertion = new Uint8Array(
-    await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv: toBufferSource(iv) },
-      aesKey,
-      new TextEncoder().encode(assertionXml),
-    ),
-  )
-  const wrappedKey = new Uint8Array(
-    await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, spPublicKey, toBufferSource(sessionKeyRaw)),
-  )
-  const cipherValue = b64(concatBytes(iv, encryptedAssertion))
-  const keyCipherValue = b64(wrappedKey)
-  return [
-    `<samlp:Response xmlns:samlp="${SAMLP_NS}" xmlns:saml="${ASSERT_NS}" xmlns:xenc="${XENC_NS}" xmlns:ds="${DS_NS}"`,
-    ` ID="_resp_encrypted" Version="2.0" IssueInstant="2026-06-01T08:00:00Z" Destination="${ACS_URL}">`,
-    `<saml:Issuer>${IDP_ENTITY_ID}</saml:Issuer>`,
-    `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>`,
-    `<saml:EncryptedAssertion><xenc:EncryptedData Type="http://www.w3.org/2001/04/xmlenc#Element">`,
-    `<xenc:EncryptionMethod Algorithm="${AES256_GCM}"/>`,
-    `<ds:KeyInfo><xenc:EncryptedKey><xenc:EncryptionMethod Algorithm="${RSA_OAEP}"/>`,
-    `<xenc:CipherData><xenc:CipherValue>${keyCipherValue}</xenc:CipherValue></xenc:CipherData>`,
-    `</xenc:EncryptedKey></ds:KeyInfo>`,
-    `<xenc:CipherData><xenc:CipherValue>${cipherValue}</xenc:CipherValue></xenc:CipherData>`,
-    `</xenc:EncryptedData></saml:EncryptedAssertion></samlp:Response>`,
-  ].join('')
-}
+let material: SpKeyMaterial
 
 function assertionOnly(over: Record<string, unknown> = {}) {
   return opts({ wantAuthnResponseSigned: false, wantAssertionsSigned: true, ...over })
 }
 
+async function encryptedSignedResponse(options: EncryptOptions = {}): Promise<string> {
+  const unsigned = standaloneAssertion(extractSignedAssertion(buildResponseXml()))
+  const assertion = await signStandaloneAssertion(unsigned)
+  return encryptedResponseXml(assertion, material, options)
+}
+
 describe('verifySamlResponse EncryptedAssertion', () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     setSamlEngine(crypto)
+    material = await generateSpKeyMaterial()
   })
 
-  async function encryptedSignedResponse() {
-    const spKeyPair = await generateSpDecryptKeyPair()
-    const unsigned = standaloneAssertion(extractSignedAssertion(buildResponseXml()))
-    const assertion = await signStandaloneAssertion(unsigned)
-    const xml = await encryptedAssertionResponse(assertion, spKeyPair.publicKey)
-    return { xml, privateKey: spKeyPair.privateKey }
-  }
-
   it('accepts a signed encrypted Assertion after decrypt-then-verify', async () => {
-    const { xml, privateKey } = await encryptedSignedResponse()
-    const result = await verifySamlResponse(xml, assertionOnly({ spDecryptKey: privateKey }))
+    const xml = await encryptedSignedResponse()
+
+    const result = await verifySamlResponse(xml, assertionOnly({ spDecryptKey: material.provider }))
 
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -105,8 +50,23 @@ describe('verifySamlResponse EncryptedAssertion', () => {
     }
   })
 
+  it.each([
+    [
+      'inline key with SHA-1 DigestMethod and AES-128-CBC random padding',
+      { digestMethod: DIGEST_SHA1, dataAlg: AES128_CBC, cbcPadding: 'iso10126' },
+    ],
+    ['peer EncryptedKey referenced by RetrievalMethod', { keyPlacement: 'peer-retrieval' }],
+  ] as const)('accepts an IdP-style %s', async (_label, options) => {
+    const xml = await encryptedSignedResponse(options)
+
+    const result = await verifySamlResponse(xml, assertionOnly({ spDecryptKey: material.provider }))
+
+    expect(result.ok).toBe(true)
+  })
+
   it('decryption_failed when encrypted Assertion has no SP decrypt key', async () => {
-    const { xml } = await encryptedSignedResponse()
+    const xml = await encryptedSignedResponse()
+
     const result = await verifySamlResponse(xml, assertionOnly())
 
     expect(result.ok).toBe(false)
@@ -114,34 +74,45 @@ describe('verifySamlResponse EncryptedAssertion', () => {
   })
 
   it('decryption_failed when encrypted Assertion uses a disallowed data algorithm', async () => {
-    const { xml, privateKey } = await encryptedSignedResponse()
-    const tampered = xml.replace(AES256_GCM, 'http://www.w3.org/2001/04/xmlenc#tripledes-cbc')
-    const result = await verifySamlResponse(tampered, assertionOnly({ spDecryptKey: privateKey }))
+    const xml = (await encryptedSignedResponse()).replace(
+      AES256_GCM,
+      'http://www.w3.org/2001/04/xmlenc#tripledes-cbc',
+    )
+
+    const result = await verifySamlResponse(xml, assertionOnly({ spDecryptKey: material.provider }))
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('decryption_failed')
   })
 
   it('signature_required when decrypted Assertion is unsigned', async () => {
-    const spKeyPair = await generateSpDecryptKeyPair()
     const unsignedAssertion = standaloneAssertion(extractSignedAssertion(buildResponseXml()))
-    const xml = await encryptedAssertionResponse(unsignedAssertion, spKeyPair.publicKey)
-    const result = await verifySamlResponse(
-      xml,
-      assertionOnly({ spDecryptKey: spKeyPair.privateKey }),
-    )
+    const xml = await encryptedResponseXml(unsignedAssertion, material)
+
+    const result = await verifySamlResponse(xml, assertionOnly({ spDecryptKey: material.provider }))
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('signature_required')
   })
 
-  it('schema_invalid when EncryptedData contains an unknown extension', async () => {
-    const { xml, privateKey } = await encryptedSignedResponse()
-    const tampered = xml.replace(
+  it.each([
+    [
+      'an unknown EncryptedData extension',
       '</xenc:EncryptedData>',
       '<evil:Injected xmlns:evil="urn:evil"/></xenc:EncryptedData>',
+    ],
+    [
+      'an unknown EncryptionMethod parameter',
+      '<ds:DigestMethod',
+      '<evil:Injected xmlns:evil="urn:evil"/><ds:DigestMethod',
+    ],
+  ])('schema_invalid when the response carries %s', async (_label, search, replacement) => {
+    const xml = (await encryptedSignedResponse({ digestMethod: DIGEST_SHA1 })).replace(
+      search,
+      replacement,
     )
-    const result = await verifySamlResponse(tampered, assertionOnly({ spDecryptKey: privateKey }))
+
+    const result = await verifySamlResponse(xml, assertionOnly({ spDecryptKey: material.provider }))
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('schema_invalid')

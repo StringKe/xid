@@ -7,6 +7,7 @@ import { loadIdpVerifyKeys } from './cert'
 import type { IdpVerifyKey } from './cert'
 import { selectSingleSignature, loadAndCheckSignature } from './structure'
 import { decryptEncryptedAssertion, hasEncryptedAssertion, plaintextAssertion } from './decrypt'
+import type { SamlDecryptKeyProvider } from './oaep'
 import { validateAssertionSemantics } from './semantics'
 import { extractSessionIndex, extractSubject, mapAttributes } from './extract'
 import type { AttributeMapping } from './extract'
@@ -22,8 +23,8 @@ export type VerifySamlOptions = {
   spInitiated: boolean | 'auto'
   wantAuthnResponseSigned: boolean
   wantAssertionsSigned: boolean
-  // EncryptedAssertion 时由 worker 传入不可导出私钥。
-  spDecryptKey?: CryptoKey
+  // EncryptedAssertion 时由 worker 按 OAEP 摘要导入不可导出私钥。
+  spDecryptKey?: SamlDecryptKeyProvider
   attributeMapping?: AttributeMapping
   now?: number
   // 默认 ±3min,上限 ±5min。
