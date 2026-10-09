@@ -45,6 +45,9 @@ export function IdentifierStep(props: IdentifierStepProps): ReactNode {
     passkeyOffered &&
     state.passkeySupport === 'yes' &&
     (!state.passkeyConditionalAvailable || state.authConfig.passkeyEntry.identifierRequired)
+  // 自动填充只列当前 rpId 的 passkey,较早地址的 passkey 只能经这个按钮发起。
+  const showEarlierPasskeyButton =
+    passkeyOffered && state.passkeySupport === 'yes' && earlierHost !== null
   const hasSocial =
     !ssoOnly &&
     !state.excludesFederatedEntry &&
@@ -99,7 +102,7 @@ export function IdentifierStep(props: IdentifierStepProps): ReactNode {
         </Button>
       </form>
 
-      {showPasskeyButton || hasSocial ? (
+      {showPasskeyButton || showEarlierPasskeyButton || hasSocial ? (
         <div {...stylex.props(hosted.group)}>
           <Separator />
           {showPasskeyButton ? (
@@ -114,7 +117,7 @@ export function IdentifierStep(props: IdentifierStepProps): ReactNode {
               <Trans>Continue with a passkey</Trans>
             </Button>
           ) : null}
-          {showPasskeyButton && earlierHost ? (
+          {showEarlierPasskeyButton ? (
             <Button
               variant="secondary"
               size="lg"
