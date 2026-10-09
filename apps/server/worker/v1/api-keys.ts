@@ -3,15 +3,20 @@
 // 路由前缀:/v1/api-keys
 
 import { sha256Hex } from '@xid-kit/crypto'
-import { createTenantDb, schema } from '@xid-kit/db'
-import { API_KEY_ENVIRONMENTS, type ApiKeyEnvironment } from '@xid-kit/types'
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { createTenantDb, schema, type TenantDb } from '@xid-kit/db'
+import {
+  API_KEY_ENVIRONMENTS,
+  API_KEY_SCOPE_RESOURCES,
+  type ApiKeyEnvironment,
+} from '@xid-kit/types'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { Hono, type Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
+import { userDisplayName } from './user-query'
 import {
   auditActorId,
   emitManagementAuditAsync,
@@ -50,7 +55,35 @@ function genKey(env: ApiKeyEnvironment): string {
   return `${prefix}${suffix}`
 }
 
-function toResponse(row: typeof schema.apiKeys.$inferSelect) {
+export type ActorRef = {
+  kind: 'user' | 'api_key'
+  id: string
+  displayName: string | null
+}
+
+// 审计 actor 与 created_by 只存 id:cookie 会话是 userId,API key 调用是 keyId,两表都查一次后按命中归类。
+export async function resolveActors(
+  db: TenantDb,
+  ids: readonly (string | null | undefined)[],
+): Promise<ReadonlyMap<string, ActorRef>> {
+  const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))]
+  const actors = new Map<string, ActorRef>()
+  if (unique.length === 0) return actors
+  const [users, keys] = await Promise.all([
+    db.users.findMany(inArray(schema.users.id, unique)),
+    db.apiKeys.findMany(inArray(schema.apiKeys.id, unique)),
+  ])
+  for (const id of unique) {
+    actors.set(id, { kind: id.startsWith('ak_') ? 'api_key' : 'user', id, displayName: null })
+  }
+  for (const key of keys) actors.set(key.id, { kind: 'api_key', id: key.id, displayName: key.name })
+  for (const user of users) {
+    actors.set(user.id, { kind: 'user', id: user.id, displayName: userDisplayName(user) })
+  }
+  return actors
+}
+
+function toResponse(row: typeof schema.apiKeys.$inferSelect, createdBy: ActorRef | null = null) {
   return {
     id: row.id,
     name: row.name,
@@ -61,6 +94,21 @@ function toResponse(row: typeof schema.apiKeys.$inferSelect) {
     expires_at: row.expiresAt,
     revoked_at: row.revokedAt,
     created_at: row.createdAt,
+    createdBy,
+  }
+}
+
+const GRANTABLE_ACTIONS = ['read', 'write'] as const
+
+// 创建对话框据此置灰:API key 调用方只能授予自身 scope 覆盖的部分,组织管理员会话可授予全部。
+export function grantableScopes(auth: OrgScopedAuth): { scopes: string[]; fullAccess: boolean } {
+  const all = API_KEY_SCOPE_RESOURCES.flatMap((resource) =>
+    GRANTABLE_ACTIONS.map((action) => `${resource}:${action}`),
+  )
+  if (auth.kind === 'org_console') return { scopes: all, fullAccess: true }
+  return {
+    scopes: all.filter((scope) => apiKeyScopesCover(auth.scopes, [scope])),
+    fullAccess: auth.scopes.includes('*'),
   }
 }
 
@@ -115,7 +163,25 @@ app.get('/', async (c) => {
     orderBy: asc(schema.apiKeys.id),
     limit: limit + 1,
   })
-  return c.json(paginate(rows.map(toResponse), (r) => r.id, limit))
+  const actors = await resolveActors(
+    db,
+    rows.slice(0, limit).map((row) => row.createdBy),
+  )
+  return c.json(
+    paginate(
+      rows.map((row) =>
+        toResponse(row, row.createdBy ? (actors.get(row.createdBy) ?? null) : null),
+      ),
+      (r) => r.id,
+      limit,
+    ),
+  )
+})
+
+// GET /v1/api-keys/grantable-scopes
+app.get('/grantable-scopes', async (c) => {
+  const auth = await requireApiKeyManager(c, 'api_keys:read')
+  return c.json(grantableScopes(auth))
 })
 
 // POST /v1/api-keys - 创建新 key,明文只此一次返回
@@ -150,14 +216,16 @@ app.post('/', async (c) => {
     environment,
     scopes,
     expiresAt,
+    createdBy: auditActorId(auth),
   })
   auditApiKey(c, auth, {
     action: 'api_key.created',
     keyId: row.id,
     details: { environment, scopes, expiresAt: expiresAt?.toISOString() ?? null },
   })
+  const actors = await resolveActors(db, [row.createdBy])
 
-  return c.json({ ...toResponse(row), key }, 201)
+  return c.json({ ...toResponse(row, actors.get(auditActorId(auth)) ?? null), key }, 201)
 })
 
 // GET /v1/api-keys/:id

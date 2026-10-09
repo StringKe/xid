@@ -1,6 +1,7 @@
 // Webhook 投递:svix 风格 HMAC-SHA256(5min 窗);signing secret 信封加密存 D1。
 // 失败退避至死信;markDead 复用投递时订阅快照,不重新拉取。
 
+import type { schema } from '@xid-kit/db'
 import { webhookSubscriptionMatches, type WebhookQueueMessage } from '@xid-kit/types'
 import {
   hmacSha256Base64,
@@ -11,7 +12,8 @@ import {
 import { isPublicHttpsUrl } from '../lib/validate'
 import { logWorkerError } from '../lib/safe-log'
 
-const MAX_ATTEMPTS = 5
+export const WEBHOOK_MAX_ATTEMPTS = 5
+const MAX_ATTEMPTS = WEBHOOK_MAX_ATTEMPTS
 const BACKOFF_BASE_SECONDS = 2
 const BACKOFF_START_EXP = 2
 const SIGNATURE_VERSION = 'v1'
@@ -183,7 +185,7 @@ async function claimDelivery(input: {
     `INSERT INTO webhook_deliveries
       (id, delivery_key, tenant_id, webhook_id, event_type, payload, status, attempt_count, response_status, next_retry_at, delivered_at, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, ?, ?)
-     ON CONFLICT(delivery_key) DO NOTHING`,
+     ON CONFLICT(delivery_key) WHERE delivery_key IS NOT NULL DO NOTHING`,
   )
     .bind(
       id,
@@ -208,58 +210,137 @@ async function claimDelivery(input: {
   if (!existing) return 'retry'
   if (existing.status === 'delivered' || existing.status === 'dead') return null
 
+  // 失败后保留的行 attempt_count 小于本次尝试序号即可重新认领;同序号的并发重复投递仍受租约保护。
   const reclaimed = await input.env.DB.prepare(
     `UPDATE webhook_deliveries
        SET id = ?, attempt_count = ?, next_retry_at = ?, updated_at = ?
        WHERE delivery_key = ? AND status = 'pending'
-         AND (next_retry_at IS NULL OR next_retry_at <= ?)`,
+         AND (next_retry_at IS NULL OR next_retry_at <= ? OR attempt_count < ?)`,
   )
-    .bind(id, input.attempts, leaseUntil, now, key, now)
+    .bind(id, input.attempts, leaseUntil, now, key, now, input.attempts)
     .run()
   return reclaimed?.meta?.changes === undefined || reclaimed.meta.changes === 1
     ? { id, key }
     : 'retry'
 }
 
+type WebhookDeliveryError = NonNullable<(typeof schema.webhookDeliveries.$inferSelect)['lastError']>
+
+type AttemptOutcome = {
+  attempts: number
+  responseStatus: number | null
+  responseMs: number | null
+  lastError: WebhookDeliveryError | null
+}
+
+function changedOne(result: D1Result | undefined): boolean {
+  return result?.meta?.changes === undefined || result.meta.changes === 1
+}
+
 async function markDeliverySucceeded(
   env: Env,
   claim: DeliveryClaim,
-  attempts: number,
-  responseStatus: number,
+  outcome: AttemptOutcome,
 ): Promise<boolean> {
   const now = Date.now()
   const result = await env.DB.prepare(
     `UPDATE webhook_deliveries
-       SET status = 'delivered', attempt_count = ?, response_status = ?, next_retry_at = NULL, delivered_at = ?, updated_at = ?
+       SET status = 'delivered', attempt_count = ?, response_status = ?, response_ms = ?, last_error = NULL,
+           next_retry_at = NULL, delivered_at = ?, updated_at = ?
        WHERE id = ? AND delivery_key = ? AND status = 'pending'`,
   )
-    .bind(attempts, responseStatus, now, now, claim.id, claim.key)
+    .bind(
+      outcome.attempts,
+      outcome.responseStatus,
+      outcome.responseMs,
+      now,
+      now,
+      claim.id,
+      claim.key,
+    )
     .run()
-  return result.meta.changes === undefined || result.meta.changes === 1
+  return changedOne(result)
 }
 
-async function releaseDeliveryClaim(env: Env, claim: DeliveryClaim): Promise<boolean> {
+// 非最终失败保留行并写入下次重试时间,队列按同一退避重新投递时由 attempt_count 判定可重新认领。
+async function markDeliveryRetrying(
+  env: Env,
+  claim: DeliveryClaim,
+  outcome: AttemptOutcome,
+): Promise<boolean> {
+  const now = Date.now()
+  const nextRetryAt = now + backoffSeconds(outcome.attempts - 1) * 1000
   const result = await env.DB.prepare(
-    `DELETE FROM webhook_deliveries WHERE id = ? AND delivery_key = ? AND status = 'pending'`,
+    `UPDATE webhook_deliveries
+       SET attempt_count = ?, response_status = ?, response_ms = ?, last_error = ?, next_retry_at = ?, updated_at = ?
+       WHERE id = ? AND delivery_key = ? AND status = 'pending'`,
   )
-    .bind(claim.id, claim.key)
+    .bind(
+      outcome.attempts,
+      outcome.responseStatus,
+      outcome.responseMs,
+      outcome.lastError,
+      nextRetryAt,
+      now,
+      claim.id,
+      claim.key,
+    )
     .run()
-  return result.meta.changes === undefined || result.meta.changes === 1
+  return changedOne(result)
 }
 
 async function markDeliveryDead(
   env: Env,
   claim: DeliveryClaim,
-  attempts: number,
+  outcome: AttemptOutcome,
 ): Promise<boolean> {
   const result = await env.DB.prepare(
     `UPDATE webhook_deliveries
-       SET status = 'dead', attempt_count = ?, updated_at = ?
+       SET status = 'dead', attempt_count = ?, response_status = ?, response_ms = ?, last_error = ?,
+           next_retry_at = NULL, updated_at = ?
        WHERE id = ? AND delivery_key = ? AND status = 'pending'`,
   )
-    .bind(attempts, Date.now(), claim.id, claim.key)
+    .bind(
+      outcome.attempts,
+      outcome.responseStatus,
+      outcome.responseMs,
+      outcome.lastError,
+      Date.now(),
+      claim.id,
+      claim.key,
+    )
     .run()
-  return result.meta.changes === undefined || result.meta.changes === 1
+  return changedOne(result)
+}
+
+function classifyDeliveryError(error: unknown): WebhookDeliveryError {
+  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+    ? 'timeout'
+    : 'network'
+}
+
+async function attemptDelivery(
+  sub: WebhookSubscription,
+  input: { event: string; payload: string; headers: SvixHeaders; attempts: number },
+): Promise<AttemptOutcome> {
+  const startedAt = Date.now()
+  try {
+    const status = await deliver(sub, input.event, input.payload, input.headers)
+    const ok = status >= 200 && status < 300
+    return {
+      attempts: input.attempts,
+      responseStatus: status,
+      responseMs: Date.now() - startedAt,
+      lastError: ok ? null : 'http',
+    }
+  } catch (error) {
+    return {
+      attempts: input.attempts,
+      responseStatus: null,
+      responseMs: null,
+      lastError: classifyDeliveryError(error),
+    }
+  }
 }
 
 type DeliveryAttemptResult = {
@@ -284,29 +365,17 @@ async function deliverToSub(args: {
   const claim = claimResult
   const msgId = deliveryMessageId(queueMessageId, sub.id)
   const headers = await signWebhook(sub.signingSecret, msgId, timestampSeconds, payload)
-  let status: number
-  try {
-    status = await deliver(sub, message.event, payload, headers)
-  } catch {
-    if (attempts >= MAX_ATTEMPTS) {
-      const marked = await markDeliveryDead(env, claim, attempts)
-      return { ok: false, mustRetry: !marked }
-    } else {
-      await releaseDeliveryClaim(env, claim)
-    }
-    return { ok: false, mustRetry: true }
-  }
-  const ok = status >= 200 && status < 300
-  if (ok) {
-    const marked = await markDeliverySucceeded(env, claim, attempts, status)
+  const outcome = await attemptDelivery(sub, { event: message.event, payload, headers, attempts })
+  if (outcome.lastError === null) {
+    const marked = await markDeliverySucceeded(env, claim, outcome)
     return { ok: marked, mustRetry: !marked }
-  } else if (attempts >= MAX_ATTEMPTS) {
-    const marked = await markDeliveryDead(env, claim, attempts)
-    return { ok: false, mustRetry: !marked }
-  } else {
-    await releaseDeliveryClaim(env, claim)
-    return { ok: false, mustRetry: true }
   }
+  if (attempts >= MAX_ATTEMPTS) {
+    const marked = await markDeliveryDead(env, claim, outcome)
+    return { ok: false, mustRetry: !marked }
+  }
+  await markDeliveryRetrying(env, claim, outcome)
+  return { ok: false, mustRetry: true }
 }
 
 type DeliverResult = {

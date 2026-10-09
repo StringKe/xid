@@ -31,7 +31,7 @@ const REASON_MESSAGES: Readonly<Record<string, MessageDescriptor>> = {
 
 const FALLBACK_REASON = msg`The sync failed inside XID.`
 
-function FailureReason({ code }: { code: string }): ReactNode {
+export function FailureReason({ code }: { code: string }): ReactNode {
   const { i18n } = useLingui()
   const [reason, status] = code.split(':')
   if (reason === 'downstream_http' && status) {
@@ -40,7 +40,7 @@ function FailureReason({ code }: { code: string }): ReactNode {
   return <>{i18n._(REASON_MESSAGES[reason ?? ''] ?? FALLBACK_REASON)}</>
 }
 
-function RunBadge({ status }: { status: ScimTarget['lastRunStatus'] }): ReactNode {
+export function RunBadge({ status }: { status: ScimTarget['lastRunStatus'] }): ReactNode {
   if (status === 'succeeded') {
     return (
       <Badge tone="success">
@@ -59,6 +59,36 @@ function RunBadge({ status }: { status: ScimTarget['lastRunStatus'] }): ReactNod
     return (
       <Badge tone="danger">
         <Trans>Failed</Trans>
+      </Badge>
+    )
+  }
+  return (
+    <Badge tone="neutral">
+      <Trans>Not run yet</Trans>
+    </Badge>
+  )
+}
+
+// 标题旁的目标状态:按最近一次运行结果描述整个目标。
+export function TargetRunBadge({ status }: { status: ScimTarget['lastRunStatus'] }): ReactNode {
+  if (status === 'succeeded') {
+    return (
+      <Badge tone="success">
+        <Trans>Last run succeeded</Trans>
+      </Badge>
+    )
+  }
+  if (status === 'retrying') {
+    return (
+      <Badge tone="warning">
+        <Trans>Retrying</Trans>
+      </Badge>
+    )
+  }
+  if (status === 'failed') {
+    return (
+      <Badge tone="danger">
+        <Trans>Last run failed</Trans>
       </Badge>
     )
   }

@@ -1,298 +1,366 @@
+// 入站 SCIM 目录列表;?directoryId= 进入目录详情。新目录的 bearer token 只在创建后显示一次。
+
+import type { MessageDescriptor } from '@lingui/core'
+import { msg } from '@lingui/core/macro'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
-import {
-  ConsolePage,
-  ConsolePageNotice,
-  ConsolePageSection,
-  ConsolePageSplitSection,
-} from '@xid-kit/web-ui/ui'
-import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { statusToneFor, useDirectoryStatusLabel } from '@xid-kit/web-ui/enum-labels'
-import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
+import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import type { XidError } from '@xid-kit/types'
-import { CopyableValue } from './CopyableValue'
+import { useLocation, useNavigate, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
 import {
-  useCreateScimDirectory,
-  useDeleteScimDirectory,
-  useOrgScimDirectoriesQuery,
-  useRotateScimToken,
-} from './queries'
+  Alert,
+  Badge,
+  Button,
+  Dialog,
+  EmptyState,
+  Field,
+  Icon,
+  IdentityCell,
+  Select,
+} from '@xid-kit/web-ui/ui'
+import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
+import type { DataTableColumnDef } from '@xid-kit/web-ui/ui/DataTable'
+import { DOCS_URL } from '../../components/layout/ConsoleTopBar'
+import { PageFrame } from '../../components/page/PageFrame'
+import { list } from '../../components/page/list-styles'
+import { formatDateTime } from '../../lib/date-format'
+import { withOrgId } from '../users/UsersList'
+import { useCreateScimDirectory, useOrgScimDirectoriesQuery } from './queries'
+import ScimDirectoryDetail, { ScimTokenDialog } from './ScimDirectoryDetail'
+import type { IssuedScimToken } from './ScimDirectoryDetail'
+import { scimProviderLabel } from './scim-provider-label'
 import type { ScimDirectory } from './types'
 import { useOrgTarget } from './useOrgTarget'
-import { scimProviderLabel } from './scim-provider-label'
-import { formatDateTime } from '../../lib/date-format'
+
+const SCIM_PATH = '/console/org/scim'
+
+const PROVIDERS = [
+  'okta',
+  'microsoft-entra',
+  'google-workspace',
+  'onelogin',
+  'jumpcloud',
+  'generic',
+] as const
+
+const SETUP_STEPS: readonly { step: MessageDescriptor; detail: MessageDescriptor }[] = [
+  {
+    step: msg`1. Create a connection`,
+    detail: msg`XID gives you a SCIM base URL and a bearer token`,
+  },
+  {
+    step: msg`2. Paste them into your IdP`,
+    detail: msg`Okta, Microsoft Entra ID or any SCIM 2.0 client`,
+  },
+  {
+    step: msg`3. Assign people in your IdP`,
+    detail: msg`The first changes show up here within minutes`,
+  },
+]
 
 const styles = stylex.create({
-  formRow: {
-    display: 'flex',
-    gap: '0.75rem',
-    alignItems: 'flex-end',
-    flexWrap: 'wrap',
-  },
-  inputWrap: {
-    flex: '1 1 200px',
-    minWidth: 0,
-  },
-  tokenSection: {
+  empty: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.5rem',
-    paddingTop: '0.75rem',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    maxWidth: '40rem',
+    paddingTop: '1rem',
+  },
+  emptyTitle: {
+    margin: 0,
+    fontSize: text.lg,
+    lineHeight: leading.lg,
+    fontWeight: weight.display,
+    letterSpacing: tokens['--xid-tracking-title'],
+  },
+  emptyLead: {
+    margin: 0,
+    fontSize: text.base,
+    lineHeight: leading.body,
+    color: tokens['--xid-muted-foreground'],
+  },
+  steps: {
+    width: '100%',
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
     borderTopColor: tokens['--xid-border'],
   },
-  actions: {
+  step: {
+    display: 'grid',
+    gridTemplateColumns: { default: '1fr', '@media (min-width: 48rem)': '14.75rem minmax(0, 1fr)' },
+    gap: '0.125rem 1rem',
+    paddingBlock: '0.625rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+    fontSize: text.sm,
+  },
+  stepName: { fontWeight: weight.medium },
+  emptyActions: {
     display: 'flex',
-    gap: '0.5rem',
     flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem 1rem',
+    paddingTop: '0.5rem',
   },
-  mutedText: {
-    color: tokens['--xid-muted-foreground'],
-  },
+  link: { color: tokens['--xid-accent'], fontSize: text.sm, textDecoration: 'none' },
 })
 
-type IssuedToken = {
-  token: string
-  previousTokenExpiresAt: string | null
+export default function OrgScim(): ReactNode {
+  const [params] = useSearchParams()
+  const location = useLocation()
+  const directoryId = params.get('directoryId')
+  if (directoryId) {
+    return (
+      <ScimDirectoryDetail
+        key={directoryId}
+        directoryId={directoryId}
+        listPath={withOrgId(SCIM_PATH, location.search)}
+      />
+    )
+  }
+  return <DirectoriesList />
 }
 
-function ScimStatus({ status }: { status: ScimDirectory['status'] }): ReactNode {
+function detailPath(search: string, directoryId: string): string {
+  const next = new URLSearchParams(search)
+  next.set('directoryId', directoryId)
+  return `${SCIM_PATH}?${next.toString()}`
+}
+
+function DirectoryStatus({ status }: { status: ScimDirectory['status'] }): ReactNode {
   const label = useDirectoryStatusLabel()
   return <Badge tone={statusToneFor(status)}>{label(status)}</Badge>
 }
 
-function LastSync({ lastSyncAt }: { lastSyncAt: string | null }): ReactNode {
-  const { i18n } = useLingui()
-  if (lastSyncAt) {
-    return <>{formatDateTime(i18n, lastSyncAt)}</>
-  }
-  return (
-    <span {...stylex.props(styles.mutedText)}>
-      <Trans>Never</Trans>
-    </span>
-  )
-}
-
-function IssuedTokenNotice({ issued }: { issued: IssuedToken }): ReactNode {
-  const { i18n } = useLingui()
-  const expiresAt = formatDateTime(i18n, issued.previousTokenExpiresAt)
-  return (
-    <div {...stylex.props(styles.tokenSection)}>
-      <Alert tone="success">
-        <Trans>SCIM token generated. Store it now; it will not be shown again.</Trans>
-      </Alert>
-      <CopyableValue value={issued.token} />
-      {expiresAt ? (
-        <p {...stylex.props(styles.mutedText)}>
-          <Trans>
-            The previous token keeps working until {expiresAt}. Update your identity provider before
-            then.
-          </Trans>
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
-export default function OrgScim(): ReactNode {
+function DirectoriesList(): ReactNode {
   const { t, i18n } = useLingui()
-  const errorMessage = useApiErrorMessage()
-  const { orgId } = useOrgTarget()
-  const { data, isLoading, isError } = useOrgScimDirectoriesQuery(orgId)
-  const createDirectory = useCreateScimDirectory(orgId)
-  const rotateToken = useRotateScimToken(orgId)
-  const deleteDirectory = useDeleteScimDirectory(orgId)
-  const [provider, setProvider] = useState('okta')
-  const [issued, setIssued] = useState<IssuedToken | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<ScimDirectory | null>(null)
-  const directories = data ?? []
-  const baseUrl = directories[0]?.scimBaseUrl ?? null
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { orgId, orgName } = useOrgTarget()
+  const directories = useOrgScimDirectoriesQuery(orgId)
+  const [connecting, setConnecting] = useState(false)
+  const [created, setCreated] = useState<{
+    directory: ScimDirectory
+    issued: IssuedScimToken
+  } | null>(null)
+  const rows = directories.data ?? []
+  const open = (row: Pick<ScimDirectory, 'id'>) => navigate(detailPath(location.search, row.id))
 
-  const columns: ColumnDef<ScimDirectory>[] = [
+  const columns: DataTableColumnDef<ScimDirectory>[] = [
     {
-      id: 'provider',
-      header: () => <Trans>Provider</Trans>,
-      cell: ({ row }) => scimProviderLabel(i18n, row.original.provider),
+      id: 'directory',
+      header: () => t`Directory`,
+      cell: ({ row }) => (
+        <IdentityCell
+          name={scimProviderLabel(i18n, row.original.provider)}
+          secondary={row.original.id}
+          secondaryIsCode
+        />
+      ),
+      meta: { priority: 'primary', width: '36%' },
     },
     {
       id: 'status',
-      header: () => <Trans>Status</Trans>,
-      cell: ({ row }) => <ScimStatus status={row.original.status} />,
-      meta: { width: '100px' },
+      header: () => t`Status`,
+      cell: ({ row }) => <DirectoryStatus status={row.original.status} />,
+      meta: { priority: 'primary' },
     },
     {
       id: 'users',
-      header: () => <Trans>Users</Trans>,
-      cell: ({ row }) => row.original.userCount.toLocaleString(),
-      meta: { width: '80px' },
+      header: () => t`Users`,
+      cell: ({ row }) => (
+        <span {...stylex.props(list.numeric)}>{i18n.number(row.original.userCount)}</span>
+      ),
+      meta: { align: 'end', hidden: { narrow: true, regular: false } },
     },
     {
       id: 'groups',
-      header: () => <Trans>Groups</Trans>,
-      cell: ({ row }) => row.original.groupCount.toLocaleString(),
-      meta: { width: '80px' },
+      header: () => t`Groups`,
+      cell: ({ row }) => (
+        <span {...stylex.props(list.numeric)}>{i18n.number(row.original.groupCount)}</span>
+      ),
+      meta: { align: 'end', hidden: { narrow: true, regular: false } },
     },
     {
       id: 'lastSync',
-      header: () => <Trans>Last sync</Trans>,
-      cell: ({ row }) => <LastSync lastSyncAt={row.original.lastSyncAt} />,
-      meta: { width: '160px' },
-    },
-    {
-      id: 'actions',
-      header: () => <Trans>Actions</Trans>,
-      cell: ({ row }) => (
-        <div {...stylex.props(styles.actions)}>
-          <Button
-            variant="secondary"
-            isLoading={rotateToken.isPending && rotateToken.variables === row.original.id}
-            onClick={() => void handleRotate(row.original.id)}
-          >
-            <Trans>Rotate token</Trans>
-          </Button>
-          <Button variant="ghost" onClick={() => setPendingDelete(row.original)}>
-            <Trans>Delete</Trans>
-          </Button>
-        </div>
-      ),
-      meta: { width: '220px' },
+      header: () => t`Last sync`,
+      cell: ({ row }) =>
+        row.original.lastSyncAt ? (
+          <span {...stylex.props(list.numeric)}>
+            {formatDateTime(i18n, row.original.lastSyncAt)}
+          </span>
+        ) : (
+          <span {...stylex.props(list.muted)}>{t`Never`}</span>
+        ),
+      meta: { align: 'end', hidden: { narrow: true, regular: true, sidebar: false } },
     },
   ]
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault()
-    const result = await createDirectory.mutateAsync({ provider: provider.trim() || 'generic' })
-    setIssued({ token: result.scimToken, previousTokenExpiresAt: null })
-  }
-
-  async function handleRotate(directoryId: string): Promise<void> {
-    const result = await rotateToken.mutateAsync(directoryId)
-    setIssued({ token: result.scimToken, previousTokenExpiresAt: result.scimTokenPrevExpiresAt })
-  }
-
-  async function confirmDelete(): Promise<void> {
-    if (!pendingDelete) return
-    await deleteDirectory.mutateAsync(pendingDelete.id)
-    setPendingDelete(null)
-    setIssued(null)
-  }
-
-  if (!orgId) {
-    return (
-      <ConsolePage wide title={<Trans>Directory sync (SCIM)</Trans>}>
-        <ConsolePageNotice>
-          <Alert tone="info">
-            <Trans>No organization selected.</Trans>
-          </Alert>
-        </ConsolePageNotice>
-      </ConsolePage>
-    )
-  }
-
-  const pendingDeleteName = pendingDelete ? scimProviderLabel(i18n, pendingDelete.name) : ''
-  const actionError: XidError | null =
-    createDirectory.error ?? rotateToken.error ?? deleteDirectory.error ?? null
+  const isEmpty = directories.data !== undefined && rows.length === 0
 
   return (
-    <ConsolePage
-      wide
-      title={<Trans>Directory sync (SCIM)</Trans>}
+    <PageFrame
+      title={<Trans>Directory sync</Trans>}
       lead={
         <Trans>
-          Provision SCIM 2.0 directories to sync organization users and groups from an identity
-          provider.
+          Let your identity provider create, update and deactivate {orgName} users over SCIM 2.0.
         </Trans>
       }
+      actions={
+        isEmpty || !directories.data ? null : (
+          <Button onClick={() => setConnecting(true)}>
+            <Icon name="plus" size={16} />
+            <Trans>Connect a directory</Trans>
+          </Button>
+        )
+      }
     >
-      {actionError || isError ? (
-        <ConsolePageNotice>
-          {actionError ? (
-            <Alert tone="error">{errorMessage(actionError, { surface: 'general' })}</Alert>
-          ) : null}
-          {isError ? (
-            <Alert tone="error">
-              <Trans>Failed to load SCIM directories. Reload the page to try again.</Trans>
-            </Alert>
-          ) : null}
-        </ConsolePageNotice>
-      ) : null}
-
-      <ConsolePageSection title={<Trans>Directories</Trans>}>
+      {directories.isError && !directories.data ? (
+        <EmptyState
+          variant="load-failure"
+          title={<Trans>Directories could not be loaded</Trans>}
+          description={<Trans>Nothing changed. Check your connection and try again.</Trans>}
+          action={
+            <Button variant="secondary" onClick={() => void directories.refetch()}>
+              <Trans>Try again</Trans>
+            </Button>
+          }
+        />
+      ) : isEmpty ? (
+        <section {...stylex.props(styles.empty)}>
+          <h2 {...stylex.props(styles.emptyTitle)}>
+            <Trans>No directory is connected to {orgName} yet</Trans>
+          </h2>
+          <p {...stylex.props(styles.emptyLead)}>
+            <Trans>
+              People you add in Okta or Microsoft Entra ID get an account here, and people you
+              remove there lose access here within minutes. Setup takes three steps:
+            </Trans>
+          </p>
+          <ol {...stylex.props(styles.steps)}>
+            {SETUP_STEPS.map((item, index) => (
+              <li key={index} {...stylex.props(styles.step)}>
+                <span {...stylex.props(styles.stepName)}>{i18n._(item.step)}</span>
+                <span {...stylex.props(list.muted)}>{i18n._(item.detail)}</span>
+              </li>
+            ))}
+          </ol>
+          <div {...stylex.props(styles.emptyActions)}>
+            <Button onClick={() => setConnecting(true)}>
+              <Icon name="plus" size={16} />
+              <Trans>Connect a directory</Trans>
+            </Button>
+            <a
+              href={`${DOCS_URL}/scim`}
+              target="_blank"
+              rel="noreferrer"
+              {...stylex.props(styles.link)}
+            >
+              <Trans>Read the SCIM setup guide</Trans>
+            </a>
+          </div>
+        </section>
+      ) : (
         <DataTable
           columns={columns}
-          data={directories}
+          data={rows}
           getRowId={(row) => row.id}
-          isLoading={isLoading}
-          emptyMessage={<Trans>No SCIM directories configured.</Trans>}
+          isLoading={directories.isLoading}
+          onRowClick={open}
+          density="comfortable"
+          narrowMode="priority"
+          caption={t`Directories`}
+          captionDisplay="hidden"
+          emptyMessage={<Trans>No directories.</Trans>}
         />
-      </ConsolePageSection>
-
-      {baseUrl ? (
-        <ConsolePageSplitSection
-          title={<Trans>SCIM base URL</Trans>}
-          description={
-            <Trans>
-              Enter this URL as the SCIM connector base URL in your identity provider, together with
-              the directory bearer token.
-            </Trans>
-          }
-        >
-          <CopyableValue value={baseUrl} />
-        </ConsolePageSplitSection>
-      ) : null}
-
-      <ConsolePageSplitSection
-        title={<Trans>Create directory</Trans>}
-        description={
-          <Trans>
-            Provision a new SCIM 2.0 directory for identity provider integration. The bearer token
-            is shown once — store it immediately.
-          </Trans>
-        }
-      >
-        <form onSubmit={(event) => void handleCreate(event)} noValidate>
-          <div {...stylex.props(styles.formRow)}>
-            <div {...stylex.props(styles.inputWrap)}>
-              <Field label={<Trans>Provider</Trans>} required>
-                <Input
-                  value={provider}
-                  onChange={(event) => setProvider(event.target.value)}
-                  placeholder={t`okta`}
-                  required
-                />
-              </Field>
-            </div>
-            <Button type="submit" isLoading={createDirectory.isPending}>
-              <Trans>Create directory</Trans>
-            </Button>
-          </div>
-        </form>
-
-        {issued ? <IssuedTokenNotice issued={issued} /> : null}
-      </ConsolePageSplitSection>
-
-      {pendingDelete ? (
-        <ConfirmDialog
-          title={<Trans>Delete SCIM directory?</Trans>}
-          description={
-            <Trans>
-              {pendingDeleteName} stops accepting SCIM requests immediately, including the previous
-              token. Users it already provisioned keep their accounts.
-            </Trans>
-          }
-          confirmLabel={<Trans>Delete</Trans>}
-          isLoading={deleteDirectory.isPending}
-          onConfirm={() => void confirmDelete()}
-          onCancel={() => setPendingDelete(null)}
+      )}
+      {connecting ? (
+        <ConnectDirectoryDialog
+          orgId={orgId}
+          onClose={() => setConnecting(false)}
+          onCreated={(directory, token) => {
+            setConnecting(false)
+            setCreated({ directory, issued: { token, previousTokenExpiresAt: null } })
+          }}
         />
       ) : null}
-    </ConsolePage>
+      {created ? (
+        <ScimTokenDialog
+          issued={created.issued}
+          providerName={scimProviderLabel(i18n, created.directory.provider)}
+          onDone={() => {
+            const directory = created.directory
+            setCreated(null)
+            open(directory)
+          }}
+        />
+      ) : null}
+    </PageFrame>
+  )
+}
+
+function ConnectDirectoryDialog({
+  orgId,
+  onClose,
+  onCreated,
+}: {
+  orgId: string
+  onClose: () => void
+  onCreated: (directory: ScimDirectory, token: string) => void
+}): ReactNode {
+  const { i18n } = useLingui()
+  const errorMessage = useApiErrorMessage()
+  const create = useCreateScimDirectory(orgId)
+  const [provider, setProvider] = useState<string>('okta')
+
+  function submit(event: FormEvent): void {
+    event.preventDefault()
+    create.mutate({ provider }, { onSuccess: (result) => onCreated(result, result.scimToken) })
+  }
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => (next || create.isPending ? undefined : onClose())}
+      title={<Trans>Connect a directory</Trans>}
+      description={
+        <Trans>XID creates a SCIM base URL and a bearer token. You'll see the token once.</Trans>
+      }
+      size="md"
+      footer={
+        <>
+          <Button variant="secondary" disabled={create.isPending} onClick={onClose}>
+            <Trans>Cancel</Trans>
+          </Button>
+          <Button type="submit" form="connect-directory" isLoading={create.isPending}>
+            <Trans>Create connection</Trans>
+          </Button>
+        </>
+      }
+    >
+      <form id="connect-directory" onSubmit={submit} noValidate>
+        <Field label={<Trans>Identity provider</Trans>}>
+          <Select value={provider} onChange={(event) => setProvider(event.target.value)}>
+            {PROVIDERS.map((option) => (
+              <option key={option} value={option}>
+                {scimProviderLabel(i18n, option)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </form>
+      {create.error ? (
+        <Alert tone="error">{errorMessage(create.error, { surface: 'general' })}</Alert>
+      ) : null}
+    </Dialog>
   )
 }

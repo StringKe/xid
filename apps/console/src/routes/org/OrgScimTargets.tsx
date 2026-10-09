@@ -1,402 +1,191 @@
+// 出站 SCIM 目标列表;?targetId= 进入目标详情。
+
 import { Trans, useLingui } from '@lingui/react/macro'
-import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
-import type { FormEvent, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { FormattedDate } from '../../components/FormattedDate'
-import type { XidError } from '@xid-kit/types'
-import { Alert, Badge, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
-import {
-  ConsolePage,
-  ConsolePageNotice,
-  ConsolePageSection,
-  ConsolePageSplitSection,
-} from '@xid-kit/web-ui/ui'
+import { useLocation, useNavigate, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
+import { Badge, Button, EmptyState, Icon, IdentityCell } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
-import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
-import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import {
-  useCreateScimTarget,
-  useDeleteScimTarget,
-  useOrgScimTargetsQuery,
-  useSyncScimTarget,
-  useUpdateScimTarget,
-} from './queries'
+import type { DataTableColumnDef } from '@xid-kit/web-ui/ui/DataTable'
+import { PageFrame } from '../../components/page/PageFrame'
+import { list } from '../../components/page/list-styles'
+import { formatDateTime } from '../../lib/date-format'
+import { withOrgId } from '../users/UsersList'
+import { useCreateScimTarget, useOrgScimTargetsQuery } from './queries'
+import ScimTargetDetail, { EMPTY_TARGET_FORM, TargetDialog } from './ScimTargetDetail'
 import { ScimTargetRunState } from './ScimTargetRunState'
-import type { AssignmentGate, CreateScimTargetInput, ScimTarget } from './types'
+import type { ScimTarget } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
-const styles = stylex.create({
-  form: {
-    display: 'grid',
-    gap: '1rem',
-  },
-  targetActions: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-  },
-})
-
-type TargetForm = {
-  provider: string
-  baseUrl: string
-  token: string
-  gateMode: AssignmentGate['mode']
-  allowedRoles: string
-  allowedUserIds: string
-}
-
-const EMPTY_FORM: TargetForm = {
-  provider: 'slack',
-  baseUrl: '',
-  token: '',
-  gateMode: 'all',
-  allowedRoles: '',
-  allowedUserIds: '',
-}
-
-function parseCommaSeparated(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function gateFromForm(form: TargetForm): AssignmentGate {
-  if (form.gateMode === 'all') return { mode: 'all', allowed_user_ids: [], allowed_roles: [] }
-  return {
-    mode: 'restricted',
-    allowed_user_ids: parseCommaSeparated(form.allowedUserIds),
-    allowed_roles: parseCommaSeparated(form.allowedRoles),
-  }
-}
-
-function payloadFromForm(form: TargetForm): CreateScimTargetInput {
-  const token = form.token.trim()
-  return {
-    provider: form.provider.trim(),
-    base_url: form.baseUrl.trim(),
-    ...(token ? { token } : {}),
-    assignment_gate: gateFromForm(form),
-  }
-}
-
-function formFromTarget(target: ScimTarget): TargetForm {
-  return {
-    provider: target.provider,
-    baseUrl: target.baseUrl,
-    token: '',
-    gateMode: target.assignmentGate.mode,
-    allowedRoles: target.assignmentGate.allowed_roles.join(', '),
-    allowedUserIds: target.assignmentGate.allowed_user_ids.join(', '),
-  }
-}
-
-function TokenStatus({ hasToken }: { hasToken: boolean }): ReactNode {
-  return hasToken ? (
-    <Badge tone="success">
-      <Trans>Configured</Trans>
-    </Badge>
-  ) : (
-    <Badge tone="warning">
-      <Trans>Missing</Trans>
-    </Badge>
-  )
-}
-
-const columns: ColumnDef<ScimTarget>[] = [
-  {
-    id: 'provider',
-    header: () => <Trans>Provider</Trans>,
-    cell: ({ row }) => row.original.provider,
-  },
-  { id: 'base', header: () => <Trans>Base URL</Trans>, cell: ({ row }) => row.original.baseUrl },
-  {
-    id: 'token',
-    header: () => <Trans>API token</Trans>,
-    cell: ({ row }) => <TokenStatus hasToken={row.original.hasToken} />,
-  },
-  {
-    id: 'lastRun',
-    header: () => <Trans>Last run</Trans>,
-    cell: ({ row }) => <ScimTargetRunState target={row.original} />,
-  },
-  {
-    id: 'sync',
-    header: () => <Trans>Last successful sync</Trans>,
-    cell: ({ row }) =>
-      row.original.lastSyncAt ? <FormattedDate value={row.original.lastSyncAt} time /> : '-',
-  },
-  {
-    id: 'gate',
-    header: () => <Trans>Assignment</Trans>,
-    cell: ({ row }) =>
-      row.original.assignmentGate.mode === 'restricted' ? (
-        <Trans>Restricted roles</Trans>
-      ) : (
-        <Trans>All members</Trans>
-      ),
-  },
-]
-
-function TargetFormFields({
-  form,
-  setForm,
-  isEdit,
-}: {
-  form: TargetForm
-  setForm: (updater: (current: TargetForm) => TargetForm) => void
-  isEdit: boolean
-}): ReactNode {
-  const { t } = useLingui()
-
-  return (
-    <>
-      <Field label={t`Provider`}>
-        <Input
-          value={form.provider}
-          onChange={(event) => setForm((current) => ({ ...current, provider: event.target.value }))}
-        />
-      </Field>
-      <Field label={t`Base URL`}>
-        <Input
-          value={form.baseUrl}
-          onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))}
-          placeholder={t`https://example.com/scim/v2`}
-        />
-      </Field>
-      <Field
-        label={t`API token`}
-        hint={
-          isEdit
-            ? t`Leave blank to keep the current token. The token is never shown again after saving.`
-            : t`The bearer token issued by the downstream app. It is stored encrypted and never shown again.`
-        }
-      >
-        <Input
-          type="password"
-          autoComplete="off"
-          value={form.token}
-          onChange={(event) => setForm((current) => ({ ...current, token: event.target.value }))}
-        />
-      </Field>
-      <Field label={t`Assignment mode`}>
-        <Select
-          value={form.gateMode}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              gateMode: event.target.value as AssignmentGate['mode'],
-            }))
-          }
-        >
-          <option value="all">{t`All members`}</option>
-          <option value="restricted">{t`Restricted roles`}</option>
-        </Select>
-      </Field>
-      {form.gateMode === 'restricted' ? (
-        <>
-          <Field label={t`Allowed roles (comma-separated)`}>
-            <Input
-              value={form.allowedRoles}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, allowedRoles: event.target.value }))
-              }
-              placeholder={t`admin, owner`}
-            />
-          </Field>
-          <Field label={t`Allowed user IDs (comma-separated)`}>
-            <Input
-              value={form.allowedUserIds}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, allowedUserIds: event.target.value }))
-              }
-              placeholder={t`user_abc, user_def`}
-            />
-          </Field>
-        </>
-      ) : null}
-    </>
-  )
-}
-
-function useTargetErrorMessage(): (error: XidError) => string {
-  const { t } = useLingui()
-  const errorMessage = useApiErrorMessage()
-  return (error) =>
-    error.code === 'validation_failed' && error.meta?.paramName === 'token'
-      ? t`Enter the downstream API token. Sync needs it, and changing the base URL host requires it again.`
-      : errorMessage(error, { surface: 'general' })
-}
+const TARGETS_PATH = '/console/org/scim-targets'
 
 export default function OrgScimTargets(): ReactNode {
-  const { t } = useLingui()
-  const targetErrorMessage = useTargetErrorMessage()
-  const { orgId } = useOrgTarget()
-  const targetsQuery = useOrgScimTargetsQuery(orgId)
-  const createTarget = useCreateScimTarget(orgId)
-  const updateTarget = useUpdateScimTarget(orgId)
-  const deleteTarget = useDeleteScimTarget(orgId)
-  const syncTarget = useSyncScimTarget(orgId)
-  const [createForm, setCreateForm] = useState<TargetForm>(EMPTY_FORM)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<TargetForm>(EMPTY_FORM)
-  const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
-  const [pendingDelete, setPendingDelete] = useState(false)
-
-  const targets = targetsQuery.data ?? []
-  const selected = targets.find((target) => target.id === selectedId) ?? null
-
-  useEffect(() => {
-    if (selected) setEditForm(formFromTarget(selected))
-  }, [selected])
-
-  const onCreate = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
-    setMessage(null)
-    if (!createForm.baseUrl.trim()) {
-      setMessage({ tone: 'error', text: t`Base URL is required.` })
-      return
-    }
-    const target = await createTarget.mutateAsync(payloadFromForm(createForm))
-    setCreateForm(EMPTY_FORM)
-    setSelectedId(target.id)
-    setMessage({ tone: 'success', text: t`SCIM target created.` })
+  const [params] = useSearchParams()
+  const location = useLocation()
+  const targetId = params.get('targetId')
+  if (targetId) {
+    return (
+      <ScimTargetDetail
+        key={targetId}
+        targetId={targetId}
+        listPath={withOrgId(TARGETS_PATH, location.search)}
+      />
+    )
   }
+  return <TargetsList />
+}
 
-  const onUpdate = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
-    setMessage(null)
-    if (!selected) return
-    if (!editForm.baseUrl.trim()) {
-      setMessage({ tone: 'error', text: t`Base URL is required.` })
-      return
-    }
-    await updateTarget.mutateAsync({ targetId: selected.id, payload: payloadFromForm(editForm) })
-    setEditForm((current) => ({ ...current, token: '' }))
-    setMessage({ tone: 'success', text: t`SCIM target saved.` })
-  }
+function detailPath(search: string, targetId: string): string {
+  const next = new URLSearchParams(search)
+  next.set('targetId', targetId)
+  return `${TARGETS_PATH}?${next.toString()}`
+}
 
-  const onSync = async (targetId: string): Promise<void> => {
-    setMessage(null)
-    await syncTarget.mutateAsync(targetId)
-    setMessage({
-      tone: 'success',
-      text: t`SCIM sync queued. The Last run column shows the result.`,
-    })
-  }
+function TargetsList(): ReactNode {
+  const { t, i18n } = useLingui()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { orgId, orgName } = useOrgTarget()
+  const targets = useOrgScimTargetsQuery(orgId)
+  const create = useCreateScimTarget(orgId)
+  const [adding, setAdding] = useState(false)
+  const rows = targets.data ?? []
+  const open = (row: Pick<ScimTarget, 'id'>) => navigate(detailPath(location.search, row.id))
 
-  const confirmDelete = async (): Promise<void> => {
-    if (!selected) return
-    await deleteTarget.mutateAsync(selected.id)
-    setSelectedId(null)
-    setPendingDelete(false)
-    setMessage({ tone: 'success', text: t`SCIM target deleted.` })
-  }
+  const columns: DataTableColumnDef<ScimTarget>[] = [
+    {
+      id: 'target',
+      header: () => t`Target`,
+      cell: ({ row }) => (
+        <IdentityCell
+          name={row.original.provider}
+          secondary={row.original.baseUrl}
+          secondaryIsCode
+        />
+      ),
+      meta: { priority: 'primary', width: '40%' },
+    },
+    {
+      id: 'lastRun',
+      header: () => t`Last run`,
+      cell: ({ row }) => <ScimTargetRunState target={row.original} />,
+      meta: { priority: 'primary' },
+    },
+    {
+      id: 'token',
+      header: () => t`API token`,
+      cell: ({ row }) =>
+        row.original.hasToken ? (
+          <Badge tone="success">
+            <Trans>Configured</Trans>
+          </Badge>
+        ) : (
+          <Badge tone="warning">
+            <Trans>Missing</Trans>
+          </Badge>
+        ),
+      meta: { hidden: { narrow: true, regular: false } },
+    },
+    {
+      id: 'sync',
+      header: () => t`Last successful sync`,
+      cell: ({ row }) =>
+        row.original.lastSyncAt ? (
+          <span {...stylex.props(list.numeric)}>
+            {formatDateTime(i18n, row.original.lastSyncAt)}
+          </span>
+        ) : (
+          <span {...stylex.props(list.muted)}>{t`Never`}</span>
+        ),
+      meta: { align: 'end', hidden: { narrow: true, regular: true, sidebar: false } },
+    },
+  ]
 
-  const actionError: XidError | null =
-    createTarget.error ?? updateTarget.error ?? deleteTarget.error ?? syncTarget.error ?? null
+  const isEmpty = targets.data !== undefined && rows.length === 0
 
   return (
-    <ConsolePage
-      wide
-      title={<Trans>SCIM targets</Trans>}
-      lead={<Trans>Push organization users and groups to downstream SaaS SCIM APIs.</Trans>}
+    <PageFrame
+      title={<Trans>Provisioning</Trans>}
+      lead={
+        <Trans>
+          Push {orgName} members to the SCIM APIs of other services. Members who leave are
+          deactivated there.
+        </Trans>
+      }
+      actions={
+        isEmpty || !targets.data ? null : (
+          <Button onClick={() => setAdding(true)}>
+            <Icon name="plus" size={16} />
+            <Trans>Add target…</Trans>
+          </Button>
+        )
+      }
     >
-      {message || actionError || targetsQuery.isError ? (
-        <ConsolePageNotice>
-          {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
-          {actionError ? <Alert tone="error">{targetErrorMessage(actionError)}</Alert> : null}
-          {targetsQuery.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to load SCIM targets.</Trans>
-            </Alert>
-          ) : null}
-        </ConsolePageNotice>
-      ) : null}
-
-      <ConsolePageSection title={<Trans>Targets</Trans>}>
-        <DataTable
-          columns={columns}
-          data={targets}
-          getRowId={(row) => row.id}
-          isLoading={targetsQuery.isLoading}
-          emptyMessage={<Trans>No SCIM targets configured.</Trans>}
-          onRowClick={(row) => setSelectedId(row.id)}
-          isRowSelected={(row) => row.id === selectedId}
-        />
-      </ConsolePageSection>
-
-      <ConsolePageSplitSection
-        title={<Trans>Add SCIM target</Trans>}
-        description={
-          <Trans>
-            Register a downstream SCIM API and choose which members are pushed. A sync runs after
-            members are removed or deactivated and at least once a day; members no longer in the
-            organization are deactivated downstream.
-          </Trans>
-        }
-      >
-        <form {...stylex.props(styles.form)} onSubmit={(event) => void onCreate(event)}>
-          <TargetFormFields form={createForm} setForm={setCreateForm} isEdit={false} />
-          <div>
-            <Button type="submit" isLoading={createTarget.isPending}>
-              <Trans>Add SCIM target</Trans>
+      {targets.isError && !targets.data ? (
+        <EmptyState
+          variant="load-failure"
+          title={<Trans>Targets could not be loaded</Trans>}
+          description={<Trans>Nothing changed. Check your connection and try again.</Trans>}
+          action={
+            <Button variant="secondary" onClick={() => void targets.refetch()}>
+              <Trans>Try again</Trans>
             </Button>
-          </div>
-        </form>
-      </ConsolePageSplitSection>
-
-      {selected ? (
-        <ConsolePageSplitSection
-          title={<Trans>Edit SCIM target</Trans>}
-          meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selected.provider}</p>}
-        >
-          <form {...stylex.props(styles.form)} onSubmit={(event) => void onUpdate(event)}>
-            <TargetFormFields form={editForm} setForm={setEditForm} isEdit />
-            {selected.hasToken ? null : (
-              <Alert tone="warning">
-                <Trans>Add the downstream API token to enable sync.</Trans>
-              </Alert>
-            )}
-            <div {...stylex.props(styles.targetActions)}>
-              <Button type="submit" isLoading={updateTarget.isPending}>
-                <Trans>Save changes</Trans>
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!selected.hasToken}
-                onClick={() => void onSync(selected.id)}
-                isLoading={syncTarget.isPending}
-              >
-                <Trans>Sync {selected.provider}</Trans>
-              </Button>
-              <Button type="button" variant="danger" onClick={() => setPendingDelete(true)}>
-                <Trans>Delete</Trans>
-              </Button>
-            </div>
-          </form>
-        </ConsolePageSplitSection>
-      ) : null}
-
-      {pendingDelete && selected ? (
-        <ConfirmDialog
-          title={<Trans>Delete SCIM target?</Trans>}
+          }
+        />
+      ) : isEmpty ? (
+        <EmptyState
+          variant="first-use"
+          title={<Trans>No services receive {orgName} members yet</Trans>}
           description={
             <Trans>
-              {selected.provider} ({selected.baseUrl}) will stop receiving user and group updates.
-              This cannot be undone.
+              Add the SCIM endpoint and API token of a service such as Slack or Fleet Planner. XID
+              pushes members after removals and deactivations, and at least once a day.
             </Trans>
           }
-          confirmLabel={<Trans>Delete</Trans>}
-          isLoading={deleteTarget.isPending}
-          onConfirm={() => void confirmDelete()}
-          onCancel={() => setPendingDelete(false)}
+          action={
+            <Button onClick={() => setAdding(true)}>
+              <Icon name="plus" size={16} />
+              <Trans>Add target…</Trans>
+            </Button>
+          }
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={rows}
+          getRowId={(row) => row.id}
+          isLoading={targets.isLoading}
+          onRowClick={open}
+          density="comfortable"
+          narrowMode="priority"
+          caption={t`Provisioning targets`}
+          captionDisplay="hidden"
+          emptyMessage={<Trans>No targets.</Trans>}
+        />
+      )}
+      {adding ? (
+        <TargetDialog
+          title={<Trans>Add target</Trans>}
+          description={
+            <Trans>XID stores the API token encrypted and never shows it again after saving.</Trans>
+          }
+          initial={EMPTY_TARGET_FORM}
+          isEdit={false}
+          isPending={create.isPending}
+          error={create.error}
+          submitLabel={<Trans>Add target</Trans>}
+          onSubmit={(payload) =>
+            create.mutate(payload, {
+              onSuccess: (target) => {
+                setAdding(false)
+                open(target)
+              },
+            })
+          }
+          onClose={() => setAdding(false)}
         />
       ) : null}
-    </ConsolePage>
+    </PageFrame>
   )
 }
