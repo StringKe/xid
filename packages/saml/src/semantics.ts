@@ -22,6 +22,8 @@ export type SemanticInput = {
   now: number
   // 默认 ±3min,上限 ±5min。
   clockSkewToleranceMs?: number
+  // 默认 true。WS-Fed bearer token 可不带 Recipient;带了仍须等于 acsUrl。
+  requireSubjectConfirmationRecipient?: boolean
 }
 
 function checkStatus(responseRoot: Element): SamlResult<true> {
@@ -120,7 +122,9 @@ function checkSubjectConfirmation(
   if ((confirmation.getAttribute('Method') ?? '') !== SUBJECT_CONFIRMATION_BEARER) {
     return failResult('recipient_mismatch', 'SubjectConfirmation Method must be bearer')
   }
-  if ((data.getAttribute('Recipient') ?? '') !== input.acsUrl) {
+  const recipient = data.getAttribute('Recipient')
+  const recipientRequired = input.requireSubjectConfirmationRecipient ?? true
+  if ((recipient !== null || recipientRequired) && recipient !== input.acsUrl) {
     return failResult('recipient_mismatch', 'Recipient != ACS')
   }
   const noa = parseSamlInstant(data.getAttribute('NotOnOrAfter'))
@@ -174,6 +178,7 @@ export type SemanticOk = {
   assertionId: string
   notBefore: number
   notOnOrAfter: number
+  subjectConfirmationNotOnOrAfter: number
 }
 
 // 顺序校验,失败即返;assertionId 供 worker 重放集消费。
@@ -226,5 +231,6 @@ export function validateAssertionSemantics(input: SemanticInput): SamlResult<Sem
     assertionId,
     notBefore: cond.value.notBefore,
     notOnOrAfter,
+    subjectConfirmationNotOnOrAfter: confirm.value.notOnOrAfter,
   })
 }

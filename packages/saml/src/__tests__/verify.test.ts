@@ -8,6 +8,10 @@ import { generateAuthnRequest } from '../authn-request'
 import { ACS_URL, IDP_CERT_B64, SP_ENTITY_ID, certificateWithValidity } from './fixtures'
 import { NOW, OTHER_CERT_B64, opts, signedMutatedResponse, signedResponse } from './verify-helpers'
 
+function removeRecipient(xml: string): string {
+  return xml.replace(/(<saml:SubjectConfirmationData\b[^>]*?) Recipient="[^"]*"/, '$1')
+}
+
 describe('verifySamlResponse end-to-end', () => {
   beforeAll(() => {
     setSamlEngine(crypto)
@@ -80,21 +84,63 @@ describe('verifySamlResponse end-to-end', () => {
     if (!result.ok) expect(result.error.code).toBe('recipient_mismatch')
   })
 
-  it.each([
-    [
-      'missing',
-      (xml: string) =>
-        xml.replace(/(<saml:SubjectConfirmationData\b[^>]*?) Recipient="[^"]*"/, '$1'),
-    ],
-    [
-      'blank',
-      (xml: string) =>
-        xml.replace(/(<saml:SubjectConfirmationData\b[^>]*? Recipient=")[^"]*"/, '$1 "'),
-    ],
-  ])('schema_invalid when SubjectConfirmationData Recipient is %s', async (_label, mutate) => {
-    const result = await verifySamlResponse(await signedMutatedResponse(mutate), opts())
+  it('schema_invalid when SubjectConfirmationData Recipient is blank', async () => {
+    const xml = await signedMutatedResponse((raw) =>
+      raw.replace(/(<saml:SubjectConfirmationData\b[^>]*? Recipient=")[^"]*"/, '$1 "'),
+    )
+
+    const result = await verifySamlResponse(xml, opts())
+
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('schema_invalid')
+  })
+
+  it('recipient_mismatch when SubjectConfirmationData Recipient is missing by default', async () => {
+    const xml = await signedMutatedResponse(removeRecipient)
+
+    const result = await verifySamlResponse(xml, opts())
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('recipient_mismatch')
+  })
+
+  it('accepts a missing Recipient when the caller does not require it (WS-Fed bearer)', async () => {
+    const xml = await signedMutatedResponse(removeRecipient)
+
+    const result = await verifySamlResponse(
+      xml,
+      opts({ requireSubjectConfirmationRecipient: false }),
+    )
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('recipient_mismatch when Recipient is present but wrong even if not required', async () => {
+    const xml = await signedResponse({ recipient: 'https://acme.xid.dev/wrong/acs' })
+
+    const result = await verifySamlResponse(
+      xml,
+      opts({ requireSubjectConfirmationRecipient: false }),
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('recipient_mismatch')
+  })
+
+  it('returns the SubjectConfirmationData NotOnOrAfter separately from the assertion expiry', async () => {
+    const subjectExpiry = NOW + 2 * 60 * 1000
+    const xml = await signedResponse({
+      notOnOrAfter: new Date(NOW + 4 * 60 * 1000).toISOString(),
+      subjConfirmExpiry: new Date(subjectExpiry).toISOString(),
+    })
+
+    const result = await verifySamlResponse(xml, opts())
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.subjectConfirmationNotOnOrAfter).toBe(subjectExpiry)
+      expect(result.value.notOnOrAfter).toBe(subjectExpiry)
+    }
   })
 
   it('recipient_mismatch when Response Destination != ACS', async () => {

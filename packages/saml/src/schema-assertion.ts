@@ -27,9 +27,13 @@ function validateSubjectConfirmationData(element: Element, path: string): Struct
   if (!expected.ok) return expected
   const attributes = validateAttributes(element, path, {
     allowed: ['NotBefore', 'NotOnOrAfter', 'Recipient', 'InResponseTo', 'Address'],
-    required: ['NotOnOrAfter', 'Recipient'],
+    required: ['NotOnOrAfter'],
   })
   if (!attributes.ok) return attributes
+  // Recipient 是否必需由语义层按调用方选项决定;出现时不得为空。
+  if (element.hasAttribute('Recipient') && !(element.getAttribute('Recipient') ?? '').trim()) {
+    return invalid(path, 'Recipient must not be blank')
+  }
   const expiry = validateInstantAttribute(element, path, 'NotOnOrAfter')
   if (!expiry.ok) return expiry
   return validateEmpty(element, path)

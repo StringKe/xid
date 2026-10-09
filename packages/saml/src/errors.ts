@@ -44,4 +44,7 @@ export function okResult<T>(value: T): SamlResult<T> {
   return { ok: true, value }
 }
 
-export type SamlVerifiedAssertion = SamlAssertionResult
+// notOnOrAfter 是断言整体可接受的最晚时刻;subjectConfirmationNotOnOrAfter 单独给出 bearer 投递窗口。
+export type SamlVerifiedAssertion = SamlAssertionResult & {
+  subjectConfirmationNotOnOrAfter: number
+}

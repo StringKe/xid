@@ -29,6 +29,8 @@ export type VerifySamlOptions = {
   now?: number
   // 默认 ±3min,上限 ±5min。
   clockSkewToleranceMs?: number
+  // 默认 true。WS-Fed bearer token 可不带 SubjectConfirmationData Recipient。
+  requireSubjectConfirmationRecipient?: boolean
 }
 
 async function verifyWithAnyKey(
@@ -157,6 +159,9 @@ export async function verifySamlResponse(
     ...(options.clockSkewToleranceMs !== undefined
       ? { clockSkewToleranceMs: options.clockSkewToleranceMs }
       : {}),
+    ...(options.requireSubjectConfirmationRecipient !== undefined
+      ? { requireSubjectConfirmationRecipient: options.requireSubjectConfirmationRecipient }
+      : {}),
   })
   if (!semantic.ok) return { ok: false, error: semantic.error }
 
@@ -174,6 +179,7 @@ export async function verifySamlResponse(
     signingCertFingerprint: ctx.value.fingerprint,
     notBefore: semantic.value.notBefore,
     notOnOrAfter: semantic.value.notOnOrAfter,
+    subjectConfirmationNotOnOrAfter: semantic.value.subjectConfirmationNotOnOrAfter,
     ...(sessionIndex ? { sessionIndex } : {}),
   })
 }
