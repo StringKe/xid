@@ -18,27 +18,23 @@ export const CHANNEL_PROVIDERS: Record<MessagingChannel, readonly string[]> = {
   sms: ['twilio', 'vonage', 'infobip', 'messagebird', 'test'],
 }
 
-const SECRET_REFS: Record<MessagingChannel, Record<string, string[]>> = {
-  whatsapp: {
-    twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
-    meta: ['WHATSAPP_META_PHONE_NUMBER_ID', 'WHATSAPP_META_ACCESS_TOKEN'],
-    test: [],
-  },
-  sms: {
-    twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
-    vonage: ['VONAGE_API_KEY', 'VONAGE_API_SECRET'],
-    infobip: ['INFOBIP_API_KEY', 'INFOBIP_BASE_URL'],
-    messagebird: ['MESSAGEBIRD_ACCESS_KEY'],
-    test: [],
-  },
-}
+// Meta 按号码 id 发送,Bird 按 channel 发送,两者都不使用这里填写的发送方。
+const PROVIDERS_WITHOUT_FROM: ReadonlySet<string> = new Set(['meta', 'messagebird'])
 
 const PROVIDER_NAMES: Record<string, string> = {
   twilio: 'Twilio',
   meta: 'Meta',
   vonage: 'Vonage',
   infobip: 'Infobip',
-  messagebird: 'MessageBird',
+  messagebird: 'Bird',
+}
+
+function providerSecretRefs(
+  config: OrgDeliveryChannels[MessagingChannel],
+  provider: string,
+): string[] {
+  if (provider === config.provider) return config.secretRefs
+  return config.providers.find((row) => row.provider === provider)?.secretRefs ?? []
 }
 
 export function useProviderLabel(): (provider: string) => string {
@@ -114,7 +110,8 @@ export function DeliveryChannelDialog({
   const [provider, setProvider] = useState<string>(current.provider)
   const [from, setFrom] = useState(current.from)
   const [enabled, setEnabled] = useState(current.enabled)
-  const secretRefs = SECRET_REFS[channel][provider] ?? []
+  const secretRefs = providerSecretRefs(current, provider)
+  const usesFrom = !PROVIDERS_WITHOUT_FROM.has(provider)
   const title = channel === 'sms' ? <Trans>SMS</Trans> : <Trans>WhatsApp</Trans>
 
   function save(): void {
@@ -169,22 +166,44 @@ export function DeliveryChannelDialog({
             ))}
           </Select>
         </Field>
-        <Field
-          label={<Trans>Send from</Trans>}
-          hint={
-            channel === 'sms' ? (
-              <Trans>The phone number or sender ID registered with the provider.</Trans>
-            ) : (
-              <Trans>The approved WhatsApp Business number.</Trans>
-            )
-          }
-        >
-          <Input
-            value={from}
-            placeholder={t`+1 415 555 0142`}
-            onChange={(event) => setFrom(event.target.value)}
-          />
-        </Field>
+        {usesFrom ? (
+          <Field
+            label={<Trans>Send from</Trans>}
+            hint={
+              channel === 'sms' ? (
+                <Trans>
+                  The phone number or sender ID registered with the provider. Leave empty to use the
+                  instance default.
+                </Trans>
+              ) : (
+                <Trans>
+                  The approved WhatsApp Business number. Leave empty to use the instance default.
+                </Trans>
+              )
+            }
+          >
+            <Input
+              value={from}
+              placeholder={t`+1 415 555 0142`}
+              onChange={(event) => setFrom(event.target.value)}
+            />
+          </Field>
+        ) : (
+          <div {...stylex.props(styles.group)}>
+            <p {...stylex.props(styles.label)}>
+              <Trans>Send from</Trans>
+            </p>
+            <p {...stylex.props(styles.note)}>
+              {provider === 'meta' ? (
+                <Trans>
+                  Meta sends from the WhatsApp phone number your instance operator set up.
+                </Trans>
+              ) : (
+                <Trans>Bird sends from the SMS channel your instance operator set up.</Trans>
+              )}
+            </p>
+          </div>
+        )}
         <div {...stylex.props(styles.group)}>
           <p {...stylex.props(styles.label)}>
             <Trans>Credentials</Trans>
@@ -194,9 +213,18 @@ export function DeliveryChannelDialog({
           ) : null}
           <p {...stylex.props(styles.note)}>
             <Trans>
-              Your instance operator sets these as Workers Secrets. XID never shows their values.
+              Your instance operator sets these as Workers Secrets or variables. XID never shows
+              their values.
             </Trans>
           </p>
+          {channel === 'whatsapp' && provider !== 'test' ? (
+            <p {...stylex.props(styles.note)}>
+              <Trans>
+                Codes are sent with an approved WhatsApp authentication template, so the template
+                settings are required.
+              </Trans>
+            </p>
+          ) : null}
         </div>
         {update.error ? (
           <p role="alert" {...stylex.props(styles.error)}>
