@@ -168,6 +168,30 @@ export function EventSentence({ entry }: { entry: AuditEntry }): ReactNode {
           <Strong>{actor}</Strong> changed the enterprise SSO connection
         </Trans>
       )
+    case 'sso_connection.deleted':
+      return (
+        <Trans>
+          <Strong>{actor}</Strong> deleted the enterprise SSO connection
+        </Trans>
+      )
+    case 'outbound_saml_app.created':
+      return (
+        <Trans>
+          <Strong>{actor}</Strong> added a SAML app
+        </Trans>
+      )
+    case 'outbound_saml_app.updated':
+      return (
+        <Trans>
+          <Strong>{actor}</Strong> changed a SAML app
+        </Trans>
+      )
+    case 'outbound_saml_app.deleted':
+      return (
+        <Trans>
+          <Strong>{actor}</Strong> deleted a SAML app
+        </Trans>
+      )
     case 'organization.auth_policy.updated':
       return (
         <Trans>
