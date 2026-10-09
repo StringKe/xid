@@ -7,16 +7,13 @@ import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
-import { trustedRootsKvKey } from './webauthn-trusted-roots'
+import { loadTrustedAttestationRoots } from './webauthn-trusted-roots'
 
 type OrgDb = ReturnType<ReturnType<typeof createTenantDb>['forOrg']>
 
-// 与 passkey 注册仪式同源:实例级 WEBAUTHN_TRUSTED_ROOTS_PEM 或租户 KV 可信根任一存在即可。
+// 与 passkey 注册仪式同源:实例级或租户级可信根任一存在即可。
 export async function hasAttestationTrustedRoots(c: Context<XidHonoEnv>): Promise<boolean> {
-  const tenantRoots = await c.env.CACHE.get(trustedRootsKvKey(c.get('tenant').tenantId))
-  return [c.env.WEBAUTHN_TRUSTED_ROOTS_PEM, tenantRoots].some(
-    (pem) => typeof pem === 'string' && pem.length > 0,
-  )
+  return (await loadTrustedAttestationRoots(c.env, c.get('tenant').tenantId)).length > 0
 }
 
 function preconditionFailed(paramName: string): AppError {

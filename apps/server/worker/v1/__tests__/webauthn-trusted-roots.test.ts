@@ -114,6 +114,25 @@ describe('/v1/webauthn/trusted-roots', () => {
     expect(await res.json()).toEqual({ configured: false, data: [] })
   })
 
+  it('counts instance-level roots as configured without listing them', async () => {
+    const d1 = makeDb()
+    await seedOrg(d1, { id: 't_a' })
+    const token = await seedApiKey(d1, { id: 'ak_roots', scopes: ['organizations:read'] })
+    const env = {
+      ...envOf(d1),
+      CACHE: memoryKv(),
+      WEBAUTHN_TRUSTED_ROOTS_PEM: VALID_CA_PEM,
+    } as unknown as Env
+
+    const res = await buildApp(registerWebAuthnTrustedRootRoutes).request(
+      URL_BASE,
+      { headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+
+    expect(await res.json()).toEqual({ configured: true, data: [] })
+  })
+
   it('rejects writes from a key without organizations:write', async () => {
     const { kv, request } = await setup(['organizations:read'])
 

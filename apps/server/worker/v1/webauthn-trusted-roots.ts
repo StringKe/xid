@@ -70,13 +70,24 @@ async function storedViews(pem: string | null): Promise<TrustedRootView[]> {
   return toViews(parseTrustedRoots([pem]))
 }
 
+// 实例级根(Workers 变量 WEBAUTHN_TRUSTED_ROOTS_PEM)与租户经本端点配置的根都可用;
+// 注册仪式、auth-policy 的 direct 前置检查与本端点的 configured 统一从这里取。
+export async function loadTrustedAttestationRoots(env: Env, tenantId: string): Promise<string[]> {
+  const tenantRoots = await env.CACHE.get(trustedRootsKvKey(tenantId))
+  return [env.WEBAUTHN_TRUSTED_ROOTS_PEM, tenantRoots].filter(
+    (pem): pem is string => typeof pem === 'string' && pem.length > 0,
+  )
+}
+
 const app = new Hono<XidHonoEnv>()
 
+// data 只列本租户配置的根;configured 同时计入实例级根,与注册仪式实际可用的根一致。
 app.get('/', async (c) => {
   await requireApiKeyOrTopLevelOrgManager(c, 'organizations:read')
   const tenant = c.get('tenant')
   const roots = await storedViews(await c.env.CACHE.get(trustedRootsKvKey(tenant.tenantId)))
-  return c.json({ configured: roots.length > 0, data: roots })
+  const instanceConfigured = Boolean(c.env.WEBAUTHN_TRUSTED_ROOTS_PEM)
+  return c.json({ configured: roots.length > 0 || instanceConfigured, data: roots })
 })
 
 app.put('/', async (c) => {

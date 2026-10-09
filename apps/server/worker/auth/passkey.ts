@@ -32,7 +32,7 @@ import { auditPolicyDeniedError } from './hosted-audit'
 import { activateSessionAfterMfaSetup, resolvePostAuthMfaGate } from '../lib/mfa-session'
 import { loadUserCredentialLabel, requireSession, type SessionRequirement } from '../me/shared'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
-import { trustedRootsKvKey } from '../v1/webauthn-trusted-roots'
+import { loadTrustedAttestationRoots } from '../v1/webauthn-trusted-roots'
 import { handleSessionHandoff, passkeyCeremonyOrigin } from '../me-auth/passkey-handoff'
 
 const passkey = new Hono<XidHonoEnv>()
@@ -68,17 +68,6 @@ function resolveAttestationPreference(tenant: TenantVar): 'none' | 'indirect' | 
   if (mode === 'direct') return 'direct'
   if (mode === 'indirect') return 'indirect'
   return 'none'
-}
-
-// 实例级根(Workers 变量)与租户在 Management API 配置的根都可用;注册仪式按证书逐级验签到其中之一。
-async function loadTrustedAttestationRoots(
-  c: Context<XidHonoEnv>,
-  tenantId: string,
-): Promise<string[]> {
-  const tenantRoots = await c.env.CACHE.get(trustedRootsKvKey(tenantId))
-  return [c.env.WEBAUTHN_TRUSTED_ROOTS_PEM, tenantRoots].filter(
-    (pem): pem is string => typeof pem === 'string' && pem.length > 0,
-  )
 }
 
 async function assertResolvedWebAuthnTenant(
@@ -167,7 +156,7 @@ passkey.post('/register/verify', async (c) => {
   if (!challengeVal) throw new AppError('challenge_invalid')
 
   const attestationMode = tenant.policy.hostedAuth?.attestationMode ?? 'none'
-  const trustedRoots = await loadTrustedAttestationRoots(c, tenant.tenantId)
+  const trustedRoots = await loadTrustedAttestationRoots(c.env, tenant.tenantId)
   const result = await verifyRegistration(
     {
       ceremony: 'registration',
