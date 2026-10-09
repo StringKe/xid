@@ -44,14 +44,16 @@ distributed brute force overshoot any threshold. `docs/design/01-authentication.
 says KV -- the Durable Object is the implementation and the correct choice (see cloudflare-bindings
 rule).
 
-| Policy                    | Window / limit        | Lockout                                  |
-| ------------------------- | --------------------- | ---------------------------------------- |
-| `ACCOUNT_FAILURE`         | 10 / 15 min           | exponential backoff 5 / 15 / 30 / 60 min |
-| `IP_FAILURE`              | 50 / min              | 1 h                                      |
-| `OTP_SEND`                | 1 / min per recipient | none, natural window expiry              |
-| OTP hourly quota          | 5 / h per recipient   | none, natural window expiry              |
-| `DCR_REGISTER` (RFC 7591) | 10 / h per IP         | 1 h                                      |
-| Self-service org creation | 10 / day per user     | none, natural window expiry              |
+| Policy                    | Window / limit         | Lockout                                  |
+| ------------------------- | ---------------------- | ---------------------------------------- |
+| `ACCOUNT_FAILURE`         | 10 / 15 min            | exponential backoff 5 / 15 / 30 / 60 min |
+| `IP_FAILURE`              | 50 / min               | 1 h                                      |
+| `OTP_SEND`                | 1 / min per recipient  | none, natural window expiry              |
+| OTP hourly quota          | 5 / h per recipient    | none, natural window expiry              |
+| Phone OTP per source IP   | 10 / h and 30 / day    | none, natural window expiry              |
+| Phone OTP per tenant      | 500 / h and 5000 / day | none, natural window expiry              |
+| `DCR_REGISTER` (RFC 7591) | 10 / h per IP          | 1 h                                      |
+| Self-service org creation | 10 / day per user      | none, natural window expiry              |
 
 - Backoff steps escalate per key through a persisted `backoff_count`. `reset(key)` after a
   successful login clears the count, the lock, and the backoff tier -- all three, or the next
@@ -62,6 +64,13 @@ rule).
   poison another.
 - Multi-window send quotas (1/min + 5/h) MUST go through the DO `reserve` action in a single call,
   so an hour-window rejection does not consume the minute quota.
+- Phone OTP sends (`apps/server/worker/auth/phone-otp-budget.ts`) also reserve the source-IP and
+  tenant budgets above, each hourly and daily window in one `reserve` call, to block SMS pumping
+  across many numbers. Passwordless send and contact verification go through
+  `reserveOtpSendRateLimit` (IP, then recipient, then tenant, so a request rejected by IP or
+  recipient does not consume tenant budget); the MFA SMS challenge reserves IP and tenant before its
+  per-recipient send limit. When the source IP is unavailable only the recipient and tenant
+  dimensions apply. Every rejection is the same `rate_limited`.
 - The DO `check` action is check-and-increment, not a read. There is no separate pre-check /
   record-failure pair; call it exactly once per attempt or the counts double.
 - `checkRateLimitStore` fails closed: a non-200 status, a non-JSON body, or a missing `allowed`

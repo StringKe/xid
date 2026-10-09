@@ -83,6 +83,16 @@ Branding is draft-then-publish: `PATCH /:id/branding` and `PUT /:id/logo?variant
 `paramName=accentColor`) and then copies it to the version Hosted UI reads. Scopes `branding:read` /
 `branding:write`. `POST /:id/domains/:domainId/verify` runs one DNS-over-HTTPS check.
 
+Outbound SAML IdP signing certificates belong to the tenant and are shared by every outbound SAML
+app (module `v1/org-outbound-saml-certificates.ts`). `GET /:id/outbound-saml-signing-certificates`
+(`connections:read`) lists them with `status` `next` / `active` / `retiring`;
+`POST /:id/outbound-saml-signing-certificates` prepares a `next` certificate (`409` when one exists),
+and `POST /:id/outbound-saml-signing-certificates/:certificateId/activate` promotes it, moving the old
+one to `retiring` (`422`, `paramName=certificate_id`, for an expired certificate). Both writes need
+`connections:write`, the top-level Organization of the tenant, and self-service editing; they audit
+`outbound_saml_signing_certificate.prepared` / `.activated`. IdP metadata publishes every `next`,
+`active` and `retiring` certificate, and only this explicit action changes the signing certificate.
+
 Webhooks: `status` is `active` or `disabled`; `GET /v1/webhooks/:id/deliveries` is a cursor page
 with a status filter and a payload-free summary; detail adds `stats7d`, `createdBy`,
 `secretRotatedAt`. API keys record `created_by`, and `GET /v1/api-keys/grantable-scopes` returns
@@ -93,7 +103,12 @@ Adjacent but separate route families, do not conflate them with the Management A
 instance-manager Console API (cookie session + `requireInstanceManager`). The platform family owns
 organization resource quotas (`/v1/platform/quotas/:tenantId`), the usage overview
 (`/v1/platform/usage`), optional usage-based billing (`/v1/platform/billing/config` and the Stripe
-Customer Portal; MAU meter reporting runs in the daily Cron), user impersonation,
+Customer Portal; MAU meter reporting runs in the daily Cron; `GET /v1/platform/billing/meter-reports`
+lists MAU reports whose Stripe outcome is unknown past the 24 h dedup window, and
+`POST /v1/platform/billing/meter-reports/resolve` with `action` `mark_reported` or `report_again`
+settles one after checking Stripe (`report_again` returns `422`, `paramName=action`, once the event
+timestamp is older than Stripe's 35-day backdate limit), writing `billing.meter_report.marked_reported` or
+`billing.meter_report.reported_again`), user impersonation,
 announcements, status incidents, compliance evidence, audit views and Queue dead-letter operations.
 `GET /v1/platform/audit/verify` synchronously recomputes a bounded audit chain range in D1 batches;
 the Console exposes the diagnostic. A Queue/KV verification job is not implemented.

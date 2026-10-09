@@ -16,7 +16,7 @@ Implementation: `packages/db/src/tenant-db.ts` and `packages/db/src/schema/`. De
 
 ## Scoped query layer API
 
-- `createTenantDb(d1, ctx)` -> `TenantDb`: one `TenantScoped` accessor per tenant table (53 tables in `TENANT_TABLES`), plus `tenantId` and `forOrg(orgId)`.
+- `createTenantDb(d1, ctx)` -> `TenantDb`: one `TenantScoped` accessor per tenant table (59 tables in `TENANT_TABLES`, including `swaCredentials` and `samlPersistentNameIds`), plus `tenantId` and `forOrg(orgId)`.
 - `TenantScoped<T>` exposes only pre-scoped operations: `findMany`, `findOne`, `count`, `countDistinct`, `countBy`, `insert`, `insertMany`, `insertManyIgnore`, `update`, `hardDelete`. There is no raw query builder to escape through, and a caller-supplied `SQL` predicate is `AND`-ed onto the tenant predicate, so it can only narrow.
 - `forOrg(orgId)` -> `OrgScopedDb`: the 10 entities that carry a real `org_id` column
   (`projects`, `orgPolicies`, `memberships`, `invitations`, `organizationDomains`,
@@ -35,17 +35,20 @@ Implementation: `packages/db/src/tenant-db.ts` and `packages/db/src/schema/`. De
 
 Every "unique within a tenant" constraint is a composite UNIQUE whose **first column is `tenant_id`**, so the same value in two tenants never collides (`docs/design/08-data-model.md` 9.5, implemented in `packages/db/src/schema/`):
 
-| Table                 | Constraint                                       |
-| --------------------- | ------------------------------------------------ |
-| `user_emails`         | `UNIQUE (tenant_id, email)`                      |
-| `user_phones`         | `UNIQUE (tenant_id, phone)`                      |
-| `users`               | `UNIQUE (tenant_id, username)`                   |
-| `users`               | `UNIQUE (tenant_id, external_id)`                |
-| `user_identities`     | `UNIQUE (tenant_id, provider, provider_user_id)` |
-| `passkey_credentials` | `UNIQUE (tenant_id, credential_id)`              |
-| `organizations`       | `UNIQUE (tenant_id, slug)`                       |
-| `roles`               | `UNIQUE (tenant_id, project_id, key)`            |
-| `permissions`         | `UNIQUE (tenant_id, project_id, key)`            |
+| Table                      | Constraint                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------- |
+| `user_emails`              | `UNIQUE (tenant_id, email)`                                                              |
+| `user_phones`              | `UNIQUE (tenant_id, phone)`                                                              |
+| `users`                    | `UNIQUE (tenant_id, username)`                                                           |
+| `users`                    | `UNIQUE (tenant_id, external_id)`                                                        |
+| `user_identities`          | `UNIQUE (tenant_id, provider, provider_user_id)`                                         |
+| `passkey_credentials`      | `UNIQUE (tenant_id, credential_id)`                                                      |
+| `organizations`            | `UNIQUE (tenant_id, slug)`                                                               |
+| `roles`                    | `UNIQUE (tenant_id, project_id, key)`                                                    |
+| `permissions`              | `UNIQUE (tenant_id, project_id, key)`                                                    |
+| `swa_credentials`          | `UNIQUE (tenant_id, connection_id, user_id)`                                             |
+| `saml_persistent_name_ids` | `UNIQUE (tenant_id, sp_id, name_id)`                                                     |
+| `cert_store`               | `UNIQUE (tenant_id, usage)`, partial: one `active` and one `next` `saml_idp_signing` row |
 
 SQLite treats multiple NULLs in a UNIQUE index as distinct, so `username` and `external_id` stay
 nullable while the constraint still holds. The deliberately global constraints are

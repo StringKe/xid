@@ -103,8 +103,10 @@ chars>`, with `Add-Padding: true`). MANDATORY and blocking on sign-up, password 
   `tenant_id`, TTL 15 min (`MAGIC_LINK_TTL_MS`), single use. Only `sha256Hex(jti)` is stored in
   `verification_tokens.token_hash`.
 - Email OTP: 6 digits, 10 min (`OTP_EMAIL_TTL_MS`). SMS / WhatsApp OTP: 6 digits, 5 min
-  (`OTP_PHONE_TTL_MS`). Phone targets are restricted by a dial-prefix allowlist, default `+1`
-  (US/CA).
+  (`OTP_PHONE_TTL_MS`). Phone targets are E.164 `+1` numbers whose area code is an in-service
+  geographic area code of the United States (50 states plus DC) or Canada
+  (`apps/server/worker/auth/phone-otp-regions.ts`, from the NANPA report). Caribbean `+1` countries
+  and US territories are excluded, and there is no per-tenant setting.
 - OTPs are generated from `crypto.getRandomValues` reduced mod 1e6. Never `Math.random`.
 - OTP codes are stored as `sha256Hex(code)` in `verification_tokens.code_hash` and compared in
   constant time. Successful verification sets `consumed_at`; issuing a new OTP for the same

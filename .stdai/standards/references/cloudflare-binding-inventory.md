@@ -60,19 +60,19 @@ billing switched off.
 
 ## Durable Object bindings
 
-| Binding                | Class                  | Responsibility                                                                        |
-| ---------------------- | ---------------------- | ------------------------------------------------------------------------------------- |
-| `WEBAUTHN_CHALLENGE`   | `ChallengeStore`       | WebAuthn challenges plus atomic TOTP replay claims                                    |
-| `OAUTH_STATE`          | `OAuthFlowDO`          | OAuth state / nonce / PKCE plus parked `/authorize` params for unauthenticated users  |
-| `PAR_STORE`            | `ParStore`             | RFC9126 PAR, `request_uri` valid 60s, single use, DO name = `tenantId`                |
-| `DEVICE_FLOW`          | `DeviceFlowStore`      | RFC8628 device flow, `device_code` and `user_code` stored separately, poll throttling |
-| `SESSION_REVOCATION`   | `SessionDO`            | Per-user active session id set, serialized revocation                                 |
-| `RATE_LIMITER`         | `RateLimitStore`       | Per-tenant / account / IP rate limit counters in DO SQLite storage                    |
-| `AUDIT_SEQ`            | `AuditSeqDO`           | Sole committer of the per-tenant audit hash chain                                     |
-| `METERING`             | `MeteringDO`           | Per-tenant exact MAU/DAU deduplication                                                |
-| `GUEST_STORE`          | `GuestStore`           | Per-anonymous-session guest mint deduplication                                        |
-| `CIBA_STATE`           | `CibaStore`            | Per-`auth_req_id` CIBA state, poll throttling and atomic redemption                   |
-| `IMPERSONATION_GRANTS` | `ImpersonationGrantDO` | Two-minute, secret-hash-only, exact-target-host impersonation handoff consumed once   |
+| Binding                | Class                  | Responsibility                                                                                                                        |
+| ---------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `WEBAUTHN_CHALLENGE`   | `ChallengeStore`       | WebAuthn challenges (TTL 5-10 min) plus atomic first-write `/claim` for TOTP, SAML assertion ID and guest entry replay, TTL up to 24h |
+| `OAUTH_STATE`          | `OAuthFlowDO`          | OAuth state / nonce / PKCE plus parked `/authorize` params for unauthenticated users                                                  |
+| `PAR_STORE`            | `ParStore`             | RFC9126 PAR, `request_uri` valid 60s, single use, DO name = `tenantId`                                                                |
+| `DEVICE_FLOW`          | `DeviceFlowStore`      | RFC8628 device flow, `device_code` and `user_code` stored separately, poll throttling                                                 |
+| `SESSION_REVOCATION`   | `SessionDO`            | Per-user active session id set, serialized revocation                                                                                 |
+| `RATE_LIMITER`         | `RateLimitStore`       | Per-tenant / account / IP rate limit counters in DO SQLite storage                                                                    |
+| `AUDIT_SEQ`            | `AuditSeqDO`           | Sole committer of the per-tenant audit hash chain                                                                                     |
+| `METERING`             | `MeteringDO`           | Per-tenant exact MAU/DAU deduplication                                                                                                |
+| `GUEST_STORE`          | `GuestStore`           | Per-anonymous-session guest mint deduplication                                                                                        |
+| `CIBA_STATE`           | `CibaStore`            | Per-`auth_req_id` CIBA state, poll throttling and atomic redemption                                                                   |
+| `IMPERSONATION_GRANTS` | `ImpersonationGrantDO` | Two-minute, secret-hash-only, exact-target-host impersonation handoff consumed once                                                   |
 
 The first eight classes are registered in migration `v1`; `GuestStore` is registered in `v2` and
 `CibaStore` in `v3`; `ImpersonationGrantDO` is registered in `v4`. All use
@@ -103,7 +103,9 @@ Message shapes live in `packages/types/src/env.ts` and are camelCase on the wire
 `WebhookQueueMessage` is `{ tenantId, event, payload }`,
 `MeteringQueueMessage` is `{ tenantId, userId, ts }`,
 `ScimSyncQueueMessage` is
-`{ tenantId, orgId, targetId, issuer, actorId?, runId, requestedAt }`, and
+`{ tenantId, orgId, targetId, issuer, actorId?, runId, requestedAt, userId?, cursor? }` (`userId`
+syncs that one user; without it the message is a full reconciliation resumed from the member id in
+`cursor`), and
 `PrivacyQueueMessage` is
 `{ requestId, tenantId, userId, operation: "export" | "delete", requestedAt }`.
 
@@ -114,7 +116,10 @@ Two expressions, dispatched by `dispatchScheduled(cron, env)` in `apps/server/wo
 - `0 * * * *` (`runHourly`): expired session cleanup, expired access-token revocation cleanup, expired
   authorization code cleanup, expired challenge cleanup, metering outbox redelivery, DAU aggregation.
 - `0 2 * * *` (`runDaily`): signing key rotation check and `retire_after` backfill, custom hostname
-  ownership/SSL/DCV polling and expired ownership cleanup, domain verification polling, SAML IdP
+  ownership/SSL/DCV polling and expired ownership cleanup, domain verification polling, outbound
+  SAML IdP signing certificate maintenance (publish a `next` certificate 60 days before the `active`
+  one expires, audit `outbound_saml_signing_certificate.expiring` within 30 days of expiry, retire
+  `retiring` certificates; promotion to `active` stays an explicit admin action), SAML IdP
   metadata refresh, monthly usage maintenance (MAU report, current-month snapshot, old-row cleanup),
   expired privacy-export object cleanup, privacy export / due erasure Queue redelivery, safe guest
   onboarding garbage collection, and optional crash-safe Stripe MAU reporting.

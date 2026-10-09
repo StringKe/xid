@@ -19,10 +19,16 @@ version below is the full original text of that list.
   limiting, audit sequence, metering. Short-lived strongly consistent data MUST NOT go into D1
   relational tables.
 - **Read-heavy caching -> KV**: JWKS (`jwks:{issuer}:{active_kid}`, TTL 3600s), discovery and
-  protected-resource metadata (TTL 3600s), branding (`brand:{tenant_id}:{org_id}`), upstream social
-  provider JWKS (`provider_jwks:{jwks_uri}`, TTL 3600s), federation trust
+  protected-resource metadata (TTL 3600s), branding (`brand:{tenant_id}:{org_id}`), upstream
+  provider JWKS (`provider_jwks:{jwks_uri}`, TTL 3600s) shared by social sign-in and enterprise OIDC
+  connections, the forced-refresh marker `provider_jwks_refresh:{jwks_uri}` (300s,
+  `PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC`, also shared by both), federation trust
   anchors (TTL 86400s). TTL constants live in `apps/server/worker/lib/ttl.ts` -- add new ones there,
   never as inline literals.
+- An unknown `kid` in an upstream `id_token` forces a JWKS refetch only when no
+  `provider_jwks_refresh:{jwks_uri}` marker exists; otherwise verification fails. The forced refresh
+  writes the marker, and the enterprise OIDC loader also writes it on a plain cache-miss fetch, so
+  forged `kid` values do not turn into repeated upstream fetches.
 - **Async work off the critical path -> Queues**: email, SMS, WhatsApp, audit persistence, webhooks,
   metering, privacy exports, and privacy erasure. The login path MUST NOT synchronously await any of
   them. Audit writes go through the queue so login stays under the P99 budget.
@@ -95,7 +101,15 @@ silently lost on transient Queue failure.
 - Notifications are async through Queues: `queue.send({ type, recipient, payload })`. The consumer
   renders the Mustache-subset template (R2 locale pack first, built-in fallback second) and sends via
   `EmailProvider`. Failures retry with exponential backoff up to 5 attempts; exhausted messages land in
-  D1 `notification_failures` and the channel's source-specific DLQ. The generic operations consumer
+  D1 `notification_failures` and the channel's source-specific DLQ.
+- Provider responses go through the per-delivery state machine in
+  `apps/server/worker/queues/notification-delivery-state.ts`. A provider 429 or 5xx returns the
+  delivery to `pending` and retries after `Retry-After`, or after exponential backoff (15s doubling,
+  capped at 600s) when the header is absent, up to `PROVIDER_SEND_ATTEMPT_LIMIT` (5) provider
+  attempts; after that it is recorded in D1 `notification_delivery_failures`. A 5xx can hide an
+  accepted send, so this retry accepts the risk of a duplicate message. Any other explicit rejection,
+  a 408, or an indeterminate result is recorded without resending.
+- The generic operations consumer
   persists KEK-encrypted replay material in `queue_dead_letters`; plaintext recipient and payload are
   forbidden. Manual replay uses a five-minute claim lease. The hourly cron releases stale
   `replaying` claims, and a manual retry may reclaim an expired lease directly. Recovery is
@@ -110,6 +124,17 @@ silently lost on transient Queue failure.
   **HyperLogLog is NOT used** -- 0.8% error is unacceptable for billing.
 - The hourly cron aggregates DAU into `usage_daily`; the daily cron snapshots and reports monthly MAU
   into `usage_monthly` and prunes old rows.
+- Optional Stripe MAU reporting keeps a crash-safe cursor per tenant and period in D1
+  `billing_meter_reports`: the pending identifier is persisted before the Stripe call, and
+  `pending_sent_at` records the first send Stripe may have accepted (an explicit 4xx other than 409
+  clears it). Queue retries start at 30 min and double up to a 12 h cap, so the 5 retries stay inside
+  Stripe's 24 h identifier dedup window counted from `pending_sent_at`. An unresolved send older than
+  that window is never resent automatically: it gets `reconciliation_required_at` and waits for an
+  Instance Manager to mark it reported or report it again under a new identifier.
+- Stripe subscription state is stored per subscription id in `billing_subscriptions`, ordered per
+  subscription by event. The tenant billing status is the best status among its subscriptions, so a
+  `deleted` event for an old subscription does not cancel a tenant that still has a live one;
+  Stripe `paused` and `incomplete_expired` map to `canceled` and stop MAU reporting.
 - `ANALYTICS.writeDataPoint` records a low-cardinality authentication-success signal. The Worker
   binding has no read API, and this repository has no Analytics Engine SQL client or historical SQL
   aggregation. Current Console DAU/MAU reads the exact D1 metering facts; do not claim an
