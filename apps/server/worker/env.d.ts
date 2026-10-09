@@ -87,6 +87,10 @@ type WorkerBindings = {
   GITHUB_CLIENT_SECRET?: string
   MICROSOFT_CLIENT_SECRET?: string
   APPLE_CLIENT_SECRET?: string
+  // Apple Sign in 的 client_secret 是 ES256 JWT,最长 6 个月;配置这三项后按请求签发。
+  APPLE_TEAM_ID?: string
+  APPLE_KEY_ID?: string
+  APPLE_PRIVATE_KEY?: string
   GITHUB_EMU_CLIENT_SECRET?: string
   // WhatsApp provider:支持 twilio / meta。未配置时 WhatsApp OTP 不可见且 direct API 策略拒绝。
   WHATSAPP_PROVIDER?: 'twilio' | 'meta'
@@ -94,6 +98,11 @@ type WorkerBindings = {
   WHATSAPP_META_PHONE_NUMBER_ID?: string
   WHATSAPP_META_ACCESS_TOKEN?: string
   WHATSAPP_META_API_VERSION?: string
+  // WhatsApp 业务发起的消息必须使用已审批的 authentication 模板。
+  WHATSAPP_TEMPLATE_NAME?: string
+  WHATSAPP_TEMPLATE_LANGUAGE?: string
+  TWILIO_WHATSAPP_CONTENT_SID?: string
+  TWILIO_WHATSAPP_MESSAGING_SERVICE_SID?: string
   // SMS provider:支持 twilio / vonage / infobip / messagebird。未配置时 SMS OTP 不可见且 direct API 策略拒绝。
   SMS_PROVIDER?: 'twilio' | 'vonage' | 'infobip' | 'messagebird'
   SMS_FROM?: string
@@ -105,6 +114,8 @@ type WorkerBindings = {
   INFOBIP_API_KEY?: string
   INFOBIP_BASE_URL?: string
   MESSAGEBIRD_ACCESS_KEY?: string
+  BIRD_WORKSPACE_ID?: string
+  BIRD_CHANNEL_ID?: string
   // WebAuthn 企业 attestation 信任根 PEM(运维注入)
   WEBAUTHN_TRUSTED_ROOTS_PEM?: string
 }

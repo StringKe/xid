@@ -66,6 +66,10 @@ export type Env = CloudflareForSaasEnv & {
   WHATSAPP_META_PHONE_NUMBER_ID?: string
   WHATSAPP_META_ACCESS_TOKEN?: string
   WHATSAPP_META_API_VERSION?: string
+  WHATSAPP_TEMPLATE_NAME?: string
+  WHATSAPP_TEMPLATE_LANGUAGE?: string
+  TWILIO_WHATSAPP_CONTENT_SID?: string
+  TWILIO_WHATSAPP_MESSAGING_SERVICE_SID?: string
   SMS_PROVIDER?: SmsProviderName
   SMS_FROM?: string
   TWILIO_ACCOUNT_SID?: string
@@ -76,5 +80,10 @@ export type Env = CloudflareForSaasEnv & {
   INFOBIP_API_KEY?: string
   INFOBIP_BASE_URL?: string
   MESSAGEBIRD_ACCESS_KEY?: string
+  BIRD_WORKSPACE_ID?: string
+  BIRD_CHANNEL_ID?: string
+  APPLE_TEAM_ID?: string
+  APPLE_KEY_ID?: string
+  APPLE_PRIVATE_KEY?: string
   WEBAUTHN_TRUSTED_ROOTS_PEM?: string
 }
