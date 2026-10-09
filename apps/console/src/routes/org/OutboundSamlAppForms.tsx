@@ -10,6 +10,7 @@ import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { text } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useCreateOutboundSamlApp, useUpdateOutboundSamlApp } from './queries'
+import type { XidError } from '@xid-kit/types'
 import type { AssignmentGate, CreateOutboundSamlAppInput, OutboundSamlApp } from './types'
 import { ChoiceCards, SaveStatus } from './AuthSettingsControls'
 
@@ -26,6 +27,11 @@ const styles = stylex.create({
   error: {
     margin: 0,
     color: tokens['--xid-danger'],
+    fontSize: text.sm,
+  },
+  note: {
+    margin: 0,
+    color: tokens['--xid-muted-foreground'],
     fontSize: text.sm,
   },
   footer: {
@@ -73,8 +79,13 @@ export function parseCertificates(value: string): string[] {
   return [...new Set([...pemCertificates, ...base64Certificates])]
 }
 
+type MetadataSource = 'none' | 'url' | 'xml'
+
 type AppForm = {
   preset: string
+  metadataSource: MetadataSource
+  metadataUrl: string
+  metadataXml: string
   spEntityId: string
   acsUrl: string
   sloUrl: string
@@ -84,6 +95,9 @@ type AppForm = {
 
 const EMPTY_FORM: AppForm = {
   preset: '',
+  metadataSource: 'none',
+  metadataUrl: '',
+  metadataXml: '',
   spEntityId: '',
   acsUrl: '',
   sloUrl: '',
@@ -91,9 +105,27 @@ const EMPTY_FORM: AppForm = {
   spCertificates: '',
 }
 
+// 服务端的 sp_metadata_url / sp_metadata_xml 导入:表单留空的字段由 metadata 补齐。
+type OutboundAppPayload = Omit<CreateOutboundSamlAppInput, 'acs_url'> & {
+  acs_url?: string
+  sp_metadata_url?: string
+  sp_metadata_xml?: string
+}
+
+const FIELD_PARAMS = {
+  metadata: ['sp_metadata_url', 'sp_metadata_xml'],
+  spEntityId: ['sp_entity_id'],
+  acsUrl: ['acs_url'],
+  sloUrl: ['slo_url'],
+  spCertificates: ['sp_certificates'],
+} as const
+
+type FieldKey = keyof typeof FIELD_PARAMS
+
 function formOf(app: OutboundSamlApp | null): AppForm {
   if (!app) return EMPTY_FORM
   return {
+    ...EMPTY_FORM,
     preset: app.provider,
     spEntityId: app.spEntityId,
     acsUrl: app.acsUrl,
@@ -103,15 +135,45 @@ function formOf(app: OutboundSamlApp | null): AppForm {
   }
 }
 
-function toPayload(form: AppForm): CreateOutboundSamlAppInput {
-  return {
+function isImporting(form: AppForm): boolean {
+  if (form.metadataSource === 'url') return form.metadataUrl.trim().length > 0
+  if (form.metadataSource === 'xml') return form.metadataXml.trim().length > 0
+  return false
+}
+
+function toPayload(form: AppForm): OutboundAppPayload {
+  const certificates = parseCertificates(form.spCertificates)
+  const base = {
     preset: form.preset || undefined,
-    sp_entity_id: form.spEntityId || undefined,
-    acs_url: form.acsUrl,
-    slo_url: form.sloUrl.trim() || null,
+    sp_entity_id: form.spEntityId.trim() || undefined,
     slo_binding: form.sloBinding,
-    sp_certificates: parseCertificates(form.spCertificates),
   }
+  if (!isImporting(form)) {
+    return {
+      ...base,
+      acs_url: form.acsUrl,
+      slo_url: form.sloUrl.trim() || null,
+      sp_certificates: certificates,
+    }
+  }
+  return {
+    ...base,
+    acs_url: form.acsUrl.trim() || undefined,
+    slo_url: form.sloUrl.trim() || undefined,
+    sp_certificates: certificates.length > 0 ? certificates : undefined,
+    ...(form.metadataSource === 'url'
+      ? { sp_metadata_url: form.metadataUrl.trim() }
+      : { sp_metadata_xml: form.metadataXml }),
+  }
+}
+
+function fieldWithError(error: XidError | null): FieldKey | null {
+  const param = error?.meta?.paramName
+  if (!param) return null
+  const entry = Object.entries(FIELD_PARAMS).find(([, params]) =>
+    (params as readonly string[]).includes(param),
+  )
+  return entry ? (entry[0] as FieldKey) : null
 }
 
 export function OutboundAppDialog({
@@ -131,11 +193,15 @@ export function OutboundAppDialog({
   const update = useUpdateOutboundSamlApp(orgId)
   const [form, setForm] = useState<AppForm>(() => formOf(app))
   const [formError, setFormError] = useState<string | null>(null)
+  const [imported, setImported] = useState(false)
   const mutationError = create.error ?? update.error
+  const errorField = fieldWithError(mutationError)
   const isPending = create.isPending || update.isPending
   const appName = app ? appDisplayName(app) : ''
+  const importing = isImporting(form)
 
   function patch(next: Partial<AppForm>): void {
+    setImported(false)
     setForm((prev) => ({ ...prev, ...next }))
   }
 
@@ -148,25 +214,46 @@ export function OutboundAppDialog({
     )
   }
 
+  function fieldError(key: FieldKey): string | undefined {
+    return errorField === key && mutationError ? errorMessage(mutationError) : undefined
+  }
+
+  function validate(): string | null {
+    if (form.metadataSource !== 'none' && !importing) {
+      return form.metadataSource === 'url'
+        ? t`Enter the metadata URL, or choose to enter the details yourself.`
+        : t`Paste the metadata XML, or choose to enter the details yourself.`
+    }
+    if (!importing && !form.acsUrl.trim()) return t`ACS URL is required.`
+    if (!importing && form.sloUrl.trim() && parseCertificates(form.spCertificates).length === 0) {
+      return t`SP signing certificate is required when an SLO URL is configured.`
+    }
+    return null
+  }
+
   function submit(): void {
-    if (!form.acsUrl.trim()) {
-      setFormError(t`ACS URL is required.`)
-      return
-    }
-    if (form.sloUrl.trim() && parseCertificates(form.spCertificates).length === 0) {
-      setFormError(t`SP signing certificate is required when an SLO URL is configured.`)
-      return
-    }
-    setFormError(null)
+    const problem = validate()
+    setFormError(problem)
+    if (problem) return
+    const payload = toPayload(form) as CreateOutboundSamlAppInput
     if (app) {
-      update.mutate({ appId: app.id, payload: toPayload(form) }, { onSuccess: onClose })
+      update.mutate(
+        { appId: app.id, payload },
+        {
+          onSuccess: (saved) => {
+            if (!importing) {
+              onClose()
+              return
+            }
+            setForm(formOf(saved))
+            setImported(true)
+          },
+        },
+      )
       return
     }
     create.mutate(
-      {
-        ...toPayload(form),
-        assignment_gate: { mode: 'all', allowed_roles: [], allowed_user_ids: [] },
-      },
+      { ...payload, assignment_gate: { mode: 'all', allowed_roles: [], allowed_user_ids: [] } },
       { onSuccess: (created) => onCreated?.(created) },
     )
   }
@@ -213,8 +300,53 @@ export function OutboundAppDialog({
           </Field>
         )}
         <Field
+          label={<Trans>App metadata</Trans>}
+          hint={
+            <Trans>
+              Import the app&apos;s SAML metadata to fill in the fields below. Fields you fill in
+              yourself take precedence.
+            </Trans>
+          }
+        >
+          <Select
+            value={form.metadataSource}
+            onChange={(event) => patch({ metadataSource: event.target.value as MetadataSource })}
+          >
+            <option value="none">{t`Enter the details yourself`}</option>
+            <option value="url">{t`Import from a metadata URL`}</option>
+            <option value="xml">{t`Paste metadata XML`}</option>
+          </Select>
+        </Field>
+        {form.metadataSource === 'url' ? (
+          <Field label={<Trans>Metadata URL</Trans>} error={fieldError('metadata')}>
+            <Input
+              type="url"
+              value={form.metadataUrl}
+              spellCheck={false}
+              placeholder="https://"
+              onChange={(event) => patch({ metadataUrl: event.target.value })}
+            />
+          </Field>
+        ) : null}
+        {form.metadataSource === 'xml' ? (
+          <Field label={<Trans>Metadata XML</Trans>} error={fieldError('metadata')}>
+            <Textarea
+              rows={6}
+              spellCheck={false}
+              value={form.metadataXml}
+              onChange={(event) => patch({ metadataXml: event.target.value })}
+            />
+          </Field>
+        ) : null}
+        {imported ? (
+          <p role="status" {...stylex.props(styles.note)}>
+            <Trans>Imported. The fields below now show the saved values.</Trans>
+          </p>
+        ) : null}
+        <Field
           label={<Trans>Entity ID</Trans>}
           hint={<Trans>Replace any part in braces with the value from the app.</Trans>}
+          error={fieldError('spEntityId')}
         >
           <Input
             value={form.spEntityId}
@@ -222,7 +354,7 @@ export function OutboundAppDialog({
             onChange={(event) => patch({ spEntityId: event.target.value })}
           />
         </Field>
-        <Field label={<Trans>Assertion consumer URL</Trans>}>
+        <Field label={<Trans>Assertion consumer URL</Trans>} error={fieldError('acsUrl')}>
           <Input
             value={form.acsUrl}
             spellCheck={false}
@@ -232,6 +364,7 @@ export function OutboundAppDialog({
         <Field
           label={<Trans>Single logout URL</Trans>}
           hint={<Trans>Optional. Needs the app&apos;s signing certificate below.</Trans>}
+          error={fieldError('sloUrl')}
         >
           <Input
             value={form.sloUrl}
@@ -251,6 +384,7 @@ export function OutboundAppDialog({
         <Field
           label={<Trans>App signing certificates</Trans>}
           hint={<Trans>Paste PEM blocks, or separate base64 certificates with a blank line.</Trans>}
+          error={fieldError('spCertificates')}
         >
           <Textarea
             rows={5}
@@ -259,7 +393,7 @@ export function OutboundAppDialog({
             onChange={(event) => patch({ spCertificates: event.target.value })}
           />
         </Field>
-        {formError || mutationError ? (
+        {formError || (mutationError && errorField === null) ? (
           <p role="alert" {...stylex.props(styles.error)}>
             {formError ?? (mutationError ? errorMessage(mutationError) : null)}
           </p>
