@@ -244,34 +244,22 @@
       "indexes": {
         "applications_client_id_unq": {
           "name": "applications_client_id_unq",
-          "columns": [
-            "client_id"
-          ],
+          "columns": ["client_id"],
           "isUnique": true
         },
         "applications_tenant_project_idx": {
           "name": "applications_tenant_project_idx",
-          "columns": [
-            "tenant_id",
-            "project_id"
-          ],
+          "columns": ["tenant_id", "project_id"],
           "isUnique": false
         },
         "applications_tenant_status_id_idx": {
           "name": "applications_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "applications_tenant_status_idx": {
           "name": "applications_tenant_status_idx",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "status"],
           "isUnique": false
         }
       },
@@ -454,44 +442,27 @@
       "indexes": {
         "custom_hostnames_hostname_unq": {
           "name": "custom_hostnames_hostname_unq",
-          "columns": [
-            "hostname"
-          ],
+          "columns": ["hostname"],
           "isUnique": true
         },
         "custom_hostnames_cloudflare_id_unq": {
           "name": "custom_hostnames_cloudflare_id_unq",
-          "columns": [
-            "cloudflare_hostname_id"
-          ],
+          "columns": ["cloudflare_hostname_id"],
           "isUnique": true
         },
         "custom_hostnames_tenant_org_status_id_idx": {
           "name": "custom_hostnames_tenant_org_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "org_id", "status", "id"],
           "isUnique": false
         },
         "custom_hostnames_status_expiry_id_idx": {
           "name": "custom_hostnames_status_expiry_id_idx",
-          "columns": [
-            "status",
-            "ownership_expires_at",
-            "id"
-          ],
+          "columns": ["status", "ownership_expires_at", "id"],
           "isUnique": false
         },
         "custom_hostnames_instance_status_id_idx": {
           "name": "custom_hostnames_instance_status_id_idx",
-          "columns": [
-            "instance_id",
-            "status",
-            "id"
-          ],
+          "columns": ["instance_id", "status", "id"],
           "isUnique": false
         }
       },
@@ -603,9 +574,7 @@
       "indexes": {
         "instances_primary_domain_unq": {
           "name": "instances_primary_domain_unq",
-          "columns": [
-            "primary_domain"
-          ],
+          "columns": ["primary_domain"],
           "isUnique": true
         }
       },
@@ -714,9 +683,7 @@
       "indexes": {
         "org_policies_org_unq": {
           "name": "org_policies_org_unq",
-          "columns": [
-            "org_id"
-          ],
+          "columns": ["org_id"],
           "isUnique": true
         }
       },
@@ -857,81 +824,54 @@
       "indexes": {
         "organizations_tenant_slug_unq": {
           "name": "organizations_tenant_slug_unq",
-          "columns": [
-            "tenant_id",
-            "slug"
-          ],
+          "columns": ["tenant_id", "slug"],
           "isUnique": true
         },
         "organizations_instance_slug_unq": {
           "name": "organizations_instance_slug_unq",
-          "columns": [
-            "instance_id",
-            "slug"
-          ],
+          "columns": ["instance_id", "slug"],
           "isUnique": true
         },
         "organizations_instance_slug_idx": {
           "name": "organizations_instance_slug_idx",
-          "columns": [
-            "instance_id",
-            "slug"
-          ],
+          "columns": ["instance_id", "slug"],
           "isUnique": false
         },
         "organizations_top_level_id_idx": {
           "name": "organizations_top_level_id_idx",
-          "columns": [
-            "id"
-          ],
+          "columns": ["id"],
           "where": "\"organizations\".\"parent_org_id\" IS NULL",
           "isUnique": false
         },
         "organizations_active_id_idx": {
           "name": "organizations_active_id_idx",
-          "columns": [
-            "id"
-          ],
+          "columns": ["id"],
           "where": "\"organizations\".\"status\" = 'active'",
           "isUnique": false
         },
         "organizations_tenant_status_id_idx": {
           "name": "organizations_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "organizations_instance_idx": {
           "name": "organizations_instance_idx",
-          "columns": [
-            "instance_id"
-          ],
+          "columns": ["instance_id"],
           "isUnique": false
         },
         "organizations_parent_idx": {
           "name": "organizations_parent_idx",
-          "columns": [
-            "parent_org_id"
-          ],
+          "columns": ["parent_org_id"],
           "isUnique": false
         },
         "organizations_parent_id_idx": {
           "name": "organizations_parent_id_idx",
-          "columns": [
-            "parent_org_id",
-            "id"
-          ],
+          "columns": ["parent_org_id", "id"],
           "isUnique": false
         },
         "organizations_tenant_status_idx": {
           "name": "organizations_tenant_status_idx",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "status"],
           "isUnique": false
         }
       },
@@ -1011,53 +951,32 @@
       "indexes": {
         "project_grants_project_org_unq": {
           "name": "project_grants_project_org_unq",
-          "columns": [
-            "granted_project_id",
-            "granted_to_org_id"
-          ],
+          "columns": ["granted_project_id", "granted_to_org_id"],
           "isUnique": true
         },
         "project_grants_tenant_status_id_idx": {
           "name": "project_grants_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "project_grants_tenant_project_status_id_idx": {
           "name": "project_grants_tenant_project_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "granted_project_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "granted_project_id", "status", "id"],
           "isUnique": false
         },
         "project_grants_tenant_to_org_status_id_idx": {
           "name": "project_grants_tenant_to_org_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "granted_to_org_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "granted_to_org_id", "status", "id"],
           "isUnique": false
         },
         "project_grants_to_org_idx": {
           "name": "project_grants_to_org_idx",
-          "columns": [
-            "granted_to_org_id"
-          ],
+          "columns": ["granted_to_org_id"],
           "isUnique": false
         },
         "project_grants_tenant_idx": {
           "name": "project_grants_tenant_idx",
-          "columns": [
-            "tenant_id"
-          ],
+          "columns": ["tenant_id"],
           "isUnique": false
         }
       },
@@ -1145,29 +1064,17 @@
       "indexes": {
         "projects_tenant_org_idx": {
           "name": "projects_tenant_org_idx",
-          "columns": [
-            "tenant_id",
-            "org_id"
-          ],
+          "columns": ["tenant_id", "org_id"],
           "isUnique": false
         },
         "projects_tenant_status_id_idx": {
           "name": "projects_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "projects_tenant_org_status_id_idx": {
           "name": "projects_tenant_org_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "org_id", "status", "id"],
           "isUnique": false
         }
       },
@@ -1246,11 +1153,7 @@
       "indexes": {
         "gdpr_consents_tenant_user_type_idx": {
           "name": "gdpr_consents_tenant_user_type_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "consent_type"
-          ],
+          "columns": ["tenant_id", "user_id", "consent_type"],
           "isUnique": false
         }
       },
@@ -1360,64 +1263,38 @@
       "indexes": {
         "user_emails_tenant_email_unq": {
           "name": "user_emails_tenant_email_unq",
-          "columns": [
-            "tenant_id",
-            "email"
-          ],
+          "columns": ["tenant_id", "email"],
           "isUnique": true
         },
         "user_emails_email_lookup_idx": {
           "name": "user_emails_email_lookup_idx",
-          "columns": [
-            "email",
-            "user_id",
-            "tenant_id"
-          ],
+          "columns": ["email", "user_id", "tenant_id"],
           "isUnique": false
         },
         "user_emails_user_primary_idx": {
           "name": "user_emails_user_primary_idx",
-          "columns": [
-            "user_id",
-            "is_primary"
-          ],
+          "columns": ["user_id", "is_primary"],
           "isUnique": false
         },
         "user_emails_tenant_user_primary_created_idx": {
           "name": "user_emails_tenant_user_primary_created_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "is_primary",
-            "created_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "user_id", "is_primary", "created_at", "id"],
           "isUnique": false
         },
         "user_emails_tenant_user_idx": {
           "name": "user_emails_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "user_emails_tenant_ownership_ceremony_unq": {
           "name": "user_emails_tenant_ownership_ceremony_unq",
-          "columns": [
-            "tenant_id",
-            "ownership_proof_ceremony_id"
-          ],
+          "columns": ["tenant_id", "ownership_proof_ceremony_id"],
           "where": "\"user_emails\".\"ownership_proof_ceremony_id\" IS NOT NULL",
           "isUnique": true
         },
         "user_emails_tenant_ownership_proof_idx": {
           "name": "user_emails_tenant_ownership_proof_idx",
-          "columns": [
-            "tenant_id",
-            "ownership_proof",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "ownership_proof", "user_id"],
           "isUnique": false
         }
       },
@@ -1538,38 +1415,23 @@
       "indexes": {
         "user_identities_provider_unq": {
           "name": "user_identities_provider_unq",
-          "columns": [
-            "tenant_id",
-            "provider",
-            "provider_user_id"
-          ],
+          "columns": ["tenant_id", "provider", "provider_user_id"],
           "isUnique": true
         },
         "user_identities_tenant_user_idx": {
           "name": "user_identities_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "user_identities_tenant_user_type_active_idx": {
           "name": "user_identities_tenant_user_type_active_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "identity_type",
-            "id"
-          ],
+          "columns": ["tenant_id", "user_id", "identity_type", "id"],
           "where": "\"user_identities\".\"revoked_at\" IS NULL",
           "isUnique": false
         },
         "user_identities_tenant_type_idx": {
           "name": "user_identities_tenant_type_idx",
-          "columns": [
-            "tenant_id",
-            "identity_type"
-          ],
+          "columns": ["tenant_id", "identity_type"],
           "isUnique": false
         }
       },
@@ -1658,27 +1520,17 @@
       "indexes": {
         "user_phones_tenant_phone_unq": {
           "name": "user_phones_tenant_phone_unq",
-          "columns": [
-            "tenant_id",
-            "phone"
-          ],
+          "columns": ["tenant_id", "phone"],
           "isUnique": true
         },
         "user_phones_phone_lookup_idx": {
           "name": "user_phones_phone_lookup_idx",
-          "columns": [
-            "phone",
-            "user_id",
-            "tenant_id"
-          ],
+          "columns": ["phone", "user_id", "tenant_id"],
           "isUnique": false
         },
         "user_phones_tenant_user_idx": {
           "name": "user_phones_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         }
       },
@@ -1913,93 +1765,63 @@
       "indexes": {
         "users_tenant_username_unq": {
           "name": "users_tenant_username_unq",
-          "columns": [
-            "tenant_id",
-            "username"
-          ],
+          "columns": ["tenant_id", "username"],
           "where": "\"users\".\"deleted_at\" IS NULL AND \"users\".\"status\" <> 'deleted'",
           "isUnique": true
         },
         "users_tenant_external_id_unq": {
           "name": "users_tenant_external_id_unq",
-          "columns": [
-            "tenant_id",
-            "external_id"
-          ],
+          "columns": ["tenant_id", "external_id"],
           "where": "\"users\".\"deleted_at\" IS NULL AND \"users\".\"status\" <> 'deleted'",
           "isUnique": true
         },
         "users_username_active_lookup_idx": {
           "name": "users_username_active_lookup_idx",
-          "columns": [
-            "username",
-            "tenant_id"
-          ],
+          "columns": ["username", "tenant_id"],
           "where": "\"users\".\"deleted_at\" IS NULL AND \"users\".\"status\" = 'active'",
           "isUnique": false
         },
         "users_external_id_active_lookup_idx": {
           "name": "users_external_id_active_lookup_idx",
-          "columns": [
-            "external_id",
-            "tenant_id"
-          ],
+          "columns": ["external_id", "tenant_id"],
           "where": "\"users\".\"deleted_at\" IS NULL AND \"users\".\"status\" = 'active'",
           "isUnique": false
         },
         "users_active_cursor_idx": {
           "name": "users_active_cursor_idx",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
+          "columns": ["tenant_id", "id"],
           "where": "\"users\".\"deleted_at\" IS NULL AND \"users\".\"status\" <> 'deleted'",
           "isUnique": false
         },
         "users_active_global_idx": {
           "name": "users_active_global_idx",
-          "columns": [
-            "id"
-          ],
+          "columns": ["id"],
           "where": "\"users\".\"deleted_at\" IS NULL AND \"users\".\"status\" <> 'deleted'",
           "isUnique": false
         },
         "users_tenant_status_idx": {
           "name": "users_tenant_status_idx",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "status"],
           "isUnique": false
         },
         "users_tenant_created_idx": {
           "name": "users_tenant_created_idx",
-          "columns": [
-            "tenant_id",
-            "created_at"
-          ],
+          "columns": ["tenant_id", "created_at"],
           "isUnique": false
         },
         "users_tenant_last_login_idx": {
           "name": "users_tenant_last_login_idx",
-          "columns": [
-            "tenant_id",
-            "last_login_at"
-          ],
+          "columns": ["tenant_id", "last_login_at"],
           "isUnique": false
         },
         "users_primary_email_idx": {
           "name": "users_primary_email_idx",
-          "columns": [
-            "primary_email_id"
-          ],
+          "columns": ["primary_email_id"],
           "isUnique": false
         },
         "users_merged_into_idx": {
           "name": "users_merged_into_idx",
-          "columns": [
-            "merged_into_user_id"
-          ],
+          "columns": ["merged_into_user_id"],
           "isUnique": false
         }
       },
@@ -2072,28 +1894,17 @@
       "indexes": {
         "backup_codes_tenant_user_batch_idx": {
           "name": "backup_codes_tenant_user_batch_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "batch_id"
-          ],
+          "columns": ["tenant_id", "user_id", "batch_id"],
           "isUnique": false
         },
         "backup_codes_tenant_user_used_idx": {
           "name": "backup_codes_tenant_user_used_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "used"
-          ],
+          "columns": ["tenant_id", "user_id", "used"],
           "isUnique": false
         },
         "backup_codes_tenant_code_idx": {
           "name": "backup_codes_tenant_code_idx",
-          "columns": [
-            "tenant_id",
-            "code_hash"
-          ],
+          "columns": ["tenant_id", "code_hash"],
           "isUnique": false
         }
       },
@@ -2165,18 +1976,12 @@
       "indexes": {
         "magic_link_tokens_hash_unq": {
           "name": "magic_link_tokens_hash_unq",
-          "columns": [
-            "token_hash"
-          ],
+          "columns": ["token_hash"],
           "isUnique": true
         },
         "magic_link_tokens_tenant_user_expiry_idx": {
           "name": "magic_link_tokens_tenant_user_expiry_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "expires_at"
-          ],
+          "columns": ["tenant_id", "user_id", "expires_at"],
           "isUnique": false
         }
       },
@@ -2263,19 +2068,12 @@
       "indexes": {
         "metering_outbox_tenant_user_day_unq": {
           "name": "metering_outbox_tenant_user_day_unq",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "day"
-          ],
+          "columns": ["tenant_id", "user_id", "day"],
           "isUnique": true
         },
         "metering_outbox_recovery_idx": {
           "name": "metering_outbox_recovery_idx",
-          "columns": [
-            "delivered_at",
-            "created_at"
-          ],
+          "columns": ["delivered_at", "created_at"],
           "isUnique": false
         }
       },
@@ -2384,19 +2182,12 @@
       "indexes": {
         "mfa_factors_tenant_user_idx": {
           "name": "mfa_factors_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "mfa_factors_tenant_user_type_idx": {
           "name": "mfa_factors_tenant_user_type_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "factor_type"
-          ],
+          "columns": ["tenant_id", "user_id", "factor_type"],
           "isUnique": false
         }
       },
@@ -2543,27 +2334,17 @@
       "indexes": {
         "passkey_credentials_tenant_cred_unq": {
           "name": "passkey_credentials_tenant_cred_unq",
-          "columns": [
-            "tenant_id",
-            "credential_id"
-          ],
+          "columns": ["tenant_id", "credential_id"],
           "isUnique": true
         },
         "passkey_credentials_tenant_user_idx": {
           "name": "passkey_credentials_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "passkey_credentials_tenant_user_active_idx": {
           "name": "passkey_credentials_tenant_user_active_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "id"
-          ],
+          "columns": ["tenant_id", "user_id", "id"],
           "where": "\"passkey_credentials\".\"revoked_at\" IS NULL",
           "isUnique": false
         }
@@ -2622,11 +2403,7 @@
       "indexes": {
         "password_history_tenant_user_idx": {
           "name": "password_history_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "created_at"
-          ],
+          "columns": ["tenant_id", "user_id", "created_at"],
           "isUnique": false
         }
       },
@@ -2699,17 +2476,12 @@
       "indexes": {
         "password_reset_tokens_hash_unq": {
           "name": "password_reset_tokens_hash_unq",
-          "columns": [
-            "token_hash"
-          ],
+          "columns": ["token_hash"],
           "isUnique": true
         },
         "password_reset_tokens_tenant_user_idx": {
           "name": "password_reset_tokens_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         }
       },
@@ -2804,9 +2576,7 @@
       "indexes": {
         "passwords_user_unq": {
           "name": "passwords_user_unq",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": true
         }
       },
@@ -2899,29 +2669,18 @@
       "indexes": {
         "trusted_devices_tenant_user_idx": {
           "name": "trusted_devices_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "trusted_devices_tenant_user_active_idx": {
           "name": "trusted_devices_tenant_user_active_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "expires_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "user_id", "expires_at", "id"],
           "where": "\"trusted_devices\".\"revoked_at\" IS NULL",
           "isUnique": false
         },
         "trusted_devices_tenant_token_idx": {
           "name": "trusted_devices_tenant_token_idx",
-          "columns": [
-            "tenant_id",
-            "device_token_hash"
-          ],
+          "columns": ["tenant_id", "device_token_hash"],
           "isUnique": false
         }
       },
@@ -3022,38 +2781,23 @@
       "indexes": {
         "verification_tokens_hash_unq": {
           "name": "verification_tokens_hash_unq",
-          "columns": [
-            "token_hash"
-          ],
+          "columns": ["token_hash"],
           "isUnique": true
         },
         "verification_tokens_tenant_user_idx": {
           "name": "verification_tokens_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "verification_tokens_active_credential_unq": {
           "name": "verification_tokens_active_credential_unq",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "purpose",
-            "coalesce(\"channel\", '')"
-          ],
+          "columns": ["tenant_id", "user_id", "purpose", "coalesce(\"channel\", '')"],
           "where": "\"verification_tokens\".\"consumed_at\" IS NULL AND \"verification_tokens\".\"purpose\" IN ('magic_link', 'otp')",
           "isUnique": true
         },
         "verification_tokens_active_mfa_otp_unq": {
           "name": "verification_tokens_active_mfa_otp_unq",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "purpose",
-            "coalesce(\"channel\", '')"
-          ],
+          "columns": ["tenant_id", "user_id", "purpose", "coalesce(\"channel\", '')"],
           "where": "\"verification_tokens\".\"consumed_at\" IS NULL AND \"verification_tokens\".\"purpose\" = 'mfa_otp'",
           "isUnique": true
         }
@@ -3271,78 +3015,52 @@
       "indexes": {
         "invitations_token_unq": {
           "name": "invitations_token_unq",
-          "columns": [
-            "token_hash"
-          ],
+          "columns": ["token_hash"],
           "isUnique": true
         },
         "invitations_email_claim_token_unq": {
           "name": "invitations_email_claim_token_unq",
-          "columns": [
-            "email_claim_token_hash"
-          ],
+          "columns": ["email_claim_token_hash"],
           "where": "\"invitations\".\"email_claim_token_hash\" IS NOT NULL",
           "isUnique": true
         },
         "invitations_email_claim_consumption_unq": {
           "name": "invitations_email_claim_consumption_unq",
-          "columns": [
-            "email_claim_consumption_id"
-          ],
+          "columns": ["email_claim_consumption_id"],
           "where": "\"invitations\".\"email_claim_consumption_id\" IS NOT NULL",
           "isUnique": true
         },
         "invitations_email_claim_recovery_unq": {
           "name": "invitations_email_claim_recovery_unq",
-          "columns": [
-            "email_claim_recovery_hash"
-          ],
+          "columns": ["email_claim_recovery_hash"],
           "where": "\"invitations\".\"email_claim_recovery_hash\" IS NOT NULL",
           "isUnique": true
         },
         "invitations_email_claim_finalization_unq": {
           "name": "invitations_email_claim_finalization_unq",
-          "columns": [
-            "email_claim_finalization_id"
-          ],
+          "columns": ["email_claim_finalization_id"],
           "where": "\"invitations\".\"email_claim_finalization_id\" IS NOT NULL",
           "isUnique": true
         },
         "invitations_tenant_org_email_pending_unq": {
           "name": "invitations_tenant_org_email_pending_unq",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "email"
-          ],
+          "columns": ["tenant_id", "org_id", "email"],
           "where": "\"invitations\".\"status\" IN ('pending', 'claim_verified')",
           "isUnique": true
         },
         "invitations_tenant_org_status_id_idx": {
           "name": "invitations_tenant_org_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "org_id", "status", "id"],
           "isUnique": false
         },
         "invitations_tenant_org_status_idx": {
           "name": "invitations_tenant_org_status_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "org_id", "status"],
           "isUnique": false
         },
         "invitations_tenant_email_idx": {
           "name": "invitations_tenant_email_idx",
-          "columns": [
-            "tenant_id",
-            "email"
-          ],
+          "columns": ["tenant_id", "email"],
           "isUnique": false
         }
       },
@@ -3421,51 +3139,29 @@
       "indexes": {
         "manager_assignments_unq": {
           "name": "manager_assignments_unq",
-          "columns": [
-            "user_id",
-            "manager_role",
-            "scope_type",
-            "scope_id"
-          ],
+          "columns": ["user_id", "manager_role", "scope_type", "scope_id"],
           "isUnique": true
         },
         "manager_assignments_tenant_scope_unq": {
           "name": "manager_assignments_tenant_scope_unq",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "manager_role",
-            "scope_type",
-            "scope_id"
-          ],
+          "columns": ["tenant_id", "user_id", "manager_role", "scope_type", "scope_id"],
           "where": "\"manager_assignments\".\"scope_id\" IS NOT NULL",
           "isUnique": true
         },
         "manager_assignments_instance_unq": {
           "name": "manager_assignments_instance_unq",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "manager_role",
-            "scope_type"
-          ],
+          "columns": ["tenant_id", "user_id", "manager_role", "scope_type"],
           "where": "\"manager_assignments\".\"manager_role\" = 'instance_manager'\n          AND \"manager_assignments\".\"scope_type\" = 'instance'\n          AND \"manager_assignments\".\"scope_id\" IS NULL",
           "isUnique": true
         },
         "manager_assignments_tenant_user_idx": {
           "name": "manager_assignments_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "manager_assignments_scope_idx": {
           "name": "manager_assignments_scope_idx",
-          "columns": [
-            "scope_type",
-            "scope_id"
-          ],
+          "columns": ["scope_type", "scope_id"],
           "isUnique": false
         }
       },
@@ -3569,47 +3265,27 @@
       "indexes": {
         "memberships_org_user_unq": {
           "name": "memberships_org_user_unq",
-          "columns": [
-            "org_id",
-            "user_id"
-          ],
+          "columns": ["org_id", "user_id"],
           "isUnique": true
         },
         "memberships_tenant_user_idx": {
           "name": "memberships_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "memberships_tenant_user_status_id_idx": {
           "name": "memberships_tenant_user_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "user_id", "status", "id"],
           "isUnique": false
         },
         "memberships_tenant_org_status_id_idx": {
           "name": "memberships_tenant_org_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "org_id", "status", "id"],
           "isUnique": false
         },
         "memberships_tenant_org_status_idx": {
           "name": "memberships_tenant_org_status_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "org_id", "status"],
           "isUnique": false
         }
       },
@@ -3742,34 +3418,22 @@
       "indexes": {
         "organization_domains_domain_unq": {
           "name": "organization_domains_domain_unq",
-          "columns": [
-            "domain"
-          ],
+          "columns": ["domain"],
           "isUnique": true
         },
         "organization_domains_tenant_org_idx": {
           "name": "organization_domains_tenant_org_idx",
-          "columns": [
-            "tenant_id",
-            "org_id"
-          ],
+          "columns": ["tenant_id", "org_id"],
           "isUnique": false
         },
         "organization_domains_tenant_org_status_id_idx": {
           "name": "organization_domains_tenant_org_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "org_id", "status", "id"],
           "isUnique": false
         },
         "organization_domains_status_idx": {
           "name": "organization_domains_status_idx",
-          "columns": [
-            "verification_status"
-          ],
+          "columns": ["verification_status"],
           "isUnique": false
         }
       },
@@ -3849,38 +3513,22 @@
       "indexes": {
         "permissions_tenant_project_key_unq": {
           "name": "permissions_tenant_project_key_unq",
-          "columns": [
-            "tenant_id",
-            "project_id",
-            "key"
-          ],
+          "columns": ["tenant_id", "project_id", "key"],
           "isUnique": true
         },
         "permissions_tenant_status_id_idx": {
           "name": "permissions_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "permissions_tenant_project_status_id_idx": {
           "name": "permissions_tenant_project_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "project_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "project_id", "status", "id"],
           "isUnique": false
         },
         "permissions_tenant_project_idx": {
           "name": "permissions_tenant_project_idx",
-          "columns": [
-            "tenant_id",
-            "project_id"
-          ],
+          "columns": ["tenant_id", "project_id"],
           "isUnique": false
         }
       },
@@ -3938,36 +3586,22 @@
       "indexes": {
         "role_permissions_role_perm_unq": {
           "name": "role_permissions_role_perm_unq",
-          "columns": [
-            "role_id",
-            "permission_id"
-          ],
+          "columns": ["role_id", "permission_id"],
           "isUnique": true
         },
         "role_permissions_tenant_role_perm_unq": {
           "name": "role_permissions_tenant_role_perm_unq",
-          "columns": [
-            "tenant_id",
-            "role_id",
-            "permission_id"
-          ],
+          "columns": ["tenant_id", "role_id", "permission_id"],
           "isUnique": true
         },
         "role_permissions_tenant_role_idx": {
           "name": "role_permissions_tenant_role_idx",
-          "columns": [
-            "tenant_id",
-            "role_id"
-          ],
+          "columns": ["tenant_id", "role_id"],
           "isUnique": false
         },
         "role_permissions_tenant_role_id_idx": {
           "name": "role_permissions_tenant_role_id_idx",
-          "columns": [
-            "tenant_id",
-            "role_id",
-            "id"
-          ],
+          "columns": ["tenant_id", "role_id", "id"],
           "isUnique": false
         }
       },
@@ -4054,38 +3688,22 @@
       "indexes": {
         "roles_tenant_project_key_unq": {
           "name": "roles_tenant_project_key_unq",
-          "columns": [
-            "tenant_id",
-            "project_id",
-            "key"
-          ],
+          "columns": ["tenant_id", "project_id", "key"],
           "isUnique": true
         },
         "roles_tenant_status_id_idx": {
           "name": "roles_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "roles_tenant_project_status_id_idx": {
           "name": "roles_tenant_project_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "project_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "project_id", "status", "id"],
           "isUnique": false
         },
         "roles_tenant_project_idx": {
           "name": "roles_tenant_project_idx",
-          "columns": [
-            "tenant_id",
-            "project_id"
-          ],
+          "columns": ["tenant_id", "project_id"],
           "isUnique": false
         }
       },
@@ -4178,39 +3796,22 @@
       "indexes": {
         "user_grants_unq": {
           "name": "user_grants_unq",
-          "columns": [
-            "user_id",
-            "project_id",
-            "role_id",
-            "granted_via_grant_id"
-          ],
+          "columns": ["user_id", "project_id", "role_id", "granted_via_grant_id"],
           "isUnique": true
         },
         "user_grants_tenant_user_project_idx": {
           "name": "user_grants_tenant_user_project_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "project_id"
-          ],
+          "columns": ["tenant_id", "user_id", "project_id"],
           "isUnique": false
         },
         "user_grants_tenant_user_project_revoked_id_idx": {
           "name": "user_grants_tenant_user_project_revoked_id_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "project_id",
-            "revoked_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "user_id", "project_id", "revoked_at", "id"],
           "isUnique": false
         },
         "user_grants_via_grant_idx": {
           "name": "user_grants_via_grant_idx",
-          "columns": [
-            "granted_via_grant_id"
-          ],
+          "columns": ["granted_via_grant_id"],
           "isUnique": false
         }
       },
@@ -4325,49 +3926,28 @@
       "indexes": {
         "access_requests_pending_unq": {
           "name": "access_requests_pending_unq",
-          "columns": [
-            "tenant_id",
-            "project_id",
-            "requester_user_id"
-          ],
+          "columns": ["tenant_id", "project_id", "requester_user_id"],
           "where": "\"access_requests\".\"status\" = 'pending'",
           "isUnique": true
         },
         "access_requests_tenant_org_status_idx": {
           "name": "access_requests_tenant_org_status_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "org_id", "status", "id"],
           "isUnique": false
         },
         "access_requests_tenant_project_status_idx": {
           "name": "access_requests_tenant_project_status_idx",
-          "columns": [
-            "tenant_id",
-            "project_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "project_id", "status"],
           "isUnique": false
         },
         "access_requests_tenant_requester_idx": {
           "name": "access_requests_tenant_requester_idx",
-          "columns": [
-            "tenant_id",
-            "requester_user_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "requester_user_id", "status"],
           "isUnique": false
         },
         "access_requests_approver_idx": {
           "name": "access_requests_approver_idx",
-          "columns": [
-            "tenant_id",
-            "approver_user_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "approver_user_id", "status"],
           "isUnique": false
         }
       },
@@ -4440,54 +4020,33 @@
       "indexes": {
         "org_unit_members_unq": {
           "name": "org_unit_members_unq",
-          "columns": [
-            "unit_id",
-            "user_id"
-          ],
+          "columns": ["unit_id", "user_id"],
           "isUnique": true
         },
         "org_unit_members_tenant_unq": {
           "name": "org_unit_members_tenant_unq",
-          "columns": [
-            "tenant_id",
-            "unit_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "unit_id", "user_id"],
           "isUnique": true
         },
         "org_unit_members_primary_unq": {
           "name": "org_unit_members_primary_unq",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "org_id", "user_id"],
           "where": "\"org_unit_members\".\"is_primary\" = 1",
           "isUnique": true
         },
         "org_unit_members_tenant_user_idx": {
           "name": "org_unit_members_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "org_unit_members_tenant_org_user_idx": {
           "name": "org_unit_members_tenant_org_user_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "org_id", "user_id"],
           "isUnique": false
         },
         "org_unit_members_unit_idx": {
           "name": "org_unit_members_unit_idx",
-          "columns": [
-            "tenant_id",
-            "unit_id"
-          ],
+          "columns": ["tenant_id", "unit_id"],
           "isUnique": false
         }
       },
@@ -4588,62 +4147,37 @@
       "indexes": {
         "org_units_tenant_org_parent_slug_unq": {
           "name": "org_units_tenant_org_parent_slug_unq",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "parent_unit_id",
-            "slug"
-          ],
+          "columns": ["tenant_id", "org_id", "parent_unit_id", "slug"],
           "isUnique": true
         },
         "org_units_tenant_path_unq": {
           "name": "org_units_tenant_path_unq",
-          "columns": [
-            "tenant_id",
-            "path"
-          ],
+          "columns": ["tenant_id", "path"],
           "isUnique": true
         },
         "org_units_tenant_org_idx": {
           "name": "org_units_tenant_org_idx",
-          "columns": [
-            "tenant_id",
-            "org_id"
-          ],
+          "columns": ["tenant_id", "org_id"],
           "isUnique": false
         },
         "org_units_tenant_org_parent_idx": {
           "name": "org_units_tenant_org_parent_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "parent_unit_id"
-          ],
+          "columns": ["tenant_id", "org_id", "parent_unit_id"],
           "isUnique": false
         },
         "org_units_tenant_path_idx": {
           "name": "org_units_tenant_path_idx",
-          "columns": [
-            "tenant_id",
-            "path"
-          ],
+          "columns": ["tenant_id", "path"],
           "isUnique": false
         },
         "org_units_tenant_org_path_idx": {
           "name": "org_units_tenant_org_path_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "path"
-          ],
+          "columns": ["tenant_id", "org_id", "path"],
           "isUnique": false
         },
         "org_units_manager_idx": {
           "name": "org_units_manager_idx",
-          "columns": [
-            "tenant_id",
-            "manager_user_id"
-          ],
+          "columns": ["tenant_id", "manager_user_id"],
           "isUnique": false
         }
       },
@@ -4722,33 +4256,22 @@
       "indexes": {
         "access_token_issuances_tenant_jti_unq": {
           "name": "access_token_issuances_tenant_jti_unq",
-          "columns": [
-            "tenant_id",
-            "jti"
-          ],
+          "columns": ["tenant_id", "jti"],
           "isUnique": true
         },
         "access_token_issuances_tenant_code_idx": {
           "name": "access_token_issuances_tenant_code_idx",
-          "columns": [
-            "tenant_id",
-            "authorization_code"
-          ],
+          "columns": ["tenant_id", "authorization_code"],
           "isUnique": false
         },
         "access_token_issuances_tenant_family_idx": {
           "name": "access_token_issuances_tenant_family_idx",
-          "columns": [
-            "tenant_id",
-            "refresh_family_id"
-          ],
+          "columns": ["tenant_id", "refresh_family_id"],
           "isUnique": false
         },
         "access_token_issuances_expires_idx": {
           "name": "access_token_issuances_expires_idx",
-          "columns": [
-            "expires_at"
-          ],
+          "columns": ["expires_at"],
           "isUnique": false
         }
       },
@@ -4820,25 +4343,17 @@
       "indexes": {
         "access_token_revocations_tenant_jti_unq": {
           "name": "access_token_revocations_tenant_jti_unq",
-          "columns": [
-            "tenant_id",
-            "jti"
-          ],
+          "columns": ["tenant_id", "jti"],
           "isUnique": true
         },
         "access_token_revocations_tenant_client_idx": {
           "name": "access_token_revocations_tenant_client_idx",
-          "columns": [
-            "tenant_id",
-            "client_id"
-          ],
+          "columns": ["tenant_id", "client_id"],
           "isUnique": false
         },
         "access_token_revocations_expires_idx": {
           "name": "access_token_revocations_expires_idx",
-          "columns": [
-            "expires_at"
-          ],
+          "columns": ["expires_at"],
           "isUnique": false
         }
       },
@@ -5008,31 +4523,22 @@
       "indexes": {
         "authorization_codes_tenant_client_idx": {
           "name": "authorization_codes_tenant_client_idx",
-          "columns": [
-            "tenant_id",
-            "client_id"
-          ],
+          "columns": ["tenant_id", "client_id"],
           "isUnique": false
         },
         "authorization_codes_active_org_idx": {
           "name": "authorization_codes_active_org_idx",
-          "columns": [
-            "active_org_id"
-          ],
+          "columns": ["active_org_id"],
           "isUnique": false
         },
         "authorization_codes_project_grant_idx": {
           "name": "authorization_codes_project_grant_idx",
-          "columns": [
-            "project_grant_id"
-          ],
+          "columns": ["project_grant_id"],
           "isUnique": false
         },
         "authorization_codes_expires_idx": {
           "name": "authorization_codes_expires_idx",
-          "columns": [
-            "expires_at"
-          ],
+          "columns": ["expires_at"],
           "isUnique": false
         }
       },
@@ -5098,19 +4604,12 @@
       "indexes": {
         "oauth_consents_unq": {
           "name": "oauth_consents_unq",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "client_id"
-          ],
+          "columns": ["tenant_id", "user_id", "client_id"],
           "isUnique": true
         },
         "oauth_consents_tenant_user_idx": {
           "name": "oauth_consents_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         }
       },
@@ -5287,54 +4786,37 @@
       "indexes": {
         "refresh_tokens_hash_unq": {
           "name": "refresh_tokens_hash_unq",
-          "columns": [
-            "token_hash"
-          ],
+          "columns": ["token_hash"],
           "isUnique": true
         },
         "refresh_tokens_tenant_family_idx": {
           "name": "refresh_tokens_tenant_family_idx",
-          "columns": [
-            "tenant_id",
-            "family_id"
-          ],
+          "columns": ["tenant_id", "family_id"],
           "isUnique": false
         },
         "refresh_tokens_tenant_authorization_code_idx": {
           "name": "refresh_tokens_tenant_authorization_code_idx",
-          "columns": [
-            "tenant_id",
-            "authorization_code"
-          ],
+          "columns": ["tenant_id", "authorization_code"],
           "isUnique": false
         },
         "refresh_tokens_tenant_user_idx": {
           "name": "refresh_tokens_tenant_user_idx",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "refresh_tokens_active_org_idx": {
           "name": "refresh_tokens_active_org_idx",
-          "columns": [
-            "active_org_id"
-          ],
+          "columns": ["active_org_id"],
           "isUnique": false
         },
         "refresh_tokens_project_grant_idx": {
           "name": "refresh_tokens_project_grant_idx",
-          "columns": [
-            "project_grant_id"
-          ],
+          "columns": ["project_grant_id"],
           "isUnique": false
         },
         "refresh_tokens_expires_idx": {
           "name": "refresh_tokens_expires_idx",
-          "columns": [
-            "expires_at"
-          ],
+          "columns": ["expires_at"],
           "isUnique": false
         }
       },
@@ -5416,17 +4898,12 @@
       "indexes": {
         "resource_servers_tenant_audience_unq": {
           "name": "resource_servers_tenant_audience_unq",
-          "columns": [
-            "tenant_id",
-            "audience"
-          ],
+          "columns": ["tenant_id", "audience"],
           "isUnique": true
         },
         "resource_servers_tenant_idx": {
           "name": "resource_servers_tenant_idx",
-          "columns": [
-            "tenant_id"
-          ],
+          "columns": ["tenant_id"],
           "isUnique": false
         }
       },
@@ -5541,30 +5018,18 @@
       "indexes": {
         "cert_store_tenant_usage_active_unq": {
           "name": "cert_store_tenant_usage_active_unq",
-          "columns": [
-            "tenant_id",
-            "usage"
-          ],
+          "columns": ["tenant_id", "usage"],
           "where": "\"cert_store\".\"status\" = 'active' AND \"cert_store\".\"usage\" = 'saml_idp_signing'",
           "isUnique": true
         },
         "cert_store_tenant_usage_status_idx": {
           "name": "cert_store_tenant_usage_status_idx",
-          "columns": [
-            "tenant_id",
-            "usage",
-            "status"
-          ],
+          "columns": ["tenant_id", "usage", "status"],
           "isUnique": false
         },
         "cert_store_tenant_usage_status_id_idx": {
           "name": "cert_store_tenant_usage_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "usage",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "usage", "status", "id"],
           "isUnique": false
         }
       },
@@ -5680,26 +5145,18 @@
       "indexes": {
         "instance_signing_keys_instance_kid_unq": {
           "name": "instance_signing_keys_instance_kid_unq",
-          "columns": [
-            "instance_id",
-            "kid"
-          ],
+          "columns": ["instance_id", "kid"],
           "isUnique": true
         },
         "instance_signing_keys_instance_next_unq": {
           "name": "instance_signing_keys_instance_next_unq",
-          "columns": [
-            "instance_id"
-          ],
+          "columns": ["instance_id"],
           "where": "\"instance_signing_keys\".\"status\" = 'next'",
           "isUnique": true
         },
         "instance_signing_keys_instance_status_idx": {
           "name": "instance_signing_keys_instance_status_idx",
-          "columns": [
-            "instance_id",
-            "status"
-          ],
+          "columns": ["instance_id", "status"],
           "isUnique": false
         }
       },
@@ -5810,19 +5267,12 @@
       "indexes": {
         "saml_service_providers_entity_unq": {
           "name": "saml_service_providers_entity_unq",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "sp_entity_id"
-          ],
+          "columns": ["tenant_id", "org_id", "sp_entity_id"],
           "isUnique": true
         },
         "saml_service_providers_org_idx": {
           "name": "saml_service_providers_org_idx",
-          "columns": [
-            "tenant_id",
-            "org_id"
-          ],
+          "columns": ["tenant_id", "org_id"],
           "isUnique": false
         }
       },
@@ -5929,43 +5379,22 @@
       "indexes": {
         "saml_session_bindings_lookup_unq": {
           "name": "saml_session_bindings_lookup_unq",
-          "columns": [
-            "tenant_id",
-            "direction",
-            "scope_id",
-            "session_index"
-          ],
+          "columns": ["tenant_id", "direction", "scope_id", "session_index"],
           "isUnique": true
         },
         "saml_session_bindings_user_session_idx": {
           "name": "saml_session_bindings_user_session_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "session_id",
-            "direction"
-          ],
+          "columns": ["tenant_id", "user_id", "session_id", "direction"],
           "isUnique": false
         },
         "saml_session_bindings_tenant_user_session_direction_id_idx": {
           "name": "saml_session_bindings_tenant_user_session_direction_id_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "session_id",
-            "direction",
-            "id"
-          ],
+          "columns": ["tenant_id", "user_id", "session_id", "direction", "id"],
           "isUnique": false
         },
         "saml_session_bindings_name_idx": {
           "name": "saml_session_bindings_name_idx",
-          "columns": [
-            "tenant_id",
-            "direction",
-            "scope_id",
-            "name_id"
-          ],
+          "columns": ["tenant_id", "direction", "scope_id", "name_id"],
           "isUnique": false
         }
       },
@@ -6157,43 +5586,27 @@
       "indexes": {
         "sso_connections_org_unq": {
           "name": "sso_connections_org_unq",
-          "columns": [
-            "org_id"
-          ],
+          "columns": ["org_id"],
           "isUnique": true
         },
         "sso_connections_tenant_idx": {
           "name": "sso_connections_tenant_idx",
-          "columns": [
-            "tenant_id"
-          ],
+          "columns": ["tenant_id"],
           "isUnique": false
         },
         "sso_connections_tenant_status_id_idx": {
           "name": "sso_connections_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "sso_connections_tenant_org_status_id_idx": {
           "name": "sso_connections_tenant_org_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "org_id", "status", "id"],
           "isUnique": false
         },
         "sso_connections_tenant_status_idx": {
           "name": "sso_connections_tenant_status_idx",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "status"],
           "isUnique": false
         }
       },
@@ -6302,45 +5715,27 @@
       "indexes": {
         "directories_tenant_org_status_id_idx": {
           "name": "directories_tenant_org_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "org_id", "status", "id"],
           "isUnique": false
         },
         "directories_tenant_status_id_idx": {
           "name": "directories_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "directories_tenant_org_idx": {
           "name": "directories_tenant_org_idx",
-          "columns": [
-            "tenant_id",
-            "org_id"
-          ],
+          "columns": ["tenant_id", "org_id"],
           "isUnique": false
         },
         "directories_tenant_token_hash_idx": {
           "name": "directories_tenant_token_hash_idx",
-          "columns": [
-            "tenant_id",
-            "scim_token_hash"
-          ],
+          "columns": ["tenant_id", "scim_token_hash"],
           "isUnique": false
         },
         "directories_tenant_token_hash_prev_idx": {
           "name": "directories_tenant_token_hash_prev_idx",
-          "columns": [
-            "tenant_id",
-            "scim_token_hash_prev"
-          ],
+          "columns": ["tenant_id", "scim_token_hash_prev"],
           "isUnique": false
         }
       },
@@ -6391,19 +5786,12 @@
       "indexes": {
         "directory_group_members_unq": {
           "name": "directory_group_members_unq",
-          "columns": [
-            "group_id",
-            "directory_user_id"
-          ],
+          "columns": ["group_id", "directory_user_id"],
           "isUnique": true
         },
         "directory_group_members_tenant_group_id_idx": {
           "name": "directory_group_members_tenant_group_id_idx",
-          "columns": [
-            "tenant_id",
-            "group_id",
-            "id"
-          ],
+          "columns": ["tenant_id", "group_id", "id"],
           "isUnique": false
         }
       },
@@ -6483,57 +5871,33 @@
       "indexes": {
         "directory_groups_dir_name_unq": {
           "name": "directory_groups_dir_name_unq",
-          "columns": [
-            "directory_id",
-            "display_name"
-          ],
+          "columns": ["directory_id", "display_name"],
           "isUnique": true
         },
         "directory_groups_tenant_dir_id_idx": {
           "name": "directory_groups_tenant_dir_id_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id",
-            "id"
-          ],
+          "columns": ["tenant_id", "directory_id", "id"],
           "where": "\"directory_groups\".\"status\" <> 'deleted' AND \"directory_groups\".\"deleted_at\" IS NULL",
           "isUnique": false
         },
         "directory_groups_tenant_dir_created_id_idx": {
           "name": "directory_groups_tenant_dir_created_id_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "directory_id", "created_at", "id"],
           "isUnique": false
         },
         "directory_groups_tenant_dir_updated_id_idx": {
           "name": "directory_groups_tenant_dir_updated_id_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id",
-            "updated_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "directory_id", "updated_at", "id"],
           "isUnique": false
         },
         "directory_groups_tenant_dir_idx": {
           "name": "directory_groups_tenant_dir_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id"
-          ],
+          "columns": ["tenant_id", "directory_id"],
           "isUnique": false
         },
         "directory_groups_tenant_dir_name_lower_idx": {
           "name": "directory_groups_tenant_dir_name_lower_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id",
-            "lower(\"display_name\")"
-          ],
+          "columns": ["tenant_id", "directory_id", "lower(\"display_name\")"],
           "isUnique": false
         }
       },
@@ -6584,19 +5948,12 @@
       "indexes": {
         "directory_pending_members_unq": {
           "name": "directory_pending_members_unq",
-          "columns": [
-            "group_id",
-            "ref"
-          ],
+          "columns": ["group_id", "ref"],
           "isUnique": true
         },
         "directory_pending_members_tenant_ref_id_idx": {
           "name": "directory_pending_members_tenant_ref_id_idx",
-          "columns": [
-            "tenant_id",
-            "ref",
-            "id"
-          ],
+          "columns": ["tenant_id", "ref", "id"],
           "isUnique": false
         }
       },
@@ -6699,82 +6056,48 @@
       "indexes": {
         "directory_users_dir_username_unq": {
           "name": "directory_users_dir_username_unq",
-          "columns": [
-            "directory_id",
-            "user_name"
-          ],
+          "columns": ["directory_id", "user_name"],
           "isUnique": true
         },
         "directory_users_dir_external_unq": {
           "name": "directory_users_dir_external_unq",
-          "columns": [
-            "directory_id",
-            "external_id"
-          ],
+          "columns": ["directory_id", "external_id"],
           "isUnique": true
         },
         "directory_users_tenant_dir_id_idx": {
           "name": "directory_users_tenant_dir_id_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id",
-            "id"
-          ],
+          "columns": ["tenant_id", "directory_id", "id"],
           "where": "\"directory_users\".\"status\" <> 'deleted' AND \"directory_users\".\"deleted_at\" IS NULL",
           "isUnique": false
         },
         "directory_users_tenant_dir_active_id_idx": {
           "name": "directory_users_tenant_dir_active_id_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id",
-            "active",
-            "id"
-          ],
+          "columns": ["tenant_id", "directory_id", "active", "id"],
           "isUnique": false
         },
         "directory_users_tenant_dir_created_id_idx": {
           "name": "directory_users_tenant_dir_created_id_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "directory_id", "created_at", "id"],
           "isUnique": false
         },
         "directory_users_tenant_dir_updated_id_idx": {
           "name": "directory_users_tenant_dir_updated_id_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id",
-            "updated_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "directory_id", "updated_at", "id"],
           "isUnique": false
         },
         "directory_users_tenant_dir_idx": {
           "name": "directory_users_tenant_dir_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id"
-          ],
+          "columns": ["tenant_id", "directory_id"],
           "isUnique": false
         },
         "directory_users_tenant_dir_username_lower_idx": {
           "name": "directory_users_tenant_dir_username_lower_idx",
-          "columns": [
-            "tenant_id",
-            "directory_id",
-            "lower(\"user_name\")"
-          ],
+          "columns": ["tenant_id", "directory_id", "lower(\"user_name\")"],
           "isUnique": false
         },
         "directory_users_user_idx": {
           "name": "directory_users_user_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -6875,33 +6198,17 @@
       "indexes": {
         "scim_target_resources_local_unq": {
           "name": "scim_target_resources_local_unq",
-          "columns": [
-            "tenant_id",
-            "target_id",
-            "resource_type",
-            "local_resource_id"
-          ],
+          "columns": ["tenant_id", "target_id", "resource_type", "local_resource_id"],
           "isUnique": true
         },
         "scim_target_resources_downstream_unq": {
           "name": "scim_target_resources_downstream_unq",
-          "columns": [
-            "tenant_id",
-            "target_id",
-            "resource_type",
-            "downstream_id"
-          ],
+          "columns": ["tenant_id", "target_id", "resource_type", "downstream_id"],
           "isUnique": true
         },
         "scim_target_resources_tenant_org_target_status_id_idx": {
           "name": "scim_target_resources_tenant_org_target_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "org_id",
-            "target_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "org_id", "target_id", "status", "id"],
           "isUnique": false
         }
       },
@@ -7038,18 +6345,12 @@
       "indexes": {
         "scim_targets_tenant_org_idx": {
           "name": "scim_targets_tenant_org_idx",
-          "columns": [
-            "tenant_id",
-            "org_id"
-          ],
+          "columns": ["tenant_id", "org_id"],
           "isUnique": false
         },
         "scim_targets_tenant_status_idx": {
           "name": "scim_targets_tenant_status_idx",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "status"],
           "isUnique": false
         }
       },
@@ -7215,72 +6516,42 @@
       "indexes": {
         "sessions_tenant_status_id_idx": {
           "name": "sessions_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "sessions_tenant_user_status_id_idx": {
           "name": "sessions_tenant_user_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "user_id", "status", "id"],
           "isUnique": false
         },
         "sessions_tenant_user_status_id_expires_idx": {
           "name": "sessions_tenant_user_status_id_expires_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "status",
-            "id",
-            "expires_at"
-          ],
+          "columns": ["tenant_id", "user_id", "status", "id", "expires_at"],
           "isUnique": false
         },
         "sessions_tenant_user_status_expires_idx": {
           "name": "sessions_tenant_user_status_expires_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "status",
-            "expires_at"
-          ],
+          "columns": ["tenant_id", "user_id", "status", "expires_at"],
           "isUnique": false
         },
         "sessions_tenant_user_status_idx": {
           "name": "sessions_tenant_user_status_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "user_id", "status"],
           "isUnique": false
         },
         "sessions_refresh_token_idx": {
           "name": "sessions_refresh_token_idx",
-          "columns": [
-            "refresh_token_hash"
-          ],
+          "columns": ["refresh_token_hash"],
           "isUnique": false
         },
         "sessions_active_org_idx": {
           "name": "sessions_active_org_idx",
-          "columns": [
-            "active_org_id"
-          ],
+          "columns": ["active_org_id"],
           "isUnique": false
         },
         "sessions_expires_idx": {
           "name": "sessions_expires_idx",
-          "columns": [
-            "expires_at"
-          ],
+          "columns": ["expires_at"],
           "isUnique": false
         }
       },
@@ -7389,25 +6660,18 @@
       "indexes": {
         "api_keys_hash_unq": {
           "name": "api_keys_hash_unq",
-          "columns": [
-            "key_hash"
-          ],
+          "columns": ["key_hash"],
           "isUnique": true
         },
         "api_keys_tenant_active_id_idx": {
           "name": "api_keys_tenant_active_id_idx",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
+          "columns": ["tenant_id", "id"],
           "where": "\"api_keys\".\"revoked_at\" IS NULL",
           "isUnique": false
         },
         "api_keys_tenant_idx": {
           "name": "api_keys_tenant_idx",
-          "columns": [
-            "tenant_id"
-          ],
+          "columns": ["tenant_id"],
           "isUnique": false
         }
       },
@@ -7487,32 +6751,23 @@
       "indexes": {
         "audit_dead_letters_message_id_unq": {
           "name": "audit_dead_letters_message_id_unq",
-          "columns": [
-            "message_id"
-          ],
+          "columns": ["message_id"],
           "isUnique": true
         },
         "audit_dead_letters_tenant_source_message_id_unq": {
           "name": "audit_dead_letters_tenant_source_message_id_unq",
-          "columns": [
-            "tenant_id",
-            "source_message_id"
-          ],
+          "columns": ["tenant_id", "source_message_id"],
           "where": "\"audit_dead_letters\".\"source_message_id\" is not null",
           "isUnique": true
         },
         "audit_dead_letters_tenant_idx": {
           "name": "audit_dead_letters_tenant_idx",
-          "columns": [
-            "tenant_id"
-          ],
+          "columns": ["tenant_id"],
           "isUnique": false
         },
         "audit_dead_letters_failed_at_idx": {
           "name": "audit_dead_letters_failed_at_idx",
-          "columns": [
-            "failed_at"
-          ],
+          "columns": ["failed_at"],
           "isUnique": false
         }
       },
@@ -7627,85 +6882,52 @@
       "indexes": {
         "audit_events_tenant_occurred_id_idx": {
           "name": "audit_events_tenant_occurred_id_idx",
-          "columns": [
-            "tenant_id",
-            "occurred_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "occurred_at", "id"],
           "isUnique": false
         },
         "audit_events_occurred_id_idx": {
           "name": "audit_events_occurred_id_idx",
-          "columns": [
-            "occurred_at",
-            "id"
-          ],
+          "columns": ["occurred_at", "id"],
           "isUnique": false
         },
         "audit_events_event_idx": {
           "name": "audit_events_event_idx",
-          "columns": [
-            "event_type"
-          ],
+          "columns": ["event_type"],
           "isUnique": false
         },
         "audit_events_tenant_occurred_idx": {
           "name": "audit_events_tenant_occurred_idx",
-          "columns": [
-            "tenant_id",
-            "occurred_at"
-          ],
+          "columns": ["tenant_id", "occurred_at"],
           "isUnique": false
         },
         "audit_events_tenant_actor_idx": {
           "name": "audit_events_tenant_actor_idx",
-          "columns": [
-            "tenant_id",
-            "actor_id"
-          ],
+          "columns": ["tenant_id", "actor_id"],
           "isUnique": false
         },
         "audit_events_tenant_actor_occurred_idx": {
           "name": "audit_events_tenant_actor_occurred_idx",
-          "columns": [
-            "tenant_id",
-            "actor_id",
-            "occurred_at"
-          ],
+          "columns": ["tenant_id", "actor_id", "occurred_at"],
           "isUnique": false
         },
         "audit_events_tenant_target_occurred_idx": {
           "name": "audit_events_tenant_target_occurred_idx",
-          "columns": [
-            "tenant_id",
-            "target_id",
-            "occurred_at"
-          ],
+          "columns": ["tenant_id", "target_id", "occurred_at"],
           "isUnique": false
         },
         "audit_events_tenant_event_idx": {
           "name": "audit_events_tenant_event_idx",
-          "columns": [
-            "tenant_id",
-            "event_type"
-          ],
+          "columns": ["tenant_id", "event_type"],
           "isUnique": false
         },
         "audit_events_tenant_event_occurred_idx": {
           "name": "audit_events_tenant_event_occurred_idx",
-          "columns": [
-            "tenant_id",
-            "event_type",
-            "occurred_at"
-          ],
+          "columns": ["tenant_id", "event_type", "occurred_at"],
           "isUnique": false
         },
         "audit_events_tenant_source_message_id_unq": {
           "name": "audit_events_tenant_source_message_id_unq",
-          "columns": [
-            "tenant_id",
-            "source_message_id"
-          ],
+          "columns": ["tenant_id", "source_message_id"],
           "where": "\"audit_events\".\"source_message_id\" is not null",
           "isUnique": true
         }
@@ -7713,10 +6935,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "audit_events_tenant_id_seq_pk": {
-          "columns": [
-            "tenant_id",
-            "seq"
-          ],
+          "columns": ["tenant_id", "seq"],
           "name": "audit_events_tenant_id_seq_pk"
         }
       },
@@ -7836,30 +7055,20 @@
       "indexes": {
         "billing_meter_reports_pending_identifier_unq": {
           "name": "billing_meter_reports_pending_identifier_unq",
-          "columns": [
-            "pending_identifier"
-          ],
+          "columns": ["pending_identifier"],
           "where": "\"billing_meter_reports\".\"pending_identifier\" IS NOT NULL",
           "isUnique": true
         },
         "billing_meter_reports_period_meter_tenant_idx": {
           "name": "billing_meter_reports_period_meter_tenant_idx",
-          "columns": [
-            "period",
-            "meter_key",
-            "tenant_id"
-          ],
+          "columns": ["period", "meter_key", "tenant_id"],
           "isUnique": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "billing_meter_reports_tenant_id_meter_key_period_pk": {
-          "columns": [
-            "tenant_id",
-            "meter_key",
-            "period"
-          ],
+          "columns": ["tenant_id", "meter_key", "period"],
           "name": "billing_meter_reports_tenant_id_meter_key_period_pk"
         }
       },
@@ -7986,20 +7195,12 @@
       "indexes": {
         "compliance_documents_tenant_type_version_unq": {
           "name": "compliance_documents_tenant_type_version_unq",
-          "columns": [
-            "tenant_id",
-            "document_type",
-            "version"
-          ],
+          "columns": ["tenant_id", "document_type", "version"],
           "isUnique": true
         },
         "compliance_documents_type_status_idx": {
           "name": "compliance_documents_type_status_idx",
-          "columns": [
-            "document_type",
-            "status",
-            "tenant_id"
-          ],
+          "columns": ["document_type", "status", "tenant_id"],
           "isUnique": false
         }
       },
@@ -8099,27 +7300,17 @@
       "indexes": {
         "notification_delivery_failures_tenant_identity_unq": {
           "name": "notification_delivery_failures_tenant_identity_unq",
-          "columns": [
-            "tenant_id",
-            "delivery_identity"
-          ],
+          "columns": ["tenant_id", "delivery_identity"],
           "isUnique": true
         },
         "notification_delivery_failures_tenant_outcome_idx": {
           "name": "notification_delivery_failures_tenant_outcome_idx",
-          "columns": [
-            "tenant_id",
-            "outcome",
-            "failed_at"
-          ],
+          "columns": ["tenant_id", "outcome", "failed_at"],
           "isUnique": false
         },
         "notification_delivery_failures_channel_source_idx": {
           "name": "notification_delivery_failures_channel_source_idx",
-          "columns": [
-            "channel",
-            "source_message_id"
-          ],
+          "columns": ["channel", "source_message_id"],
           "isUnique": false
         }
       },
@@ -8340,46 +7531,28 @@
       "indexes": {
         "notification_delivery_outbox_tenant_delivery_key_unq": {
           "name": "notification_delivery_outbox_tenant_delivery_key_unq",
-          "columns": [
-            "tenant_id",
-            "delivery_key"
-          ],
+          "columns": ["tenant_id", "delivery_key"],
           "isUnique": true
         },
         "notification_delivery_outbox_tenant_delivery_identity_unq": {
           "name": "notification_delivery_outbox_tenant_delivery_identity_unq",
-          "columns": [
-            "tenant_id",
-            "delivery_identity"
-          ],
+          "columns": ["tenant_id", "delivery_identity"],
           "where": "\"notification_delivery_outbox\".\"delivery_identity\" IS NOT NULL",
           "isUnique": true
         },
         "notification_delivery_outbox_tenant_ready_idx": {
           "name": "notification_delivery_outbox_tenant_ready_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "available_at"
-          ],
+          "columns": ["tenant_id", "status", "available_at"],
           "isUnique": false
         },
         "notification_delivery_outbox_dispatch_idx": {
           "name": "notification_delivery_outbox_dispatch_idx",
-          "columns": [
-            "status",
-            "available_at",
-            "lease_until"
-          ],
+          "columns": ["status", "available_at", "lease_until"],
           "isUnique": false
         },
         "notification_delivery_outbox_failure_idx": {
           "name": "notification_delivery_outbox_failure_idx",
-          "columns": [
-            "status",
-            "failure_kind",
-            "failed_at"
-          ],
+          "columns": ["status", "failure_kind", "failed_at"],
           "isUnique": false
         }
       },
@@ -8481,31 +7654,22 @@
       "indexes": {
         "notification_failures_source_message_id_unq": {
           "name": "notification_failures_source_message_id_unq",
-          "columns": [
-            "source_message_id"
-          ],
+          "columns": ["source_message_id"],
           "isUnique": true
         },
         "notification_failures_tenant_idx": {
           "name": "notification_failures_tenant_idx",
-          "columns": [
-            "tenant_id"
-          ],
+          "columns": ["tenant_id"],
           "isUnique": false
         },
         "notification_failures_channel_type_idx": {
           "name": "notification_failures_channel_type_idx",
-          "columns": [
-            "channel",
-            "type"
-          ],
+          "columns": ["channel", "type"],
           "isUnique": false
         },
         "notification_failures_failed_at_idx": {
           "name": "notification_failures_failed_at_idx",
-          "columns": [
-            "failed_at"
-          ],
+          "columns": ["failed_at"],
           "isUnique": false
         }
       },
@@ -8594,19 +7758,13 @@
       "indexes": {
         "organization_plans_external_customer_unq": {
           "name": "organization_plans_external_customer_unq",
-          "columns": [
-            "external_customer_id"
-          ],
+          "columns": ["external_customer_id"],
           "where": "\"organization_plans\".\"external_customer_id\" IS NOT NULL",
           "isUnique": true
         },
         "organization_plans_plan_status_idx": {
           "name": "organization_plans_plan_status_idx",
-          "columns": [
-            "plan",
-            "status",
-            "tenant_id"
-          ],
+          "columns": ["plan", "status", "tenant_id"],
           "isUnique": false
         }
       },
@@ -8672,20 +7830,14 @@
       "indexes": {
         "organization_quotas_key_tenant_idx": {
           "name": "organization_quotas_key_tenant_idx",
-          "columns": [
-            "quota_key",
-            "tenant_id"
-          ],
+          "columns": ["quota_key", "tenant_id"],
           "isUnique": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "organization_quotas_tenant_id_quota_key_pk": {
-          "columns": [
-            "tenant_id",
-            "quota_key"
-          ],
+          "columns": ["tenant_id", "quota_key"],
           "name": "organization_quotas_tenant_id_quota_key_pk"
         }
       },
@@ -8750,16 +7902,12 @@
       "indexes": {
         "platform_admins_email_unq": {
           "name": "platform_admins_email_unq",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         },
         "platform_admins_instance_idx": {
           "name": "platform_admins_instance_idx",
-          "columns": [
-            "instance_id"
-          ],
+          "columns": ["instance_id"],
           "isUnique": false
         }
       },
@@ -8869,20 +8017,12 @@
       "indexes": {
         "platform_announcements_status_window_idx": {
           "name": "platform_announcements_status_window_idx",
-          "columns": [
-            "status",
-            "starts_at",
-            "ends_at"
-          ],
+          "columns": ["status", "starts_at", "ends_at"],
           "isUnique": false
         },
         "platform_announcements_scope_idx": {
           "name": "platform_announcements_scope_idx",
-          "columns": [
-            "scope_type",
-            "scope_value",
-            "status"
-          ],
+          "columns": ["scope_type", "scope_value", "status"],
           "isUnique": false
         }
       },
@@ -8992,20 +8132,12 @@
       "indexes": {
         "platform_audit_outbox_ready_idx": {
           "name": "platform_audit_outbox_ready_idx",
-          "columns": [
-            "status",
-            "available_at",
-            "id"
-          ],
+          "columns": ["status", "available_at", "id"],
           "isUnique": false
         },
         "platform_audit_outbox_tenant_created_idx": {
           "name": "platform_audit_outbox_tenant_created_idx",
-          "columns": [
-            "tenant_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "created_at", "id"],
           "isUnique": false
         }
       },
@@ -9134,22 +8266,12 @@
       "indexes": {
         "privacy_requests_tenant_user_created_idx": {
           "name": "privacy_requests_tenant_user_created_idx",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "user_id", "created_at", "id"],
           "isUnique": false
         },
         "privacy_requests_due_idx": {
           "name": "privacy_requests_due_idx",
-          "columns": [
-            "request_type",
-            "status",
-            "scheduled_for",
-            "id"
-          ],
+          "columns": ["request_type", "status", "scheduled_for", "id"],
           "isUnique": false
         }
       },
@@ -9332,36 +8454,22 @@
       "indexes": {
         "queue_dead_letters_source_message_unq": {
           "name": "queue_dead_letters_source_message_unq",
-          "columns": [
-            "source_queue",
-            "message_id"
-          ],
+          "columns": ["source_queue", "message_id"],
           "isUnique": true
         },
         "queue_dead_letters_status_failed_id_idx": {
           "name": "queue_dead_letters_status_failed_id_idx",
-          "columns": [
-            "status",
-            "failed_at",
-            "id"
-          ],
+          "columns": ["status", "failed_at", "id"],
           "isUnique": false
         },
         "queue_dead_letters_tenant_failed_id_idx": {
           "name": "queue_dead_letters_tenant_failed_id_idx",
-          "columns": [
-            "tenant_id",
-            "failed_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "failed_at", "id"],
           "isUnique": false
         },
         "queue_dead_letters_source_status_idx": {
           "name": "queue_dead_letters_source_status_idx",
-          "columns": [
-            "source_queue",
-            "status"
-          ],
+          "columns": ["source_queue", "status"],
           "isUnique": false
         }
       },
@@ -9419,11 +8527,7 @@
       "indexes": {
         "status_incident_updates_incident_created_idx": {
           "name": "status_incident_updates_incident_created_idx",
-          "columns": [
-            "incident_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["incident_id", "created_at", "id"],
           "isUnique": false
         }
       },
@@ -9526,19 +8630,12 @@
       "indexes": {
         "status_incidents_status_started_idx": {
           "name": "status_incidents_status_started_idx",
-          "columns": [
-            "status",
-            "started_at",
-            "id"
-          ],
+          "columns": ["status", "started_at", "id"],
           "isUnique": false
         },
         "status_incidents_started_id_idx": {
           "name": "status_incidents_started_id_idx",
-          "columns": [
-            "started_at",
-            "id"
-          ],
+          "columns": ["started_at", "id"],
           "isUnique": false
         }
       },
@@ -9632,18 +8729,12 @@
       "indexes": {
         "stripe_checkout_reservations_provider_key_unq": {
           "name": "stripe_checkout_reservations_provider_key_unq",
-          "columns": [
-            "provider_idempotency_key"
-          ],
+          "columns": ["provider_idempotency_key"],
           "isUnique": true
         },
         "stripe_checkout_reservations_status_expiry_idx": {
           "name": "stripe_checkout_reservations_status_expiry_idx",
-          "columns": [
-            "status",
-            "expires_at",
-            "tenant_id"
-          ],
+          "columns": ["status", "expires_at", "tenant_id"],
           "isUnique": false
         }
       },
@@ -9722,20 +8813,12 @@
       "indexes": {
         "stripe_webhook_events_status_created_event_idx": {
           "name": "stripe_webhook_events_status_created_event_idx",
-          "columns": [
-            "status",
-            "created_at",
-            "event_id"
-          ],
+          "columns": ["status", "created_at", "event_id"],
           "isUnique": false
         },
         "stripe_webhook_events_tenant_event_created_idx": {
           "name": "stripe_webhook_events_tenant_event_created_idx",
-          "columns": [
-            "tenant_id",
-            "event_created",
-            "event_id"
-          ],
+          "columns": ["tenant_id", "event_created", "event_id"],
           "isUnique": false
         }
       },
@@ -9803,20 +8886,14 @@
       "indexes": {
         "usage_daily_day_idx": {
           "name": "usage_daily_day_idx",
-          "columns": [
-            "day",
-            "tenant_id"
-          ],
+          "columns": ["day", "tenant_id"],
           "isUnique": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "usage_daily_tenant_id_day_pk": {
-          "columns": [
-            "tenant_id",
-            "day"
-          ],
+          "columns": ["tenant_id", "day"],
           "name": "usage_daily_tenant_id_day_pk"
         }
       },
@@ -9858,20 +8935,14 @@
       "indexes": {
         "usage_monthly_year_month_idx": {
           "name": "usage_monthly_year_month_idx",
-          "columns": [
-            "year_month",
-            "tenant_id"
-          ],
+          "columns": ["year_month", "tenant_id"],
           "isUnique": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "usage_monthly_tenant_id_year_month_pk": {
-          "columns": [
-            "tenant_id",
-            "year_month"
-          ],
+          "columns": ["tenant_id", "year_month"],
           "name": "usage_monthly_tenant_id_year_month_pk"
         }
       },
@@ -9992,37 +9063,23 @@
       "indexes": {
         "webhook_deliveries_delivery_key_unq": {
           "name": "webhook_deliveries_delivery_key_unq",
-          "columns": [
-            "delivery_key"
-          ],
+          "columns": ["delivery_key"],
           "where": "\"webhook_deliveries\".\"delivery_key\" IS NOT NULL",
           "isUnique": true
         },
         "webhook_deliveries_tenant_webhook_status_idx": {
           "name": "webhook_deliveries_tenant_webhook_status_idx",
-          "columns": [
-            "tenant_id",
-            "webhook_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "webhook_id", "status"],
           "isUnique": false
         },
         "webhook_deliveries_tenant_webhook_created_id_idx": {
           "name": "webhook_deliveries_tenant_webhook_created_id_idx",
-          "columns": [
-            "tenant_id",
-            "webhook_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["tenant_id", "webhook_id", "created_at", "id"],
           "isUnique": false
         },
         "webhook_deliveries_status_retry_idx": {
           "name": "webhook_deliveries_status_retry_idx",
-          "columns": [
-            "status",
-            "next_retry_at"
-          ],
+          "columns": ["status", "next_retry_at"],
           "isUnique": false
         }
       },
@@ -10117,19 +9174,12 @@
       "indexes": {
         "webhooks_tenant_status_id_idx": {
           "name": "webhooks_tenant_status_id_idx",
-          "columns": [
-            "tenant_id",
-            "status",
-            "id"
-          ],
+          "columns": ["tenant_id", "status", "id"],
           "isUnique": false
         },
         "webhooks_tenant_status_idx": {
           "name": "webhooks_tenant_status_idx",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
+          "columns": ["tenant_id", "status"],
           "isUnique": false
         }
       },
