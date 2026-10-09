@@ -61,6 +61,13 @@ export const list = stylex.create({
     fontSize: text.base,
     whiteSpace: 'nowrap',
   },
+  linkButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: weight.medium,
+    textDecoration: 'none',
+  },
   filterValue: {
     fontWeight: weight.medium,
   },

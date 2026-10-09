@@ -222,7 +222,7 @@ export function OutboundSamlAppDetail({
                 <a
                   href={app.idpMetadataUrl}
                   download
-                  {...stylex.props(list.filterButton, styles.trigger)}
+                  {...stylex.props(list.filterButton, list.linkButton, styles.trigger)}
                 >
                   <Trans>Download IdP metadata</Trans>
                 </a>
@@ -230,155 +230,161 @@ export function OutboundSamlAppDetail({
             </div>
           </div>
         </header>
-        <Tabs
-          ariaLabel={t`App sections`}
-          value={tab}
-          onValueChange={setTab}
-          items={[
-            { value: 'settings', label: <Trans>Settings</Trans> },
-            { value: 'attributes', label: <Trans>Attributes</Trans> },
-            { value: 'access', label: <Trans>Who can sign in</Trans> },
-            { value: 'activity', label: <Trans>Activity</Trans> },
-          ]}
-        >
-          <TabPanel value="settings">
-            <div {...stylex.props(detailParts.column)}>
-              {showExpiry ? (
-                <ExpiryNotice
-                  isExpired={days <= 0}
-                  title={
-                    days <= 0 ? (
-                      <Trans>The signing certificate expired {expiryDate}</Trans>
-                    ) : (
-                      <>
-                        <Trans>The signing certificate expires {expiryDate}</Trans>,{' '}
-                        <Plural value={days} one="in # day" other="in # days" />
-                      </>
-                    )
-                  }
-                  body={
+        <div {...stylex.props(consoleShell.gutter)}>
+          <Tabs
+            ariaLabel={t`App sections`}
+            value={tab}
+            onValueChange={setTab}
+            items={[
+              { value: 'settings', label: <Trans>Settings</Trans> },
+              { value: 'attributes', label: <Trans>Attributes</Trans> },
+              { value: 'access', label: <Trans>Who can sign in</Trans> },
+              { value: 'activity', label: <Trans>Activity</Trans> },
+            ]}
+          >
+            <TabPanel value="settings">
+              <div {...stylex.props(detailParts.column)}>
+                {showExpiry ? (
+                  <ExpiryNotice
+                    isExpired={days <= 0}
+                    title={
+                      days <= 0 ? (
+                        <Trans>The signing certificate expired {expiryDate}</Trans>
+                      ) : (
+                        <>
+                          <Trans>The signing certificate expires {expiryDate}</Trans>,{' '}
+                          <Plural value={days} one="in # day" other="in # days" />
+                        </>
+                      )
+                    }
+                    body={
+                      <Trans>
+                        After that, {name} rejects every sign-in from XID. XID publishes the next
+                        certificate 60 days before expiry. Download the IdP metadata again, upload
+                        it in {name}, then switch to the next certificate below.
+                      </Trans>
+                    }
+                  />
+                ) : null}
+                <DetailSection
+                  title={<Trans>Signing certificates</Trans>}
+                  description={
                     <Trans>
-                      After that, {name} rejects every sign-in from XID. XID publishes the next
-                      certificate 60 days before expiry. Download the IdP metadata again, upload it
-                      in {name}, then switch to the next certificate below.
+                      XID signs every {name} assertion with the active certificate. The next and
+                      retiring certificates stay published in the metadata during a rollover.
                     </Trans>
                   }
-                />
-              ) : null}
-              <DetailSection
-                title={<Trans>Signing certificates</Trans>}
-                description={
-                  <Trans>
-                    XID signs every {name} assertion with the active certificate. The next and
-                    retiring certificates stay published in the metadata during a rollover.
-                  </Trans>
-                }
-              >
-                <OutboundSamlCertificates
-                  orgId={orgId}
-                  metadataUrl={app.idpMetadataUrl}
-                  locked={locked}
-                />
-              </DetailSection>
-              <DetailSection
-                title={<Trans>{name} settings</Trans>}
-                description={<Trans>Where XID sends people after they sign in.</Trans>}
-                action={
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={locked}
-                    onClick={() => setDialog('edit')}
-                  >
-                    <Trans>Edit…</Trans>
-                  </Button>
-                }
-              >
-                <ValueRows
-                  rows={[
-                    {
-                      key: 'entity',
-                      label: <Trans>Entity ID</Trans>,
-                      value: app.spEntityId,
-                      mono: true,
-                    },
-                    {
-                      key: 'acs',
-                      label: <Trans>Assertion consumer URL</Trans>,
-                      value: app.acsUrl,
-                      mono: true,
-                    },
-                    { key: 'nameid', label: <Trans>Name ID</Trans>, value: nameId },
-                    {
-                      key: 'slo',
-                      label: <Trans>Single logout URL</Trans>,
-                      value: app.sloUrl ?? <Trans>Not set</Trans>,
-                      mono: Boolean(app.sloUrl),
-                    },
-                  ]}
-                />
-              </DetailSection>
-              <DetailSection
-                title={<Trans>Give these to {name}</Trans>}
-                description={
-                  <Trans>
-                    Paste them into the single sign-on settings of {name}, or upload the metadata
-                    file.
-                  </Trans>
-                }
-                action={
-                  <a href={app.idpMetadataUrl} download {...stylex.props(list.filterButton)}>
-                    <Trans>Download metadata</Trans>
-                  </a>
-                }
-              >
-                <ValueRows
-                  rows={[
-                    {
-                      key: 'issuer',
-                      label: <Trans>Issuer</Trans>,
-                      value: app.idpEntityId,
-                      mono: true,
-                      copyValue: app.idpEntityId,
-                      copySubject: t`issuer`,
-                    },
-                    {
-                      key: 'sso',
-                      label: <Trans>Sign-in URL</Trans>,
-                      value: app.idpSsoUrl,
-                      mono: true,
-                      copyValue: app.idpSsoUrl,
-                      copySubject: t`sign-in URL`,
-                    },
-                    {
-                      key: 'slo',
-                      label: <Trans>Logout URL</Trans>,
-                      value: app.idpSloUrl,
-                      mono: true,
-                      copyValue: app.idpSloUrl,
-                      copySubject: t`logout URL`,
-                    },
-                  ]}
-                />
-              </DetailSection>
-            </div>
-          </TabPanel>
-          <TabPanel value="attributes">
-            <div {...stylex.props(detailParts.column)}>
-              <AttributesPanel orgId={orgId} app={app} locked={locked} />
-            </div>
-          </TabPanel>
-          <TabPanel value="access">
-            <div {...stylex.props(detailParts.column)}>
-              <WhoCanSignInForm orgId={orgId} app={app} locked={locked} />
-            </div>
-          </TabPanel>
-          <TabPanel value="activity">
-            <div {...stylex.props(detailParts.column)}>
-              <ActivityList query={activity} />
-            </div>
-          </TabPanel>
-        </Tabs>
+                >
+                  <OutboundSamlCertificates
+                    orgId={orgId}
+                    metadataUrl={app.idpMetadataUrl}
+                    locked={locked}
+                  />
+                </DetailSection>
+                <DetailSection
+                  title={<Trans>{name} settings</Trans>}
+                  description={<Trans>Where XID sends people after they sign in.</Trans>}
+                  action={
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={locked}
+                      onClick={() => setDialog('edit')}
+                    >
+                      <Trans>Edit…</Trans>
+                    </Button>
+                  }
+                >
+                  <ValueRows
+                    rows={[
+                      {
+                        key: 'entity',
+                        label: <Trans>Entity ID</Trans>,
+                        value: app.spEntityId,
+                        mono: true,
+                      },
+                      {
+                        key: 'acs',
+                        label: <Trans>Assertion consumer URL</Trans>,
+                        value: app.acsUrl,
+                        mono: true,
+                      },
+                      { key: 'nameid', label: <Trans>Name ID</Trans>, value: nameId },
+                      {
+                        key: 'slo',
+                        label: <Trans>Single logout URL</Trans>,
+                        value: app.sloUrl ?? <Trans>Not set</Trans>,
+                        mono: Boolean(app.sloUrl),
+                      },
+                    ]}
+                  />
+                </DetailSection>
+                <DetailSection
+                  title={<Trans>Give these to {name}</Trans>}
+                  description={
+                    <Trans>
+                      Paste them into the single sign-on settings of {name}, or upload the metadata
+                      file.
+                    </Trans>
+                  }
+                  action={
+                    <a
+                      href={app.idpMetadataUrl}
+                      download
+                      {...stylex.props(list.filterButton, list.linkButton)}
+                    >
+                      <Trans>Download metadata</Trans>
+                    </a>
+                  }
+                >
+                  <ValueRows
+                    rows={[
+                      {
+                        key: 'issuer',
+                        label: <Trans>Issuer</Trans>,
+                        value: app.idpEntityId,
+                        mono: true,
+                        copyValue: app.idpEntityId,
+                        copySubject: t`issuer`,
+                      },
+                      {
+                        key: 'sso',
+                        label: <Trans>Sign-in URL</Trans>,
+                        value: app.idpSsoUrl,
+                        mono: true,
+                        copyValue: app.idpSsoUrl,
+                        copySubject: t`sign-in URL`,
+                      },
+                      {
+                        key: 'slo',
+                        label: <Trans>Logout URL</Trans>,
+                        value: app.idpSloUrl,
+                        mono: true,
+                        copyValue: app.idpSloUrl,
+                        copySubject: t`logout URL`,
+                      },
+                    ]}
+                  />
+                </DetailSection>
+              </div>
+            </TabPanel>
+            <TabPanel value="attributes">
+              <div {...stylex.props(detailParts.column)}>
+                <AttributesPanel orgId={orgId} app={app} locked={locked} />
+              </div>
+            </TabPanel>
+            <TabPanel value="access">
+              <div {...stylex.props(detailParts.column)}>
+                <WhoCanSignInForm orgId={orgId} app={app} locked={locked} />
+              </div>
+            </TabPanel>
+            <TabPanel value="activity">
+              <div {...stylex.props(detailParts.column)}>
+                <ActivityList query={activity} />
+              </div>
+            </TabPanel>
+          </Tabs>
+        </div>
       </div>
       {dialog === 'edit' ? (
         <OutboundAppDialog orgId={orgId} app={app} onClose={() => setDialog(null)} />

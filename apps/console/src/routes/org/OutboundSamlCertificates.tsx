@@ -20,6 +20,8 @@ import { shortFingerprint } from './auth-format'
 import { useCanManageOrg, useIsTenantScopeOrg } from './useOrgTarget'
 
 const WIDE = '@media (min-width: 48rem)'
+// 表头没有操作列内容,固定末列宽度才能让表头与各行对齐。
+const CERT_COLUMNS = 'minmax(0, 1fr) 7rem 13rem 7rem'
 
 type CertificateStatus = 'next' | 'active' | 'retiring'
 
@@ -39,7 +41,7 @@ const styles = stylex.create({
     display: 'grid',
     gridTemplateColumns: {
       default: 'minmax(0, 1fr) auto',
-      [WIDE]: 'minmax(0, 1fr) 7rem 13rem auto',
+      [WIDE]: CERT_COLUMNS,
     },
     alignItems: 'center',
     gap: '0.375rem 1rem',
@@ -51,11 +53,14 @@ const styles = stylex.create({
   },
   certHead: {
     display: { default: 'none', [WIDE]: 'grid' },
-    gridTemplateColumns: 'minmax(0, 1fr) 7rem 13rem auto',
+    gridTemplateColumns: CERT_COLUMNS,
     gap: '1rem',
     paddingBlock: '0.5rem',
     color: tokens['--xid-muted-foreground'],
     fontSize: text.sm,
+  },
+  certLink: {
+    justifySelf: 'end',
   },
   certValid: {
     color: tokens['--xid-fg'],
@@ -126,7 +131,7 @@ function StatusBadge({ status }: { status: CertificateStatus }): ReactNode {
   if (status === 'next') {
     return (
       <Badge tone="neutral">
-        <Trans>Next</Trans>
+        <Trans context="signing certificate status">Next</Trans>
       </Badge>
     )
   }
@@ -193,7 +198,11 @@ export function OutboundSamlCertificates({
                   {from} to {to}
                 </Trans>
               </span>
-              <a href={metadataUrl} download {...stylex.props(list.filterButton)}>
+              <a
+                href={metadataUrl}
+                download
+                {...stylex.props(list.filterButton, list.linkButton, styles.certLink)}
+              >
                 <Trans>Metadata</Trans>
               </a>
             </li>

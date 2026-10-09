@@ -195,6 +195,7 @@ export function OutboundAppDialog({
 
   function patch(next: Partial<AppForm>): void {
     setImported(false)
+    setFormError(null)
     setForm((prev) => ({ ...prev, ...next }))
   }
 
@@ -207,7 +208,10 @@ export function OutboundAppDialog({
     )
   }
 
+  const metadataMissing = formError !== null && form.metadataSource !== 'none' && !importing
+
   function fieldError(key: FieldKey): string | undefined {
+    if (key === 'metadata' && metadataMissing) return formError
     return errorField === key && mutationError ? errorMessage(mutationError) : undefined
   }
 
@@ -338,7 +342,11 @@ export function OutboundAppDialog({
         ) : null}
         <Field
           label={<Trans>Entity ID</Trans>}
-          hint={<Trans>Replace any part in braces with the value from the app.</Trans>}
+          hint={
+            /[{}]/.test(form.spEntityId + form.acsUrl) ? (
+              <Trans>Replace any part in braces with the value from the app.</Trans>
+            ) : null
+          }
           error={fieldError('spEntityId')}
         >
           <Input
@@ -386,7 +394,7 @@ export function OutboundAppDialog({
             onChange={(event) => patch({ spCertificates: event.target.value })}
           />
         </Field>
-        {formError || (mutationError && errorField === null) ? (
+        {(formError && !metadataMissing) || (mutationError && errorField === null) ? (
           <p role="alert" {...stylex.props(styles.error)}>
             {formError ?? (mutationError ? errorMessage(mutationError) : null)}
           </p>

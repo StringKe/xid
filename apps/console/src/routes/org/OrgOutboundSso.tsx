@@ -253,7 +253,7 @@ export default function OrgOutboundSso(): ReactNode {
         </div>
       ) : null}
       {data ? (
-        <section>
+        <section {...stylex.props(consoleShell.sectionPad)}>
           <div {...stylex.props(styles.toolbar)}>
             <label {...stylex.props(list.search)}>
               <span {...stylex.props(list.searchIcon)}>
