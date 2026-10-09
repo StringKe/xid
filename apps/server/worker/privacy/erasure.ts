@@ -35,6 +35,7 @@ type UserScopedEraseTable =
   | 'password_reset_tokens'
   | 'passwords'
   | 'refresh_tokens'
+  | 'saml_persistent_name_ids'
   | 'saml_session_bindings'
   | 'sessions'
   | 'trusted_devices'
@@ -258,6 +259,7 @@ export async function completePrivacyErasure(
     deleteByUser(env, 'oauth_consents', input.tenantId, input.userId),
     deleteByUser(env, 'directory_users', input.tenantId, input.userId),
     deleteByUser(env, 'saml_session_bindings', input.tenantId, input.userId),
+    deleteByUser(env, 'saml_persistent_name_ids', input.tenantId, input.userId),
     deleteByUser(env, 'metering_outbox', input.tenantId, input.userId),
     env.DB.prepare(`DELETE FROM access_token_issuances WHERE tenant_id = ? AND subject = ?`).bind(
       input.tenantId,

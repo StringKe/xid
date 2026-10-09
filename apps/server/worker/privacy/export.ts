@@ -190,6 +190,14 @@ function exportSections(tenantId: string, userId: string): ExportSection[] {
       params: scoped,
     },
     {
+      name: 'samlPersistentNameIds',
+      sql: `SELECT sp_id, name_id, created_at
+              FROM saml_persistent_name_ids
+             WHERE tenant_id = ? AND user_id = ?
+             ORDER BY sp_id`,
+      params: scoped,
+    },
+    {
       name: 'privacyRequests',
       sql: `SELECT id, request_type, status, available_at, expires_at, scheduled_for,
                    processing_started_at, completed_at, canceled_at, error_code, created_at,
