@@ -1,8 +1,9 @@
-// 登录后的可选步骤:没有 passkey 的用户先尝试浏览器的 Conditional Create,失败或不支持再显示插页。
+// 登录后的可选步骤:没有 passkey 的用户看到插页,点按钮显式创建。
+// 不用 Conditional Create:它返回的 UP/UV 均为 false,服务端要求 UV,会在凭据管理器留下服务端不认的 passkey。
 // 不符合条件、选「Not now」或创建完成后都续跑原落点。
 
 import { useLingui } from '@lingui/react/macro'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import * as stylex from '@stylexjs/stylex'
@@ -20,12 +21,7 @@ import { usePasskeysQuery, useRegisterPasskey } from '../account/queries'
 import { browserStorage } from '../sign-in/method-order'
 import { browserSupportsWebAuthn } from '../sign-in/passkey'
 import { CancelledView, CreatedView, OfferView, StepUpView } from './PromptViews'
-import {
-  readPromptDismissed,
-  shouldOfferPasskey,
-  supportsConditionalCreate,
-  writePromptDismissed,
-} from './passkey-prompt'
+import { readPromptDismissed, shouldOfferPasskey, writePromptDismissed } from './passkey-prompt'
 
 type View = 'offer' | 'cancelled' | 'step-up' | 'created'
 
@@ -45,10 +41,8 @@ export default function CreatePasskeyPage(): ReactNode {
   const { config, isPending: configPending } = useHostedAuthConfig()
   const passkeys = usePasskeysQuery()
   const register = useRegisterPasskey()
-  const conditional = useRegisterPasskey()
   const deviceName = useDefaultPasskeyName()
   const [view, setView] = useState<View>('offer')
-  const conditionalAbort = useRef<AbortController | null>(null)
   const appName = config.context.applicationName
   const eligibility = configPending
     ? 'unknown'
@@ -77,24 +71,7 @@ export default function CreatePasskeyPage(): ReactNode {
     if (eligibility === false && view === 'offer') navigate(target, { replace: true })
   }, [eligibility, navigate, target, view])
 
-  // 浏览器支持时先静默提议保存,用户不必再点一次;失败保持插页,不打扰。
-  useEffect(() => {
-    if (eligibility !== true || conditionalAbort.current) return
-    const controller = new AbortController()
-    conditionalAbort.current = controller
-    void supportsConditionalCreate().then((supported) => {
-      if (!supported || controller.signal.aborted) return
-      conditional.mutate(
-        { deviceName, mediation: 'conditional', signal: controller.signal },
-        { onSuccess: onCreated },
-      )
-    })
-  })
-
-  useEffect(() => () => conditionalAbort.current?.abort(), [])
-
   function create(): void {
-    conditionalAbort.current?.abort()
     register.mutate({ deviceName }, { onSuccess: onCreated, onError: onFailed })
   }
 

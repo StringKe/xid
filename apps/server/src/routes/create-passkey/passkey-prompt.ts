@@ -36,17 +36,3 @@ export function shouldOfferPasskey(input: PromptEligibilityInput): boolean | 'un
   if (input.passkeyCount === undefined) return 'unknown'
   return input.passkeyCount === 0
 }
-
-type CapabilityProbe = { getClientCapabilities?: () => Promise<Record<string, boolean>> }
-
-export async function supportsConditionalCreate(): Promise<boolean> {
-  if (typeof PublicKeyCredential === 'undefined') return false
-  const probe = (PublicKeyCredential as unknown as CapabilityProbe).getClientCapabilities
-  if (!probe) return false
-  try {
-    const capabilities = await probe()
-    return capabilities['conditionalCreate'] === true
-  } catch {
-    return false
-  }
-}
