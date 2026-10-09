@@ -180,6 +180,15 @@ function OidcFields({ form, onChange }: FieldsProps): ReactNode {
   const patch = (next: Partial<ConnectionForm>) => onChange({ ...form, ...next })
   return (
     <>
+      <Field
+        label={<Trans>Stable user ID claim</Trans>}
+        hint={<Trans>Optional. Leave blank to use the sub claim.</Trans>}
+      >
+        <Input
+          value={form.idpIdAttribute}
+          onChange={(event) => patch({ idpIdAttribute: event.target.value })}
+        />
+      </Field>
       <Field label={<Trans>OIDC client ID</Trans>}>
         <Input
           value={form.oidcClientId}

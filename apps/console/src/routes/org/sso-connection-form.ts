@@ -196,7 +196,7 @@ function mappingPayload(
   )
   if (LEGACY_PROTOCOLS.has(form.protocol)) return { ...visible, _legacy: legacyPayload(form) }
   const idpId = form.idpIdAttribute.trim()
-  return idpId && form.protocol === 'saml' ? { ...visible, idpId } : visible
+  return idpId ? { ...visible, idpId } : visible
 }
 
 function protocolPayload(
