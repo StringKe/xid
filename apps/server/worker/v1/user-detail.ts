@@ -26,6 +26,7 @@ import { assertUserActionAllowed, userDisplayName } from './user-query'
 
 const app = new Hono<XidHonoEnv>()
 
+type TenantDb = ReturnType<typeof createTenantDb>
 type UserRow = typeof schema.users.$inferSelect
 
 export function maskExternalId(value: string | null): string | null {

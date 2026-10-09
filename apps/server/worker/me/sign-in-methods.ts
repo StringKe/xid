@@ -39,13 +39,14 @@ function methodAllowsLogin(tenant: TenantVar, method: HostedAuthMethod): boolean
 // oauth 身份按 provider 策略判断;sso/saml 身份按企业 SSO 策略判断(forceSso 时只剩它可用)。
 function identityAllowsLogin(
   tenant: TenantVar,
-  identity: { identityType: string; provider: string },
+  identity: { identityType: string; provider: string | null },
 ): boolean {
   if (identity.identityType === 'sso' || identity.identityType === 'saml') {
     return policyAllows(() => assertEnterpriseSsoAllowed({ tenant, action: 'login', email: null }))
   }
   const policy = hostedAuthPolicy(tenant)
   if (policy.forceSso || !policy.allowExistingUserLogin) return false
+  if (!identity.provider) return false
   const provider = tenant.policy?.socialProviders?.[identity.provider]
   return provider?.enabled === true && provider.allowLogin
 }
