@@ -3,7 +3,11 @@ import type { AuditQueueMessage, ScimSyncQueueMessage, TenantContext } from '@xi
 import { and, eq } from 'drizzle-orm'
 import { isAppError } from '../lib/errors'
 import { logWorkerError } from '../lib/safe-log'
-import { executeScimTargetSync, OutboundScimRequestError } from '../scim/outbound'
+import { OutboundScimRequestError } from '../scim/outbound-client'
+import { releaseFullSyncClaim } from '../scim/outbound-enqueue'
+import type { OutboundScimSyncMessage } from '../scim/outbound-enqueue'
+import { executeScimTargetSync, executeScimUserSync } from '../scim/outbound-sync'
+import type { SyncSummary } from '../scim/outbound-sync'
 
 const MAX_RETRIES = 5
 const MAX_RETRY_DELAY_SECONDS = 86_400
@@ -103,7 +107,7 @@ async function resolveTarget(env: Env, tenant: TenantContext, message: ScimSyncQ
 }
 
 function auditMessage(
-  body: ScimSyncQueueMessage,
+  body: OutboundScimSyncMessage,
   action: AuditQueueMessage['action'],
   attempt: number,
   payload: Record<string, unknown>,
@@ -115,7 +119,8 @@ function auditMessage(
     actorId: body.actorId,
     ts: Date.now(),
     payload: {
-      sourceMessageId: `${body.runId}:attempt:${attempt}:${action}`,
+      // 同一 runId 的续传批次各自重试,游标进入去重键以免审计被合并。
+      sourceMessageId: `${body.runId}${body.cursor === undefined ? '' : `:cursor:${body.cursor}`}:attempt:${attempt}:${action}`,
       runId: body.runId,
       targetType: 'scim_target',
       targetId: body.targetId,
@@ -125,26 +130,52 @@ function auditMessage(
   }
 }
 
+// 单用户消息只同步该用户;全量对账每条消息处理一批成员,未完成时以游标入队下一批再 ack,
+// 失败重试只重做当前批次。
+async function runSync(
+  env: Env,
+  body: OutboundScimSyncMessage,
+  scope: { tenant: TenantContext; target: Awaited<ReturnType<typeof resolveTarget>> },
+): Promise<SyncSummary> {
+  if (body.userId !== undefined) {
+    return executeScimUserSync({ env, ...scope, userId: body.userId })
+  }
+  if (body.cursor === undefined) await releaseFullSyncClaim(env, scope.tenant, scope.target)
+  const summary = await executeScimTargetSync({ env, ...scope, cursor: body.cursor })
+  if (summary.nextCursor !== undefined) {
+    const next: OutboundScimSyncMessage = { ...body, cursor: summary.nextCursor }
+    await env.SCIM_QUEUE.send(next)
+  }
+  return summary
+}
+
 async function processMessage(message: Message<ScimSyncQueueMessage>, env: Env): Promise<void> {
-  const body = message.body
+  const body: OutboundScimSyncMessage = message.body
   const attempt = message.attempts
   try {
-    await env.AUDIT_QUEUE.send({
-      tenantId: body.tenantId,
-      orgId: body.orgId,
-      action: 'outbound_scim.sync.accepted',
-      actorId: body.actorId,
-      ts: body.requestedAt,
-      payload: {
-        sourceMessageId: `${body.runId}:accepted`,
-        runId: body.runId,
-        targetType: 'scim_target',
-        targetId: body.targetId,
-      },
-    })
+    if (body.cursor === undefined) {
+      await env.AUDIT_QUEUE.send({
+        tenantId: body.tenantId,
+        orgId: body.orgId,
+        action: 'outbound_scim.sync.accepted',
+        actorId: body.actorId,
+        ts: body.requestedAt,
+        payload: {
+          sourceMessageId: `${body.runId}:accepted`,
+          runId: body.runId,
+          targetType: 'scim_target',
+          targetId: body.targetId,
+          ...(body.userId === undefined ? {} : { userId: body.userId }),
+        },
+      })
+    }
     const tenant = await resolveQueueTenant(env, body)
     const target = await resolveTarget(env, tenant, body)
-    const summary = await executeScimTargetSync({ env, tenant, target })
+    const summary = await runSync(env, body, { tenant, target })
+    if (summary.nextCursor !== undefined) {
+      message.ack()
+      return
+    }
     await env.AUDIT_QUEUE.send(
       auditMessage(body, 'outbound_scim.sync.succeeded', attempt, {
         provider: summary.provider,

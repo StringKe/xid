@@ -6,7 +6,7 @@ import type { TenantContext } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
-import { scheduleUserScimTargetSyncs } from './outbound'
+import { scheduleUserScimTargetSyncs } from './outbound-enqueue'
 import { emitAuditAsync, revokeAllUserSessions } from './shared'
 import { ensureDirectoryMembership, suspendDirectoryMembership } from './user-provisioning'
 
