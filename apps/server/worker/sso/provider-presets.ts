@@ -116,7 +116,6 @@ export const LEGACY_INBOUND_PRESETS: Record<LegacyInboundPresetKey, LegacyInboun
     protocol: 'header',
     attributeMapping: {
       _legacy: {
-        trustedProxySecret: 'replace-with-proxy-secret',
         headerEmail: 'X-Remote-Email',
         headerUser: 'X-Remote-User',
         headerGroups: 'X-Remote-Groups',

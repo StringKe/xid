@@ -30,6 +30,37 @@ export const INBOUND_SSO_PROTOCOLS = ['saml', 'oidc', ...LEGACY_SSO_PROTOCOLS] a
 export type InboundSsoProtocol = (typeof INBOUND_SSO_PROTOCOLS)[number]
 
 const TRUSTED_PROXY_DIGEST_PREFIX = 'sha256:v1:'
+const MIN_TRUSTED_PROXY_SECRET_LENGTH = 32
+// Placeholder values that earlier presets and Console templates shipped in public source.
+const PUBLIC_PLACEHOLDER_PROXY_SECRETS = ['replace-with-proxy-secret']
+
+function isPublicPlaceholderProxySecret(secret: string): boolean {
+  return PUBLIC_PLACEHOLDER_PROXY_SECRETS.includes(secret.trim())
+}
+
+async function isPublicPlaceholderProxyDigest(digest: string): Promise<boolean> {
+  const hashes = await Promise.all(
+    PUBLIC_PLACEHOLDER_PROXY_SECRETS.map((secret) => sha256Hex(secret)),
+  )
+  return hashes.some((hash) => constantTimeEqual(hash, digest))
+}
+
+function assertTrustedProxySecretStrength(secret: string): void {
+  if (
+    secret.trim().length >= MIN_TRUSTED_PROXY_SECRET_LENGTH &&
+    !isPublicPlaceholderProxySecret(secret)
+  )
+    return
+  throw new AppError('validation_failed', {
+    httpStatus: 422,
+    meta: { paramName: 'attribute_mapping._legacy.trustedProxySecret' },
+    longMessage: 'header_trusted_proxy_secret_weak',
+  })
+}
+
+export function isLegacySsoProtocol(value: string): value is LegacyProtocol {
+  return (LEGACY_SSO_PROTOCOLS as readonly string[]).includes(value)
+}
 
 export function isInboundSsoProtocol(value: string): value is InboundSsoProtocol {
   return (INBOUND_SSO_PROTOCOLS as readonly string[]).includes(value)
@@ -143,9 +174,15 @@ export async function verifyTrustedProxySecret(
   const presentedHash = await sha256Hex(presented)
   if (isTrustedProxyDigest(config.trustedProxySecretDigest)) {
     const expected = config.trustedProxySecretDigest!.slice(TRUSTED_PROXY_DIGEST_PREFIX.length)
+    if (await isPublicPlaceholderProxyDigest(expected)) return { valid: false }
     return { valid: constantTimeEqual(presentedHash, expected) }
   }
-  if (!config.trustedProxySecret?.trim()) return { valid: false }
+  if (
+    !config.trustedProxySecret?.trim() ||
+    isPublicPlaceholderProxySecret(config.trustedProxySecret)
+  ) {
+    return { valid: false }
+  }
   const legacyHash = await sha256Hex(config.trustedProxySecret)
   const valid = constantTimeEqual(presentedHash, legacyHash)
   return valid
@@ -168,18 +205,16 @@ export async function prepareLegacyAttributeMapping(
     delete legacy['trustedProxySecret']
     delete legacy['trustedProxySecretDigest']
     if (plaintext !== undefined) {
-      if (!plaintext.trim()) {
-        throw new AppError('validation_failed', {
-          httpStatus: 422,
-          meta: { paramName: 'attribute_mapping._legacy.trustedProxySecret' },
-        })
-      }
+      assertTrustedProxySecretStrength(plaintext)
       legacy['trustedProxySecretDigest'] = await digestTrustedProxySecret(plaintext)
     } else if (
       isTrustedProxyDigest(previousLegacy['trustedProxySecretDigest'] as string | undefined)
     ) {
       legacy['trustedProxySecretDigest'] = previousLegacy['trustedProxySecretDigest']
-    } else if (typeof previousLegacy['trustedProxySecret'] === 'string') {
+    } else if (
+      typeof previousLegacy['trustedProxySecret'] === 'string' &&
+      !isPublicPlaceholderProxySecret(previousLegacy['trustedProxySecret'])
+    ) {
       legacy['trustedProxySecretDigest'] = await digestTrustedProxySecret(
         previousLegacy['trustedProxySecret'],
       )

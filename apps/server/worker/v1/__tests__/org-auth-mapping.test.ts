@@ -71,6 +71,54 @@ describe('attribute mapping internal keys', () => {
     expect(row?.attributeMapping).toEqual({ _xidPreset: 'okta', email: 'emailAddress' })
   })
 
+  it('refuses to create a header connection from the preset without an explicit secret', async () => {
+    const d1 = await seed()
+
+    const res = await buildApp(registerOrganizationsRoutes, {
+      session: sessionFor('user_owner'),
+    }).request(
+      `${BASE}/t_a/sso-connections`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset: 'header' }),
+      },
+      envOf(d1),
+    )
+
+    expect(res.status).toBe(422)
+    expect(await tenantDb(d1).forOrg('t_a').ssoConnections.findOne()).toBeUndefined()
+  })
+
+  it('stores only a digest of a strong header proxy secret and rejects the public placeholder', async () => {
+    const d1 = await seed()
+    const app = buildApp(registerOrganizationsRoutes, { session: sessionFor('user_owner') })
+    const create = (secret: string) =>
+      app.request(
+        `${BASE}/t_a/sso-connections`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            protocol: 'header',
+            attribute_mapping: {
+              _legacy: { trustedProxySecret: secret, headerEmail: 'X-Remote-Email' },
+            },
+          }),
+        },
+        envOf(d1),
+      )
+
+    const placeholder = await create('replace-with-proxy-secret')
+    const strong = await create('a'.repeat(16) + 'B7#kq9Lm2Vx4Pz8W')
+
+    expect(placeholder.status).toBe(422)
+    expect(strong.status).toBe(201)
+    const row = await tenantDb(d1).forOrg('t_a').ssoConnections.findOne()
+    expect(JSON.stringify(row?.attributeMapping)).not.toContain('B7#kq9Lm2Vx4Pz8W')
+    expect(JSON.stringify(row?.attributeMapping)).toContain('sha256:v1:')
+  })
+
   it('keeps the SAML app preset and assignment gate when attributes are replaced', async () => {
     const d1 = await seed()
     const gate = { mode: 'restricted', allowed_roles: ['admin'], allowed_user_ids: [] }

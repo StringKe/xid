@@ -72,6 +72,8 @@ import {
   assertHeaderConnectionConfig,
   assertInboundSsoProtocol,
   isInboundSsoProtocol,
+  isLegacySsoProtocol,
+  prepareLegacyAttributeMapping,
 } from '../sso/legacy-shared'
 import { assertOrgSelfServiceEditable } from './org-self-service'
 import { registerOrganizationDirectoryRoutes } from './organization-directories'
@@ -1189,13 +1191,16 @@ app.post('/:id/sso-connections', async (c) => {
   if (existing && existing.status !== 'deleted') {
     throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'protocol' } })
   }
-  const attributeMapping =
+  const requestedMapping =
     body.attribute_mapping ??
     (legacyPreset
       ? { ...legacyPreset.attributeMapping, _xidPreset: legacyPreset.key }
       : preset
         ? withPresetAttributeMapping(preset.key, preset.attributeMapping)
         : {})
+  const attributeMapping = isLegacySsoProtocol(protocol)
+    ? await prepareLegacyAttributeMapping(protocol, requestedMapping)
+    : requestedMapping
   assertHeaderConnectionConfig(protocol, attributeMapping)
   const roleMapping =
     body.role_mapping ??
@@ -1286,7 +1291,10 @@ app.patch('/:id/sso-connections/:connectionId', async (c) => {
     const internal = Object.fromEntries(
       Object.entries(existing.attributeMapping).filter(([key]) => key.startsWith('_')),
     )
-    const attributeMapping = { ...internal, ...body.attribute_mapping }
+    const merged = { ...internal, ...body.attribute_mapping }
+    const attributeMapping = isLegacySsoProtocol(existing.protocol)
+      ? await prepareLegacyAttributeMapping(existing.protocol, merged, existing.attributeMapping)
+      : merged
     assertHeaderConnectionConfig(existing.protocol, attributeMapping)
     patch.attributeMapping = attributeMapping
   }

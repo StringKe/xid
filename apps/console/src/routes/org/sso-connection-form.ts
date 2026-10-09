@@ -65,7 +65,7 @@ export const LEGACY_ATTRIBUTE_TEMPLATES: Partial<Record<SsoProtocol, Record<stri
     vaultCredentialRef: 'primary',
   },
   header: {
-    trustedProxySecret: 'replace-with-proxy-secret',
+    trustedProxySecret: '',
     headerEmail: 'X-Remote-Email',
     headerUser: 'X-Remote-User',
     headerGroups: 'X-Remote-Groups',

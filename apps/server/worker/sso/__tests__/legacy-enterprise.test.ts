@@ -596,6 +596,37 @@ describe('enterprise legacy protocols', () => {
     expect(res.status).toBe(401)
   })
 
+  it.each(['plaintext', 'digest'])(
+    'header-based SSO rejects the public placeholder secret stored as %s',
+    async (kind) => {
+      const stored =
+        kind === 'digest'
+          ? {
+              trustedProxySecretDigest: `sha256:v1:${await sha256Hex('replace-with-proxy-secret')}`,
+            }
+          : { trustedProxySecret: 'replace-with-proxy-secret' }
+      mockSsoConnectionsFindOne.mockResolvedValue(
+        makeConnection('header', { attributeMapping: { _legacy: stored } }),
+      )
+      const app = buildApp()
+
+      const res = await app.request(
+        '/sso/header/conn-1/authenticate',
+        {
+          method: 'POST',
+          headers: {
+            'X-Remote-User': 'admin@example.com',
+            'X-Remote-Email': 'admin@example.com',
+            'X-Trusted-Proxy-Secret': 'replace-with-proxy-secret',
+          },
+        },
+        fakeEnv,
+      )
+
+      expect(res.status).toBe(401)
+    },
+  )
+
   it('header-based SSO enforces tenant isolation on unknown connection', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(null)
     const app = buildApp()
