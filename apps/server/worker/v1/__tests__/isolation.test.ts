@@ -8803,6 +8803,7 @@ describe('v1 organizations allow_org_self_service 门控', () => {
       }),
       SESSION_REVOCATION: makeFakeSessionNs([]),
       WEBHOOK_QUEUE: makeFakeQueue(),
+      CACHE: makeFakeKv(),
     })
     return { env, cookieName, token }
   }
@@ -8917,6 +8918,7 @@ describe('v1 organizations allow_org_self_service 门控', () => {
     const env = asUnknown<Env>({
       DB: makeFakeD1({ api_keys: [apiKey], organizations: [LOCKED_ORG] }),
       WEBHOOK_QUEUE: makeFakeQueue(),
+      CACHE: makeFakeKv(),
     })
     const app = buildApp(registerOrganizationsRoutes)
     const res = await app.request(
