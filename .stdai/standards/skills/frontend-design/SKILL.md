@@ -138,7 +138,7 @@ Site (`apps/site`, Nimbus on Astro, static):
 - Honesty: claims never exceed `docs/protocols/source-map.md` and `gap-audit.md`; L0-L3 evidence is
   never described as production support. Never write production-ready, OpenID Certified, certified
   with Okta or Entra, SOC 2, data residency, latency numbers, cost or price comparisons, an
-  `npm install` command (SDKs are not published), an embeddable sign-in form, or "immutable" audit
+  `npm install` command (XID publishes no packages; SDKs are distributed as source), an embeddable sign-in form, or "immutable" audit
   (the audit chain is tamper-evident). No customer logo wall, testimonials or user counts.
 - Evidence badges follow `docs/protocols/README.md`: L4 "Production", L3 "Verified end to end,
   local", L2 "Integration-tested", L0-L1 "Implemented", missing "Not yet". The badge always carries

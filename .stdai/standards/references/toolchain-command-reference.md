@@ -69,8 +69,8 @@ the Site remains static output with no Cloudflare SSR adapter.
 `apps/console` is a standard Vite React app extracted from the former Core SPA. It is not scaffolded
 by rerunning C3 against the repository.
 
-New library packages, including private `@xid-kit/web-ui`, get a hand-written `package.json`: `main`
-and `types` point at
+New library packages, including `@xid-kit/web-ui`, get a hand-written `package.json` with
+`"private": true` and no `publishConfig`: `main` and `types` point at
 `./src/index.ts`, `build` is `vp pack`, `check` is `vp check`, `test` is `vp test`, and `typecheck`
 is `tsc --noEmit -p tsconfig.json`.
 

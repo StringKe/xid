@@ -21,8 +21,9 @@ write the `applyTo` globs of a rule -- the glob paths in this file are the autho
 - **Private application UI**: `web-ui`, shared by the Core Hosted UI and Console. It is not
   published, imports no Worker bindings, and owns reusable product UI, StyleX tokens, locale,
   session, API-client, query, display-name, and navigation adapter code.
-- **Embeddable SDKs** shipped to customers (optional for running XID itself): `core`, `backend`, and
-  the framework packages listed below.
+- **Embeddable SDKs** for customer applications (optional for running XID itself): `core`,
+  `backend`, and the framework packages listed below. Like every package here they are private and
+  distributed as source; XID publishes nothing to npm (`docs/sdks/distribution.md`).
 
 ## Repository layout (authoritative for applyTo globs)
 
@@ -66,8 +67,8 @@ packages/
     react/ nextjs/ vue/ nuxt/ svelte/ angular/ remix/ astro/ solid/    Web framework bindings
     react-native/ expo/ electron/ tauri/                               Mobile and desktop bindings
 sdk/             13 native SDKs (go, java, rust, php, ruby, python, dotnet, ios, android, macos,
-                 windows, linux, flutter). Source-only: NOT published to any registry; consumers
-                 vendor the source. Maturity per platform: docs/sdks/platform-matrix.md
+                 windows, linux, flutter). Distributed as source only; applications use them
+                 from the repository. Maturity per platform: docs/sdks/platform-matrix.md
 tests/           Repo-level gates: key-path checklist, native SDK contract, quality gate,
                  protocol source-map coverage, runtime and production smoke suites
 docs/            design/ (source of truth), protocols/ (support matrices + IdP runbooks),

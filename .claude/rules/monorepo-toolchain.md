@@ -20,6 +20,9 @@ the **only** cross-package orchestrator; Vite+ (`vp`) owns code quality (`check`
 - **`apps/server` dev/build runs standard Vite**, not `vp dev` / `vp build` -- the Cloudflare
   SPA + Worker integration depends on the standard Vite plugin ecosystem.
 - **Library packages (`packages/*`) build with `vp pack`**, exposed as their `build` script.
+- **XID publishes no package to npm or any other registry.** Every `packages/*/package.json` is
+  `"private": true` with no `publishConfig`; SDKs are distributed as source
+  (`docs/sdks/distribution.md`). `pnpm run sdk:distribution:contract` enforces it.
 - Type checking does **not** run inside `vp check` (`typeAware` and `typeCheck` are both off in the
   root config); it is the separate turbo `typecheck` task running `tsc --noEmit`.
 - Never use `vp run -r` as the cross-package entry point -- that is turbo's job.
