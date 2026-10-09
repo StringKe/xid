@@ -37,7 +37,9 @@ import { passkeyCeremonyOrigin } from '../me-auth/passkey-handoff'
 import {
   handoffPrepareUrl,
   isAccountPath,
+  pathnameOf,
   readHandoffContinue,
+  registrationOnCeremonyHost,
 } from '../me-auth/passkey-handoff-paths'
 import { registerSessionHandoffRoutes } from '../me-auth/passkey-handoff-routes'
 
@@ -115,11 +117,14 @@ passkey.post('/register/options', async (c) => {
   await assertPasskeyPolicy(c, tenant)
   const ceremonyOrigin = passkeyCeremonyOrigin(c, tenant)
   if (ceremonyOrigin) {
-    const continuePath = await readHandoffContinue(c, {
+    const requested = await readHandoffContinue(c, {
       fallback: ACCOUNT_SECURITY_PATH,
       accepts: (pathname) =>
         isAccountPath(pathname) || pathname === CREATE_PASSKEY_PATH || pathname === MFA_SETUP_PATH,
     })
+    const continuePath = isAccountPath(pathnameOf(requested))
+      ? registrationOnCeremonyHost(requested)
+      : requested
     return c.json({ handoff: { url: handoffPrepareUrl(c, ceremonyOrigin, continuePath) } })
   }
 

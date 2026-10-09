@@ -273,7 +273,7 @@ describe('POST /auth/passkey/register/options', () => {
     const url = new URL(body.handoff.url)
     expect(url.origin).toBe('https://test.xid.dev')
     expect(url.pathname).toBe('/auth/passkey/handoff/prepare')
-    expect(url.searchParams.get('continue')).toBe('/account/security')
+    expect(url.searchParams.get('continue')).toBe('/account/security?handoff_return=1')
     expect(challengeHandler).not.toHaveBeenCalled()
   })
 

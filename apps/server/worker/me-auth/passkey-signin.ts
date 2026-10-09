@@ -265,6 +265,7 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
           amr: PASSKEY_AUTH_CONTEXT.amr,
           aal: PASSKEY_AUTH_CONTEXT.aal,
           rememberMe: true,
+          stepUp: null,
         },
       })
       return c.json({ handoff })

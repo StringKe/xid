@@ -10,9 +10,11 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import * as v from 'valibot'
+import { issueStepUpCookie } from '../lib/step-up'
 import type {
   ConsumedSessionHandoff,
   HandoffSessionStatus,
+  HandoffStepUp,
 } from '../durable-objects/session-handoff-do'
 import type { AmrValue } from '@xid-kit/types'
 import type { AuthContextData } from '../lib/auth-context'
@@ -45,6 +47,7 @@ export type HandoffSession = {
   amr: readonly string[] | null
   aal: number | null
   rememberMe: boolean
+  stepUp: HandoffStepUp | null
 }
 
 const HOST_COOKIE = { path: '/', secure: true, httpOnly: true, sameSite: 'Lax' } as const
@@ -144,6 +147,7 @@ export async function mintSessionHandoff(
       amr: session.amr,
       aal: session.aal,
       rememberMe: session.rememberMe,
+      stepUp: session.stepUp,
       ttlMs: SESSION_HANDOFF_TTL_MS,
     }),
   })
@@ -242,7 +246,7 @@ export async function completeSessionHandoff(
       ),
     )
     if (!user) throw new AppError('unauthorized', { httpStatus: 401 })
-    await issueSession(c, {
+    const issued = await issueSession(c, {
       sessionId: createPersistedId('session'),
       userId: grant.userId,
       status: grant.sessionStatus,
@@ -252,6 +256,16 @@ export async function completeSessionHandoff(
       ip: requestIp(c),
       userAgent: requestUserAgent(c),
     })
+    // step-up token 绑定会话 id,目标主机为新会话重新签发;只对已认证会话有效。
+    if (grant.stepUp && issued.session.status === 'active') {
+      await issueStepUpCookie(c, {
+        session: issued.session,
+        method: grant.stepUp.method,
+        ...(grant.stepUp.passkeyAssurance
+          ? { passkeyAssurance: grant.stepUp.passkeyAssurance }
+          : {}),
+      })
+    }
   })
   return grant.continuePath
 }

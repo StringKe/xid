@@ -11,6 +11,19 @@ const RECORD_KEY = 'grant'
 export const HANDOFF_SESSION_STATUSES = ['active', 'pending_mfa', 'pending_mfa_setup'] as const
 export type HandoffSessionStatus = (typeof HANDOFF_SESSION_STATUSES)[number]
 
+const STEP_UP_METHODS = ['totp', 'backup', 'sms', 'passkey'] as const
+
+// 来源会话刚完成的 step-up;目标主机为新会话重新签发 step-up cookie。
+export type HandoffStepUp = {
+  method: (typeof STEP_UP_METHODS)[number]
+  passkeyAssurance?: {
+    userVerified: boolean
+    credentialBackedUp: boolean
+    credentialDeviceType: 'singleDevice' | 'multiDevice'
+    enterpriseAttestationVerified: boolean
+  }
+}
+
 export type SessionHandoffRecord = {
   secretHash: string
   stateHash: string
@@ -25,6 +38,7 @@ export type SessionHandoffRecord = {
   amr: string[] | null
   aal: number | null
   rememberMe: boolean
+  stepUp: HandoffStepUp | null
   issuedAt: number
   expiresAt: number
 }
@@ -78,6 +92,27 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
+function isPasskeyAssurance(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!isRecord(value)) return false
+  return (
+    typeof value['userVerified'] === 'boolean' &&
+    typeof value['credentialBackedUp'] === 'boolean' &&
+    (value['credentialDeviceType'] === 'singleDevice' ||
+      value['credentialDeviceType'] === 'multiDevice') &&
+    typeof value['enterpriseAttestationVerified'] === 'boolean'
+  )
+}
+
+function isStepUp(value: unknown): boolean {
+  if (value === null) return true
+  if (!isRecord(value)) return false
+  return (
+    (STEP_UP_METHODS as readonly unknown[]).includes(value['method']) &&
+    isPasskeyAssurance(value['passkeyAssurance'])
+  )
+}
+
 function isSessionSnapshot(value: Record<string, unknown>): boolean {
   const amr = value['amr']
   return (
@@ -85,7 +120,8 @@ function isSessionSnapshot(value: Record<string, unknown>): boolean {
     (value['acr'] === null || typeof value['acr'] === 'string') &&
     (amr === null || (Array.isArray(amr) && amr.every((entry) => typeof entry === 'string'))) &&
     (value['aal'] === null || isFiniteNumber(value['aal'])) &&
-    typeof value['rememberMe'] === 'boolean'
+    typeof value['rememberMe'] === 'boolean' &&
+    isStepUp(value['stepUp'])
   )
 }
 

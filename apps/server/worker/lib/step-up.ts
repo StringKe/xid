@@ -52,6 +52,19 @@ async function readStepUpPayload(
   return verified.payload
 }
 
+// 当前会话有效的 step-up 证明;跨主机会话交接时随会话一起带到目标主机。
+export async function readStepUpProof(
+  c: Context<XidHonoEnv>,
+  session: SessionData,
+): Promise<{ method: StepUpPayload['method']; passkeyAssurance?: StepUpPasskeyAssurance } | null> {
+  const payload = await readStepUpPayload(c, session)
+  if (!payload) return null
+  return {
+    method: payload.method,
+    ...(payload.passkeyAssurance ? { passkeyAssurance: payload.passkeyAssurance } : {}),
+  }
+}
+
 export async function readStepUpAuthContext(
   c: Context<XidHonoEnv>,
   session: SessionData,

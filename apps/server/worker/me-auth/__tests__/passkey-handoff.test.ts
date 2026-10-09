@@ -49,6 +49,7 @@ import {
 } from '@xid-kit/db'
 import { verifyAuthentication } from '@xid-kit/webauthn'
 import type { Hono } from 'hono'
+import { issueStepUpToken } from '../../auth/mfa'
 import { SessionHandoffDO } from '../../durable-objects/session-handoff-do'
 import { MockDurableObjectState } from '../../durable-objects/__tests__/mock-do-state'
 import { registerPasskeyRoutes } from '../../auth/passkey'
@@ -211,14 +212,20 @@ function consume(
 // 浏览器跟随 prepare -> start:目标主机写 state,来源主机凭会话签发 grant 并返回自动提交表单。
 async function followPrepare(
   env: Env,
-  input: { prepareUrl: string; target: TenantVar; source: TenantVar; session: SessionData },
+  input: {
+    prepareUrl: string
+    target: TenantVar
+    source: TenantVar
+    session: SessionData
+    sourceCookie?: string
+  },
 ): Promise<{ state: string; form: HandoffForm; startStatus: number }> {
   const prepared = await hostApp(input.target).request(input.prepareUrl, {}, env, execCtx)
   expect(prepared.status).toBe(302)
   const state = cookieValue(prepared, '__Host-xid.handoff')
   const started = await hostApp(input.source, input.session).request(
     prepared.headers.get('location')!,
-    {},
+    input.sourceCookie ? { headers: { Cookie: input.sourceCookie } } : {},
     env,
     execCtx,
   )
@@ -501,7 +508,7 @@ describe('root sessions handed to the organization host for passkey ceremonies',
     })
     const consumed = await consume(env, { tenant: ACME_TENANT, origin: ACME, form, cookie: state })
 
-    expect(consumed.headers.get('location')).toBe('/account/security')
+    expect(consumed.headers.get('location')).toBe('/account/security?handoff_return=1')
     expect(sessionsInsert).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'active' }))
   })
 
@@ -538,6 +545,96 @@ describe('root sessions handed to the organization host for passkey ceremonies',
     expect(sessionsInsert).toHaveBeenLastCalledWith(
       expect.objectContaining({ status: 'pending_mfa_setup' }),
     )
+  })
+
+  it('runs a passkey step-up on the organization host and returns to the root account page verified', async () => {
+    const env = multiHostEnv()
+    const active = sessionWith('active')
+    const options = await hostApp(ACME_FROM_ROOT, active).request(
+      `${ROOT}/auth/mfa/passkey/options`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ continue: '/account/security' }),
+      },
+      env,
+      execCtx,
+    )
+    const { handoff } = (await options.json()) as { handoff: { url: string } }
+    const toOrg = await followPrepare(env, {
+      prepareUrl: handoff.url,
+      target: ACME_TENANT,
+      source: ACME_FROM_ROOT,
+      session: active,
+    })
+    const onOrg = await consume(env, {
+      tenant: ACME_TENANT,
+      origin: ACME,
+      form: toOrg.form,
+      cookie: toOrg.state,
+    })
+    const mfaPage = new URL(onOrg.headers.get('location')!, ACME)
+
+    // 组织主机上完成 passkey step-up 后,MFA 页导航到 redirect_to(返回入口)。
+    const { token } = await issueStepUpToken({
+      userId: active.userId,
+      sessionId: active.sessionId,
+      method: 'passkey',
+      pepperRaw: env.PEPPER,
+    })
+    const returned = await hostApp(ACME_TENANT, active).request(
+      `${ACME}${mfaPage.searchParams.get('redirect_to')!}`,
+      {},
+      env,
+      execCtx,
+    )
+    const toRoot = await followPrepare(env, {
+      prepareUrl: returned.headers.get('location')!,
+      target: ROOT_ENTRY,
+      source: ACME_TENANT,
+      session: active,
+      sourceCookie: `__Host-xid.acr=${token}`,
+    })
+    const onRoot = await consume(env, {
+      tenant: ROOT_ENTRY,
+      origin: ROOT,
+      form: toRoot.form,
+      cookie: toRoot.state,
+    })
+
+    expect(mfaPage.pathname).toBe('/mfa')
+    expect(mfaPage.searchParams.get('step_up')).toBe('1')
+    expect(mfaPage.searchParams.get('method')).toBe('passkey')
+    expect(onRoot.status).toBe(303)
+    expect(onRoot.headers.get('location')).toBe('/account/security?stepped_up=1')
+    expect(onRoot.headers.get('set-cookie')).toContain('__Host-xid.acr=')
+  })
+
+  it('does not carry a step-up to the root when the organization session has none', async () => {
+    const env = multiHostEnv()
+    const active = sessionWith('active')
+    const returned = await hostApp(ACME_TENANT, active).request(
+      `${ACME}/auth/passkey/handoff/return?continue=${encodeURIComponent('/account/security?stepped_up=1')}`,
+      {},
+      env,
+      execCtx,
+    )
+    const toRoot = await followPrepare(env, {
+      prepareUrl: returned.headers.get('location')!,
+      target: ROOT_ENTRY,
+      source: ACME_TENANT,
+      session: active,
+    })
+
+    const onRoot = await consume(env, {
+      tenant: ROOT_ENTRY,
+      origin: ROOT,
+      form: toRoot.form,
+      cookie: toRoot.state,
+    })
+
+    expect(onRoot.status).toBe(303)
+    expect(onRoot.headers.get('set-cookie')).not.toContain('__Host-xid.acr=')
   })
 
   it('refuses to start a handoff without a session', async () => {

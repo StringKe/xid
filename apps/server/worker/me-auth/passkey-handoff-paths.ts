@@ -35,6 +35,30 @@ export function isAccountPath(pathname: string): boolean {
   return pathname === '/account' || pathname.startsWith('/account/')
 }
 
+export function pathnameOf(path: string): string {
+  return new URL(path, LOCAL_ORIGIN).pathname
+}
+
+function withParam(path: string, name: string, value: string): string {
+  const url = new URL(path, LOCAL_ORIGIN)
+  url.searchParams.set(name, value)
+  return `${url.pathname}${url.search}`
+}
+
+// 账户页在根域发起登记时,组织地址上的账户页带上返回标记,登记完成后由页面经返回入口交回根域。
+export const HANDOFF_RETURN_PARAM = 'handoff_return'
+export function registrationOnCeremonyHost(accountPath: string): string {
+  return withParam(accountPath, HANDOFF_RETURN_PARAM, '1')
+}
+
+// 账户页在根域需要 passkey step-up 时,在组织地址的 MFA 页确认,完成后交回根域原页面并标记已验证。
+export const STEPPED_UP_PARAM = 'stepped_up'
+export function stepUpOnCeremonyHost(accountPath: string): string {
+  const back = handoffReturnPath(withParam(accountPath, STEPPED_UP_PARAM, '1'))
+  const params = new URLSearchParams({ step_up: '1', method: 'passkey', redirect_to: back })
+  return `/mfa?${params.toString()}`
+}
+
 // 组织主机上的流程完成后经返回入口把会话交回 issuer 主机。
 export function handoffReturnPath(continuePath: string): string {
   return `${SESSION_HANDOFF_PATH}/return?${new URLSearchParams({ continue: continuePath }).toString()}`

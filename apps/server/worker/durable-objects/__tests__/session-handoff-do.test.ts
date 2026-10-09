@@ -24,6 +24,7 @@ async function createBody() {
     amr: ['pwd'],
     aal: 1,
     rememberMe: true,
+    stepUp: null,
     ttlMs: SESSION_HANDOFF_TTL_MS,
   }
 }

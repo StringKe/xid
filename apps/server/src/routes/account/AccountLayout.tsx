@@ -20,6 +20,7 @@ import { ACCOUNT_NAV_ITEMS, isActiveAccountPath } from './account-nav-items'
 import { AccountSegmentedNav } from './AccountSegmentedNav'
 import { ImpersonationBanner } from './ImpersonationBanner'
 import { PendingDeletionBanner } from './PendingDeletionBanner'
+import { SteppedUpNotice } from './SteppedUpNotice'
 import { StepUpProvider } from './step-up'
 import { useAccountBrand } from './use-account-brand'
 
@@ -381,7 +382,10 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
           </div>
 
           <PendingDeletionBanner />
-          <main {...stylex.props(styles.main)}>{children}</main>
+          <main {...stylex.props(styles.main)}>
+            <SteppedUpNotice />
+            {children}
+          </main>
           <div {...stylex.props(styles.mobileFooter)}>
             <LanguageSwitcher />
           </div>

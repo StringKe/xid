@@ -16,7 +16,13 @@ import type { XidHonoEnv } from '../lib/types'
 import { MFA_VERIFY_SCOPE } from './mfa-challenge'
 import { earlierPasskeyRpId, isEarlierPasskey } from '../auth/passkey-rp-ids'
 import { passkeyCeremonyOrigin } from './passkey-handoff'
-import { handoffPrepareUrl, isAccountPath, readHandoffContinue } from './passkey-handoff-paths'
+import {
+  handoffPrepareUrl,
+  isAccountPath,
+  pathnameOf,
+  readHandoffContinue,
+  stepUpOnCeremonyHost,
+} from './passkey-handoff-paths'
 import { requestIp } from './shared'
 
 const passkeyMfaVerifyBodySchema = v.object({
@@ -48,10 +54,13 @@ export async function handlePasskeyMfaOptions(c: Context<XidHonoEnv>): Promise<R
   const ceremonyOrigin = passkeyCeremonyOrigin(c, tenant)
   if (ceremonyOrigin) {
     // 登录第二因子回到 /mfa;账户页里的 step-up 回到原账户页,在组织主机上重新确认。
-    const continuePath = await readHandoffContinue(c, {
+    const requested = await readHandoffContinue(c, {
       fallback: MFA_PATH,
       accepts: (pathname) => pathname === MFA_PATH || isAccountPath(pathname),
     })
+    const continuePath = isAccountPath(pathnameOf(requested))
+      ? stepUpOnCeremonyHost(requested)
+      : requested
     return c.json({ handoff: { url: handoffPrepareUrl(c, ceremonyOrigin, continuePath) } })
   }
 

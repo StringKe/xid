@@ -10,6 +10,7 @@ import * as v from 'valibot'
 import { escapeHtml } from '../lib/error-page'
 import { isAppError } from '../lib/errors'
 import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
+import { readStepUpProof } from '../lib/step-up'
 import type { XidHonoEnv } from '../lib/types'
 import { requireSession } from '../me/shared'
 import { isInstanceEntryContext } from './instance-login'
@@ -150,6 +151,7 @@ async function handleStart(c: Context<XidHonoEnv>): Promise<Response> {
         amr: session.amr,
         aal: session.aal,
         rememberMe: session.rememberMe,
+        stepUp: session.status === 'active' ? await readStepUpProof(c, session) : null,
       },
     })
     return handoffFormResponse(form)
