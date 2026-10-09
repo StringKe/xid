@@ -6,7 +6,6 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, desc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
-import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import { resolveLocale } from '../lib/locale'
 import { revokeUserCredentials } from '../lib/revoke-user-credentials'
@@ -18,31 +17,16 @@ import {
   MAX_PAGE_SIZE,
   auditActorId,
   decodeCursor,
-  emitManagementAuditAsync,
-  emitWebhookAsync,
   encodeCursor,
   requireApiKeyOrTopLevelOrgManager,
 } from './shared'
-import { assertUserActionAllowed, notDeletedUser, userDisplayName } from './user-query'
+import { auditAdminAction, findTenantUser } from './user-admin-shared'
+import { registerUserPasskeyRoutes } from './user-passkeys'
+import { assertUserActionAllowed, userDisplayName } from './user-query'
 
 const app = new Hono<XidHonoEnv>()
 
-type TenantDb = ReturnType<typeof createTenantDb>
 type UserRow = typeof schema.users.$inferSelect
-
-async function findTenantUser(
-  db: TenantDb,
-  id: string,
-  options: { includeDeleted: boolean },
-): Promise<UserRow> {
-  const user = await db.users.findOne(
-    options.includeDeleted
-      ? eq(schema.users.id, id)
-      : and(eq(schema.users.id, id), notDeletedUser()),
-  )
-  if (!user) throw new AppError('not_found', { httpStatus: 404 })
-  return user
-}
 
 export function maskExternalId(value: string | null): string | null {
   if (!value) return null
@@ -226,24 +210,6 @@ function primaryEmailOf(
   return primary?.email ?? null
 }
 
-function auditAdminAction(
-  c: Context<XidHonoEnv>,
-  input: { action: string; actorId: string; userId: string },
-): void {
-  emitManagementAuditAsync(c, {
-    action: input.action,
-    actorId: input.actorId,
-    orgId: c.get('tenant').tenantId,
-    targetType: 'user',
-    targetId: input.userId,
-  })
-  emitWebhookAsync(c, {
-    tenantId: c.get('tenant').tenantId,
-    event: 'user.updated',
-    payload: { userId: input.userId },
-  })
-}
-
 // POST /v1/users/:id/password-reset:向主邮箱发送重置链接(令牌只存哈希),响应不含令牌。
 app.post('/:id/password-reset', async (c) => {
   const auth = await requireApiKeyOrTopLevelOrgManager(c, 'users:write')
@@ -287,6 +253,8 @@ app.post('/:id/mfa/reset', async (c) => {
   auditAdminAction(c, { action: 'user.mfa_reset', actorId: auditActorId(auth), userId: user.id })
   return c.json({ reset: true })
 })
+
+registerUserPasskeyRoutes(app)
 
 export function registerUserDetailRoutes(parent: Hono<XidHonoEnv>): void {
   parent.route('/v1/users', app)

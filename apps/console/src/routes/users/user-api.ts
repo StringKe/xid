@@ -245,6 +245,13 @@ export function useUserAction(): UseMutationResult<
   )
 }
 
+export function useRevokeUserPasskey(userId: string): UseMutationResult<unknown, XidError, string> {
+  return useApiMutation<unknown, string>(
+    (api, passkeyId) => api.del(`/v1/users/${userId}/passkeys/${passkeyId}`),
+    { invalidate: USERS_PREFIX },
+  )
+}
+
 export function useRevokeSession(userId: string): UseMutationResult<unknown, XidError, string> {
   return useApiMutation<unknown, string>(
     (api, sessionId) => api.post(`/v1/sessions/${sessionId}/revoke`),

@@ -1,6 +1,7 @@
 // Sign-in methods:密码、社交与企业 SSO 账号、两步验证因子、备用码、passkey。不显示任何密钥材料。
 
 import { Plural, Trans, useLingui } from '@lingui/react/macro'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Button, EmptyState, Skeleton } from '@xid-kit/web-ui/ui'
@@ -9,6 +10,9 @@ import type { UserAction, UserDetail, UserSignInMethods } from '../user-api'
 import { useUserSignInMethods } from '../user-api'
 import { providerName } from '../user-format'
 import { formatDate } from '../../../lib/date-format'
+import { RevokePasskeyDialog } from './RevokePasskeyDialog'
+
+type PasskeyRow = UserSignInMethods['passkeys'][number]
 
 export function useTwoStepSummary(methods: UserSignInMethods | undefined): ReactNode {
   const { t, i18n } = useLingui()
@@ -59,6 +63,7 @@ export function SignInMethodsTab({
 }): ReactNode {
   const { t, i18n } = useLingui()
   const methods = useUserSignInMethods(user.id)
+  const [revoking, setRevoking] = useState<PasskeyRow | null>(null)
   const data = methods.data
   const editable = user.status !== 'deleted'
   if (methods.isError) {
@@ -206,11 +211,26 @@ export function SignInMethodsTab({
                   </>
                 }
                 state={<Trans>Passkey</Trans>}
+                action={
+                  editable ? (
+                    <Button variant="secondary" onClick={() => setRevoking(passkey)}>
+                      <Trans>Remove…</Trans>
+                    </Button>
+                  ) : null
+                }
               />
             )
           })
         )}
       </ul>
+      {revoking ? (
+        <RevokePasskeyDialog
+          userId={user.id}
+          name={name}
+          passkey={revoking}
+          onDone={() => setRevoking(null)}
+        />
+      ) : null}
     </section>
   )
 }

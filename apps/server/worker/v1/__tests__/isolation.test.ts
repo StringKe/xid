@@ -9671,6 +9671,16 @@ describe('Console 管理路由跨租户隔离', () => {
       projectId: 'proj_b',
       roleId: 'role_b',
     })
+    await dbB.passkeyCredentials.insert({
+      id: 'pk_b',
+      tenantId: 't_b',
+      userId: 'user_b',
+      credentialId: 'cred_b',
+      publicKey: Buffer.from([1]),
+      coseAlg: -7,
+      aaguid: Buffer.alloc(16),
+      credentialDeviceType: 'singleDevice',
+    })
     return d1
   }
 
@@ -9700,6 +9710,7 @@ describe('Console 管理路由跨租户隔离', () => {
     ['POST', '/v1/users/user_b/unban'],
     ['POST', '/v1/users/user_b/password-reset'],
     ['POST', '/v1/users/user_b/mfa/reset'],
+    ['DELETE', '/v1/users/user_b/passkeys/pk_b'],
     ['DELETE', '/v1/users/user_b'],
     ['POST', '/v1/sessions/users/user_b/revoke_all'],
     ['GET', '/v1/sessions/sess_b'],
@@ -9745,6 +9756,43 @@ describe('Console 管理路由跨租户隔离', () => {
       .tenantDb(d1, consoleFixtures.TENANT_B)
       .memberships.findOne(eq(schema.memberships.id, 'mem_b'))
     expect(membership?.role).toBe('owner')
+  })
+
+  it('DELETE 租户 B 用户的 passkey 返回 404 且不吊销该凭证', async () => {
+    const d1 = await seedTwoTenants()
+
+    const res = await consoleFixtures
+      .buildApp(register, { session: consoleFixtures.sessionFor('user_a_owner') })
+      .request(
+        'https://acme.xid.dev/v1/users/user_b/passkeys/pk_b',
+        { method: 'DELETE' },
+        consoleFixtures.envOf(d1),
+      )
+
+    expect(res.status).toBe(404)
+    const passkey = await consoleFixtures
+      .tenantDb(d1, consoleFixtures.TENANT_B)
+      .passkeyCredentials.findOne(eq(schema.passkeyCredentials.id, 'pk_b'))
+    expect(passkey?.revokedAt).toBeNull()
+  })
+
+  it('DELETE 本租户用户名下租户 B 的 passkey id 返回 404', async () => {
+    const d1 = await seedTwoTenants()
+    await consoleFixtures.seedUser(d1, { id: 'user_a_member', email: 'member@a.example' })
+
+    const res = await consoleFixtures
+      .buildApp(register, { session: consoleFixtures.sessionFor('user_a_owner') })
+      .request(
+        'https://acme.xid.dev/v1/users/user_a_member/passkeys/pk_b',
+        { method: 'DELETE' },
+        consoleFixtures.envOf(d1),
+      )
+
+    expect(res.status).toBe(404)
+    const passkey = await consoleFixtures
+      .tenantDb(d1, consoleFixtures.TENANT_B)
+      .passkeyCredentials.findOne(eq(schema.passkeyCredentials.id, 'pk_b'))
+    expect(passkey?.revokedAt).toBeNull()
   })
 
   it('GET /v1/sessions?user_id=<租户 B 用户> 返回空列表', async () => {
