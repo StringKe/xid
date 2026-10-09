@@ -1,13 +1,26 @@
-// attStmt 验签与 x5c 链校验仅用 Web Crypto；可信根必须由调用方注入，本模块不内置根证书。
+// attestation 按租户策略判定。可信根由调用方注入,本模块不内置根证书。
+// - none:不校验,verified=false。
+// - indirect:能校验的格式(packed、fido-u2f)签名必须成立;链抵达可信根才 verified=true,
+//   fmt=none、自签名与暂不支持的格式(tpm、android-key、android-safetynet、apple)按 none 处理。
+// - direct:必须是可校验格式,签名成立且链抵达已配置的可信根,否则拒绝注册。
 
 import { toBufferSource } from '@xid-kit/crypto'
 import type { Result, XidError } from '@xid-kit/types'
 
-import type { CborMap, CborValue } from './cbor'
+import {
+  verifyFidoU2fStatement,
+  verifyPackedStatement,
+  type StatementVerification,
+} from './attestation-formats'
+import { parseAuthData } from './authdata'
+import type { CborMap } from './cbor'
 import { cborDecode } from './cbor'
 import { webauthnError } from './errors'
+import { parseCertificate, pemToDerList, verifyCertificateChain } from './x509'
 
 export type AttestationConveyance = 'none' | 'indirect' | 'direct'
+
+export const VERIFIABLE_ATTESTATION_FORMATS = ['packed', 'fido-u2f'] as const
 
 export type AttestationVerificationInput = {
   fmt: string
@@ -16,6 +29,7 @@ export type AttestationVerificationInput = {
   clientDataJson: Uint8Array
   policy: AttestationConveyance
   trustedRootsPem?: readonly string[]
+  now?: Date
 }
 
 export type AttestationVerificationResult = {
@@ -24,145 +38,70 @@ export type AttestationVerificationResult = {
   trustPath: readonly string[]
 }
 
-function asBytes(value: CborValue | undefined): Uint8Array {
-  if (value instanceof Uint8Array) return value
-  throw new Error('attestation: expected byte string')
+type AttestationResult = Result<AttestationVerificationResult, XidError>
+
+function accepted(fmt: string, verified = false, trustPath: readonly string[] = []) {
+  return { ok: true, value: { fmt, verified, trustPath } } as const
 }
 
-function asInt(value: CborValue | undefined): number {
-  if (typeof value === 'number') return value
-  if (typeof value === 'bigint') return Number(value)
-  throw new Error('attestation: expected integer')
+function rejected(message: string): AttestationResult {
+  return { ok: false, error: webauthnError('invalid_credentials', message) }
 }
 
-async function importX509Cert(der: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'spki',
-    toBufferSource(der),
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['verify'],
-  )
+function isVerifiableFormat(fmt: string): boolean {
+  return (VERIFIABLE_ATTESTATION_FORMATS as readonly string[]).includes(fmt)
 }
 
-async function verifyPackedSignature(
-  attStmt: CborMap,
-  authData: Uint8Array,
-  clientDataJson: Uint8Array,
-): Promise<boolean> {
-  const alg = asInt(attStmt.get('alg'))
-  const sig = asBytes(attStmt.get('sig'))
-  const x5c = attStmt.get('x5c')
-  if (!Array.isArray(x5c) || x5c.length === 0) return false
-  const leafDer = asBytes(x5c[0])
-  let key: CryptoKey
-  try {
-    key = await importX509Cert(leafDer)
-  } catch {
-    return false
-  }
+async function verifyStatement(
+  input: AttestationVerificationInput,
+): Promise<StatementVerification> {
+  const parsed = await parseAuthData(input.authData)
+  const attested = parsed.attestedCredentialData
+  if (!attested) return { ok: false, reason: 'missing attested credential data' }
   const clientDataHash = new Uint8Array(
-    await crypto.subtle.digest('SHA-256', toBufferSource(clientDataJson)),
+    await crypto.subtle.digest('SHA-256', toBufferSource(input.clientDataJson)),
   )
-  const signed = new Uint8Array(authData.length + clientDataHash.length)
-  signed.set(authData, 0)
-  signed.set(clientDataHash, authData.length)
-  if (alg !== -7) return false
-  return crypto.subtle.verify(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    key,
-    toBufferSource(sig),
-    toBufferSource(signed),
-  )
+  const statementInput = {
+    attStmt: input.attStmt,
+    authData: input.authData,
+    parsed: { ...parsed, attestedCredentialData: attested },
+    clientDataHash,
+  }
+  return input.fmt === 'fido-u2f'
+    ? verifyFidoU2fStatement(statementInput)
+    : verifyPackedStatement(statementInput)
 }
 
-async function chainTrusted(
-  attStmt: CborMap,
-  trustedRootsPem: readonly string[],
-): Promise<{ verified: boolean; trustPath: string[] }> {
-  const x5c = attStmt.get('x5c')
-  if (!Array.isArray(x5c) || x5c.length === 0) return { verified: false, trustPath: [] }
-  const trusted = new Set(trustedRootsPem.map((pem) => pem.replace(/\s+/g, '').trim()))
-  const trustPath: string[] = []
-  for (const entry of x5c) {
-    const der = asBytes(entry)
-    const pem = `-----BEGIN CERTIFICATE-----\n${btoa(String.fromCharCode(...der))
-      .match(/.{1,64}/g)
-      ?.join('\n')}\n-----END CERTIFICATE-----`
-    const normalized = pem.replace(/\s+/g, '').trim()
-    trustPath.push(normalized.slice(0, 48))
-    if (trusted.has(normalized)) return { verified: true, trustPath }
-  }
-  return { verified: false, trustPath }
+export function parseTrustedRoots(trustedRootsPem: readonly string[]) {
+  return trustedRootsPem.flatMap(pemToDerList).map(parseCertificate)
 }
 
 export async function verifyEnterpriseAttestation(
   input: AttestationVerificationInput,
-): Promise<Result<AttestationVerificationResult, XidError>> {
-  if (input.policy === 'none' || input.fmt === 'none') {
-    return {
-      ok: true,
-      value: { fmt: input.fmt, verified: false, trustPath: [] },
-    }
+): Promise<AttestationResult> {
+  if (input.policy === 'none') return accepted(input.fmt)
+  const direct = input.policy === 'direct'
+  if (!isVerifiableFormat(input.fmt)) {
+    return direct ? rejected(`attestation fmt ${input.fmt} is not verifiable`) : accepted(input.fmt)
+  }
+  const trustedRoots = parseTrustedRoots(input.trustedRootsPem ?? [])
+  if (direct && trustedRoots.length === 0) {
+    return rejected('trusted attestation roots not configured')
   }
 
-  if (input.fmt !== 'packed') {
-    return {
-      ok: false,
-      error: webauthnError('invalid_credentials', `unsupported attestation fmt ${input.fmt}`),
-    }
+  const statement = await verifyStatement(input)
+  if (!statement.ok) return rejected(statement.reason)
+  if (!statement.certificates) {
+    return direct ? rejected('self attestation has no certificate chain') : accepted(input.fmt)
   }
 
-  const trustedRoots = input.trustedRootsPem ?? []
-  if (input.policy === 'direct' && trustedRoots.length === 0) {
-    return {
-      ok: false,
-      error: webauthnError('invalid_credentials', 'trusted attestation roots not configured'),
-    }
-  }
-
-  const sigOk = await verifyPackedSignature(input.attStmt, input.authData, input.clientDataJson)
-  if (!sigOk) {
-    return {
-      ok: false,
-      error: webauthnError('invalid_credentials', 'attestation signature invalid'),
-    }
-  }
-
-  const chain = await chainTrusted(input.attStmt, trustedRoots)
-
-  if (input.policy === 'direct') {
-    if (!chain.verified) {
-      return {
-        ok: false,
-        error: webauthnError('invalid_credentials', 'attestation certificate chain untrusted'),
-      }
-    }
-    return {
-      ok: true,
-      value: {
-        fmt: input.fmt,
-        verified: true,
-        trustPath: chain.trustPath,
-      },
-    }
-  }
-
-  if (!chain.verified && trustedRoots.length > 0) {
-    return {
-      ok: false,
-      error: webauthnError('invalid_credentials', 'attestation certificate chain untrusted'),
-    }
-  }
-
-  return {
-    ok: true,
-    value: {
-      fmt: input.fmt,
-      verified: chain.verified || sigOk,
-      trustPath: chain.trustPath,
-    },
-  }
+  const chain = await verifyCertificateChain({
+    chain: statement.certificates,
+    trustedRoots,
+    now: input.now ?? new Date(),
+  })
+  if (direct && !chain.verified) return rejected('attestation certificate chain untrusted')
+  return accepted(input.fmt, chain.verified, chain.trustPath)
 }
 
 export function parseAttestationStatement(attestationObject: Uint8Array): {

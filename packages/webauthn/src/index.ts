@@ -14,7 +14,13 @@ export type { ClientData, ClientDataCheck, ClientDataReason } from './parse'
 export { checkClientData, constantTimeEqual } from './parse'
 
 export type { AttestationConveyance, AttestationVerificationResult } from './attestation'
-export { verifyEnterpriseAttestation, parseAttestationStatement } from './attestation'
+export {
+  VERIFIABLE_ATTESTATION_FORMATS,
+  parseAttestationStatement,
+  parseTrustedRoots,
+  verifyEnterpriseAttestation,
+} from './attestation'
+export type { ParsedCertificate } from './x509'
 export { verifyRegistration } from './verify-registration'
 export type { RegistrationVerificationOptions } from './verify-registration'
 export { verifyAuthentication, detectSignCountAnomaly } from './verify-authentication'

@@ -1,4 +1,4 @@
-// 注册：challenge/origin/rpIdHash + AT 提取公钥；attestation 按 policy 验链，none 直接接受。
+// 注册：challenge/origin/rpIdHash + AT 提取公钥；attestation 按租户策略判定(见 attestation.ts)。
 
 import type { XidError, Result, VerifiedPasskey, WebAuthnVerificationInput } from '@xid-kit/types'
 
@@ -16,6 +16,7 @@ const CRED_ID_LEN_MAX = 1023
 export type RegistrationVerificationOptions = {
   attestationPolicy?: AttestationConveyance
   trustedRootsPem?: readonly string[]
+  now?: Date
 }
 
 function fail(error: XidError): Result<VerifiedPasskey, XidError> {
@@ -56,7 +57,7 @@ export async function verifyRegistration(
     authData = attestation.authData
     parsed = await parseAuthData(authData)
     const policy = options.attestationPolicy ?? 'none'
-    if (policy !== 'none' && fmt !== 'none') {
+    if (policy !== 'none') {
       const attestationResult = await verifyEnterpriseAttestation({
         fmt,
         attStmt: attestation.attStmt,
@@ -64,6 +65,7 @@ export async function verifyRegistration(
         clientDataJson: input.clientDataJson,
         policy,
         trustedRootsPem: options.trustedRootsPem,
+        ...(options.now ? { now: options.now } : {}),
       })
       if (!attestationResult.ok) return attestationResult
       enterpriseAttestationVerified = attestationResult.value.verified
