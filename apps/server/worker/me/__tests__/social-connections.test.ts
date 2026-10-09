@@ -1,11 +1,22 @@
 // GET /v1/me/social-connections 测试:happy path(email 来自 profile_raw)+ 401 + 跨租户隔离。
 // token 密文(access/refresh)不外泄;只列 identity_type='oauth'。
 
+import { DEFAULT_HOSTED_AUTH_POLICY, type TenantContext } from '@xid-kit/types'
 import { describe, it, expect } from 'vitest'
 import { registerSocialConnectionsRoutes } from '../social-connections'
-import { buildApp, makeFakeD1, makeSession } from './harness'
+import { buildApp, makeFakeD1, makeSession, TENANT } from './harness'
 
 const now = Date.now()
+
+const PASSWORD_TENANT: TenantContext = {
+  ...TENANT,
+  policy: {
+    hostedAuth: {
+      ...DEFAULT_HOSTED_AUTH_POLICY,
+      password: { enabled: true, allowLogin: true, allowUserCreation: true },
+    },
+  },
+}
 
 function identityRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -131,6 +142,7 @@ describe('DELETE /v1/me/social-connections/:id', () => {
     const app = buildApp({
       register: registerSocialConnectionsRoutes,
       session: makeSession({ userId: 'u_1' }),
+      tenant: PASSWORD_TENANT,
     })
 
     const res = await app.request(
@@ -166,6 +178,26 @@ describe('DELETE /v1/me/social-connections/:id', () => {
     )
 
     expect(res.status).toBe(204)
+  })
+
+  it('refuses to disconnect when the remaining password sign-in is disabled for the tenant', async () => {
+    const row = identityRow()
+    const db = makeFakeD1({ user_identities: [row], passwords: [passwordRow()] })
+    const env = { DB: db, AUDIT_QUEUE: { send: async () => undefined } } as unknown as Env
+    const app = buildApp({
+      register: registerSocialConnectionsRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/social-connections/id_1',
+      { method: 'DELETE' },
+      env,
+    )
+
+    expect(res.status).toBe(409)
+    expect(((await res.json()) as Record<string, unknown>)['code']).toBe('sign_in_method_required')
+    expect(row['revoked_at']).toBeUndefined()
   })
 
   it('refuses to remove the only sign-in method', async () => {

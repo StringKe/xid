@@ -1,12 +1,24 @@
 // GET /v1/me/passkeys 测试:happy path(剔除 public_key/aaguid/sign_count)+ 401 + 跨租户隔离。
 
 import { base64UrlEncode } from '@xid-kit/crypto'
+import { DEFAULT_HOSTED_AUTH_POLICY, type TenantContext } from '@xid-kit/types'
 import { describe, it, expect } from 'vitest'
 import { PASSKEY_LIMIT } from '../../auth/passkey-helpers'
 import { registerPasskeysRoutes } from '../passkeys'
-import { buildApp, makeFakeD1, makeSession, stepUpCookieFor, TEST_PEPPER } from './harness'
+import { buildApp, makeFakeD1, makeSession, stepUpCookieFor, TENANT, TEST_PEPPER } from './harness'
 
 const now = Date.now()
+
+const ENABLED = { enabled: true, allowLogin: true, allowUserCreation: true }
+
+function tenantWith(hostedAuth: Partial<typeof DEFAULT_HOSTED_AUTH_POLICY>): TenantContext {
+  return {
+    ...TENANT,
+    policy: { hostedAuth: { ...DEFAULT_HOSTED_AUTH_POLICY, ...hostedAuth } },
+  }
+}
+
+const PASSWORD_AND_PASSKEY_TENANT = tenantWith({ password: ENABLED, passkey: ENABLED })
 
 function passkeyRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -205,7 +217,11 @@ describe('PATCH / DELETE /v1/me/passkeys/:id', () => {
       mfa_factors: [linkedFactor],
     })
     const session = makeSession({ userId: 'u_1' })
-    const app = buildApp({ register: registerPasskeysRoutes, session })
+    const app = buildApp({
+      register: registerPasskeysRoutes,
+      session,
+      tenant: PASSWORD_AND_PASSKEY_TENANT,
+    })
 
     const res = await app.request(
       'https://acme.xid.dev/v1/me/passkeys/pk_1',
@@ -216,6 +232,93 @@ describe('PATCH / DELETE /v1/me/passkeys/:id', () => {
     expect(res.status).toBe(204)
     expect(row['revoked_at']).toBeTypeOf('number')
     expect(linkedFactor.status).toBe('revoked')
+  })
+
+  it('does not count a password when the tenant disabled password sign-in', async () => {
+    const row = passkeyRow()
+    const db = makeFakeD1({
+      passkey_credentials: [row],
+      passwords: [{ id: 'pw_1', tenant_id: 't_1', user_id: 'u_1' }],
+    })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({
+      register: registerPasskeysRoutes,
+      session,
+      tenant: tenantWith({ passkey: ENABLED }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/passkeys/pk_1',
+      { method: 'DELETE', headers: { Cookie: await stepUpCookieFor(session) } },
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+    )
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'sign_in_method_required' })
+    expect(row['revoked_at']).toBeUndefined()
+  })
+
+  it('does not count a social identity whose provider the tenant no longer allows', async () => {
+    const row = passkeyRow()
+    const db = makeFakeD1({
+      passkey_credentials: [row],
+      user_identities: [
+        {
+          id: 'id_1',
+          tenant_id: 't_1',
+          user_id: 'u_1',
+          identity_type: 'oauth',
+          provider: 'google',
+        },
+      ],
+    })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({
+      register: registerPasskeysRoutes,
+      session,
+      tenant: tenantWith({ passkey: ENABLED }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/passkeys/pk_1',
+      { method: 'DELETE', headers: { Cookie: await stepUpCookieFor(session) } },
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+    )
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'sign_in_method_required' })
+  })
+
+  it('counts an enterprise SSO identity when the tenant forces SSO', async () => {
+    const row = passkeyRow()
+    const db = makeFakeD1({
+      passkey_credentials: [row],
+      user_identities: [
+        { id: 'id_1', tenant_id: 't_1', user_id: 'u_1', identity_type: 'saml', provider: 'sso' },
+      ],
+    })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({
+      register: registerPasskeysRoutes,
+      session,
+      tenant: tenantWith({
+        forceSso: true,
+        enterpriseSso: {
+          ...DEFAULT_HOSTED_AUTH_POLICY.enterpriseSso,
+          enabled: true,
+          allowLogin: true,
+        },
+      }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/passkeys/pk_1',
+      { method: 'DELETE', headers: { Cookie: await stepUpCookieFor(session) } },
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+    )
+
+    expect(res.status).toBe(204)
+    expect(row['revoked_at']).toBeTypeOf('number')
   })
 
   it('requires step-up before removing a passkey', async () => {
@@ -247,6 +350,7 @@ describe('PATCH / DELETE /v1/me/passkeys/:id', () => {
     const app = buildApp({
       register: registerPasskeysRoutes,
       session: makeSession({ userId: 'u_1', amr: ['phr'], acr: 'urn:xid:aal2', aal: 2 }),
+      tenant: PASSWORD_AND_PASSKEY_TENANT,
     })
 
     const res = await app.request(

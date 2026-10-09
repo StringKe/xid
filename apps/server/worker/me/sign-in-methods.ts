@@ -1,15 +1,18 @@
 // 删除 passkey、断开社交身份、移除邮箱或手机号前确认用户仍能登录,避免把自己锁在账号外。
-// 已验证邮箱或手机只在租户当前允许对应登录方式(手机还要求发送渠道就绪)时才算作可用的登录方式。
+// 每种凭证只在租户当前允许对应登录方式时才算数:密码、passkey、社交 provider、企业 SSO、
+// 已验证邮箱,以及发送渠道就绪的已验证手机。
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { smsDeliveryReady, whatsappDeliveryReady } from '../auth/delivery-channels'
 import {
+  assertEnterpriseSsoAllowed,
   assertMethodAllowed,
   isHostedAuthPolicyError,
   type HostedAuthMethod,
 } from '../auth/hosted-policy'
+import { hostedAuthPolicy } from '../auth/hosted-policy-core'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 
 type TenantDb = ReturnType<typeof createTenantDb>
@@ -19,14 +22,32 @@ export type RemovedSignInMethod = {
   id: string
 }
 
-function methodAllowsLogin(tenant: TenantVar, method: HostedAuthMethod): boolean {
+function policyAllows(check: () => void): boolean {
   try {
-    assertMethodAllowed(tenant, method, 'login')
+    check()
     return true
   } catch (error) {
     if (isHostedAuthPolicyError(error)) return false
     throw error
   }
+}
+
+function methodAllowsLogin(tenant: TenantVar, method: HostedAuthMethod): boolean {
+  return policyAllows(() => assertMethodAllowed(tenant, method, 'login'))
+}
+
+// oauth 身份按 provider 策略判断;sso/saml 身份按企业 SSO 策略判断(forceSso 时只剩它可用)。
+function identityAllowsLogin(
+  tenant: TenantVar,
+  identity: { identityType: string; provider: string },
+): boolean {
+  if (identity.identityType === 'sso' || identity.identityType === 'saml') {
+    return policyAllows(() => assertEnterpriseSsoAllowed({ tenant, action: 'login', email: null }))
+  }
+  const policy = hostedAuthPolicy(tenant)
+  if (policy.forceSso || !policy.allowExistingUserLogin) return false
+  const provider = tenant.policy?.socialProviders?.[identity.provider]
+  return provider?.enabled === true && provider.allowLogin
 }
 
 // 密码登录也算:用户可经已验证邮箱走找回密码重新设密。
@@ -60,9 +81,10 @@ export async function hasOtherSignInMethod(
   c: Context<XidHonoEnv>,
   input: { userId: string; removed: RemovedSignInMethod },
 ): Promise<boolean> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const tenant = c.get('tenant')
+  const db = createTenantDb(c.env.DB, tenant)
   const { userId, removed } = input
-  // 只排除一条被移除的记录:取前两行即可判断是否还剩其他记录。
+  // 只排除一条被移除的记录:取前两行即可判断是否还剩其他 passkey。
   const isRemaining = (kind: RemovedSignInMethod['kind']) => (row: { id: string }) =>
     removed.kind !== kind || row.id !== removed.id
   const [passwords, passkeys, identities] = await Promise.all([
@@ -76,11 +98,11 @@ export async function hasOtherSignInMethod(
     ),
     db.userIdentities.findMany(
       and(eq(schema.userIdentities.userId, userId), isNull(schema.userIdentities.revokedAt)),
-      { limit: 2 },
     ),
   ])
-  if (passwords > 0) return true
-  if (passkeys.some(isRemaining('passkey'))) return true
-  if (identities.some(isRemaining('identity'))) return true
+  if (passwords > 0 && methodAllowsLogin(tenant, 'password')) return true
+  if (passkeys.some(isRemaining('passkey')) && methodAllowsLogin(tenant, 'passkey')) return true
+  const remainingIdentities = identities.filter(isRemaining('identity'))
+  if (remainingIdentities.some((identity) => identityAllowsLogin(tenant, identity))) return true
   return hasEmailOrPhoneSignIn(c, db, { userId, removed })
 }
