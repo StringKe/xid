@@ -25,6 +25,7 @@ vi.mock('@xid-kit/db', () => ({
       status: 'status',
       isWildcard: 'is_wildcard',
       orgId: 'org_id',
+      deletedAt: 'deleted_at',
     },
     ssoConnections: {
       orgId: 'org_id',
@@ -250,6 +251,19 @@ describe('resolveHrd', () => {
       protocol: 'oidc',
       ...HRD_DISPLAY,
     })
+  })
+
+  it('通配域名覆盖多级子域:a.b.example.com 逐级查到 example.com', async () => {
+    mockFindOne
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(makeDomainRow({ domain: 'example.com', isWildcard: true }))
+      .mockResolvedValueOnce(makeConnectionRow())
+
+    const result = await resolveHrd(fakeEnv, makeTenant(), 'user@a.b.example.com')
+
+    expect(result?.connectionId).toBe('conn-1')
+    expect(mockFindOne).toHaveBeenCalledTimes(4)
   })
 
   it('域名未验证(pending)不触发 SSO 路由', async () => {

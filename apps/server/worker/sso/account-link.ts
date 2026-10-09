@@ -39,6 +39,25 @@ async function isActiveOrgMember(db: TenantDb, orgId: string, userId: string): P
   return membership !== undefined
 }
 
+// a.b.example.com -> [b.example.com, example.com]:由近到远的父域,至少保留两段标签。
+export function parentDomains(domain: string): string[] {
+  const labels = domain.split('.')
+  const parents: string[] = []
+  for (let i = 1; i <= labels.length - 2; i += 1) parents.push(labels.slice(i).join('.'))
+  return parents
+}
+
+// org 域名覆盖邮箱域:精确相等,或通配域名是邮箱域任意一层父域。HRD 与 JIT 共用此规则。
+export function orgDomainCovers(
+  row: { domain: string; isWildcard: boolean },
+  emailDomainValue: string,
+): boolean {
+  return (
+    row.domain === emailDomainValue ||
+    (row.isWildcard && parentDomains(emailDomainValue).includes(row.domain))
+  )
+}
+
 // 与 HRD 同一信号:邮箱域命中本 org 已验证且有效的域名,通配域覆盖子域。
 export async function isVerifiedOrgEmailDomain(
   db: TenantDb,
@@ -56,9 +75,7 @@ export async function isVerifiedOrgEmailDomain(
         isNull(schema.organizationDomains.deletedAt),
       ),
     )
-  return rows.some(
-    (row) => row.domain === domain || (row.isWildcard && domain.endsWith(`.${row.domain}`)),
-  )
+  return rows.some((row) => orgDomainCovers(row, domain))
 }
 
 export async function findLinkableUserByEmail(

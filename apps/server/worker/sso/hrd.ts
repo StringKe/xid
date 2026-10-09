@@ -7,7 +7,7 @@
 //   - 路由模块 export 注册函数,不直接改 worker/index.ts。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -19,6 +19,7 @@ import { emailDomain } from '../auth/hosted-policy'
 import { recordHostedAuthPolicyDenied } from '../auth/hosted-audit'
 import { resolveEntryTenant } from '../me-auth/instance-login'
 import { requestIp, verifyTurnstile } from '../me-auth/shared'
+import { parentDomains } from './account-link'
 
 // 从邮箱地址提取域名部分(如 user@example.com -> example.com)。
 // 无 @ 时返回 null。
@@ -37,6 +38,33 @@ export type HrdResult = {
   // 过渡页「正在跳转到 Okta」用;HRD 只对已验证域名生效,返回名称不扩大枚举面。
   displayName: string | null
   organizationName: string | null
+}
+
+type TenantDb = ReturnType<typeof createTenantDb>
+
+function activeVerifiedDomain(domain: string) {
+  return and(
+    eq(schema.organizationDomains.domain, domain),
+    eq(schema.organizationDomains.verificationStatus, 'verified'),
+    eq(schema.organizationDomains.status, 'active'),
+    isNull(schema.organizationDomains.deletedAt),
+  )
+}
+
+// 先精确匹配,再由近到远逐级查通配父域;覆盖规则与 JIT 的 orgDomainCovers 一致。
+async function findCoveringOrgDomain(
+  db: TenantDb,
+  domain: string,
+): Promise<typeof schema.organizationDomains.$inferSelect | null> {
+  const exact = await db.organizationDomains.findOne(activeVerifiedDomain(domain))
+  if (exact) return exact
+  for (const parent of parentDomains(domain)) {
+    const wildcard = await db.organizationDomains.findOne(
+      and(activeVerifiedDomain(parent), eq(schema.organizationDomains.isWildcard, true)),
+    )
+    if (wildcard) return wildcard
+  }
+  return null
 }
 
 // 按邮箱域名查询 verified OrganizationDomain -> SsoConnection(active)。
@@ -71,34 +99,7 @@ export async function resolveHrd(
 
   const db = createTenantDb(env.DB, tenant)
 
-  // 先精确匹配,再 wildcard 匹配(父域)。
-  const exactDomain = await db.organizationDomains.findOne(
-    and(
-      eq(schema.organizationDomains.domain, domain),
-      eq(schema.organizationDomains.verificationStatus, 'verified'),
-      eq(schema.organizationDomains.status, 'active'),
-    ),
-  )
-
-  let domainRow = exactDomain
-
-  if (!domainRow) {
-    // wildcard 匹配:检查父域 example.com 是否被认领且标 isWildcard。
-    const parts = domain.split('.')
-    if (parts.length > 2) {
-      const parentDomain = parts.slice(1).join('.')
-      const wildcardRow = await db.organizationDomains.findOne(
-        and(
-          eq(schema.organizationDomains.domain, parentDomain),
-          eq(schema.organizationDomains.verificationStatus, 'verified'),
-          eq(schema.organizationDomains.status, 'active'),
-          eq(schema.organizationDomains.isWildcard, true),
-        ),
-      )
-      if (wildcardRow) domainRow = wildcardRow
-    }
-  }
-
+  const domainRow = await findCoveringOrgDomain(db, domain)
   if (!domainRow) return null
 
   // 查找该 org 的 active SsoConnection。
