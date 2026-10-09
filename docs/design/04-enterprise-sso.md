@@ -13,15 +13,10 @@ sign in with their own company IdP (Okta, Azure AD, Google Workspace), and XID a
 - OIDC RP: authorization, token, and userinfo, with PKCE
 - SP-initiated: redirect to the IdP authorize endpoint carrying RelayState, then handle the callback
   to exchange the code or assertion
-- IdP-initiated: accept an IdP POST to the ACS and decide the landing page from the connection's
-  `relay_state_url`
-- IdP metadata import: automatic fetch by URL (refreshed periodically) plus XML upload, parsing the
-  entityID, SSO URL, SLO URL, and certificate
-- Attribute mapping: standard fields (email, firstName, lastName, idp_id) automatically, plus
-  administrator-configured custom fields
-- Certificate management: an SP private key signs the AuthnRequest (optional); the IdP assertion
-  signature MUST be verified; old and new certificates coexist during rotation; EncryptedAssertion is
-  decrypted
+- IdP-initiated: accept an IdP POST to the ACS. The landing page is the RelayState when it resolves to the instance issuer origin, otherwise the connection's `relay_state_url`, otherwise the default post-sign-in page. `relay_state_url` is written through the management API and Console, limited to 2048 characters, resolved against the instance issuer (a relative path becomes an absolute URL), and rejected with 422 unless it is same-origin with the issuer. An authorize or invitation continuation path is never used as a configured landing page, because those continuations must come from server-side flow state
+- IdP metadata import: saving a SAML connection with `idp_metadata_url` or an uploaded `idp_metadata_xml` fetches and parses the metadata synchronously, extracting the entityID, SSO URL, SLO URL, and certificates. Sending both fields, an unreachable or non-public-HTTPS URL, a non-2xx response, a body over 1 MiB, unparsable XML, or a parsed SSO/SLO URL that is not public HTTPS returns 422 with `paramName` set to the field that was sent. Fields given explicitly in the same request take precedence over parsed values. Uploading XML clears the stored URL, and submitting a URL clears stored XML; only a URL is refreshed by the daily Cron
+- Attribute mapping: `email`, `firstName`, `lastName`, and `groups` name the SAML attribute or OIDC claim to read; an OIDC claim that is configured but absent falls back to the standard claim (`email`, `given_name`, `family_name`, `groups`). SAML `idpId` names the attribute used as the stable primary key (see the decisions below)
+- Certificate management: when the tenant has an active `saml_sp_signing` certificate, every SP-initiated AuthnRequest carries an HTTP-Redirect binding detached signature over `SAMLRequest`, `RelayState`, and `SigAlg`, and the SP metadata advertises `AuthnRequestsSigned` from the same certificate check; the IdP assertion signature MUST be verified; old and new certificates coexist during rotation; EncryptedAssertion is decrypted
 - Console endpoints: a SAML connection shows the absolute SP entity ID, ACS URL, SP metadata URL,
   and SLO URL derived from the instance issuer. An OIDC connection shows one callback URL per origin
   a user can start sign-in from (instance issuer, tenant host, Hosted Auth origin), because the
@@ -33,8 +28,8 @@ sign in with their own company IdP (Okta, Azure AD, Google Workspace), and XID a
 
 - Each org has exactly one SSO connection. A connection maps 1:1 to an org and is never reused across
   tenants
-- The primary key is the idp_id (SAML NameID or OIDC sub). Matching on email alone is forbidden,
-  because an email change would orphan the account
+- The primary key is the idp_id. Matching on email alone is forbidden, because an email change would orphan the account. For OIDC the idp_id is always `sub`. For SAML and WS-Federation it is the NameID, unless `attribute_mapping.idpId` names an attribute (for example the Entra object identifier, because the default Entra NameID is the UPN and changes when the UPN changes); a configured attribute that is missing or empty in the assertion rejects the sign-in with 400 `malformed_request` and never falls back to the NameID. When a connection switches to an `idpId` attribute, an identity still bound under the assertion's NameID is matched as the legacy binding: JIT signs in that User and binds the new idp_id, so existing accounts are not duplicated
+- Saving a connection rejects `{` or `}` in `idp_entity_id`, `idp_sso_url`, `idp_slo_url`, `idp_metadata_url`, and `oidc_discovery_url` with 422, so a preset template value cannot be stored. `attribute_mapping` keys starting with `_` are server-owned; a client may submit only `_legacy`
 - RelayState is capped at 2 KB; anything longer is truncated and logged
 - OIDC RP connections accept a write-only `oidc_client_secret` on both `/v1/connections` and
   `/v1/organizations/:orgId/sso-connections`. It is KEK-envelope-encrypted into
@@ -46,8 +41,10 @@ sign in with their own company IdP (Okta, Azure AD, Google Workspace), and XID a
 - SP-initiated `/sso/oidc/*` and `/sso/saml/*/login` are browser navigations: expected failures and
   an IdP `access_denied` redirect to the Hosted UI `/sign-in?error=<code>` (see chapter 01,
   "Browser-facing errors"). The ACS keeps its HTML protocol error page
-- The IdP metadata URL is polled and refreshed every 24 hours, and a certificate change fires an alert
-  webhook
+- The daily Cron (`0 2 * * *`) refreshes every active SAML connection that has `idp_metadata_url`. It rewrites the entity ID, SSO URL, SLO URL, and certificate set only when one of them changed, and a changed certificate set emits the `connection.saml_certificate_renewed` webhook. Each run records the outcome on the connection: success sets `idp_metadata_refreshed_at` and clears the error columns; failure keeps the previous configuration, logs the reason, and sets `idp_metadata_last_error` (`metadata_url_not_allowed`, `metadata_http_status`, `metadata_too_large`, `metadata_invalid`, `metadata_endpoint_not_allowed`, or `metadata_fetch_failed`) and `idp_metadata_last_error_at`, which the Console connection detail shows. Every Cron statement binds `tenant_id`
+- OIDC discovery trust: the configured discovery URL MUST have the same origin as the discovered `issuer`, the issuer MUST be public HTTPS without userinfo, query, or fragment, and the ID token `iss` MUST equal it exactly. The `authorization_endpoint`, `token_endpoint`, and `jwks_uri` only need to be public HTTPS without userinfo and may live on other hosts (Google serves token and JWKS from `googleapis.com`), as OIDC Discovery 1.0 section 4.3 allows
+- Upstream OIDC JWKS are cached in KV under `provider_jwks:{jwks_uri}` for `SSO_OIDC_JWKS_CACHE_TTL_SEC` (3600 seconds), the same key family as social login. A signature with an unknown `kid` forces one refetch and re-verification; refetches of one `jwks_uri` are limited to one per `PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC` (300 seconds), and every origin fetch, including a cold-cache fetch, counts toward that interval
+- Upstream ID token validation (OIDC Core 3.1.3.7): `exp` and `iat` MUST be present numbers; when `aud` has more than one value `azp` MUST be present; a present `azp` MUST equal the connection's client ID; `nonce` MUST match the flow; `sub` MUST be present. `email_verified` vouches only for the standard `email` claim, so an email read from a different mapped claim is not treated as verified
 - Every configured IdP SSO, SLO, metadata, and OIDC discovery URL MUST be public HTTPS. The management
   write paths validate it, and the SAML/OIDC runtime validates stored rows again so a legacy or
   directly imported record cannot bypass the boundary. Metadata fetches reject redirects, use a
@@ -97,40 +94,28 @@ still missing.
 Capabilities already shipped in the SAML IdP baseline:
 
 - IdP metadata XML: entityID, SSO URL, signing certificate, and NameIDFormat.
-- IdP signing certificate provisioning: creating a downstream SAML app without an explicit
-  `idp_signing_cert_id` reuses a valid tenant certificate or generates one, stores it in
-  `cert_store` with usage `saml_idp_signing`, and envelope-encrypts the private key under the
-  Workers Secret KEK. Runtime signing accepts valid `active` and `retiring` certificates; automatic
-  selection provisions from `active`, while `retiring` keeps an already configured app working
-  during trust rollover. Validity is read from the X.509 certificate rather than trusting nullable
-  database bounds. When the sole active IdP certificate is not yet valid or has 30 days or less
-  remaining, provisioning atomically changes that exact certificate to `retiring` and inserts its
-  replacement in one D1 batch. The active-certificate partial unique index applies only to
-  `saml_idp_signing`; it never changes SP signing or encryption certificate state.
-- SP registration: each downstream SaaS gets its own record of the ACS URL, SP EntityID, Audience,
-  Recipient, attribute mapping, and NameID policy. ACS and optional SLO URLs MUST be public HTTPS at
-  registration and are revalidated before assertion delivery or logout.
-- SSO endpoint: accepts an SP-initiated SAMLRequest or an IdP-initiated app launch, and verifies the
-  user session and org membership. SP-initiated requests pass the same secure XML precheck and a
-  dedicated closed AuthnRequest grammar before exact Issuer, Destination, HTTP-POST binding, and ACS
-  matching against the registered SP. Metadata currently advertises
+- IdP signing certificates: one tenant-level set in `cert_store` with usage `saml_idp_signing`, shared by every outbound SAML app of the tenant, with the private key envelope-encrypted under the Workers Secret KEK. Status moves `next` -> `active` -> `retiring` -> `retired`; partial unique indexes allow one `active` and one `next` per tenant and never touch SP signing or encryption certificates. Validity is read from the X.509 certificate rather than nullable database bounds. Creating an app without `idp_signing_cert_id` uses the current `active` certificate and generates the first one only when the tenant has none; an explicit `idp_signing_cert_id` MUST be a time-valid `active` or `retiring` certificate of the tenant (422 otherwise); an expired `active` certificate returns 503 and is never replaced automatically.
+- Certificate rotation, modeled on the four-step signing key rotation: the daily Cron publishes a `next` certificate once the `active` one expires within 60 days (audit `outbound_saml_signing_certificate.next_published`), writes the `outbound_saml_signing_certificate.expiring` audit event every day once it expires within 30 days, and moves `retiring` to `retired` after `retire_after` or the certificate's notAfter. IdP metadata publishes the `next`, `active`, and `retiring` certificates together so SPs can trust the new key before it signs; signing uses `active` and `retiring`. Promotion is an explicit administrative action, never a background job: `POST /v1/organizations/:id/outbound-saml-signing-certificates/:certificateId/activate` in one D1 batch moves the old `active` to `retiring` with `retire_after` = the earlier of now + 7 days and its notAfter, promotes the `next` certificate, and points every outbound app of the tenant at it (audit `outbound_saml_signing_certificate.activated`). `GET` on the collection lists the certificates and `POST` prepares a `next` certificate on demand; preparing and activating require an `sk_*` key with `connections:write` or a manager of the tenant's top-level Organization.
+- SP registration: each downstream SaaS gets its own record of the ACS URL, SP EntityID, Audience, Recipient, attribute mapping, and NameID policy. ACS and optional SLO URLs MUST be public HTTPS at registration and are revalidated before assertion delivery or logout. `{` or `}` in the SP entity ID or ACS URL, and client-submitted `_`-prefixed `attribute_mapping` keys, are rejected with 422. `name_id_format` is limited to the formats listed under NameID below.
+- SP metadata import: create and update accept `sp_metadata_url` (public HTTPS, no redirects, 1 MiB limit, timeout) or `sp_metadata_xml`, not both. The parser reads the entityID, the HTTP-POST AssertionConsumerService (`isDefault="true"` first, otherwise the lowest index), the SingleLogoutService, and the signing certificates; a missing entityID or POST ACS, a non-public-HTTPS endpoint, or `AuthnRequestsSigned="true"` without a signing certificate returns 422 with the field's `paramName`. The Console create and edit forms accept a metadata URL or pasted XML and show these errors on the field.
+- SSO endpoint: accepts an SP-initiated SAMLRequest or an IdP-initiated app launch, and verifies the user session. Before any assertion is issued the user MUST be an active member of the app's Organization or hold an `org_manager` assignment for it; in `restricted` assignment mode only active members pass, and the allowed user IDs and roles are intersected with that membership. SP-initiated requests pass the same secure XML precheck and a dedicated closed AuthnRequest grammar before exact Issuer, Destination, HTTP-POST binding, and ACS matching against the registered SP. The grammar follows SAML Core 3.4.1: after `Issuer` and an optional `ds:Signature` it accepts, in order, `Extensions` (children in a non-SAML namespace), `NameIDPolicy`, `saml:Conditions`, `RequestedAuthnContext` (`Comparison` of `exact`, `minimum`, `maximum`, or `better`), and `Scoping`; `Subject` is rejected. Root attributes may include `Consent`, `ForceAuthn`, `IsPassive`, `ProtocolBinding`, `AssertionConsumerServiceIndex`, `AssertionConsumerServiceURL`, `AttributeConsumingServiceIndex`, and `ProviderName`; an ACS index excludes the ACS URL and protocol binding. A missing `AssertionConsumerServiceURL` or `ProtocolBinding` falls back to the registered ACS and HTTP-POST. `RequestedAuthnContext` is parsed and returned by the verifier but not evaluated; issued assertions carry the `unspecified` authentication context class. Metadata currently advertises
   `WantAuthnRequestsSigned=false`; unsigned requests are therefore accepted, while any embedded
   XMLDSig or Redirect `Signature`/`SigAlg` that is present must verify against the SP certificates.
   When the browser has no active session, the request is verified first and its `InResponseTo` and
   RelayState are staged in the OAuth flow Durable Object; the user is sent to `/sign-in` (or to
   `/mfa` or MFA setup for a pending MFA session) with a `saml_request` resume handle, so HTTP-POST
   and HTTP-Redirect requests both survive sign-in. The handle is single use.
-- Assertion issuance: signs the Response and the Assertion, and sets Issuer, Subject, NameID,
-  AudienceRestriction, Recipient, Destination, NotOnOrAfter, email, and name.
+- Assertion issuance: signs the Response and the Assertion, and sets Issuer, Subject, NameID, AudienceRestriction, Recipient, Destination, NotOnOrAfter, email, and name. Every XML signature XID emits canonicalizes `SignedInfo` and the Reference with exclusive C14N (see 9.5).
+- ForceAuthn and IsPassive (SAML Core 3.4.1): with `ForceAuthn="true"` only an authentication completed at or after the AuthnRequest arrived counts, so an older session is sent through re-authentication and the request resumes afterwards. With `IsPassive="true"` and no qualifying session, XID returns a `Responder` / `NoPassive` status Response instead of showing any sign-in page.
+- NameID: supported formats are `urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress`, `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`, `urn:oasis:names:tc:SAML:2.0:nameid-format:transient`, and `urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified`, plus the SAML 2.0 namespace spellings of emailAddress and unspecified stored by older configurations. A `NameIDPolicy` naming a supported format overrides the app's configured format; an absent or `unspecified` policy uses the configured format. Values follow SAML Core 8.3: emailAddress is the primary email; unspecified is the email, else the username; persistent is a pairwise pseudonym, 32 random bytes in base64url generated on first issuance for (tenant, app, user), stored in `saml_persistent_name_ids` (concurrent first issuance converges through `INSERT ... ON CONFLICT DO NOTHING`), reused afterwards, deleted with the app or by user erasure, and included in the privacy export; transient is a new random value per assertion. An unsupported requested format returns a `Requester` / `InvalidNameIDPolicy` status Response; an unsupported configured format or a user without the value the format needs returns `Responder` / `InvalidNameIDPolicy`.
+- Error status Responses (SAML Core 3.2.2.2): `NoPassive` and `InvalidNameIDPolicy` are returned as a Response without an assertion, carrying the request's `InResponseTo` and RelayState, signed with the same IdP signing certificate as a Success Response, and POSTed to the registered ACS.
+- Attribute mapping: the app's `attribute_mapping` renames the emitted `email`, `userEmail` (default `User.Email`), `firstName`, `lastName`, and `displayName` attributes. The `userId` key emits the XID user ID under the configured attribute name and is omitted unless configured; the Atlassian preset uses it for an immutable user ID.
 - Verification: package-level XML signature tests, Worker route L2, and a fake SaaS SP at L3 are all
   covered. Real Slack, GitHub, Microsoft, Atlassian, Salesforce, and Zoom admin L4 evidence is still
   missing.
 - Preset and assignment UI: Console provides Slack, GitHub Enterprise Cloud, Microsoft custom app,
   Atlassian, Salesforce, and Zoom presets, plus `all` or restricted user/role assignment gates.
-- App detail: `/console/org/outbound-sso?appId=` lists the `active` and `retiring` IdP signing
-  certificates read-only, the last sign-in (from SAML session bindings, so it is empty once expired
-  bindings are cleaned up), and the app's audit activity. There is no manual certificate creation:
-  rotation is automatic as described above.
+- App detail: `/console/org/outbound-sso?appId=` shows the tenant's `next`, `active`, and `retiring` IdP signing certificates, where a top-level Organization manager can prepare the next certificate and activate it after a confirmation, plus the last sign-in (from SAML session bindings, so it is empty once expired bindings are cleaned up) and the app's audit activity.
 - Outbound SLO is browser-mediated. `/auth/sign-out` prepares the first signed HTTP-Redirect or
   HTTP-POST LogoutRequest action, revokes the local XID session before returning, and never performs
   a server-side fetch to an SP. The Core and Web UI SDKs execute that action in the user agent. A
@@ -192,13 +177,8 @@ Capabilities already shipped in the outbound SCIM client baseline:
   `/v1/organizations/:orgId/scim-targets/:targetId/sync` authorize the caller, enqueue one
   `ScimSyncQueueMessage`, and return `202` with the stable `runId`; downstream HTTP never runs in the
   request path.
-- Automatic runs: removing, deactivating, or restoring an Organization Membership through the
-  membership APIs, deleting, restoring, banning, or unbanning a user through `/v1/users`, and inbound
-  SCIM deactivation, reactivation, or deletion of a user, enqueue a run for every
-  token-configured active target of the affected orgs, off the request path through `waitUntil`.
-  The daily cron enqueues one run per token-configured active target as the fallback for every
-  other membership or account change. Duplicate runs are safe because the consumer is serialized and
-  idempotent.
+- Incremental runs: changing a member's role, removing, deactivating, or restoring an Organization Membership through the membership APIs, a member leaving an Organization, deleting, restoring, banning, or unbanning a user through `/v1/users`, and inbound SCIM deactivation, reactivation, or deletion of a user enqueue a single-user message (`userId` set) for every token-configured active target of the affected Organizations (for account-level changes, every Organization the user belongs to), off the request path through `waitUntil`. The consumer pushes only that user and refreshes the role Groups from the local mappings.
+- Full reconciliation: the daily cron and the manual sync endpoints enqueue a full run per target. A full run processes active members in chunks of 98 ordered by member ID; when members remain, the consumer enqueues the next chunk with a `cursor` under the same `runId` and then acks, so a retry repeats only the current chunk. Group reconciliation and stale-mapping deprovision run only after the last chunk. An Organization-level full enqueue keeps at most one not-yet-started run per target: `scim_targets.full_sync_queued_at` claims the slot, the consumer clears it when the run starts, and a claim older than `SCIM_FULL_SYNC_DEDUPE_WINDOW_MS` (one hour) is replaced. Duplicate runs are safe because the consumer is serialized and idempotent.
 - Run visibility: the consumer records `last_run_status` (`succeeded` / `retrying` / `failed`),
   `last_run_error` (a reason code with an optional downstream HTTP status, never a response body or
   token), and `last_run_at` on the target; the Console shows them next to the last successful sync.
@@ -207,9 +187,7 @@ Capabilities already shipped in the outbound SCIM client baseline:
   discovers by the deterministic `externalId` before creating anything. `POST` is therefore only the
   last step after a zero-result discovery, while mapped resources use `PUT`.
 - Group payloads reference downstream User ids from the same target's mappings, never XID User ids.
-- Safe deprovision: only after every currently eligible User and Group upsert succeeds may the
-  consumer process mappings absent from the current Organization Membership plus assignment-gate
-  intersection. Stale Users receive `PATCH active=false`; stale role Groups are replaced with an
+- Safe deprovision: only after every chunk of a full run has upserted every currently eligible User and Group successfully may the consumer process mappings absent from the current Organization Membership plus assignment-gate intersection. Stale Users receive `PATCH active=false`; stale role Groups are replaced with an
   empty member set and retain their mapping for later reactivation. A partial run never deprovisions.
 - Retry and audit: network failures, `408`, `429`, and `5xx` retry through `SCIM_QUEUE`. `429` honors
   either `Retry-After` delta-seconds or HTTP-date, clamped to the Queue delay range; other retries use
@@ -243,15 +221,9 @@ Capabilities still missing:
   managed Membership are written in one D1 batch, so a failure leaves no orphan rows
 - Attribute sync: every sign-in overwrites first_name, last_name, and custom_attributes with the
   non-null values of the latest assertion; a missing attribute does not clear the stored value
-- Role mapping: IdP groups or attributes map to an org_role (configured per connection)
-- Conflict handling: exact idp_id match > email association > create new
-- Email association rule (`apps/server/worker/sso/account-link.ts`, shared by SAML, OIDC, and
-  legacy JIT and by inbound SCIM): the local Email MUST be verified and the IdP Email MUST be
-  trusted. The IdP Email is trusted when the IdP asserts `email_verified: true` (OIDC; inbound SCIM
-  is a trusted directory and counts as asserted) or the Email domain is a verified, active
-  `organization_domains` row of the connection's Organization (wildcard rows cover subdomains;
-  SAML has no `email_verified` and relies on the domain). A trusted Email then links the existing
-  User when one of two conditions holds:
+- Role mapping: the connection's `role_mapping` maps an IdP group to an Organization role (`member`, `admin`, `owner`); the first matching group wins. A new membership gets the mapped role, or `member` when nothing matches. An existing membership is only promoted (member < admin < owner) and never demoted: no match, or a match ranked lower than the current role, keeps the current role, so an IdP group change cannot strip an owner or admin of Organization management
+- Conflict handling: exact idp_id match (then the legacy NameID binding described in section 1) > email association > create new
+- Email association rule (`apps/server/worker/sso/account-link.ts`, shared by SAML, OIDC, and legacy JIT and by inbound SCIM): the local Email MUST be verified and the IdP Email MUST be trusted. The IdP Email is trusted when the IdP asserts `email_verified: true` (OIDC; inbound SCIM is a trusted directory and counts as asserted) or the Email domain is a verified, active `organization_domains` row of the connection's Organization (wildcard rows cover subdomains at any depth, with the same rule as HRD in section 5; SAML has no `email_verified` and relies on the domain). A trusted Email then links the existing User when one of two conditions holds:
   - the User is already an active member of the connection's Organization
   - the IdP asserts `email_verified: true` and the Email domain is verified for that Organization;
     the Organization vouches for every address in that domain, so membership is not required
@@ -273,7 +245,7 @@ attribute updates; it cannot deprovision, so it MUST be paired with SCIM.
 
 - Route by email domain to the corresponding org's SSO connection
 - Domain verification: DNS TXT (`xid-verify=<token>`) or an HTTPS file
-- A domain can be claimed by exactly one org, and wildcard subdomains are supported
+- A domain can be claimed by exactly one org, and wildcard subdomains are supported. A wildcard row covers its subdomains at any depth: HRD first looks for an exact verified, active, non-deleted domain row, then checks each parent domain from the nearest outward (keeping at least two labels) for such a row marked wildcard. JIT trusted-email checks use the same coverage rule
 - After the user enters an email on the sign-in page: look up the domain -> find the active connection
   -> redirect to the IdP
 - Multiple domains per org; unverified domains do not trigger SSO routing
@@ -309,9 +281,9 @@ routes to its connection.
 - Console: the directory page shows the SCIM base URL and the token with copy actions, the grace
   deadline of the previous token after a rotation, and deletes a directory. Deleting a directory
   invalidates its current and previous tokens immediately; users it provisioned keep their accounts
-- User provisioning: create, update, deactivate (`active=false`), reactivate, and delete, applied to
-  the bound XID User
-- Group provisioning: create, update, delete, with incremental member PATCH
+- User provisioning: create, update, deactivate (`active=false`), reactivate, and delete, applied to the bound XID User. `active` accepts a JSON boolean or the case-insensitive strings `"true"` and `"false"` (Microsoft Entra without the `aadOptscim062020` flag deactivates with `"False"`); an omitted value means active, and any other value returns 400 `invalidValue`. POST, PUT, and PATCH share this rule, so a string `"False"` runs the full deprovisioning sequence in 10.1.2
+- `password` is writeOnly and returned=never (RFC 7643 4.1): it is removed before the request body is stored in `scim_raw`, including when nested under the core User schema URN key, on POST, PUT, and the merged PATCH result. Migration `0023_scim_secret_hotfix` removed previously stored top-level `password` keys
+- Group provisioning: create, update, delete, with incremental member PATCH, including removal through `members[value eq "<id>"]` paths. Group PUT replaces the whole member set, pending members included
 - Webhooks: directory events pushed to the application endpoint
 - Attribute mapping: `emails[primary]` (or `userName` when it is an email) becomes the XID User's
   verified primary email when the User is created, and `name.givenName` / `name.familyName` update
@@ -334,6 +306,8 @@ routes to its connection.
   `deactivated`; `banned` or other administrator states are never lifted by the IdP.
   `DELETE /Users/{id}` runs the same sequence, sets the managed membership to `inactive`, maps to a
   directory user soft delete, and never physically deletes the XID User
+- Rehire: when POST creates an active User whose `externalId` (or, without one, case-insensitive `userName`) matches a deleted DirectoryUser of the same directory that was bound to an XID User, that XID User is reused instead of being judged against the email association rule, because its managed membership was suspended by the earlier delete
+- Uniqueness within a directory is judged only among resources that are not deleted: `userName` (case-insensitive), `externalId` (case-exact), and Group `displayName` (case-insensitive). POST, PUT, and PATCH return 409 `uniqueness` on a conflict, and a concurrent write that reaches the partial unique indexes from migration `0024_scim_live_uniqueness` is mapped to the same 409. A PATCH that changes `externalId` also updates the `external_id` column used by responses and `externalId` filters
 - OneLogin quirk: a PATCH of group members can arrive before the user is created, so the server MUST
   handle an unknown member idempotently
 
@@ -369,15 +343,21 @@ missing.
 | ----------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------ |
 | LDAP direct bind              | `POST /sso/ldap/:connectionId/login`                                                           | fake LDAP harness L3             | Needs a real LDAP/AD HTTP gateway or a sidecar bind                            |
 | WS-Federation                 | `GET /sso/wsfed/:connectionId/login`, `POST /sso/wsfed/:connectionId/callback`                 | fake WS-Fed harness L3           | Needs real AD FS/Entra WS-Fed metadata and a signed wresult                    |
-| SWA / password vaulting       | `POST /sso/swa/:connectionId/authenticate`, `POST /sso/swa/:connectionId/vault`                | fake SWA harness L3              | Needs a real target app admin and vault rotation L4                            |
+| SWA / password vaulting       | `/sso/swa/apps`, `/sso/swa/:connectionId/vault`, `/sso/swa/:connectionId/launch`               | route tests L2                   | Needs a real target app login form and vault rotation L4                       |
 | Header-based SSO              | `POST /sso/header/:connectionId/authenticate`                                                  | route tests L2                   | Needs a trusted reverse proxy / Application Proxy and real header injection L4 |
 | Directory connector framework | `GET /sso/directory-connectors/types`, `POST /sso/directory-connectors/:connectionId/validate` | connector registry + validate L2 | SQL/REST/SOAP/PowerShell/ECMA connectors are still stubs                       |
 
-Connection configuration still uses `sso_connections`, where `protocol` takes the values `ldap`,
-`wsfed`, `swa`, or `header`, and the protocol-specific detail lives in `attributeMapping._legacy`.
-SWA vault credential hashes and envelope-encryption metadata live in `attributeMapping._swaVault` and
-`_swaVaultEnvelope`. Every query still goes through the tenant query layer, a connection maps 1:1 to
-an org, and cross-tenant reuse is forbidden.
+Connection configuration still uses `sso_connections`, where `protocol` takes the values `ldap`, `wsfed`, `swa`, or `header`, and the protocol-specific detail lives in `attributeMapping._legacy`. Secret material is write-only: management responses drop it from `legacy_config` and report only `trusted_proxy_secret_configured` and `ldap_gateway_secret_configured`. Every query still goes through the tenant query layer, a connection maps 1:1 to an org, and cross-tenant reuse is forbidden.
+
+LDAP direct bind: each connection authenticates to its own HTTP gateway (`_legacy.ldapGatewayUrl`) with its own bearer secret, `_legacy.ldapGatewaySecret`, submitted once (32 to 1024 characters) and stored only as a KEK envelope in `attributeMapping._ldapGatewaySecretEnvelope`. There is no instance-level gateway secret. A stored secret stays bound to the gateway URL it was submitted for, so changing the URL requires resubmitting the secret (422 otherwise). The gateway URL MUST be public HTTPS without `{` or `}` and without a documentation-reserved host (`example.com`, `example.net`, `example.org`, or the `.example`, `.test`, `.invalid`, `.localhost` TLDs); the same rule applies to the SWA target URL, because both endpoints receive user passwords.
+
+Header-based SSO: a `header` connection cannot be saved without a trusted proxy secret (422). The submitted `_legacy.trustedProxySecret` MUST be at least 32 characters and not the placeholder `replace-with-proxy-secret` published in earlier presets; only its digest (`sha256:v1:<hex>` in `_legacy.trustedProxySecretDigest`) is stored, and a stored placeholder never verifies. The proxy presents the secret in `X-Trusted-Proxy-Secret` (or `X-Forwarded-Auth-Secret`), compared in constant time. `POST /sso/header/:connectionId/authenticate` is rate limited through the RateLimitStore Durable Object per connection and source IP (scope `sso_header`, reset after a successful sign-in), and every failure before a verified identity (unknown connection, wrong secret, missing identity headers) returns the same 401 `invalid_credentials`.
+
+Directory connectors: `POST /sso/directory-connectors/:connectionId/validate` requires an `sk_*` key with `connections:read` or a manager of the connection's Organization; `GET /sso/directory-connectors/types` lists the registry.
+
+SWA is password vaulting for downstream applications that only offer a username and password form; it never signs a member in to XID. A signed-in, non-impersonated member of the connection's Organization stores their own downstream username and password through `POST /sso/swa/:connectionId/vault` (the session is checked before the body), reads whether credentials exist through `GET`, and removes them through `DELETE`. Credentials live in the `swa_credentials` table, one row per (tenant, connection, user), with username and password sealed together as one KEK envelope that also binds the connection and user IDs, so a row copied to another member fails to open; saves are tenant-bound UPSERTs. `GET /sso/swa/:connectionId/launch` returns a page that auto-submits the stored credentials to `_legacy.swaTargetUrl` using the configured `swaUsernameField` and `swaPasswordField` names. `GET /sso/swa/apps` lists the active SWA connections of the member's Organizations with the target origin and whether credentials are stored; the account portal's application sign-in section uses it to save, delete, and open each application.
+
+WS-Federation callback: `wresult` is parsed as a WS-Federation 1.2 `wst:RequestSecurityTokenResponse` (WS-Trust 2005/02 or 1.3 namespace), optionally inside a `RequestSecurityTokenResponseCollection`, and `RequestedSecurityToken` MUST hold exactly one token. A SAML 2.0 assertion is verified with the assertion itself as the document root (no `samlp:Response` wrapper): the 9.2 structural allowlist, a required assertion signature under 9.3 to 9.5, Issuer equal to the connection's IdP entity ID, Audience equal to `wtrealm`, the 9.7 time windows, and exactly one AuthnStatement; `InResponseTo` MUST be absent, and SubjectConfirmationData `Recipient` is compared with the reply URL only when present, because AD FS often omits it. A SAML 1.1 assertion (`urn:oasis:names:tc:SAML:1.0:assertion`) requires an enveloped signature whose single Reference points at the root `AssertionID`, the `Issuer` attribute equal to the IdP entity ID, `Conditions/@NotOnOrAfter` (a missing `NotBefore` defaults to `IssueInstant`), `wtrealm` in every `AudienceRestrictionCondition`, a bearer confirmation method, the same subject in every statement, and an `AuthenticationInstant` not in the future; its attributes are keyed `AttributeNamespace/AttributeName`, matching the claim URIs AD FS emits in SAML 2.0. Both versions use the 9.4 digest and signature allowlist, so an AD FS relying party still signing with SHA-1 is rejected and must be switched to SHA-256. Attributes go through the connection's attribute mapping and `idpId` rule. `wctx` is compared only with the server-side flow stored in the OAuth flow Durable Object (single use, same connection) and never with the token; a callback without `wctx` is IdP-initiated and is accepted only when `_legacy.wsfedAllowIdpInitiated` is `true`. The connection MUST have IdP certificates configured, and development and tests use the same verification path (the fake WS-Fed IdP emits signed RSTRs). Assertion replay is tracked as in 9.7.
 
 Still unsupported: linked sign-on, native IWA/Kerberos termination, non-HTTP LDAP sockets, and real
 Kerberos constrained delegation. Kerberos ships as deployment-pattern documentation only; XID does not
@@ -483,8 +463,7 @@ with `error=malformed_xml`):
 - `@xmldom/xmldom` configuration: do not resolve external resources (pure JavaScript has no network
   access so SSRF is impossible anyway, but DTDs are still disabled explicitly).
 
-After parsing, assert that the document is well-formed with a single root element `samlp:Response`
-(namespace `urn:oasis:names:tc:SAML:2.0:protocol`); otherwise return 400.
+After parsing, assert that the document is well-formed with a single root element `samlp:Response` (namespace `urn:oasis:names:tc:SAML:2.0:protocol`); otherwise return 400. WS-Federation tokens are verified with the SAML 2.0 or SAML 1.1 `Assertion` as the root element instead (section 7.1).
 
 ### 9.2 XSD schema validation (mandatory, cannot be disabled)
 
@@ -517,12 +496,12 @@ position all reject with `schema_invalid` before signature verification.
 
 ### 9.3 Selecting the signature node (envelope versus assertion precedence)
 
-SAML allows signing the Response, the Assertion, or both. There are two connection-level switches
-(both default to true, see certificate management in section 1):
+SAML allows signing the Response, the Assertion, or both. There are two connection-level switches, `want_authn_response_signed` and `want_assertions_signed`. Both columns default to true; the IdP presets set them to the layer each IdP signs by default (Entra, Google Workspace, AD FS, Shibboleth, JumpCloud, OneLogin, and PingFederate sign the Assertion only; Keycloak signs the Response only). The switches select which layers are checked:
 
-- `want_authn_response_signed` (default true): require the Response node to be signed.
-- `want_assertions_signed` (default true): require every consumed Assertion to be signed (a plaintext
-  Assertion obtained by decrypting an EncryptedAssertion is held to the same requirement).
+- Only `want_authn_response_signed`: the Response MUST carry a valid signature.
+- Only `want_assertions_signed`, or both switches false: the consumed Assertion MUST carry a valid signature. Both false is treated as assertion-required, so verification can never be skipped.
+- Both switches true: a valid signature on either layer is sufficient, because most IdPs sign only one layer by default. A Response signature covers the consumed Assertion: its Reference is pinned to the Response root and the structural allowlist permits exactly one assertion child.
+- A checked layer that carries a signature MUST verify; a broken signature fails the Response even when the other layer verified. When no checked layer carries a signature the result is `signature_required`.
 
 Hard rules for node location (XSW defense, following OWASP and PortSwigger):
 
@@ -533,8 +512,7 @@ Hard rules for node location (XSW defense, following OWASP and PortSwigger):
    descendant), and the Assertion signature MUST be `/samlp:Response/saml:Assertion/ds:Signature` (or
    a direct child of the decrypted Assertion). Namespace prefixes are resolved through registered,
    fixed namespace URIs and never through the literal prefixes declared in the document.
-3. Each verified node MUST have **exactly one** direct `ds:Signature` child (zero with the
-   corresponding switch set to true rejects; more than one rejects).
+3. Each checked node has **at most one** direct `ds:Signature` child: zero is resolved by the layer rule above, and more than one rejects.
 4. `ds:SignedInfo` MUST contain **exactly one** `ds:Reference` (multiple References reject, defending
    against complexity and wrapping attacks).
 5. `ds:Reference` MUST have **at most 2** Transforms, and only `enveloped-signature`
@@ -579,9 +557,7 @@ For the selected signature node:
    signing key is expected, obtain it from the IdP directly, store it locally, and ignore the KeyInfo
    in the document). During certificate rotation the connection stores both the old and new
    certificates, and verification against either one is sufficient.
-2. Canonicalize `ds:SignedInfo` with exclusive C14N and verify `ds:SignatureValue` with the
-   certificate's public key (`crypto.subtle.verify`, RSASSA-PKCS1-v1_5 + SHA-256 and so on). Failure
-   rejects.
+2. Canonicalize `ds:SignedInfo` with the algorithm its `ds:CanonicalizationMethod` declares and verify `ds:SignatureValue` with the certificate's public key (`crypto.subtle.verify`, RSASSA-PKCS1-v1_5 + SHA-256 and so on). Failure rejects. Inbound `SignedInfo` may use exclusive C14N (`http://www.w3.org/2001/10/xml-exc-c14n#`) or inclusive C14N 1.0 (`http://www.w3.org/TR/2001/REC-xml-c14n-20010315`); any other method fails the structural check. Reference Transforms remain limited to step 5 of 9.3. Every embedded XML signature XID emits (AuthnRequest, Response, Assertion, status Response, LogoutRequest, LogoutResponse) sets exclusive C14N on `SignedInfo` explicitly, because xmldsigjs defaults `SignedInfo` to inclusive C14N (PeculiarVentures/xmldsigjs issues [#64](https://github.com/PeculiarVentures/xmldsigjs/issues/64) and [#59](https://github.com/PeculiarVentures/xmldsigjs/issues/59)); inclusive output includes in-scope ancestor namespaces, so a signed Assertion moved into another envelope would stop verifying. Regression samples signed outside xmldsigjs cover a default-namespace Assertion signed in place inside a Response (AD FS style), a Response-level signature over a prefixed Assertion, and an inclusive-C14N `SignedInfo` verified in its signing context. `UNKNOWN`: a real IdP sample combining inclusive C14N `SignedInfo` with a default-namespace Assertion signed in place has not been verified; such a Response from a real IdP could fail verification, and capturing and verifying one closes this item.
 3. Certificate validity: check `notBefore` and `notAfter`, using the connection's
    `saml_clock_skew_ms` tolerance. The default is `180000` (+-3 minutes), the accepted range is
    `0..300000`, and the same value is used for Assertion time checks. During rotation, invalid
@@ -598,55 +574,36 @@ For the selected signature node:
 When the Response contains a `saml:EncryptedAssertion` in place of a plaintext Assertion:
 
 1. Locate `/samlp:Response/saml:EncryptedAssertion/xenc:EncryptedData` (an absolute path, unique).
-2. Decrypt `xenc:EncryptedKey`: the SP private key (the connection-level SP decryption private key,
-   which may or may not be the same as the SP signing private key, stored encrypted in the CertStore,
-   see section 1) decrypts the symmetric session key (AES-128/256) using RSA-OAEP
-   (`crypto.subtle.decrypt`, `RSA-OAEP` with SHA-1 or SHA-256 as declared in
-   `xenc:EncryptionMethod`). An algorithm outside the allowlist rejects.
-3. Use the session key to decrypt `xenc:CipherValue` (AES-GCM or AES-CBC as declared), producing the
-   plaintext Assertion XML bytes.
-4. Run the plaintext Assertion back through the 9.1 safety pre-checks and 9.2 schema validation, then
-   parse it into a DOM.
-5. **The decrypted Assertion is held to the same signing requirement** (when
-   `want_assertions_signed=true`): run the plaintext Assertion through 9.3 to 9.5, where the signature
-   node is the direct `ds:Signature` child of the plaintext Assertion and the referenced ID is unique
-   within the plaintext Assertion document. The combination of **signing the Response only, not the
-   Assertion, plus EncryptedAssertion** is rejected by default (an attacker could swap the inner
-   payload), unless the connection explicitly sets `want_assertions_signed=false` (not recommended,
-   and audited).
-6. Ordering: **decrypt first, then verify** (decrypt-then-verify), because the signature is invisible
+2. Locate `xenc:EncryptedKey`: inline in `xenc:EncryptedData/ds:KeyInfo` (more than one inline key rejects); otherwise a sibling under `saml:EncryptedAssertion`, selected by the `ds:RetrievalMethod` URI (which MUST match exactly one sibling `Id`) or, without a RetrievalMethod, the single sibling.
+3. Unwrap the session key with the SP decryption private key (the connection-level SP decryption key, which may or may not be the same as the SP signing key, stored encrypted in the CertStore, see section 1) through `crypto.subtle.decrypt` with `RSA-OAEP`. The OAEP hash comes from the EncryptedKey's `xenc:EncryptionMethod`, and the private key is imported as a non-extractable key for that hash on every message:
+
+   | Key transport `Algorithm`                         | OAEP digest (`ds:DigestMethod`)                    | MGF1 digest                                                   |
+   | ------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
+   | `http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p` | SHA-1 by default, or SHA-1/256/384/512 if declared | Always SHA-1; an `xenc11:MGF` child rejects                   |
+   | `http://www.w3.org/2009/xmlenc11#rsa-oaep`        | SHA-1 by default, or SHA-1/256/384/512 if declared | `xenc11:MGF` (`mgf1sha1`/`256`/`384`/`512`), SHA-1 by default |
+
+   Web Crypto uses one hash for OAEP and MGF1, so a combination with different digests (for example SHA-256 OAEP with MGF1 SHA-1) rejects with `decryption_failed`; Okta, AD FS, and Shibboleth defaults (`rsa-oaep-mgf1p` with SHA-1) are accepted. `xenc:OAEPparams` is passed as the OAEP label. SHA-1 is accepted here only for key transport; the signature digest allowlist in 9.4 still rejects it.
+
+4. Decrypt `xenc:CipherValue` with the session key. The data algorithm MUST be `aes128-gcm` or `aes256-gcm` (XML Encryption 1.1) or `aes128-cbc` or `aes256-cbc` (XML Encryption 1.0), and the session key length MUST match it. The IV is the ciphertext prefix (12 bytes for GCM, 16 for CBC). CBC padding follows XML Encryption section 5.2: only the last byte is read as the padding length, so ISO 10126 random padding written by Santuario and .NET is accepted. The session key bytes are zeroed after use. The result is the plaintext Assertion XML bytes.
+5. Run the plaintext Assertion back through the 9.1 safety pre-checks and 9.2 schema validation, then parse it into a DOM.
+6. **The decrypted Assertion goes through the same layer rule as 9.3**: its signature node is the direct `ds:Signature` child of the plaintext Assertion, and the referenced ID is unique within the plaintext Assertion document. When the Response layer is not checked, an unsigned decrypted Assertion fails with `signature_required`. When both layers are checked, a valid Response signature is sufficient because its digest covers the EncryptedAssertion ciphertext, so the inner payload cannot be swapped; a signature present on the decrypted Assertion must still verify.
+7. Ordering: **decrypt first, then verify** (decrypt-then-verify), because the signature is invisible
    inside the ciphertext. However, the SP private key used for decryption and the IdP public key used
    for verification are two separate keys: a successful decryption does not imply trust, and signature
    verification is the trust anchor.
 
 ### 9.7 Assertion semantic validation (after signature verification passes)
 
-Validate the verified Assertion in order; any failure returns per 9.8:
+Validate the verified Assertion in order; any failure returns per 9.8. Every time field is checked against its own meaning in SAML Core with the connection's `saml_clock_skew_ms` tolerance (default +-3 minutes, maximum +-5 minutes); an upper bound named `NotOnOrAfter` is exclusive. A time attribute that is present but not a valid date-time fails closed.
 
-1. `saml:Issuer` equals the IdP EntityID configured on the connection (exact string match).
-2. `saml:Conditions/@NotBefore` <= now < `@NotOnOrAfter`, using the connection's
-   `saml_clock_skew_ms` tolerance (default +-3 minutes, maximum +-5 minutes;
-   `NotOnOrAfter` is an exclusive upper bound).
-3. `saml:Conditions/saml:AudienceRestriction/saml:Audience` contains this SP's EntityID (the SP
-   EntityID corresponding to our ACS, taken from TenantContext plus the connection).
-4. `saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData` MUST carry a non-empty
-   `@Recipient` and a syntactically valid `@NotOnOrAfter`. Missing, blank, or malformed values fail
-   closed. `@Recipient` equals our ACS URL exactly and `@NotOnOrAfter` has not passed, using the same
-   connection clock-skew tolerance. `@InResponseTo` (in the SP-initiated case) equals an AuthnRequest
-   ID that we issued and have not consumed (stored in a Durable Object, single use, replay defense).
-   In the IdP-initiated case that attribute MUST be absent, and its presence rejects (confusion
-   defense).
-5. A login Assertion MUST contain exactly one `saml:AuthnStatement`. Its `@AuthnInstant` is required
-   and MUST be a valid date-time. It MUST NOT be later than `now + saml_clock_skew_ms`, and it MUST
-   NOT predate the signed Assertion freshness window
-   (`Conditions/@NotBefore - saml_clock_skew_ms`). Missing, duplicate, malformed, future, or stale
-   authentication evidence fails closed.
-6. `samlp:Response/samlp:Status/samlp:StatusCode/@Value` equals
-   `urn:oasis:names:tc:SAML:2.0:status:Success`, otherwise handle it as an IdP-reported error (403).
-7. Replay defense: record `Assertion/@ID` in the consumed set (a Durable Object, with TTL =
-   `NotOnOrAfter` plus the skew window); a repeat rejects.
-8. Extract the NameID (the primary key idp_id, see section 1) and the mapped attributes (email,
-   firstName, lastName, groups) and enter JIT provisioning (section 4).
+1. `samlp:Response/samlp:Status/samlp:StatusCode/@Value` equals `urn:oasis:names:tc:SAML:2.0:status:Success`, otherwise handle it as an IdP-reported error (403). A present `samlp:Response/@Destination` MUST equal our ACS URL. Both checks apply only when a Response wraps the Assertion.
+2. `saml:Issuer` equals the IdP EntityID configured on the connection (exact string match).
+3. `saml:Conditions` is required (SAML Core 2.5.1). Its `@NotBefore` and `@NotOnOrAfter` are each optional; a missing `@NotBefore` takes the Assertion `@IssueInstant`, which MUST be valid. The Assertion is rejected when `now + skew < NotBefore` or `now - skew >= NotOnOrAfter`.
+4. `saml:Conditions/saml:AudienceRestriction/saml:Audience` contains this SP's EntityID (the SP EntityID corresponding to our ACS, taken from TenantContext plus the connection).
+5. `saml:Subject/saml:SubjectConfirmation` MUST use the bearer method and carry `saml:SubjectConfirmationData` (SAML Core 2.4.1.2). On the ACS its `@Recipient` MUST be present and equal our ACS URL exactly; WS-Federation compares it only when present (section 7.1). `@NotOnOrAfter` is required and MUST not have passed; an optional `@NotBefore` MUST not be in the future. A present `@InResponseTo` MUST equal an AuthnRequest ID that we issued and have not consumed (stored in a Durable Object, single use); an Assertion without it is handled as IdP-initiated.
+6. A login Assertion MUST contain exactly one `saml:AuthnStatement` with a valid `@AuthnInstant` (SAML Core 2.7.2). `@AuthnInstant` is the moment the user actually authenticated, so it only MUST NOT be later than `now + skew`; it may be hours earlier than `Conditions/@NotBefore` when the IdP reuses an existing session. An optional `@SessionNotOnOrAfter` that has passed rejects, because the IdP session has ended. Missing, duplicate, or malformed authentication statements fail closed.
+7. Replay defense: claim `Assertion/@ID` in the consumed set held by the `ChallengeStore` Durable Object. The key is kept until the latest moment the Assertion could still be accepted: TTL = min(`Conditions/@NotOnOrAfter`, `SubjectConfirmationData/@NotOnOrAfter`) + the maximum clock skew (5 minutes) - now. The `ChallengeStore` `/claim` action accepts a TTL of at most 24 hours (`SAML_ASSERTION_REPLAY_MAX_TTL_MS`) and returns 400 for an out-of-range TTL instead of substituting a default; an Assertion whose replay TTL would exceed 24 hours is rejected with 403 `assertion_expired` rather than stored with a shortened window. A repeat claim rejects with `replay_detected`. WS-Federation assertions use the same rule.
+8. Extract the idp_id (the NameID, or the configured `idpId` attribute, see section 1) and the mapped attributes (email, firstName, lastName, groups) and enter JIT provisioning (section 4).
 
 ### 9.8 ACS endpoint error branches (HTTP status mapping)
 
@@ -657,7 +614,7 @@ while writing an audit entry plus a structured log. Status codes:
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------- | ------------------------------------------------ |
 | Malformed request                   | SAMLResponse missing, base64 decode failure, XML not well-formed, or a DTD pre-check hit                              | 400  | `malformed_request` / `malformed_xml`    | Never reaches signature verification             |
 | Schema validation failure           | XSD or the structural allowlist did not pass                                                                          | 400  | `schema_invalid`                         | Blocks the XSW injection point                   |
-| Signature missing                   | The corresponding want_*_signed is true but there is no signature node                                                | 401  | `signature_required`                     |                                                  |
+| Signature missing                   | No layer that 9.3 checks carries a signature, so none can be verified.                                                | 401  | `signature_required`                     |                                                  |
 | Signature invalid                   | DigestValue mismatch, SignatureValue verification failure, weak algorithm, illegal Reference, or an XSW detection hit | 401  | `signature_invalid`                      | Always 401; never differentiated for the browser |
 | Decryption failure                  | EncryptedAssertion decryption failed or the algorithm is not on the allowlist                                         | 400  | `decryption_failed`                      |                                                  |
 | Issuer mismatch                     | Assertion Issuer does not equal the configured IdP EntityID                                                           | 403  | `issuer_mismatch`                        |                                                  |
@@ -669,8 +626,7 @@ while writing an audit entry plus a structured log. Status codes:
 | JIT disabled and the user is absent | The connection forbids JIT and no User matches the idp_id                                                             | 403  | `provisioning_disabled`                  | See section 4                                    |
 | Server error                        | The decryption key is unavailable, or an internal exception occurred                                                  | 500  | `internal_error`                         |                                                  |
 
-Success: establish the session and 302 to the RelayState (validated against this tenant's allowlist of
-return URLs; a non-allowlisted target falls back to the default post-sign-in page).
+Success: establish the session and 302 to the landing page. An SP-initiated sign-in resumes the flow stored with its AuthnRequest; an IdP-initiated sign-in uses the RelayState when it resolves to the instance issuer origin, otherwise the connection's `relay_state_url`, otherwise the default post-sign-in page (section 1).
 
 Convention: `signature_required` and `signature_invalid` use 401 (authentication failure); semantic
 validation failures (issuer, audience, expiry, recipient, replay) use 403 (authenticated but the
@@ -685,8 +641,7 @@ assertion is unacceptable); request and ciphertext format failures use 400.
   `https://{tenant}.xid.dev/saml/{connection_id}` or the custom domain, taken from TenantContext, so
   it is tenant-isolated).
 - `md:SPSSODescriptor/@protocolSupportEnumeration` = `urn:oasis:names:tc:SAML:2.0:protocol`.
-- `md:SPSSODescriptor/@AuthnRequestsSigned` (whether we sign the AuthnRequest, matching the
-  connection's SP signing switch) and `@WantAssertionsSigned` (= want_assertions_signed).
+- `md:SPSSODescriptor/@AuthnRequestsSigned` (true exactly when the tenant has an active `saml_sp_signing` certificate, which is also the condition under which SP-initiated AuthnRequests are signed) and `@WantAssertionsSigned` (= want_assertions_signed).
 - `md:SPSSODescriptor/md:KeyDescriptor[@use="signing"]`: the SP signing certificate
   (`ds:X509Certificate`, base64 DER, without PEM headers).
 - `md:SPSSODescriptor/md:KeyDescriptor[@use="encryption"]`: the SP encryption certificate (required
@@ -759,6 +714,10 @@ function handlePatch(tenant_id, resource_type, resource_id, body):
           for v in asArray(opItem.value):
             if not staged[target].containsByValue(v):
               staged[target].append(resolveMember(v))   # unknown member handling below
+        else if target has filter and no match:
+          # seed one element from the filter's `attr eq "x"` conjunction, otherwise noTarget
+          if filter is not an eq conjunction: return 400 scimType=noTarget
+          staged[target].append(seedFromFilter(target.filter)) then set target.sub
         else:
           if target.attr is readOnly: return 400 scimType=mutability
           if value type mismatch:     return 400 scimType=invalidValue
@@ -782,7 +741,7 @@ function handlePatch(tenant_id, resource_type, resource_id, body):
         staged.unset(target)
     applied = true
 
-  if validation(staged) fails uniqueness (userName/email):
+  if validation(staged) fails uniqueness (userName/externalId among non-deleted users):
     return 409 scimType=uniqueness
   repo.save(staged, where tenant_id, directory.id)      # isolation filter injected automatically
   emitWebhook(resourceChangedEvent(staged))             # asynchronous, see 10.2
@@ -795,13 +754,10 @@ Key points:
 
 - The whole Operations batch is applied or none of it is (a staged copy, persisted once at the end).
   If any op returns an error mid-way, **nothing is persisted**.
-- An unrecognized `op` or a malformed body returns `invalidSyntax`; a path syntax error or a path
-  pointing at a nonexistent attribute definition returns `invalidPath`; a filtered path with no match
-  under replace and certain other scenarios returns `noTarget`; a wrong value type or a missing
-  required value returns `invalidValue`; modifying something readOnly (such as `id` or `meta`) returns
-  `mutability`.
-- Case sensitivity: SCIM attribute names are caseExact=false (with specific exceptions), and the `op`
-  keyword is case-insensitive.
+- Paths are parsed by the same lexer and recursive-descent parser as filters (10.5): an attribute with an optional `.sub` sub-attribute, a schema URN prefix such as the enterprise User extension (`urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:department`), and a value path `attr[filter]` with an optional `.sub`. Keys of a path-less value map go through the same parser: a dotted or URN key is applied as a path, an object under the core schema URN is merged into the root, and an object under an extension URN is expanded key by key.
+- An unrecognized `op` or a malformed body returns `invalidSyntax`; a path syntax error returns `invalidPath`; a filtered path with no match returns `noTarget` under replace and under add when the filter is not an `eq` conjunction; a path-less remove returns `noTarget`; a wrong value type or a missing required value returns `invalidValue`. `id` equal to the current resource ID is ignored (Okta sends it when renaming a Group), while a different `id` returns `mutability`; `meta` and `schemas` in a value map are ignored.
+- Group member removal accepts `members[value eq "<id>"]`, including several conditions joined with `or`; removing a member that is not present succeeds.
+- Case sensitivity: SCIM attribute names are caseExact=false (with specific exceptions), and the `op` keyword is case-insensitive.
 
 ### 10.1.1 Unknown member idempotency path (the OneLogin ordering quirk, see the decisions in section 6)
 
@@ -977,3 +933,11 @@ not implemented, see section 6); `members[].value` maps to DirectoryUser.id (an 
 pending, see 10.1.1). Every Users and Groups query goes through the Drizzle tenant query layer, which
 injects `WHERE tenant_id = ? AND directory_id = ?` (see the tenant-isolation rule), so cross-directory
 and cross-tenant access returns 404 without leaking existence.
+
+`POST /Users` and `POST /Groups` return 201 with `Location` (= `meta.location`) and `ETag` (= `meta.version`) headers (RFC 7644 3.3 and 3.14).
+
+### 10.5 Filters, uniqueness, and Bulk
+
+- Filters (RFC 7644 3.4.2.2) are tokenized first (quoted strings, parentheses, brackets, attribute paths, operators) and then parsed by recursive descent with precedence `not` > `and` > `or`, so a value containing `and` or `or`, such as `displayName eq "Brand Team"`, is not split. Operators are `eq`, `ne`, `co`, `sw`, `ew`, `gt`, `ge`, `lt`, `le`, and `pr`; grouping, value paths (`emails[type eq "work"]`), sub-attributes, and schema URN prefixes are supported. A syntax error returns 400 `invalidFilter`.
+- Uniqueness: see section 6. Deleted Users and Groups do not hold their `userName`, `externalId`, or `displayName`, so a deleted resource can be created again with the same values.
+- Bulk (RFC 7644 3.7): `failOnErrors` MUST be a positive integer and is the error count after which the remaining operations are skipped; any other value, including `true`, returns 400 `invalidValue`. A `bulkId:<id>` reference in an operation path or anywhere in `data` is replaced with the ID of the resource created earlier in the same request; an unresolved reference fails that operation with 409. More than the advertised `maxOperations` returns 413 `tooMany`, and a payload over `maxPayloadSize` returns 413 `tooLarge`. Sub-requests run with the outer request's execution context, so their audit, webhook, and outbound SCIM background work stays alive after the Bulk response is sent.

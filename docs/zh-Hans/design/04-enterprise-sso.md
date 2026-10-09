@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=3b0a69c7a7bbf60e09ae2e045c781c8eab66ec99 -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=bc231a6b7246b6810b9acea56aa55515b5f02e6e -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -14,20 +14,24 @@
 - SAML 2.0 SP:ACS 端点、SP EntityID、SP metadata XML 生成与下载
 - OIDC RP:authorization/token/userinfo,PKCE
 - SP-initiated:重定向到 IdP authorize,带 RelayState,处理回调换 code/assertion
-- IdP-initiated:接受 IdP POST 到 ACS,用 connection 的 relay_state_url 决定跳转
-- IdP metadata 导入:URL 自动拉取(定期刷新)+ XML 上传,解析 entityID/SSO URL/SLO URL/证书
-- 属性映射:标准字段(email/firstName/lastName/idp_id)自动 + 自定义字段管理员配置
-- 证书管理:SP 私钥对 AuthnRequest 签名(可选);验证 IdP assertion 签名(必须);证书轮换期新旧并存;EncryptedAssertion 解密
+- IdP-initiated:接受 IdP POST 到 ACS。落地页取与实例 issuer 同源的 RelayState,其次是 connection 的 `relay_state_url`,再次是默认登录后页。`relay_state_url` 通过管理 API 和 Console 写入,最长 2048 字符,按实例 issuer 解析(相对路径存为绝对地址),与 issuer 不同源时返回 422。authorize 与邀请续接路径不能作为配置的落地页,这两类续接只能来自服务器端 flow 状态
+- IdP metadata 导入:保存 SAML connection 时带 `idp_metadata_url` 或上传的 `idp_metadata_xml`,当场拉取并解析出 entityID、SSO URL、SLO URL 和证书。两个字段同时提交、URL 不可达或不是 public HTTPS、响应非 2xx、内容超过 1 MiB、XML 无法解析,或解析出的 SSO/SLO URL 不是 public HTTPS,都返回 422,`paramName` 为提交的那个字段。同一请求里显式给出的字段优先于 metadata 解析值。上传 XML 会清掉已存的 URL,提交 URL 会清掉已存的 XML;每日 Cron 只刷新 URL 来源
+- 属性映射:`email`、`firstName`、`lastName`、`groups` 指定要读取的 SAML 属性或 OIDC claim;OIDC 配置的 claim 不在 id_token 里时回退标准 claim(`email`、`given_name`、`family_name`、`groups`)。SAML 的 `idpId` 指定作为稳定主键的属性(见下方设计决策)
+- 证书管理:租户有 active 的 `saml_sp_signing` 证书时,每个 SP-initiated AuthnRequest 都按 HTTP-Redirect binding 对 `SAMLRequest`、`RelayState`、`SigAlg` 做 detached 签名,SP metadata 的 `AuthnRequestsSigned` 按同一个证书判断;验证 IdP assertion 签名(必须);证书轮换期新旧并存;EncryptedAssertion 解密
 - Console 端点:SAML connection 展示基于实例 issuer 的绝对 SP entity ID、ACS URL、SP metadata URL 与 SLO URL。OIDC connection 为用户可发起登录的每个 origin(实例 issuer、租户主机、Hosted Auth origin)各展示一个 callback URL,因为 callback 跟随登录发起的 origin,管理员需要全部登记到 IdP。出站 SAML 应用页(第 2 节)展示绝对的 IdP entity ID、metadata、SSO 与 SLO URL;模板给出的下游 OIDC redirect URI 是只读参考文字,不会保存
 
 ### 设计决策
 
 - 每个 org 独立一条 SSO connection,connection 与 org 1:1,不跨租户复用
-- 主键用 idp_id(SAML NameID / OIDC sub),禁止仅靠 email 匹配(防 email 变更孤立账户)
+- 主键用 idp_id,禁止仅靠 email 匹配(防 email 变更孤立账户)。OIDC 的 idp_id 固定是 `sub`。SAML 与 WS-Federation 默认取 NameID;`attribute_mapping.idpId` 指定了属性时改用该属性(例如 Entra 的 object identifier,因为 Entra 默认 NameID 是 UPN,UPN 变化后会变)。配置了属性但断言里缺值或为空时,登录以 400 `malformed_request` 拒绝,不回退 NameID。connection 改用 `idpId` 属性后,仍按断言 NameID 绑定的 identity 作为旧绑定匹配:JIT 登录该 User 并补绑新的 idp_id,已有账号不会重复创建
+- 保存 connection 时,`idp_entity_id`、`idp_sso_url`、`idp_slo_url`、`idp_metadata_url`、`oidc_discovery_url` 含 `{` 或 `}` 一律 422,模板值不能入库。`attribute_mapping` 中 `_` 开头的键由服务端维护,客户端只能提交 `_legacy`
 - RelayState 最大 2KB,超长截断记日志
 - OIDC RP connection 在 `/v1/connections` 与 `/v1/organizations/:orgId/sso-connections` 都接受只写字段 `oidc_client_secret`。它经 KEK 信封加密存入 `oidc_client_secret_ciphertext`,读接口只返回 `oidc_client_secret_configured`。省略该字段保留原值,`null` 清除。换码始终发送 PKCE `code_verifier`;配置了 secret 时使用 `client_secret_basic`(按 RFC 6749 2.3.1 先 form-urlencode),仅当 discovery 列出 `client_secret_post` 而未列出 `client_secret_basic` 时改用 post。未配置 secret 时按 PKCE public client 换码
 - SP-initiated 的 `/sso/oidc/*` 与 `/sso/saml/*/login` 是浏览器导航:预期失败与 IdP 的 `access_denied` 重定向到 Hosted UI `/sign-in?error=<code>`(见 01 章"浏览器侧错误")。ACS 保持 HTML 协议错误页
-- IdP metadata URL 每 24h 后台轮询刷新,证书变更触发告警 webhook
+- 每日 Cron(`0 2 * * *`)刷新每个带 `idp_metadata_url` 的 active SAML connection。只有 entity ID、SSO URL、SLO URL 或证书集合有变化时才改写配置,证书集合变化时发出 `connection.saml_certificate_renewed` webhook。每次结果都记录在 connection 上:成功写 `idp_metadata_refreshed_at` 并清空错误列;失败保留上次配置、写日志,并写 `idp_metadata_last_error`(`metadata_url_not_allowed`、`metadata_http_status`、`metadata_too_large`、`metadata_invalid`、`metadata_endpoint_not_allowed` 或 `metadata_fetch_failed`)和 `idp_metadata_last_error_at`,Console 连接详情展示这些信息。Cron 的每条语句都绑定 `tenant_id`
+- OIDC discovery 信任:配置的 discovery URL 必须与 discovery 返回的 `issuer` 同源,issuer 必须是 public HTTPS 且不带 userinfo、query、fragment,ID token 的 `iss` 必须与其完全一致。`authorization_endpoint`、`token_endpoint`、`jwks_uri` 只要求是不带 userinfo 的 public HTTPS,可以在其他主机上(Google 的 token 与 JWKS 在 `googleapis.com`),与 OIDC Discovery 1.0 第 4.3 节一致
+- 上游 OIDC JWKS 缓存在 KV `provider_jwks:{jwks_uri}`,TTL 为 `SSO_OIDC_JWKS_CACHE_TTL_SEC`(3600 秒),与社交登录同一键族。签名带未知 `kid` 时强制回源一次并重验;同一 `jwks_uri` 每 `PROVIDER_JWKS_FORCED_REFRESH_MIN_INTERVAL_SEC`(300 秒)最多强制回源一次,包括冷缓存在内的任何一次回源都计入这个间隔
+- 上游 ID token 校验(OIDC Core 3.1.3.7):`exp` 与 `iat` 必须是数字;`aud` 有多个值时必须带 `azp`;带了 `azp` 就必须等于该 connection 的 client ID;`nonce` 必须与 flow 一致;必须有 `sub`。`email_verified` 只为标准 `email` claim 作证,从其他映射 claim 读出的邮箱不视为已验证
 - 所有 IdP SSO、SLO、metadata、OIDC discovery URL 必须是 public HTTPS。management 写入路径先校验,
   SAML/OIDC runtime 再校验已存记录,旧数据或直接导入不能绕过边界。metadata fetch 禁止
   redirect,限制 response 大小并设置 timeout;从 metadata 解析出的 SSO 和可选 SLO URL 在持久化前
@@ -60,32 +64,25 @@ Console:组织还没有连接时,`/console/org/sso` 显示首次为空页;有连
 SAML IdP baseline 已落地的能力:
 
 - IdP metadata XML:entityID、SSO URL、签名证书、NameIDFormat。
-- IdP 签名证书 provisioning:创建下游 SAML app 时若未显式提供 `idp_signing_cert_id`,会复用
-  tenant 内仍有效的证书或自动生成证书,以 `saml_idp_signing` usage 写入 `cert_store`,并使用
-  Workers Secret KEK 对私钥做信封加密。runtime signing 接受仍有效的 `active` 和 `retiring`
-  证书;自动选择只分配 `active`,而 `retiring` 在 trust rollover 期间继续服务已配置的 app。
-  有效期以 X.509 证书本身为准,不信任可空的数据库边界。唯一 active IdP 证书尚未生效或剩余
-  有效期不超过 30 天时,provisioning 会在同一个 D1 batch 中把该 exact certificate 原子改为
-  `retiring` 并插入 replacement。active certificate partial unique index 只作用于
-  `saml_idp_signing`,不会改变 SP signing 或 encryption certificate 的状态。
-- SP 注册:每个下游 SaaS 独立记录 ACS URL、SP EntityID、Audience、Recipient、attribute
-  mapping、NameID policy。ACS 和可选 SLO URL 在注册时必须是 public HTTPS,发断言或登出前
-  runtime 再次校验。
-- SSO endpoint:接收 SP-initiated SAMLRequest 或 IdP-initiated app launch,验证用户 session 和
-  org membership。SP-initiated 请求先经过同一套安全 XML 预检查和专用 closed AuthnRequest
-  grammar,再对注册 SP 的 Issuer、Destination、HTTP-POST binding 和 ACS 做精确匹配。Metadata
+- IdP 签名证书:租户级的一组 `cert_store` 行,usage 为 `saml_idp_signing`,租户内所有出站 SAML app 共用,私钥用 Workers Secret KEK 信封加密。状态依次为 `next` -> `active` -> `retiring` -> `retired`;部分唯一索引保证每个租户最多一张 `active` 和一张 `next`,不影响 SP 签名或加密证书。有效期以 X.509 证书本身为准,不信任可空的数据库边界。创建 app 时未提供 `idp_signing_cert_id` 就使用当前 `active` 证书,租户还没有任何证书时才生成第一张;显式提供的 `idp_signing_cert_id` 必须是租户内仍在有效期的 `active` 或 `retiring` 证书,否则 422;`active` 证书过期时返回 503,不会自动换证。
+- 证书轮换,对照签名密钥四步轮换:每日 Cron 在 `active` 证书 60 天内到期时发布一张 `next` 证书(审计 `outbound_saml_signing_certificate.next_published`),30 天内到期后每天写一次 `outbound_saml_signing_certificate.expiring` 审计,并在过了 `retire_after` 或证书 notAfter 后把 `retiring` 改为 `retired`。IdP metadata 同时发布 `next`、`active`、`retiring` 证书,SP 可在新证书开始签名前先信任它;签名使用 `active` 和 `retiring`。升为 active 只能由管理员显式操作,后台任务从不执行:`POST /v1/organizations/:id/outbound-saml-signing-certificates/:certificateId/activate` 在一个 D1 batch 内把旧 `active` 改为 `retiring`(`retire_after` 取 now + 7 天与其 notAfter 中较早者)、把 `next` 升为 `active`,并让租户内所有出站 app 改用新证书(审计 `outbound_saml_signing_certificate.activated`)。对该集合 `GET` 列出证书,`POST` 手动准备一张 `next` 证书;准备与切换需要带 `connections:write` 的 `sk_*` key 或租户顶层组织的管理者。
+- SP 注册:每个下游 SaaS 独立记录 ACS URL、SP EntityID、Audience、Recipient、attribute mapping、NameID policy。ACS 和可选 SLO URL 在注册时必须是 public HTTPS,发断言或登出前 runtime 再次校验。SP entity ID 或 ACS URL 含 `{` 或 `}`、客户端提交 `_` 开头的 `attribute_mapping` 键,一律 422。`name_id_format` 只能取下文 NameID 列出的格式。
+- SP metadata 导入:创建和更新接受 `sp_metadata_url`(public HTTPS,禁止 redirect,1 MiB 上限,有 timeout)或 `sp_metadata_xml`,二者不能同时提交。解析读取 entityID、HTTP-POST AssertionConsumerService(优先 `isDefault="true"`,否则 index 最小者)、SingleLogoutService 与签名证书;缺 entityID 或 POST ACS、端点不是 public HTTPS、`AuthnRequestsSigned="true"` 却没有签名证书时返回 422,`paramName` 为对应字段。Console 创建和编辑表单支持填 metadata URL 或粘贴 XML,错误显示在对应字段上。
+- SSO endpoint:接收 SP-initiated SAMLRequest 或 IdP-initiated app launch,验证用户 session。签发断言前用户必须是 app 所属 Organization 的 active 成员,或持有该 Organization 的 `org_manager` 指派;`restricted` assignment 模式只放行 active 成员,允许的 user ID 与角色和成员关系取交集。SP-initiated 请求先经过同一套安全 XML 预检查和专用 closed AuthnRequest grammar,再对注册 SP 的 Issuer、Destination、HTTP-POST binding 和 ACS 做精确匹配。该 grammar 按 SAML Core 3.4.1:在 `Issuer` 与可选 `ds:Signature` 之后,按顺序接受 `Extensions`(子元素必须在非 SAML namespace)、`NameIDPolicy`、`saml:Conditions`、`RequestedAuthnContext`(`Comparison` 取 `exact`、`minimum`、`maximum` 或 `better`)和 `Scoping`;`Subject` 一律拒绝。根元素属性可以有 `Consent`、`ForceAuthn`、`IsPassive`、`ProtocolBinding`、`AssertionConsumerServiceIndex`、`AssertionConsumerServiceURL`、`AttributeConsumingServiceIndex`、`ProviderName`;带 ACS index 时不能再带 ACS URL 或 ProtocolBinding。缺 `AssertionConsumerServiceURL` 或 `ProtocolBinding` 时回退到登记的 ACS 与 HTTP-POST。`RequestedAuthnContext` 会被解析并由校验结果返回,但不参与判断;签发的断言使用 `unspecified` 认证上下文类。Metadata
   当前广告 `WantAuthnRequestsSigned=false`,因此允许 unsigned 请求;一旦携带 embedded XMLDSig
   或 Redirect `Signature`/`SigAlg`,就必须用 SP certificate 验签。
   浏览器没有 active session 时,先验证请求,再把 `InResponseTo` 和 RelayState 暂存到 OAuth flow
   Durable Object,用户带 `saml_request` 续跑句柄去 `/sign-in`(pending MFA 会话去 `/mfa` 或 MFA
   绑定页),所以 HTTP-POST 与 HTTP-Redirect 请求都能跨过登录保留。续跑句柄只能使用一次。
-- Assertion 签发:签名 Response 和 Assertion,设置 Issuer、Subject、NameID、AudienceRestriction、Recipient、Destination、NotOnOrAfter、email、name。
+- Assertion 签发:签名 Response 和 Assertion,设置 Issuer、Subject、NameID、AudienceRestriction、Recipient、Destination、NotOnOrAfter、email、name。XID 发出的每个 XML 签名都用 exclusive C14N 规范化 `SignedInfo` 和 Reference(见 9.5)。
+- ForceAuthn 与 IsPassive(SAML Core 3.4.1):`ForceAuthn="true"` 时只认收到 AuthnRequest 之后完成的认证,更早的会话要重新认证,完成后续跑原请求。`IsPassive="true"` 且没有符合条件的会话时,XID 返回 `Responder` / `NoPassive` 状态 Response,不展示任何登录页。
+- NameID:支持的格式为 `urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress`、`urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`、`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`、`urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified`,另接受旧配置里 SAML 2.0 命名空间写法的 emailAddress 与 unspecified。`NameIDPolicy` 指定了支持的格式时覆盖 app 配置的格式;未指定或为 `unspecified` 时用配置的格式。取值按 SAML Core 8.3:emailAddress 用主邮箱;unspecified 用邮箱,没有则用 username;persistent 是成对假名,(租户, app, 用户) 首次签发时随机生成 32 字节并以 base64url 编码,存入 `saml_persistent_name_ids`(并发首签经 `INSERT ... ON CONFLICT DO NOTHING` 收敛到同一个值),之后一直复用,删除 app 或擦除用户时一并删除,隐私导出包含该映射;transient 每次签发都是新的随机值。请求的格式不受支持时返回 `Requester` / `InvalidNameIDPolicy` 状态 Response;配置的格式不受支持,或用户没有该格式需要的值时返回 `Responder` / `InvalidNameIDPolicy`。
+- 错误状态 Response(SAML Core 3.2.2.2):`NoPassive` 与 `InvalidNameIDPolicy` 以不含断言的 Response 返回,带请求的 `InResponseTo` 与 RelayState,用与 Success Response 相同的 IdP 签名证书签名,POST 到登记的 ACS。
+- 属性映射:app 的 `attribute_mapping` 可改写输出的 `email`、`userEmail`(默认 `User.Email`)、`firstName`、`lastName`、`displayName` 属性名。`userId` 键按配置的属性名输出 XID user ID,未配置时不输出;Atlassian 预设用它提供不可变用户 ID。
 - 验证:package-level XML 签名测试、Worker route L2、fake SaaS SP L3 已覆盖。真实 Slack/GitHub/Microsoft/Atlassian/Salesforce/Zoom admin L4 仍缺。
 - Preset 与 assignment UI:Console 已提供 Slack、GitHub Enterprise Cloud、Microsoft custom
   app、Atlassian、Salesforce、Zoom preset,以及 `all` 或受限 user/role assignment gate。
-- App 详情:`/console/org/outbound-sso?appId=` 只读列出 `active` 与 `retiring` 的 IdP 签名证书、
-  最近一次登录(取自 SAML session binding,过期 binding 清理后为空)和该 app 的审计活动。不提供
-  手动创建证书,轮换按上文自动进行。
+- App 详情:`/console/org/outbound-sso?appId=` 展示租户的 `next`、`active`、`retiring` IdP 签名证书,顶层组织管理者可以准备下一张证书并在确认后切换;另展示最近一次登录(取自 SAML session binding,过期 binding 清理后为空)和该 app 的审计活动。
 - Outbound SLO 由浏览器驱动。`/auth/sign-out` 准备第一个已签名的 HTTP-Redirect 或
   HTTP-POST LogoutRequest action,在返回前撤销本地 XID session,不会对 SP 执行 server-side
   fetch。Core 和 Web UI SDK 在 user agent 中执行该 action。选择第一个可用 action 时,缺失
@@ -120,14 +117,14 @@ Outbound SCIM client baseline 已落地的能力:
 - Sync endpoints:`/scim/outbound/:targetId/sync` 与
   `/v1/organizations/:orgId/scim-targets/:targetId/sync` 只负责鉴权并入队一个
   `ScimSyncQueueMessage`,返回 `202` 和稳定 `runId`;请求链路不调用下游 SaaS。
-- 自动运行:通过 membership API 移除、停用或恢复 Organization Membership,通过 `/v1/users` 删除、恢复、封禁或解封用户,以及入站 SCIM 停用、恢复或删除用户时,经 `waitUntil` 在请求链路之外为受影响 org 的每个已配置 token 的 active target 入队一轮同步。daily cron 为每个已配置 token 的 active target 入队一轮,兜底其他成员与账号变化。consumer 串行且幂等,重复运行是安全的。
+- 增量运行:通过 membership API 修改成员角色、移除、停用或恢复 Organization Membership,成员主动离开 Organization,通过 `/v1/users` 删除、恢复、封禁或解封用户,以及入站 SCIM 停用、恢复或删除用户时,经 `waitUntil` 在请求链路之外为受影响 Organization(账号级变化为该用户所在的每个 Organization)的每个已配置 token 的 active target 入队一条单用户消息(带 `userId`)。consumer 只推送该用户,再按本地 mapping 刷新角色组。
+- 全量对账:daily cron 与手动 sync endpoint 为每个 target 入队一轮全量运行。全量运行按成员 ID 排序,每批处理 98 个 active 成员;还有剩余成员时,consumer 以同一 `runId` 带 `cursor` 入队下一批后再 ack,重试只重做当前这一批。组对账与过期 mapping 的 deprovision 只在最后一批之后执行。Organization 级的全量入队对每个 target 最多保留一条尚未开始的运行:`scim_targets.full_sync_queued_at` 占位,consumer 开始执行时清除,超过 `SCIM_FULL_SYNC_DEDUPE_WINDOW_MS`(1 小时)的占位可被替换。consumer 串行且幂等,重复运行是安全的。
 - 运行可见性:consumer 在 target 上记录 `last_run_status`(`succeeded` / `retrying` / `failed`)、`last_run_error`(原因码,可带下游 HTTP 状态,不含响应体或 token)和 `last_run_at`;Console 在最近一次成功同步旁展示这些信息。
 - 稳定 resource mapping:`scim_target_resources` 把本地 User 或 role-derived Group 绑定到下游
   SCIM `id`。consumer 优先用 mapping;mapping 缺失或失效时先按确定性 `externalId` discovery,
   零结果才 `POST`,已有资源统一 `PUT`。
 - Group payload 的成员使用同一 target mapping 中的 downstream User id,不发送 XID User id。
-- 安全 deprovision:只有本轮 Organization Membership 与 assignment gate 交集中的全部 User 和
-  Group upsert 都成功,才处理本轮范围外的旧 mapping。User 执行 `PATCH active=false`,旧 role
+- 安全 deprovision:只有全量运行的每一批都把本轮 Organization Membership 与 assignment gate 交集中的全部 User 和 Group upsert 成功,才处理本轮范围外的旧 mapping。User 执行 `PATCH active=false`,旧 role
   Group 清空 members 并保留 mapping 供后续恢复;partial run 不执行 deprovision。
 - Retry 与 audit:网络错误、`408`、`429`、`5xx` 通过 `SCIM_QUEUE` retry;`429` 同时支持
   `Retry-After` delta-seconds 与 HTTP-date,并限制在 Queue delay 范围。accepted、
@@ -153,9 +150,9 @@ discovery 加持久化 mapping。新 mapping 只保证 schema 上线后的 run;�
 - SAML、OIDC 与 legacy 协议共用一个实现:`apps/server/worker/sso/jit.ts` 的 `jitProvision`
 - 首次 SSO 登录自动建 User。User、主 Email、identity 与托管 Membership 在一个 D1 batch 内写入,失败不留孤儿行
 - 属性同步:每次登录用最新断言中非空的值覆写 first_name/last_name/custom_attributes;缺失的属性不清空已存值
-- 角色映射:IdP groups/attributes -> org_role(connection 级配置)
-- 冲突处理:idp_id 精确匹配 > email 关联 > 新建
-- email 关联规则(`apps/server/worker/sso/account-link.ts`,SAML、OIDC、legacy JIT 与入站 SCIM 共用):本地 Email 必须已验证,IdP Email 必须可信。IdP 声明 `email_verified: true`(OIDC;入站 SCIM 是受信目录,视为已声明),或 Email 域名是 connection 所属 Organization 已验证且有效的 `organization_domains` 行(通配行覆盖子域;SAML 没有 `email_verified`,依赖域名)时,IdP Email 可信。可信 Email 再满足以下任一条件即关联现有 User:
+- 角色映射:connection 的 `role_mapping` 把 IdP group 映射到 Organization 角色(`member`、`admin`、`owner`),取第一个命中的 group。新建的 membership 使用映射到的角色,未命中时为 `member`。已有 membership 只升不降(member < admin < owner):未命中,或命中的角色低于当前角色,都保留当前角色,IdP 的 group 变化不会让 owner 或 admin 失去 Organization 管理权
+- 冲突处理:idp_id 精确匹配(其次是第 1 节所述的 NameID 旧绑定)> email 关联 > 新建
+- email 关联规则(`apps/server/worker/sso/account-link.ts`,SAML、OIDC、legacy JIT 与入站 SCIM 共用):本地 Email 必须已验证,IdP Email 必须可信。IdP 声明 `email_verified: true`(OIDC;入站 SCIM 是受信目录,视为已声明),或 Email 域名是 connection 所属 Organization 已验证且有效的 `organization_domains` 行(通配行覆盖任意层级的子域,规则与第 5 节 HRD 相同;SAML 没有 `email_verified`,依赖域名)时,IdP Email 可信。可信 Email 再满足以下任一条件即关联现有 User:
   - 该 User 已是 connection 所属 Organization 的 active 成员
   - IdP 声明 `email_verified: true` 且 Email 域名已在该 Organization 验证。Organization 为该域下所有地址担保,因此不要求成员关系
 - Email 已存在但不满足规则时返回 `invalid_credentials`;JIT 不登录、不关联,也不为该 Email 新建第二个账号,因为 `UNIQUE (tenant_id, email)` 只允许一个所有者
@@ -169,7 +166,7 @@ JIT 新建用户打 `provisioned_by: jit_sso` 标记。约束:JIT 仅处理上�
 
 - 按邮箱域名路由到对应 org 的 SSO connection
 - Domain verification:DNS TXT(`xid-verify=<token>`)或 HTTPS 文件
-- 一个 domain 只能被一个 org 认领,支持 wildcard 子域
+- 一个 domain 只能被一个 org 认领,支持 wildcard 子域。通配行覆盖任意层级的子域:HRD 先找完全相同、已验证、有效且未删除的域名行,再由近到远逐级检查父域(至少保留两段标签)是否有这样一行且标记为通配。JIT 的可信邮箱判断使用同一覆盖规则
 - 登录页输入 email 后:查域名 -> 找 active connection -> 重定向 IdP
 - 多 domain per org;未验证域名不触发 SSO 路由
 - 没有匹配的 connection 时 `/sso/hrd` 返回 `connectionId: null`,Hosted UI 提示该邮箱域名未启用企业 SSO,请改用其他登录方式
@@ -188,8 +185,9 @@ JIT 新建用户打 `provisioned_by: jit_sso` 标记。约束:JIT 仅处理上�
 - 标准端点:Users、Groups(GET/POST/PUT/PATCH/DELETE)、ServiceProviderConfig、Schemas、ResourceTypes
 - Bearer token 认证:per-directory token,支持 rotate(旧 token 30min 宽限)
 - Console:目录页展示 SCIM Base URL 与 token 并提供复制,轮换后展示旧 token 的宽限截止时间,支持删除目录。删除目录会立即使当前与旧 token 失效;已由它开通的用户保留账号
-- User provisioning:创建/更新/停用(active=false)/恢复/删除,作用于绑定的 XID User
-- Group provisioning:创建/更新/删除,Members 增量 PATCH
+- User provisioning:创建/更新/停用(active=false)/恢复/删除,作用于绑定的 XID User。`active` 接受 JSON 布尔值,以及不区分大小写的字符串 `"true"` 与 `"false"`(Microsoft Entra 未开启 `aadOptscim062020` flag 时用 `"False"` 停用);省略表示 active,其他值返回 400 `invalidValue`。POST、PUT、PATCH 共用这条规则,字符串 `"False"` 同样执行 10.1.2 的完整停用序列
+- `password` 是 writeOnly、returned=never(RFC 7643 4.1):请求体写入 `scim_raw` 前删除它,包括嵌套在核心 User schema URN 键下的情况,POST、PUT 与 PATCH 合并后的结果都适用。迁移 `0023_scim_secret_hotfix` 清除了已存的顶层 `password` 键
+- Group provisioning:创建/更新/删除,Members 增量 PATCH,支持用 `members[value eq "<id>"]` path 移除成员。Group PUT 替换整个成员集合,pending 成员一并替换
 - Webhook:目录事件推送到应用 endpoint
 - 属性映射:创建 User 时 `emails[primary]`(或为邮箱格式的 `userName`)成为 XID User 的已验证主邮箱,`name.givenName` / `name.familyName` 更新名和姓。非邮箱格式的 `userName` 写入 XID `username`。`department`、`title` 等其余属性保留在 DirectoryUser 记录(`scim_raw`)
 - 未实现:Group-to-role 映射。目录 Group 及成员会存储并通过 SCIM 返回,但组成员关系不改变任何 org 角色。目录建立的 membership 角色为 `member`,org 管理员通过 membership API 调整角色
@@ -198,6 +196,8 @@ JIT 新建用户打 `provisioned_by: jit_sso` 标记。约束:JIT 仅处理上�
 
 - SCIM User 与 XID User 通过 `directory_users.user_id` 绑定。active 的 SCIM User 在创建或首次变为 active 时绑定:只有满足第 4 节 email 关联规则才关联已有 XID User,否则新建 `provisioned_by = scim` 的 XID User。邮箱已属于不满足规则的账号时,请求返回 409 `uniqueness`,不写入任何数据。绑定同时确保目录所属 org 有一条 `is_managed` membership;org 手工维护的 membership 不被目录改写
 - Deprovisioning(active=false)执行 10.1.2 序列,不删 XID User(保留审计链)。恢复(active=true)只恢复状态为 `deactivated` 的 User;`banned` 等管理员状态不会被 IdP 解除。`DELETE /Users/{id}` 执行相同序列,把 managed membership 置为 `inactive`,映射为 directory user 软删除,不物理删除 XID User
+- 再入职:POST 创建 active User 时,若其 `externalId`(没有时用不区分大小写的 `userName`)与同一目录里一条已删除且绑定过 XID User 的 DirectoryUser 相同,直接复用该 XID User,不经过 email 关联规则,因为它的 managed membership 已在删除时暂停
+- 目录内唯一性只在未删除的资源之间判断:`userName`(不区分大小写)、`externalId`(区分大小写)、Group `displayName`(不区分大小写)。POST、PUT、PATCH 冲突时返回 409 `uniqueness`,并发写入越过预检、撞上迁移 `0024_scim_live_uniqueness` 的部分唯一索引时同样映射为 409。PATCH 修改 `externalId` 时同步更新 `external_id` 列,响应与 `externalId` filter 都读到新值
 - OneLogin quirk:PATCH 组成员请求可能早于用户创建,server 需幂等处理 unknown member
 
 ### 数据模型
@@ -227,11 +227,21 @@ enterprise legacy 协议已落地本地 baseline(L1-L3),覆盖 LDAP direct bind�
 | ----------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------- |
 | LDAP direct bind              | `POST /sso/ldap/:connectionId/login`                                                           | fake LDAP harness L3             | 需要真实 LDAP/AD HTTP gateway 或 sidecar bind            |
 | WS-Federation                 | `GET /sso/wsfed/:connectionId/login`, `POST /sso/wsfed/:connectionId/callback`                 | fake WS-Fed harness L3           | 需要真实 AD FS/Entra WS-Fed metadata 与 signed wresult   |
-| SWA / password vaulting       | `POST /sso/swa/:connectionId/authenticate`, `POST /sso/swa/:connectionId/vault`                | fake SWA harness L3              | 需要真实 target app admin 与 vault rotation L4           |
+| SWA / password vaulting       | `/sso/swa/apps`, `/sso/swa/:connectionId/vault`, `/sso/swa/:connectionId/launch`               | route tests L2                   | 需要真实 target app 登录表单与 vault rotation L4         |
 | Header-based SSO              | `POST /sso/header/:connectionId/authenticate`                                                  | route tests L2                   | 需要受信反向代理/Application Proxy 与真实 header 注入 L4 |
 | Directory connector framework | `GET /sso/directory-connectors/types`, `POST /sso/directory-connectors/:connectionId/validate` | connector registry + validate L2 | SQL/REST/SOAP/PowerShell/ECMA connectors 仍为 stub       |
 
-连接配置仍使用 `sso_connections`,`protocol` 取 `ldap` / `wsfed` / `swa` / `header`;协议细节放在 `attributeMapping._legacy`。SWA vault 凭据哈希或信封加密元数据放在 `attributeMapping._swaVault` / `_swaVaultEnvelope`。所有查询仍走租户查询层,connection 与 org 1:1,禁止跨租户复用。
+连接配置仍使用 `sso_connections`,`protocol` 取 `ldap` / `wsfed` / `swa` / `header`;协议细节放在 `attributeMapping._legacy`。密钥类字段只写:管理响应从 `legacy_config` 中去掉它们,只返回 `trusted_proxy_secret_configured` 与 `ldap_gateway_secret_configured`。所有查询仍走租户查询层,connection 与 org 1:1,禁止跨租户复用。
+
+LDAP direct bind:每个 connection 用自己的 bearer 密钥访问自己的 HTTP gateway(`_legacy.ldapGatewayUrl`)。密钥 `_legacy.ldapGatewaySecret` 只提交一次(32 到 1024 字符),只以 KEK 信封存入 `attributeMapping._ldapGatewaySecretEnvelope`。没有实例级 gateway 密钥。已存密钥绑定提交时的 gateway URL,改 URL 必须重新提交密钥,否则 422。gateway URL 必须是 public HTTPS,不含 `{` 或 `}`,也不能是文档保留主机(`example.com`、`example.net`、`example.org`,或 `.example`、`.test`、`.invalid`、`.localhost` 顶级域);SWA 目标 URL 适用同一规则,因为这两个端点都会收到用户密码。
+
+Header-based SSO:没有受信代理密钥的 `header` connection 不能保存(422)。提交的 `_legacy.trustedProxySecret` 至少 32 字符,且不能是早期预设公开过的占位值 `replace-with-proxy-secret`;只存其摘要(`_legacy.trustedProxySecretDigest`,格式 `sha256:v1:<hex>`),已存的占位值永远验不过。代理在 `X-Trusted-Proxy-Secret`(或 `X-Forwarded-Auth-Secret`)里出示密钥,按常量时间比较。`POST /sso/header/:connectionId/authenticate` 经 RateLimitStore Durable Object 按 connection 与来源 IP 限流(scope `sso_header`,登录成功后重置);得到已验证身份之前的所有失败(connection 不存在、密钥错误、缺身份 header)都返回同一个 401 `invalid_credentials`。
+
+Directory connectors:`POST /sso/directory-connectors/:connectionId/validate` 要求带 `connections:read` 的 `sk_*` key 或该 connection 所属 Organization 的管理者;`GET /sso/directory-connectors/types` 列出连接器注册表。
+
+SWA 是为只提供用户名密码表单的下游应用保管密码,从不让成员登录 XID 本身。连接所属 Organization 的已登录、非代登成员通过 `POST /sso/swa/:connectionId/vault` 保存自己的下游用户名和密码(先校验会话再校验请求体),通过 `GET` 查看是否已保存,通过 `DELETE` 删除。凭据存在 `swa_credentials` 表,每个(租户, connection, 用户)一行,用户名和密码一起封成一个 KEK 信封,信封内同时绑定 connection ID 与 user ID,复制到其他成员名下的行无法打开;保存使用按租户绑定的 UPSERT。`GET /sso/swa/:connectionId/launch` 返回一个页面,用配置的 `swaUsernameField` 与 `swaPasswordField` 字段名把已存凭据自动提交到 `_legacy.swaTargetUrl`。`GET /sso/swa/apps` 列出成员所在 Organization 的 active SWA connection,含目标 origin 和是否已保存凭据;账户门户的应用登录区块用它保存、删除并打开各个应用。
+
+WS-Federation 回调:`wresult` 按 WS-Federation 1.2 的 `wst:RequestSecurityTokenResponse` 解析(WS-Trust 2005/02 或 1.3 namespace),可外包一层 `RequestSecurityTokenResponseCollection`,`RequestedSecurityToken` 内必须恰好一个令牌。SAML 2.0 断言以断言自身为文档根验证(不包装为 `samlp:Response`):9.2 结构白名单、按 9.3 到 9.5 必须有断言签名、Issuer 等于 connection 的 IdP entity ID、Audience 等于 `wtrealm`、9.7 的时间窗口、恰好一个 AuthnStatement;`InResponseTo` 必须缺省,SubjectConfirmationData 的 `Recipient` 只在出现时与 reply URL 比对,因为 AD FS 常不带它。SAML 1.1 断言(`urn:oasis:names:tc:SAML:1.0:assertion`)要求 enveloped 签名且唯一 Reference 指向根元素的 `AssertionID`、`Issuer` 属性等于 IdP entity ID、有 `Conditions/@NotOnOrAfter`(缺 `NotBefore` 时取 `IssueInstant`)、每个 `AudienceRestrictionCondition` 都含 `wtrealm`、确认方式含 bearer、所有语句是同一主体、`AuthenticationInstant` 不在未来;属性键为 `AttributeNamespace/AttributeName`,与 AD FS 在 SAML 2.0 中发出的 claim URI 一致。两个版本都使用 9.4 的摘要与签名算法白名单,仍用 SHA-1 签名的 AD FS relying party 会被拒绝,需改为 SHA-256。属性经 connection 的属性映射与 `idpId` 规则处理。`wctx` 只与 OAuth flow Durable Object 中的服务器端 flow 比对(一次性,connection 必须一致),从不与令牌比对;不带 `wctx` 的回调视为 IdP-initiated,只有 `_legacy.wsfedAllowIdpInitiated` 为 `true` 时才接受。connection 必须配置 IdP 证书,开发与测试走同一条验证路径(假 WS-Fed IdP 发出签名的 RSTR)。断言重放按 9.7 处理。
 
 仍不支持边界:linked sign-on、原生 IWA/Kerberos 终止、非 HTTP LDAP socket、真实 Kerberos constrained delegation。Kerberos 仅提供部署模式文档,不在 Workers 内实现 KDC 或 SPNEGO。
 
@@ -291,7 +301,7 @@ ACS 端点:`POST /saml/acs/{connection_id}`,`Content-Type: application/x-www-for
 - 含外部实体引用 / 处理指令 `<?xml-stylesheet` -> 拒。
 - `@xmldom/xmldom` 配置:不解析外部资源(纯 JS 无网络,天然无 SSRF,但仍显式禁 DTD)。
 
-解析后断言文档是 well-formed 且单根元素 `samlp:Response`(namespace `urn:oasis:names:tc:SAML:2.0:protocol`),否则 400。
+解析后断言文档是 well-formed 且单根元素 `samlp:Response`(namespace `urn:oasis:names:tc:SAML:2.0:protocol`),否则 400。WS-Federation 令牌改以 SAML 2.0 或 SAML 1.1 的 `Assertion` 为根元素验证(见 7.1 节)。
 
 ### 9.2 XSD schema 校验(强制,不可禁用)
 
@@ -313,16 +323,18 @@ LogoutRequest 只在有界 IssueInstant/NotOnOrAfter window 内接受,request ID
 
 ### 9.3 选择签名节点(envelope vs assertion 优先级)
 
-SAML 允许签 Response、签 Assertion 或两者都签。connection 级两个开关(默认均 true,见第 1 节证书管理):
+SAML 允许签 Response、签 Assertion 或两者都签。connection 级有两个开关 `want_authn_response_signed` 与 `want_assertions_signed`。两列默认均为 true;IdP 预设按各家默认签名层设置(Entra、Google Workspace、AD FS、Shibboleth、JumpCloud、OneLogin、PingFederate 只签 Assertion;Keycloak 只签 Response)。开关决定检查哪些层:
 
-- `want_authn_response_signed`(默认 true):要求 Response 节点被签。
-- `want_assertions_signed`(默认 true):要求每个被消费的 Assertion 被签(EncryptedAssertion 解密后的明文 Assertion 同样要求被签)。
+- 只开 `want_authn_response_signed`:Response 必须带有效签名。
+- 只开 `want_assertions_signed`,或两个都关:被消费的 Assertion 必须带有效签名。两个都关按要求 Assertion 签名处理,验签不会被跳过。
+- 两个都开:任一层有效签名即可,因为多数 IdP 默认只签一层。Response 签名覆盖被消费的 Assertion:其 Reference 钉在 Response 根,结构白名单只允许一个断言子元素。
+- 被检查的层只要带了签名就必须验过;一层签名损坏时,即使另一层验过也整体失败。被检查的层都没有签名时结果为 `signature_required`。
 
 节点定位铁律(防 XSW,对照 OWASP / PortSwigger):
 
 1. **绝不用 `getElementsByTagName("Signature")` / `getElementsByTagName("Assertion")` 取首个匹配**。
 2. 用绝对 XPath 限定父子关系定位候选签名:Response 签名必须是 `/samlp:Response/ds:Signature`(直接子节点,不是后代任意位置);Assertion 签名必须是 `/samlp:Response/saml:Assertion/ds:Signature`(或解密后 Assertion 的直接子节点)。命名空间前缀用注册的固定 namespace URI 解析,不依赖文档声明的前缀字面量。
-3. 每个被验证节点**有且仅有一个** `ds:Signature` 直接子节点(0 个且对应开关为 true -> 拒;>1 -> 拒)。
+3. 每个被检查节点**最多一个** `ds:Signature` 直接子节点:0 个按上面的分层规则处理,>1 -> 拒。
 4. `ds:SignedInfo` 内**有且仅有一个** `ds:Reference`(多 Reference -> 拒,防复杂度 / 包装攻击)。
 5. `ds:Reference` 的 `Transforms` **最多 2 个**,且只允许 `enveloped-signature`(`http://www.w3.org/2000/09/xmldsig#enveloped-signature`)+ exclusive C14N(`http://www.w3.org/2001/10/xml-exc-c14n#` 或 `...#WithComments` 拒绝带 comments 版本)。出现 XSLT / XPath transform -> 拒。
 
@@ -341,7 +353,7 @@ SAML 允许签 Response、签 Assertion 或两者都签。connection 级两个�
 ### 9.5 验证 SignatureValue
 
 1. 取验签证书:**只用 connection 配置中存的 IdP 证书**(metadata 导入时落库的 X.509),**忽略文档内 `ds:KeyInfo` / `ds:X509Certificate`**(对照 OWASP StaticKeySelector:期望单签名密钥时从 IdP 直接获取并存本地,忽略文档内 KeyInfo)。证书轮换期 connection 存新旧两证书,任一验过即可。
-2. exclusive C14N 规范化 `ds:SignedInfo` -> 用证书公钥(`crypto.subtle.verify`,RSASSA-PKCS1-v1_5 + SHA-256 等)验 `ds:SignatureValue`。失败 -> 拒。
+2. 按 `ds:SignedInfo/ds:CanonicalizationMethod` 声明的算法规范化 `ds:SignedInfo` -> 用证书公钥(`crypto.subtle.verify`,RSASSA-PKCS1-v1_5 + SHA-256 等)验 `ds:SignatureValue`。失败 -> 拒。入站 `SignedInfo` 可用 exclusive C14N(`http://www.w3.org/2001/10/xml-exc-c14n#`)或 inclusive C14N 1.0(`http://www.w3.org/TR/2001/REC-xml-c14n-20010315`),其他算法在结构校验时拒绝;Reference 的 Transforms 仍按 9.3 第 5 条限制。XID 发出的每个内嵌 XML 签名(AuthnRequest、Response、Assertion、状态 Response、LogoutRequest、LogoutResponse)都显式把 `SignedInfo` 设为 exclusive C14N,因为 xmldsigjs 默认 `SignedInfo` 用 inclusive C14N(PeculiarVentures/xmldsigjs issue [#64](https://github.com/PeculiarVentures/xmldsigjs/issues/64)、[#59](https://github.com/PeculiarVentures/xmldsigjs/issues/59));inclusive 的输出包含祖先作用域的命名空间,已签名的 Assertion 换到另一个外壳里就会验签失败。不经 xmldsigjs 独立签名的回归样本覆盖:在 Response 内原位签名的默认命名空间 Assertion(AD FS 风格)、覆盖带前缀 Assertion 的 Response 层签名、在签名上下文中验证的 inclusive C14N `SignedInfo`。`UNKNOWN`:真实 IdP 发出的「inclusive C14N `SignedInfo` + 原位签名的默认命名空间 Assertion」样本尚未验证;这种组合的真实 Response 可能验签失败,取得并验证一份真实样本后关闭此项。
 3. 证书有效性:检查 `notBefore`/`notAfter`,使用 connection 的 `saml_clock_skew_ms`
    容忍值。默认 `180000`(+-3min),允许范围 `0..300000`,Assertion 时间校验使用同一值。
    证书轮换时忽略当前无效的证书,任一当前有效的已配置证书验签成功即可。吊销检查(CRL/OCSP)
@@ -353,36 +365,33 @@ SAML 允许签 Response、签 Assertion 或两者都签。connection 级两个�
 若 Response 含 `saml:EncryptedAssertion`(替代明文 Assertion):
 
 1. 定位 `/samlp:Response/saml:EncryptedAssertion/xenc:EncryptedData`(绝对路径,唯一)。
-2. 解 `xenc:EncryptedKey`:SP 私钥(connection 级 SP 解密私钥,与 SP 签名私钥可同可分,存 CertStore 加密,见第 1 节)用 RSA-OAEP(`crypto.subtle.decrypt`,`RSA-OAEP` + SHA-1 或 SHA-256,按 `xenc:EncryptionMethod` 声明)解出对称会话密钥(AES-128/256)。算法不在白名单 -> 拒。
-3. 用会话密钥解 `xenc:CipherValue`(AES-GCM 或 AES-CBC,按声明)得明文 Assertion XML 字节。
-4. 把明文 Assertion 重新经 9.1 安全预检 + 9.2 schema 校验 解析为 DOM。
-5. **解密后的 Assertion 同样要求被签**(`want_assertions_signed=true` 时):对明文 Assertion 走 9.3-9.5,签名节点是明文 Assertion 的直接子 `ds:Signature`,引用 ID 在明文 Assertion 文档内唯一。**只签 Response 不签 Assertion + EncryptedAssertion** 的组合默认拒绝(攻击者可换内层),除非 connection 显式 `want_assertions_signed=false`(不推荐,记审计)。
-6. 顺序:**先解密后验签**(decrypt-then-verify),因为签名在密文内不可见;但解密用的 SP 私钥与验签用的 IdP 公钥是两套密钥,解密成功不代表可信,验签才是信任锚。
+2. 定位 `xenc:EncryptedKey`:内嵌在 `xenc:EncryptedData/ds:KeyInfo` 中(内嵌多于一个 -> 拒);否则取 `saml:EncryptedAssertion` 下的兄弟元素,有 `ds:RetrievalMethod` 时按其 URI 选择(必须恰好匹配一个兄弟的 `Id`),没有时取唯一的兄弟元素。
+3. 用 SP 解密私钥(connection 级 SP 解密私钥,与 SP 签名私钥可同可分,存 CertStore 加密,见第 1 节)经 `crypto.subtle.decrypt` 的 `RSA-OAEP` 解出会话密钥。OAEP 摘要取自 EncryptedKey 的 `xenc:EncryptionMethod`,每条消息都按该摘要重新导入不可导出的私钥:
+
+   | Key transport `Algorithm`                         | OAEP 摘要(`ds:DigestMethod`)            | MGF1 摘要                                             |
+   | ------------------------------------------------- | --------------------------------------- | ----------------------------------------------------- |
+   | `http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p` | 默认 SHA-1,声明时可为 SHA-1/256/384/512 | 固定 SHA-1;带 `xenc11:MGF` 子元素 -> 拒               |
+   | `http://www.w3.org/2009/xmlenc11#rsa-oaep`        | 默认 SHA-1,声明时可为 SHA-1/256/384/512 | `xenc11:MGF`(`mgf1sha1`/`256`/`384`/`512`),默认 SHA-1 |
+
+   Web Crypto 的 OAEP 与 MGF1 只能用同一个摘要,两者不同的组合(例如 OAEP SHA-256 + MGF1 SHA-1)以 `decryption_failed` 拒绝;Okta、AD FS、Shibboleth 的默认组合(`rsa-oaep-mgf1p` + SHA-1)可以解密。`xenc:OAEPparams` 作为 OAEP label 传入。SHA-1 只在密钥传输这里接受,9.4 的签名摘要白名单仍拒绝 SHA-1。
+
+4. 用会话密钥解 `xenc:CipherValue`。数据算法必须是 `aes128-gcm`、`aes256-gcm`(XML Encryption 1.1)或 `aes128-cbc`、`aes256-cbc`(XML Encryption 1.0),会话密钥长度必须与之一致。IV 是密文前缀(GCM 12 字节,CBC 16 字节)。CBC 填充按 XML Encryption 第 5.2 节只读最后一个字节作为填充长度,因此接受 Santuario 与 .NET 写出的 ISO 10126 随机填充。会话密钥字节用后清零。结果是明文 Assertion XML 字节。
+5. 把明文 Assertion 重新经 9.1 安全预检 + 9.2 schema 校验 解析为 DOM。
+6. **解密后的 Assertion 走与 9.3 相同的分层规则**:签名节点是明文 Assertion 的直接子 `ds:Signature`,引用 ID 在明文 Assertion 文档内唯一。不检查 Response 层时,未签名的解密 Assertion 以 `signature_required` 拒绝。两层都检查时,有效的 Response 签名即可,因为其摘要覆盖 EncryptedAssertion 密文,内层无法被替换;解密后的 Assertion 若带签名仍必须验过。
+7. 顺序:**先解密后验签**(decrypt-then-verify),因为签名在密文内不可见;但解密用的 SP 私钥与验签用的 IdP 公钥是两套密钥,解密成功不代表可信,验签才是信任锚。
 
 ### 9.7 Assertion 语义校验(验签通过后)
 
-对已验签 Assertion 顺序校验,任一失败按 9.8 返回:
+对已验签 Assertion 顺序校验,任一失败按 9.8 返回。每个时间字段按它在 SAML Core 中的含义分别校验,使用 connection 的 `saml_clock_skew_ms` 容忍值(默认 +-3min,最大 +-5min);名为 `NotOnOrAfter` 的上界是排他的。时间属性出现但不是有效 date-time 时 fail closed。
 
-1. `saml:Issuer` == connection 配置的 IdP EntityID(精确字符串匹配)。
-2. `saml:Conditions/@NotBefore` <= now < `@NotOnOrAfter`,使用 connection 的
-   `saml_clock_skew_ms` 容忍值(默认 +-3min,最大 +-5min;`NotOnOrAfter` 是排他上界)。
-3. `saml:Conditions/saml:AudienceRestriction/saml:Audience` 包含本 SP 的 EntityID(我们的 ACS 对应 SP EntityID,从 TenantContext + connection 取)。
-4. `saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData` 必须携带非空
-   `@Recipient` 与语法有效的 `@NotOnOrAfter`;缺失、空白或非法值均 fail closed。
-   `@Recipient` 必须精确等于本 ACS URL,`@NotOnOrAfter` 使用同一 connection clock-skew
-   tolerance 且尚未过期。`@InResponseTo`(SP-initiated 时)必须等于我们发出且未消费的
-   AuthnRequest ID(存 Durable Object,一次性,防重放);IdP-initiated 时该属性必须缺省,
-   出现即拒(防混淆)。
-5. 登录 Assertion 必须恰好包含一个 `saml:AuthnStatement`;其 `@AuthnInstant` 必填且必须是
-   有效 date-time。该时间不能晚于 `now + saml_clock_skew_ms`,也不能早于已签名 Assertion
-   freshness window(`Conditions/@NotBefore - saml_clock_skew_ms`)。缺失、重复、非法、
-   future 或 stale authentication evidence 均 fail closed。
-6. `samlp:Response/samlp:Status/samlp:StatusCode/@Value` ==
-   `urn:oasis:names:tc:SAML:2.0:status:Success`,否则按 IdP 报错处理(403)。
-7. 重放防护:`Assertion/@ID` 记入已消费集(Durable Object,TTL =
-   `NotOnOrAfter` + 偏差窗口),重复出现 -> 拒。
-8. 提取 NameID(主键 idp_id,见第 1 节)与映射属性
-   (email/firstName/lastName/groups),进入 JIT(第 4 节)。
+1. `samlp:Response/samlp:Status/samlp:StatusCode/@Value` == `urn:oasis:names:tc:SAML:2.0:status:Success`,否则按 IdP 报错处理(403)。`samlp:Response/@Destination` 出现时必须等于本 ACS URL。这两项只在断言外有 Response 时检查。
+2. `saml:Issuer` == connection 配置的 IdP EntityID(精确字符串匹配)。
+3. 必须有 `saml:Conditions`(SAML Core 2.5.1)。其 `@NotBefore` 与 `@NotOnOrAfter` 各自可选;缺 `@NotBefore` 时取 Assertion 的 `@IssueInstant`,后者必须有效。`now + skew < NotBefore` 或 `now - skew >= NotOnOrAfter` 时拒绝。
+4. `saml:Conditions/saml:AudienceRestriction/saml:Audience` 包含本 SP 的 EntityID(我们的 ACS 对应 SP EntityID,从 TenantContext + connection 取)。
+5. `saml:Subject/saml:SubjectConfirmation` 必须使用 bearer 方法并带 `saml:SubjectConfirmationData`(SAML Core 2.4.1.2)。ACS 上其 `@Recipient` 必须存在且精确等于本 ACS URL;WS-Federation 只在出现时比对(见 7.1 节)。`@NotOnOrAfter` 必填且尚未过期;可选的 `@NotBefore` 不能在未来。`@InResponseTo` 出现时必须等于我们发出且未消费的 AuthnRequest ID(存 Durable Object,一次性);不带该属性的 Assertion 按 IdP-initiated 处理。
+6. 登录 Assertion 必须恰好包含一个 `saml:AuthnStatement`,且 `@AuthnInstant` 有效(SAML Core 2.7.2)。`@AuthnInstant` 是用户实际完成认证的时刻,只要求不晚于 `now + skew`;IdP 复用已有会话时,它可以比 `Conditions/@NotBefore` 早几个小时。可选的 `@SessionNotOnOrAfter` 已过时拒绝,表示 IdP 会话已结束。缺失、重复或非法的认证语句均 fail closed。
+7. 重放防护:在 `ChallengeStore` Durable Object 的已消费集中占用 `Assertion/@ID`。占位保留到该 Assertion 仍可能被接受的最晚时刻:TTL = min(`Conditions/@NotOnOrAfter`, `SubjectConfirmationData/@NotOnOrAfter`) + 最大时钟偏差(5 分钟) - now。`ChallengeStore` 的 `/claim` 接受的 TTL 最长 24 小时(`SAML_ASSERTION_REPLAY_MAX_TTL_MS`),越界返回 400,不回退为默认值;重放 TTL 会超过 24 小时的 Assertion 以 403 `assertion_expired` 拒绝,不截短保留时间。重复占用以 `replay_detected` 拒绝。WS-Federation 断言使用同一规则。
+8. 提取 idp_id(NameID,或配置的 `idpId` 属性,见第 1 节)与映射属性(email/firstName/lastName/groups),进入 JIT(第 4 节)。
 
 ### 9.8 ACS 端点错误分支(HTTP 状态映射)
 
@@ -392,7 +401,7 @@ SAML 允许签 Response、签 Assertion 或两者都签。connection 级两个�
 | --------------------------- | ----------------------------------------------------------------------------------- | ---- | ---------------------------------------- | ----------------------- |
 | 请求格式错                  | SAMLResponse 缺失 / base64 解码失败 / 非 well-formed XML / 命中 DTD 预检            | 400  | `malformed_request` / `malformed_xml`    | 不进入验签              |
 | schema 校验失败             | XSD / 结构白名单不通过                                                              | 400  | `schema_invalid`                         | 防 XSW 注入点           |
-| 签名缺失                    | 对应 want\_\*\_signed=true 但无签名节点                                             | 401  | `signature_required`                     |                         |
+| 签名缺失                    | 9.3 检查的层都没有签名                                                              | 401  | `signature_required`                     |                         |
 | 签名无效                    | DigestValue 不匹配 / SignatureValue 验失败 / 算法弱 / Reference 非法 / XSW 检测命中 | 401  | `signature_invalid`                      | 一律 401,不细分给浏览器 |
 | 解密失败                    | EncryptedAssertion 解密失败 / 算法不白名单                                          | 400  | `decryption_failed`                      |                         |
 | Issuer 不匹配               | Assertion Issuer != 配置 IdP EntityID                                               | 403  | `issuer_mismatch`                        |                         |
@@ -404,7 +413,7 @@ SAML 允许签 Response、签 Assertion 或两者都签。connection 级两个�
 | JIT 关闭且用户不存在        | connection 禁 JIT 且 idp_id 无对应 User                                             | 403  | `provisioning_disabled`                  | 见第 4 节               |
 | 服务端错误                  | 解密密钥不可用 / 内部异常                                                           | 500  | `internal_error`                         |                         |
 
-成功:建立 session,302 到 RelayState(校验为本租户白名单回跳 URL,非白名单回跳默认登录后页)。
+成功:建立 session,302 到落地页。SP-initiated 登录续跑随 AuthnRequest 保存的 flow;IdP-initiated 登录取与实例 issuer 同源的 RelayState,其次是 connection 的 `relay_state_url`,再次是默认登录后页(见第 1 节)。
 
 约定:`signature_required` / `signature_invalid` 用 401(认证失败);语义校验(issuer/audience/expired/recipient/replay)用 403(已认证但断言不可接受);请求 / 密文格式用 400。
 
@@ -414,7 +423,7 @@ SAML 允许签 Response、签 Assertion 或两者都签。connection 级两个�
 
 - `md:EntityDescriptor/@entityID`:本 SP EntityID(= `https://{tenant}.xid.dev/saml/{connection_id}` 或自定义域,从 TenantContext 取,租户隔离)。
 - `md:SPSSODescriptor/@protocolSupportEnumeration` = `urn:oasis:names:tc:SAML:2.0:protocol`。
-- `md:SPSSODescriptor/@AuthnRequestsSigned`(我们是否签 AuthnRequest,对应 connection SP 签名开关)、`@WantAssertionsSigned`(= want_assertions_signed)。
+- `md:SPSSODescriptor/@AuthnRequestsSigned`(租户有 active `saml_sp_signing` 证书时为 true,SP-initiated AuthnRequest 也按同一条件签名)、`@WantAssertionsSigned`(= want_assertions_signed)。
 - `md:SPSSODescriptor/md:KeyDescriptor[@use="signing"]`:SP 签名证书(`ds:X509Certificate`,base64 DER,无 PEM 头)。
 - `md:SPSSODescriptor/md:KeyDescriptor[@use="encryption"]`:SP 加密证书(支持 EncryptedAssertion 时必填)+ `md:EncryptionMethod`(声明支持的 AES/RSA-OAEP)。
 - `md:SPSSODescriptor/md:AssertionConsumerService`:`@Binding` = `urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST`,`@Location` = ACS URL,`@index="0"` `@isDefault="true"`。
@@ -472,6 +481,10 @@ function handlePatch(tenant_id, resource_type, resource_id, body):
           for v in asArray(opItem.value):
             if not staged[target].containsByValue(v):
               staged[target].append(resolveMember(v))   # unknown member 见下
+        else if target has filter and no match:
+          # 用 filter 中 `attr eq "x"` 的合取新建一个元素,否则 noTarget
+          if filter is not an eq conjunction: return 400 scimType=noTarget
+          staged[target].append(seedFromFilter(target.filter)) then set target.sub
         else:
           if target.attr is readOnly: return 400 scimType=mutability
           if value type mismatch:     return 400 scimType=invalidValue
@@ -495,7 +508,7 @@ function handlePatch(tenant_id, resource_type, resource_id, body):
         staged.unset(target)
     applied = true
 
-  if validation(staged) fails uniqueness (userName/email):
+  if validation(staged) fails uniqueness (userName/externalId among non-deleted users):
     return 409 scimType=uniqueness
   repo.save(staged, where tenant_id, directory.id)      # 自动注入隔离过滤
   emitWebhook(resourceChangedEvent(staged))             # 异步,见 10.2
@@ -507,7 +520,9 @@ function handlePatch(tenant_id, resource_type, resource_id, body):
 要点:
 
 - 整批 Operations 要么全应用要么全不应用(staged 副本,末尾一次落库)。中途任一 op 返回错误则**不落库**。
-- `op` 不识别 / body 结构错 -> `invalidSyntax`;path 语法错 / 指向不存在属性定义 -> `invalidPath`;有 filter 的 path 在 replace/某些场景无匹配 -> `noTarget`;值类型错 / 必填缺失 -> `invalidValue`;改 readOnly(如 `id`、`meta`)-> `mutability`。
+- path 与 filter 用同一套词法分析加递归下降解析器(见 10.5):属性名可带 `.sub` 子属性,可带 schema URN 前缀(如 enterprise User 扩展 `urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:department`),也可以是 `attr[filter]` 形式的 valuePath 再带 `.sub`。无 path 的 value map 的键走同一个解析器:带点号或 URN 的键按 path 应用,核心 schema URN 下的对象并入根,扩展 URN 下的对象按子键展开。
+- `op` 不识别 / body 结构错 -> `invalidSyntax`;path 语法错 -> `invalidPath`;有 filter 的 path 无匹配时,replace 返回 `noTarget`,add 在 filter 不是 `eq` 合取时返回 `noTarget`;无 path 的 remove -> `noTarget`;值类型错 / 必填缺失 -> `invalidValue`。`id` 等于当前资源 ID 时忽略(Okta 改组名时会带上),不同时返回 `mutability`;value map 中的 `meta` 与 `schemas` 忽略。
+- Group 成员移除接受 `members[value eq "<id>"]`,也接受用 `or` 连接的多个条件;移除不存在的成员视为成功。
 - 大小写:SCIM 属性名 caseExact=false(除特殊),`op` 关键字大小写不敏感。
 
 ### 10.1.1 unknown member 幂等路径(OneLogin / OkLogin 时序 quirk,见第 6 节决策)
@@ -652,3 +667,11 @@ Cron(每 15min,见 cloudflare-bindings rule Cron Triggers)清理过期的 `scim_
 ```
 
 `displayName` 在 directory 内唯一,不带角色语义(Group-to-role 映射未实现,见第 6 节);`members[].value` -> DirectoryUser.id(unknown member 进 pending,见 10.1.1)。所有 Users/Groups 查询经 Drizzle 租户查询层强制注入 `WHERE tenant_id = ? AND directory_id = ?`(见 tenant-isolation rule),跨目录 / 跨租户访问返回 404 不泄露存在性。
+
+`POST /Users` 与 `POST /Groups` 返回 201,带 `Location`(= `meta.location`)与 `ETag`(= `meta.version`)响应头(RFC 7644 3.3、3.14)。
+
+### 10.5 Filter、唯一性与 Bulk
+
+- Filter(RFC 7644 3.4.2.2)先做词法分析(引号字符串、括号、方括号、属性路径、运算符),再按 `not` > `and` > `or` 的优先级递归下降解析,因此 `displayName eq "Brand Team"` 这类值中含 `and` 或 `or` 的条件不会被拆开。运算符为 `eq`、`ne`、`co`、`sw`、`ew`、`gt`、`ge`、`lt`、`le`、`pr`;支持分组、valuePath(`emails[type eq "work"]`)、子属性与 schema URN 前缀。语法错误返回 400 `invalidFilter`。
+- 唯一性:见第 6 节。已删除的 User 与 Group 不再占用 `userName`、`externalId`、`displayName`,可以用相同的值重新创建。
+- Bulk(RFC 7644 3.7):`failOnErrors` 必须是正整数,表示累计多少个错误后跳过剩余操作;其他值(包括 `true`)返回 400 `invalidValue`。操作 path 与 `data` 任意位置的 `bulkId:<id>` 引用替换为同一请求中先前创建的资源 ID;无法解析的引用使该操作以 409 失败。操作数超过公布的 `maxOperations` 返回 413 `tooMany`,请求体超过 `maxPayloadSize` 返回 413 `tooLarge`。子请求使用外层请求的执行上下文,Bulk 响应发出后,子请求的审计、webhook 与出站 SCIM 后台任务仍会完成。
