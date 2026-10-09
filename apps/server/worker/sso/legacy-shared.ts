@@ -44,6 +44,9 @@ export type LegacyConnection = typeof schema.ssoConnections.$inferSelect
 
 export type LegacyProfile = {
   idpId: string
+  // Subject the connection used before it switched to a stable idpId attribute (WS-Fed NameID);
+  // JIT reuses the identity bound to it, following the SAML migration rule.
+  legacyIdpId?: string | null
   email: string | null
   emailVerified: boolean
   firstName: string | null
@@ -87,6 +90,9 @@ export function profileToAssertion(
 ): SsoAssertion {
   return {
     idpId: profile.idpId,
+    ...(profile.legacyIdpId && profile.legacyIdpId !== profile.idpId
+      ? { legacyIdpId: profile.legacyIdpId }
+      : {}),
     connectionId: connection.id,
     orgId: connection.orgId,
     email: profile.email,

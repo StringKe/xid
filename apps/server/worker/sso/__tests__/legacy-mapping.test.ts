@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { isAppError } from '../../lib/errors'
 import { LDAP_GATEWAY_SECRET_KEY, readLdapGatewaySecret } from '../ldap-gateway-secret'
-import { prepareLegacyAttributeMapping } from '../legacy-shared'
+import {
+  prepareLegacyAttributeMapping,
+  profileToAssertion,
+  type LegacyConnection,
+} from '../legacy-shared'
 import { isPlaceholderHostname } from '../legacy-target-url'
 
 const env = { KEK: btoa(String.fromCharCode(...new Uint8Array(32).fill(0x42))) }
@@ -181,6 +185,39 @@ describe('prepareLegacyAttributeMapping for SWA', () => {
     expect(prepared).not.toHaveProperty('_swaCredentials')
     expect(prepared).not.toHaveProperty('_swaVault')
     expect(prepared).not.toHaveProperty('_swaVaultEnvelope')
+  })
+})
+
+describe('profileToAssertion', () => {
+  const connection = { id: 'conn-wsfed', orgId: 'org-1' } as LegacyConnection
+  const profile = {
+    idpId: 'object-id-123',
+    email: 'alice@acme-corp.net',
+    emailVerified: true,
+    firstName: null,
+    lastName: null,
+    groups: [],
+    customAttributes: {},
+  }
+
+  it('passes the previous NameID through so JIT can reuse the old identity binding', () => {
+    const assertion = profileToAssertion(
+      { ...profile, legacyIdpId: 'alice@acme-corp.net' },
+      connection,
+    )
+
+    expect(assertion.legacyIdpId).toBe('alice@acme-corp.net')
+    expect(assertion.idpId).toBe('object-id-123')
+  })
+
+  it.each([
+    ['absent', undefined],
+    ['null', null],
+    ['equal to idpId', 'object-id-123'],
+  ])('omits legacyIdpId when it is %s', (_label, legacyIdpId) => {
+    const assertion = profileToAssertion({ ...profile, legacyIdpId }, connection)
+
+    expect(assertion).not.toHaveProperty('legacyIdpId')
   })
 })
 
