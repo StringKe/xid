@@ -1,0 +1,1 @@
+UPDATE `directory_users` SET `scim_raw` = json_remove(`scim_raw`, '$.password', '$.Password', '$.PASSWORD') WHERE json_valid(`scim_raw`) AND (json_type(`scim_raw`, '$.password') IS NOT NULL OR json_type(`scim_raw`, '$.Password') IS NOT NULL OR json_type(`scim_raw`, '$.PASSWORD') IS NOT NULL);

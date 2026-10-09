@@ -38,6 +38,7 @@ import {
   projectScimResource,
   versionGuardFromRow,
 } from './shared'
+import { normalizeScimActive, stripScimWriteOnlyAttributes } from './user-attributes'
 
 // organization_id 来自路径参数,须与 TenantContext 一致(双重验证,见 tenant-isolation rule)
 const users = new Hono<XidHonoEnv>()
@@ -70,6 +71,8 @@ users.post('/', async (c) => {
   if (!parsed.success) return scimError(c, 400, 'userName is required', 'invalidValue')
   const body = parsed.output
   const userName = body['userName']
+  const active = normalizeScimActive(body['active'])
+  if (active === null) return scimError(c, 400, 'active must be a boolean', 'invalidValue')
 
   const db = createTenantDb(c.env.DB, tenant)
 
@@ -88,8 +91,8 @@ users.post('/', async (c) => {
     {
       userName,
       externalId: typeof body['externalId'] === 'string' ? body['externalId'] : null,
-      active: body['active'] !== false,
-      scimRaw: body,
+      active,
+      scimRaw: stripScimWriteOnlyAttributes(body),
     },
   )
   if (!created.ok) return created.error
@@ -276,12 +279,14 @@ users.put('/:id', async (c) => {
   const parsed = v.safeParse(scimUserWriteSchema, rawBody.value)
   if (!parsed.success) return scimError(c, 400, 'userName is required', 'invalidValue')
   const body = parsed.output
+  const active = normalizeScimActive(body['active'])
+  if (active === null) return scimError(c, 400, 'active must be a boolean', 'invalidValue')
 
   const updated = await updateDirectoryUser({ c, tenant, directory }, existing, {
     userName: body['userName'],
     externalId: typeof body['externalId'] === 'string' ? body['externalId'] : undefined,
-    active: body['active'] !== false,
-    scimRaw: body,
+    active,
+    scimRaw: stripScimWriteOnlyAttributes(body),
   })
   if (!updated.ok) return updated.error
   const row = updated.value
@@ -340,11 +345,13 @@ users.patch('/:id', async (c) => {
   if (!patchResult.ok) {
     return scimError(c, 400, patchResult.error.detail, patchResult.error.scimType)
   }
+  const active = normalizeScimActive(staged['active'])
+  if (active === null) return scimError(c, 400, 'active must be a boolean', 'invalidValue')
 
   const updated = await updateDirectoryUser({ c, tenant, directory }, existing, {
     userName: typeof staged['userName'] === 'string' ? staged['userName'] : existing.userName,
-    active: staged['active'] !== false,
-    scimRaw: staged,
+    active,
+    scimRaw: stripScimWriteOnlyAttributes(staged),
   })
   if (!updated.ok) return updated.error
   const row = updated.value

@@ -276,6 +276,69 @@ describe('inbound SCIM provisioning into XID users', () => {
     expect(directoryUser).toMatchObject({ active: false, status: 'deactivated' })
   })
 
+  it('PATCH active="False" from Entra deactivates the user and revokes sessions', async () => {
+    const { tenantDb, tenant, env, revokeCalls } = await setup()
+    const app = scimApp(tenant)
+    const created = await scim(app, env, {
+      method: 'POST',
+      path: '/Users',
+      body: scimUser('entra@example.com'),
+    })
+    const { directoryUserId, userId } = await createdUserId(created, tenantDb)
+
+    const res = await scim(app, env, {
+      method: 'PATCH',
+      path: `/Users/${directoryUserId}`,
+      body: {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+        Operations: [{ op: 'Replace', path: 'active', value: 'False' }],
+      },
+    })
+
+    expect(res.status).toBe(200)
+    expect((await tenantDb.users.findOne(eq(schema.users.id, userId!)))?.status).toBe('deactivated')
+    expect(revokeCalls.some((path) => path.includes('revoke-all'))).toBe(true)
+  })
+
+  it('rejects a non-boolean active value with invalidValue', async () => {
+    const { tenant, env } = await setup()
+    const app = scimApp(tenant)
+
+    const res = await scim(app, env, {
+      method: 'POST',
+      path: '/Users',
+      body: { ...scimUser('odd@example.com'), active: 'maybe' },
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ scimType: 'invalidValue' })
+  })
+
+  it('never persists the write-only password attribute', async () => {
+    const { tenantDb, tenant, env } = await setup()
+    const app = scimApp(tenant)
+    const created = await scim(app, env, {
+      method: 'POST',
+      path: '/Users',
+      body: { ...scimUser('okta@example.com'), password: 'Sup3r-secret-from-okta' },
+    })
+    const { directoryUserId } = await createdUserId(created, tenantDb)
+
+    await scim(app, env, {
+      method: 'PATCH',
+      path: `/Users/${directoryUserId}`,
+      body: {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+        Operations: [{ op: 'replace', path: 'password', value: 'Rotated-secret-from-okta' }],
+      },
+    })
+
+    const directoryUser = await tenantDb.directoryUsers.findOne(
+      eq(schema.directoryUsers.id, directoryUserId),
+    )
+    expect(JSON.stringify(directoryUser?.scimRaw)).not.toMatch(/secret-from-okta/)
+  })
+
   it('reactivation restores only a SCIM-deactivated account, never a banned one', async () => {
     const { tenantDb, tenant, env } = await setup()
     const app = scimApp(tenant)
