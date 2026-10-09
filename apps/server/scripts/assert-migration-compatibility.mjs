@@ -378,6 +378,22 @@ function isSafeSamlCertificateUniquenessCutover(statement) {
   )
 }
 
+// Removes only the RFC 7643 write-only `password` key from SCIM payload snapshots; every other
+// attribute and every row stays in place.
+function isSafeScimPasswordScrub(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  return (
+    normalized ===
+    [
+      "UPDATE `directory_users` SET `scim_raw` = json_remove(`scim_raw`, '$.password', '$.Password', '$.PASSWORD')",
+      'WHERE json_valid(`scim_raw`)',
+      "AND (json_type(`scim_raw`, '$.password') IS NOT NULL",
+      "OR json_type(`scim_raw`, '$.Password') IS NOT NULL",
+      "OR json_type(`scim_raw`, '$.PASSWORD') IS NOT NULL)",
+    ].join(' ')
+  )
+}
+
 function isSafeOrganizationHierarchyTrigger(statement) {
   const normalized = statement.replace(/\s+/gu, ' ').trim()
   const insertTrigger = [
@@ -456,7 +472,8 @@ function isApprovedAdditiveStatement(statement) {
     isSafeSeatQuotaObserveCutover(statement) ||
     isSafeInvitationEmailClaimCutover(statement) ||
     isSafeInstanceManagerDeduplication(statement) ||
-    isSafeSamlCertificateUniquenessCutover(statement)
+    isSafeSamlCertificateUniquenessCutover(statement) ||
+    isSafeScimPasswordScrub(statement)
   )
 }
 

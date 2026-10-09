@@ -287,6 +287,21 @@ END;`,
     ).toThrow('migration compatibility requires approved additive DDL only')
   })
 
+  it('accepts only the exact SCIM password scrub', () => {
+    const exact =
+      "UPDATE `directory_users` SET `scim_raw` = json_remove(`scim_raw`, '$.password', '$.Password', '$.PASSWORD') WHERE json_valid(`scim_raw`) AND (json_type(`scim_raw`, '$.password') IS NOT NULL OR json_type(`scim_raw`, '$.Password') IS NOT NULL OR json_type(`scim_raw`, '$.PASSWORD') IS NOT NULL);"
+
+    expect(() => assertMigrationCompatibility(migrationSet('0023_scim.sql', exact))).not.toThrow()
+    expect(() =>
+      assertMigrationCompatibility(
+        migrationSet(
+          '0023_scim.sql',
+          exact.replace("'$.password', '$.Password', '$.PASSWORD'", "'$.userName'"),
+        ),
+      ),
+    ).toThrow('migration compatibility requires approved additive DDL only')
+  })
+
   it('accepts only the exact redundant instance-manager deduplication', () => {
     const exact = `DELETE FROM \`manager_assignments\`
 WHERE \`manager_role\` = 'instance_manager'
