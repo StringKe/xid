@@ -322,7 +322,9 @@ function validScimMessage(value: unknown): value is ScimSyncQueueMessage {
     typeof value['targetId'] === 'string' &&
     typeof value['issuer'] === 'string' &&
     typeof value['runId'] === 'string' &&
-    typeof value['requestedAt'] === 'number'
+    typeof value['requestedAt'] === 'number' &&
+    (value['userId'] === undefined || typeof value['userId'] === 'string') &&
+    (value['cursor'] === undefined || typeof value['cursor'] === 'string')
   )
 }
 
