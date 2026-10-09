@@ -13,6 +13,7 @@ const POST_BINDING = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
 const REDIRECT_BINDING = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect'
 const STATUS_SUCCESS = 'urn:oasis:names:tc:SAML:2.0:status:Success'
 const SUBJECT_CONFIRMATION_BEARER = 'urn:oasis:names:tc:SAML:2.0:cm:bearer'
+const AUTHN_CONTEXT_UNSPECIFIED = 'urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified'
 
 export type IdpMetadataInput = {
   entityId: string
@@ -34,6 +35,8 @@ export type SamlResponseInput = {
   attributes: Record<string, SamlAttributeValue>
   sessionIndex?: string
   inResponseTo?: string
+  authnContextClassRef?: string
+  authnInstant?: number
   now?: number
   ttlMs?: number
 }
@@ -115,8 +118,9 @@ function attributeValues(value: SamlAttributeValue): string {
 }
 
 function authnStatement(input: SamlResponseInput & { sessionIndex: string }): string {
-  const issuedAt = instant(input.now ?? Date.now())
-  return `<saml:AuthnStatement AuthnInstant="${issuedAt}" SessionIndex="${escapeXml(input.sessionIndex)}"><saml:AuthnContext><saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified</saml:AuthnContextClassRef></saml:AuthnContext></saml:AuthnStatement>`
+  const authnInstant = instant(input.authnInstant ?? input.now ?? Date.now())
+  const classRef = input.authnContextClassRef ?? AUTHN_CONTEXT_UNSPECIFIED
+  return `<saml:AuthnStatement AuthnInstant="${authnInstant}" SessionIndex="${escapeXml(input.sessionIndex)}"><saml:AuthnContext><saml:AuthnContextClassRef>${escapeXml(classRef)}</saml:AuthnContextClassRef></saml:AuthnContext></saml:AuthnStatement>`
 }
 
 function attributeStatement(input: SamlResponseInput): string {

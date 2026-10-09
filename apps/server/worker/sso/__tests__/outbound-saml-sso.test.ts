@@ -11,13 +11,28 @@ const {
   signSamlStatusResponseMock,
   verifySamlAuthnRequestMock,
   trackOutboundSamlSessionMock,
+  readStepUpAuthContextMock,
+  clearStepUpCookieMock,
+  hasStrongMfaFactorMock,
   signingKey,
 } = vi.hoisted(() => ({
   signSamlResponseMock: vi.fn(),
   signSamlStatusResponseMock: vi.fn(),
   verifySamlAuthnRequestMock: vi.fn(),
   trackOutboundSamlSessionMock: vi.fn(),
+  readStepUpAuthContextMock: vi.fn(),
+  clearStepUpCookieMock: vi.fn(),
+  hasStrongMfaFactorMock: vi.fn(),
   signingKey: { kind: 'idp-signing-key' },
+}))
+
+vi.mock('../../lib/step-up', () => ({
+  readStepUpAuthContext: (...args: unknown[]) => readStepUpAuthContextMock(...args),
+  clearStepUpCookie: (...args: unknown[]) => clearStepUpCookieMock(...args),
+}))
+
+vi.mock('../../lib/mfa-methods', () => ({
+  hasStrongMfaFactor: (...args: unknown[]) => hasStrongMfaFactorMock(...args),
 }))
 
 vi.mock('@xid-kit/saml', async (importOriginal) => ({
@@ -180,6 +195,7 @@ function authnRequest(overrides: Record<string, unknown> = {}) {
       forceAuthn: false,
       isPassive: false,
       nameIdPolicy: null,
+      requestedAuthnContext: null,
       ...overrides,
     },
   })
@@ -208,6 +224,8 @@ beforeEach(() => {
     )
     return { ok: true, value: { ...built, samlResponse: btoa(built.xml) } }
   })
+  readStepUpAuthContextMock.mockResolvedValue(null)
+  hasStrongMfaFactorMock.mockResolvedValue(true)
   authnRequest()
 })
 
@@ -391,4 +409,167 @@ describe('outbound SAML NameIDPolicy', () => {
     expect(xml).toContain('status:InvalidNameIDPolicy')
     expect(signSamlResponseMock).not.toHaveBeenCalled()
   })
+})
+
+describe('outbound SAML RequestedAuthnContext', () => {
+  const PPT = 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport'
+  const MFA = 'https://refeds.org/profile/mfa'
+
+  function passwordSession(authenticatedAt = new Date(Date.now() - 60_000)): SessionData {
+    return { ...session(authenticatedAt), acr: 'urn:xid:aal1', amr: ['pwd'], aal: 1 }
+  }
+
+  function requestContext(comparison: string, classRefs: string[], declRefs: string[] = []) {
+    authnRequest({ requestedAuthnContext: { comparison, classRefs, declRefs } })
+  }
+
+  function signedInput(): Record<string, unknown> {
+    return signSamlResponseMock.mock.calls[0]?.[0] as Record<string, unknown>
+  }
+
+  function resumePath(res: Response, param: 'continue' | 'redirect_to'): string {
+    return new URL(res.headers.get('location') ?? '').searchParams.get(param) ?? ''
+  }
+
+  it('writes the class the session actually achieved and its authentication instant', async () => {
+    requestContext('exact', [PPT])
+    const current = passwordSession()
+
+    await sso(makeApp(current), makeEnv())
+
+    expect(signedInput()['authnContextClassRef']).toBe(PPT)
+    expect(signedInput()['authnInstant']).toBe(current.authenticatedAt.getTime())
+  })
+
+  it('writes the strongest achieved class when the SP requested none', async () => {
+    await sso(makeApp(passwordSession()), makeEnv())
+
+    expect(signedInput()['authnContextClassRef']).toBe(PPT)
+  })
+
+  it('sends a password session to MFA step-up when the SP requires MFA', async () => {
+    requestContext('minimum', [MFA])
+
+    const res = await sso(makeApp(passwordSession()), makeEnv())
+
+    expect(res.status).toBe(302)
+    const location = new URL(res.headers.get('location') ?? '')
+    expect(location.pathname).toBe('/mfa')
+    expect(location.searchParams.get('step_up')).toBe('1')
+    expect(location.searchParams.get('redirect_to')).toMatch(/^\/sso\/outbound\/saml\/sp_1\/sso\?/)
+    expect(signSamlResponseMock).not.toHaveBeenCalled()
+  })
+
+  it('answers NoPassive when MFA is required and IsPassive is set', async () => {
+    authnRequest({
+      isPassive: true,
+      requestedAuthnContext: { comparison: 'exact', classRefs: [MFA], declRefs: [] },
+    })
+
+    const res = await sso(makeApp(passwordSession()), makeEnv())
+
+    expect(await decodedSamlResponse(res)).toContain('status:NoPassive')
+    expect(signSamlResponseMock).not.toHaveBeenCalled()
+  })
+
+  it('issues the MFA class after the step-up and clears the step-up cookie', async () => {
+    requestContext('exact', [MFA])
+    const env = makeEnv()
+    const current = passwordSession()
+    const first = await sso(makeApp(current), env)
+    readStepUpAuthContextMock.mockResolvedValue({
+      authTime: Math.floor(Date.now() / 1000),
+      acr: 'urn:xid:aal2',
+      amr: ['pwd', 'otp', 'mfa'],
+    })
+
+    const res = await sso(
+      makeApp(current),
+      env,
+      `https://acme.xid.dev${resumePath(first, 'redirect_to')}`,
+    )
+
+    expect(res.status).toBe(200)
+    expect(signedInput()['authnContextClassRef']).toBe(MFA)
+    expect(clearStepUpCookieMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('answers NoAuthnContext instead of redirecting again when the step-up did not happen', async () => {
+    requestContext('exact', [MFA])
+    const env = makeEnv()
+    const current = passwordSession()
+    const first = await sso(makeApp(current), env)
+
+    const res = await sso(
+      makeApp(current),
+      env,
+      `https://acme.xid.dev${resumePath(first, 'redirect_to')}`,
+    )
+
+    const xml = await decodedSamlResponse(res)
+    expect(xml).toContain('status:Requester')
+    expect(xml).toContain('status:NoAuthnContext')
+    expect(signSamlResponseMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the requested context across sign-in and then asks for step-up', async () => {
+    requestContext('exact', [MFA])
+    const env = makeEnv()
+    const first = await sso(makeApp(), env)
+
+    const res = await sso(
+      makeApp(passwordSession(new Date())),
+      env,
+      `https://acme.xid.dev${resumePath(first, 'continue')}`,
+    )
+
+    expect(new URL(res.headers.get('location') ?? '').pathname).toBe('/mfa')
+    expect(signSamlResponseMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      label: 'the user has no strong MFA factor',
+      hasStrongFactor: false,
+      comparison: 'exact',
+      classRefs: [MFA],
+      declRefs: [],
+    },
+    {
+      label: 'the class is unknown to XID',
+      hasStrongFactor: true,
+      comparison: 'exact',
+      classRefs: ['urn:example:ac:classes:Retina'],
+      declRefs: [],
+    },
+    {
+      label: 'nothing is stronger than MFA',
+      hasStrongFactor: true,
+      comparison: 'better',
+      classRefs: [MFA],
+      declRefs: [],
+    },
+    {
+      label: 'the SP asks for a declaration',
+      hasStrongFactor: true,
+      comparison: 'exact',
+      classRefs: [],
+      declRefs: ['urn:example:decl:1'],
+    },
+  ])(
+    'answers Requester NoAuthnContext when $label',
+    async ({ hasStrongFactor, comparison, classRefs, declRefs }) => {
+      hasStrongMfaFactorMock.mockResolvedValue(hasStrongFactor)
+      requestContext(comparison, classRefs, declRefs)
+
+      const res = await sso(makeApp(passwordSession()), makeEnv())
+
+      expect(res.status).toBe(200)
+      const xml = await decodedSamlResponse(res)
+      expect(xml).toContain('status:Requester')
+      expect(xml).toContain('status:NoAuthnContext')
+      expect(xml).toContain('InResponseTo="_authn_1"')
+      expect(signSamlResponseMock).not.toHaveBeenCalled()
+    },
+  )
 })

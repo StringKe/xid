@@ -116,6 +116,8 @@ export async function readVerifiedOutboundSsoRequest(
       forceAuthn: false,
       isPassive: false,
       nameIdFormat: undefined,
+      requestedAuthnContext: null,
+      authnContextAttempted: false,
       requestedAt,
     }
   }
@@ -134,6 +136,8 @@ export async function readVerifiedOutboundSsoRequest(
     forceAuthn: verified.value.forceAuthn,
     isPassive: verified.value.isPassive,
     nameIdFormat: verified.value.nameIdPolicy?.format,
+    requestedAuthnContext: verified.value.requestedAuthnContext,
+    authnContextAttempted: false,
     requestedAt,
   }
 }

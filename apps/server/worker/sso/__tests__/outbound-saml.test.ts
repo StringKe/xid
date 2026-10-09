@@ -396,6 +396,7 @@ describe('outbound SAML SLO', () => {
         forceAuthn: false,
         isPassive: false,
         nameIdPolicy: null,
+        requestedAuthnContext: null,
       },
     })
     encodeRedirectBindingMessageMock.mockResolvedValue('encoded-request')

@@ -56,4 +56,36 @@ describe('buildSamlResponseXml', () => {
     expect(built.xml).toContain('user@example.com')
     expect(built.xml).toContain('InResponseTo="_req_1"')
   })
+
+  const BASE = {
+    issuer: IDP_ENTITY_ID,
+    audience: 'https://sp.example/saml',
+    acsUrl: 'https://sp.example/acs',
+    subjectNameId: 'user@example.com',
+    nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+    attributes: {},
+    now: Date.parse('2026-06-01T08:00:00Z'),
+  }
+
+  it('writes the given AuthnContextClassRef and authentication instant', () => {
+    const built = buildSamlResponseXml({
+      ...BASE,
+      authnContextClassRef: 'https://refeds.org/profile/mfa',
+      authnInstant: Date.parse('2026-06-01T07:55:00Z'),
+    })
+
+    expect(built.xml).toContain(
+      '<saml:AuthnContextClassRef>https://refeds.org/profile/mfa</saml:AuthnContextClassRef>',
+    )
+    expect(built.xml).toContain('AuthnInstant="2026-06-01T07:55:00.000Z"')
+  })
+
+  it('falls back to the unspecified class and the issue instant when none is given', () => {
+    const built = buildSamlResponseXml(BASE)
+
+    expect(built.xml).toContain(
+      '<saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified</saml:AuthnContextClassRef>',
+    )
+    expect(built.xml).toContain('AuthnInstant="2026-06-01T08:00:00.000Z"')
+  })
 })

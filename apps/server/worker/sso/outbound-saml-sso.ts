@@ -1,5 +1,5 @@
-// 出站 SAML IdP 的 /sso:按 AuthnRequest 的 ForceAuthn、IsPassive 和 NameIDPolicy 决定重新认证、
-// 返回错误状态或为已认证用户签发 SAMLResponse,并 POST 到 SP 的 ACS。
+// 出站 SAML IdP 的 /sso:按 AuthnRequest 的 ForceAuthn、IsPassive、NameIDPolicy 和 RequestedAuthnContext
+// 决定重新认证、补 MFA、返回错误状态或为已认证用户签发 SAMLResponse,并 POST 到 SP 的 ACS。
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { signSamlResponse } from '@xid-kit/saml'
@@ -9,6 +9,7 @@ import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import { findOrganizationAccessGrant } from '../lib/organization-access'
 import { logWorkerWarning } from '../lib/safe-log'
+import { clearStepUpCookie } from '../lib/step-up'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import {
   assertUserPassesAssignmentGate,
@@ -29,7 +30,8 @@ import {
   outboundSsoResumePath,
   stashOutboundSsoRequest,
 } from './outbound-sso-continuation'
-import type { OutboundSsoRequest } from './outbound-sso-continuation'
+import type { OutboundSsoInteraction, OutboundSsoRequest } from './outbound-sso-continuation'
+import { resolveOutboundAuthn } from './outbound-saml-authn-session'
 import { trackOutboundSamlSession } from './saml-do'
 
 type UserRow = typeof schema.users.$inferSelect
@@ -136,11 +138,13 @@ function satisfiesAuthentication(
   return !request.forceAuthn || session.authenticatedAt.getTime() >= request.requestedAt
 }
 
+type IssuedAuthn = { classRef: string; authnInstant: number; usedStepUp: boolean }
+
 async function issueAssertion(
   c: Context<XidHonoEnv>,
-  target: SsoTarget & { session: SessionData; nameIdFormat: string },
+  target: SsoTarget & { session: SessionData; nameIdFormat: string; authn: IssuedAuthn },
 ): Promise<Response> {
-  const { appId, sp, request, session, nameIdFormat } = target
+  const { appId, sp, request, session, nameIdFormat, authn } = target
   const user = await readAuthenticatedUser(c, session)
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   await assertUserPassesAssignmentGate(db, {
@@ -177,6 +181,8 @@ async function issueAssertion(
       attributes: userAttributes(sp, user, attributeEmail),
       sessionIndex: session.sessionId,
       inResponseTo: request.inResponseTo,
+      authnContextClassRef: authn.classRef,
+      authnInstant: authn.authnInstant,
     },
     key,
   )
@@ -198,6 +204,7 @@ async function issueAssertion(
     },
     Math.max(0, session.expiresAt.getTime() - Date.now()),
   )
+  if (authn.usedStepUp) clearStepUpCookie(c)
   return c.html(
     postBindingForm({
       destination: sp.acsUrl,
@@ -238,12 +245,53 @@ export async function handleSso(c: Context<XidHonoEnv>): Promise<Response> {
         reason: request.forceAuthn ? 'force_authn_with_is_passive' : 'no_session',
       })
     }
-    const id = await stashOutboundSsoRequest(c, { appId, request })
-    return outboundSsoInteractionRedirect(c, {
+    return redirectForInteraction(c, {
+      target,
       session: session ?? null,
-      returnTo: outboundSsoResumePath(appId, id),
-      reauthenticate: request.forceAuthn,
+      interaction: request.forceAuthn ? 'reauthenticate' : 'sign_in',
     })
   }
-  return issueAssertion(c, { ...target, session, nameIdFormat: format.format })
+  return respondForAuthnContext(c, { ...target, session, nameIdFormat: format.format })
+}
+
+// 先判「永远满足不了」(Requester/NoAuthnContext),再判需要交互(IsPassive 时 NoPassive),最后签发。
+async function respondForAuthnContext(
+  c: Context<XidHonoEnv>,
+  target: SsoTarget & { session: SessionData; nameIdFormat: string },
+): Promise<Response> {
+  const { request, session } = target
+  const authn = await resolveOutboundAuthn(c, { session, request })
+  if (authn.kind === 'satisfied') return issueAssertion(c, { ...target, authn })
+  if (authn.kind === 'unsatisfiable') {
+    return statusResponse(c, target, {
+      topLevel: SAML_STATUS.requester,
+      secondLevel: SAML_STATUS.noAuthnContext,
+      reason: 'authn_context_unsatisfiable',
+    })
+  }
+  if (request.isPassive) {
+    return statusResponse(c, target, {
+      topLevel: SAML_STATUS.responder,
+      secondLevel: SAML_STATUS.noPassive,
+      reason: 'authn_context_requires_interaction',
+    })
+  }
+  return redirectForInteraction(c, {
+    target: { ...target, request: { ...request, authnContextAttempted: true } },
+    session,
+    interaction: authn.kind,
+  })
+}
+
+async function redirectForInteraction(
+  c: Context<XidHonoEnv>,
+  input: { target: SsoTarget; session: SessionData | null; interaction: OutboundSsoInteraction },
+): Promise<Response> {
+  const { appId, request } = input.target
+  const id = await stashOutboundSsoRequest(c, { appId, request })
+  return outboundSsoInteractionRedirect(c, {
+    session: input.session,
+    returnTo: outboundSsoResumePath(appId, id),
+    interaction: input.interaction,
+  })
 }
