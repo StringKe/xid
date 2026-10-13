@@ -76,7 +76,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "astro": "^7.3.6",
+    "astro": "^7.3.8",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
