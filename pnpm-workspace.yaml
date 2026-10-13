@@ -42,7 +42,7 @@ catalog:
   es-toolkit: ^1.52.0
   hono: ^4.13.13
   jsdom: ^30.0.1
-  motion: ^13.5.1
+  motion: ^14.1.0
   pkijs: 3.4.0
   react: ^19.3.0
   react-dom: ^19.3.0
