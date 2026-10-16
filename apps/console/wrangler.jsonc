@@ -1,10 +1,15 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "xid-console",
-  "account_id": "f475b3dcf291c33ae82ab0b595f81958",
+  "account_id": "86e4d320a5d69fb54f9721fb219a4902",
   "main": "worker/index.ts",
   "preview_urls": false,
-  "routes": [],
+  "routes": [
+    { "pattern": "xid.dev/console", "zone_name": "xid.dev" },
+    { "pattern": "xid.dev/console/*", "zone_name": "xid.dev" },
+    { "pattern": "*.xid.dev/console", "zone_name": "xid.dev" },
+    { "pattern": "*.xid.dev/console/*", "zone_name": "xid.dev" },
+  ],
   "compatibility_date": "2026-07-27",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {

@@ -1,12 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "xid",
-  "account_id": "f475b3dcf291c33ae82ab0b595f81958",
+  "account_id": "86e4d320a5d69fb54f9721fb219a4902",
   "main": "worker/index.ts",
   "preview_urls": false,
   "keep_vars": true,
   "routes": [
-    { "pattern": "auth.otscup.com", "custom_domain": true },
+    // Core 保留 apex Custom Domain、tenant fallback，以及 Cloudflare for SaaS custom hostname
+    // 所需的 zone-wide fallback。Site 与 Console 的更具体 routes 优先。
+    // Site 与 Console 的具体 routes 由各自 wrangler.jsonc 唯一声明。
+    { "pattern": "xid.dev", "custom_domain": true },
+    { "pattern": "*.xid.dev/*", "zone_name": "xid.dev" },
+    { "pattern": "*/*", "zone_name": "xid.dev" },
   ],
   "compatibility_date": "2025-04-08",
   "compatibility_flags": ["nodejs_compat"],
@@ -40,14 +45,14 @@
     {
       "binding": "DB",
       "database_name": "xid-db",
-      "database_id": "776b350f-6d9a-476b-b808-4ddbcc67752d",
+      "database_id": "149e5997-e684-41d0-b483-afa6948479c3",
       "migrations_dir": "../../packages/db/drizzle",
     },
   ],
   "kv_namespaces": [
     {
       "binding": "CACHE",
-      "id": "fa82fc300d44485c8536ee9b4cd8c8b3",
+      "id": "a827c644c20344aaa6c7760d76875122",
     },
   ],
   "r2_buckets": [
@@ -57,6 +62,12 @@
     },
   ],
   "send_email": [{ "name": "EMAIL" }],
+  "analytics_engine_datasets": [
+    {
+      "binding": "ANALYTICS",
+      "dataset": "xid_analytics",
+    },
+  ],
   "queues": {
     "producers": [
       { "binding": "EMAIL_QUEUE", "queue": "xid-email" },
@@ -263,6 +274,9 @@
       "new_sqlite_classes": ["SessionHandoffDO"],
     },
   ],
+  "triggers": {
+    "crons": ["0 * * * *", "0 2 * * *"],
+  },
   "vars": {
     "ENVIRONMENT": "production",
   },

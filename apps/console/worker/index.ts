@@ -4,7 +4,7 @@ export type ConsoleEnv = {
   }
 }
 
-const CANONICAL_HOST = 'auth.otscup.com'
+const CANONICAL_HOST = 'xid.dev'
 const LOCAL_DEV_HOSTS = new Set(['127.0.0.1', 'localhost'])
 const CONSOLE_ROOT = '/console'
 const CONSOLE_SHELL = '/console/'
