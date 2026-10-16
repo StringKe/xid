@@ -22,7 +22,7 @@ import { PASSWORD_RESET_TTL_MS } from '../lib/ttl'
 
 // --- 参数常量 ---
 const ARGON2_MEMORY_KB = 65536 // 64 MiB(password-auth rule)
-const ARGON2_ITERATIONS = 3
+const ARGON2_ITERATIONS = 2 // Workers Free CPU 10ms 上限:改密需两次 Argon2(验旧+算新),3 迭代会超限
 const ARGON2_HASH_LEN = 32
 const ARGON2_PARALLELISM = 1
 const MIN_LENGTH = 12

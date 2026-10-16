@@ -72,6 +72,8 @@ type WorkerBindings = {
   PEPPER: string
   // BOOTSTRAP_TOKEN:可选,seed/bootstrap 接口门控(配置则强制 X-Bootstrap-Token 匹配,防公网滥用)
   BOOTSTRAP_TOKEN?: string
+  // RESEND_API_KEY:可选,EMAIL_PROVIDER=resend 时经 Resend API 发事务邮件。
+  RESEND_API_KEY?: string
   // Turnstile 必须成对配置:site key 是公开 runtime var,secret 是 Workers Secret。
   // 两者都未配置时 dev/test 跳过;只配置任一项时认证配置与校验均 fail closed。
   TURNSTILE_SITE_KEY?: string

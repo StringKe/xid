@@ -66,3 +66,4 @@ id_ed25519*
 __pycache__/
 *.pyc
 .phpunit.result.cache
+.xid-secrets
