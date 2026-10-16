@@ -62,6 +62,39 @@ export class CloudflareEmailProvider implements EmailProvider {
   }
 }
 
+// Resend Provider:经 HTTPS API 发信,适用于无 Cloudflare Email Service 配额的自托管部署。
+// API Key 走 Workers Secret RESEND_API_KEY,不进代码与 D1。
+export class ResendEmailProvider implements EmailProvider {
+  readonly name = 'resend'
+  private readonly apiKey: string
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey
+  }
+
+  async send(input: EmailSendInput): Promise<void> {
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `${input.from.name} <${input.from.email}>`,
+        to: [input.to],
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '')
+      throw new Error(`resend_send_failed: ${resp.status} ${body.slice(0, 200)}`)
+    }
+  }
+}
+
 // 事务邮件模板(Mustache 子集)。按 type + locale 选模板。
 // 真实部署模板由 R2 语言包提供(见 07 章 4);此处内置 en/zh-Hans 兜底,保证无外部依赖可渲染。
 type EmailTemplate = {
@@ -563,6 +596,11 @@ export function resolveEmailProvider(env: Env): EmailProvider {
   if (env.EMAIL_PROVIDER === 'test') {
     if (!isDevOrTestEnvironment(env)) throw new Error('email_provider_not_configured')
     return new TestEmailProvider(env)
+  }
+  if (env.EMAIL_PROVIDER === 'resend') {
+    const apiKey = (env as unknown as { RESEND_API_KEY?: string }).RESEND_API_KEY
+    if (!apiKey) throw new Error('email_provider_not_configured')
+    return new ResendEmailProvider(apiKey)
   }
   return new CloudflareEmailProvider(env.EMAIL)
 }
