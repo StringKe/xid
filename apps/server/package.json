@@ -77,6 +77,6 @@
     "wrangler": "catalog:",
     "xml-core": "^1.2.6",
     "xmldsigjs": "catalog:",
-    "xpath": "^0.0.34"
+    "xpath": "^0.0.35"
   }
 }
