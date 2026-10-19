@@ -47,7 +47,7 @@ jobs:
       # orhun/git-cliff-action v4.9.0, running git-cliff v2.13.1
       - name: Generate release notes
         id: git-cliff
-        uses: orhun/git-cliff-action@3d96a18cc4ec17e9dc69ddcc424ccafaf1f78ce2
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff
         with:
           version: v2.13.1
           config: cliff.toml
