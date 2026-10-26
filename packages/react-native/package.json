@@ -52,7 +52,7 @@
     "jsdom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-native": "^0.86.3",
+    "react-native": "^0.88.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
