@@ -36,7 +36,7 @@ catalog:
   '@xmldom/xmldom': ^0.9.12
   asn1js: 3.0.10
   astro: 7.3.6
-  dompurify: ^3.4.16
+  dompurify: ^3.4.17
   drizzle-kit: ^0.31.11
   drizzle-orm: ^0.45.3
   es-toolkit: ^1.52.0
