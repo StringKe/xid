@@ -24,7 +24,7 @@ dependencies:
   flutter_web_auth_2: ">=4.0.0 <6.0.0"
 
   # Secure storage: Keychain (iOS/macOS), Keystore (Android), libsecret (Linux), DPAPI (Windows)
-  flutter_secure_storage: ">=9.2.4 <11.0.0"
+  flutter_secure_storage: ">=9.2.4 <12.0.0"
 
   # PKCE S256: SHA-256 digest
   crypto: ^3.0.3
