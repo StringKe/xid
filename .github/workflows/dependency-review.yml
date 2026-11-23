@@ -27,7 +27,7 @@ jobs:
       # actions/dependency-review-action v5.0.0
       # 补 `pnpm audit --prod --audit-level high` 的两个盲区:新引入依赖的许可证,
       # 以及 dev 依赖树的高危 CVE。仓库是 MIT,copyleft 许可要在 PR 阶段拦下。
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec
         with:
           fail-on-severity: high
           # LGPL is intentionally allowed: `next>sharp` ships @img/sharp-libvips-*
