@@ -53,7 +53,7 @@
   "devDependencies": {
     "@sveltejs/kit": "^2.70.3",
     "@xid-kit/backend": "workspace:^",
-    "svelte": "^5.57.2",
+    "svelte": "^5.59.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
